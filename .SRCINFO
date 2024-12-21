@@ -1,6 +1,6 @@
 pkgbase = claude-desktop-bin
 	pkgdesc = Unofficial Linux build of Claude Desktop AI assistant
-	pkgver = 0.7.5
+	pkgver = 0.7.7
 	pkgrel = 1
 	url = https://github.com/k3d3/claude-desktop-linux-flake
 	arch = x86_64
