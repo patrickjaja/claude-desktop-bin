@@ -1,0 +1,180 @@
+name: Update AUR Package
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # Run daily at 2 AM UTC
+  workflow_dispatch:  # Allow manual trigger
+  push:
+    branches:
+      - master
+    paths:
+      - '.github/workflows/update-aur.yml'
+      - 'scripts/**'
+
+jobs:
+  check-and-update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y p7zip-full wget
+
+      - name: Download Claude Setup
+        id: download
+        run: |
+          wget -q -O Claude-Setup-x64.exe "https://storage.googleapis.com/osprey-downloads-c02f6a0d-347c-492b-a752-3e0651722e97/nest-win-x64/Claude-Setup-x64.exe"
+          SHA256=$(sha256sum Claude-Setup-x64.exe | cut -d' ' -f1)
+          echo "sha256=${SHA256}" >> $GITHUB_OUTPUT
+
+      - name: Extract version
+        id: version
+        run: |
+          VERSION=$(bash ./scripts/extract-version.sh Claude-Setup-x64.exe)
+          echo "Version extracted: ${VERSION}"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Check if version changed
+        id: check
+        run: |
+          # Get the latest tag from GitHub releases
+          LATEST_TAG=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/latest | grep '"tag_name":' | sed -E 's/.*"v?([^"]+)".*/\1/' || echo "0.0.0")
+          echo "Latest GitHub release: ${LATEST_TAG}"
+          echo "Current version: ${{ steps.version.outputs.version }}"
+
+          if [ "$LATEST_TAG" != "${{ steps.version.outputs.version }}" ]; then
+            echo "needs_update=true" >> $GITHUB_OUTPUT
+            echo "Version changed from ${LATEST_TAG} to ${{ steps.version.outputs.version }}"
+          else
+            echo "needs_update=false" >> $GITHUB_OUTPUT
+            echo "Version unchanged"
+          fi
+
+      - name: Generate PKGBUILD
+        if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
+        env:
+          AUR_USERNAME: ${{ secrets.AUR_USERNAME }}
+          AUR_EMAIL: ${{ secrets.AUR_EMAIL }}
+        run: |
+          bash ./scripts/generate-pkgbuild.sh "${{ steps.version.outputs.version }}" "${{ steps.download.outputs.sha256 }}" > PKGBUILD
+
+      - name: Generate .SRCINFO
+        if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
+        run: |
+          # Install makepkg dependencies
+          sudo apt-get install -y libarchive-tools binutils fakeroot
+
+          # Generate .SRCINFO without building
+          cat << 'EOF' > generate-srcinfo.sh
+          #!/bin/bash
+          source PKGBUILD
+
+          echo "pkgbase = ${pkgname}"
+          echo -e "\tpkgdesc = ${pkgdesc}"
+          echo -e "\tpkgver = ${pkgver}"
+          echo -e "\tpkgrel = ${pkgrel}"
+          echo -e "\turl = ${url}"
+          echo -e "\tarch = ${arch[0]}"
+          echo -e "\tlicense = ${license[0]}"
+
+          for dep in "${makedepends[@]}"; do
+            echo -e "\tmakedepends = ${dep}"
+          done
+
+          for dep in "${depends[@]}"; do
+            echo -e "\tdepends = ${dep}"
+          done
+
+          i=0
+          for src in "${source[@]}"; do
+            if [[ $src == *"::"* ]]; then
+              echo -e "\tsource = ${src}"
+            else
+              echo -e "\tsource = ${src}"
+            fi
+          done
+
+          for sum in "${sha256sums[@]}"; do
+            echo -e "\tsha256sums = ${sum}"
+          done
+
+          echo ""
+          echo "pkgname = ${pkgname}"
+          EOF
+
+          bash generate-srcinfo.sh > .SRCINFO
+          rm generate-srcinfo.sh
+
+      - name: Setup SSH for AUR
+        if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.AUR_SSH_KEY }}" > ~/.ssh/aur
+          chmod 600 ~/.ssh/aur
+          ssh-keyscan -t rsa aur.archlinux.org >> ~/.ssh/known_hosts
+
+          # Configure SSH to use the key
+          cat << EOF >> ~/.ssh/config
+          Host aur.archlinux.org
+            User aur
+            IdentityFile ~/.ssh/aur
+            StrictHostKeyChecking no
+          EOF
+
+      - name: Push to AUR
+        if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
+        run: |
+          # Configure git
+          git config --global user.name "${{ secrets.AUR_USERNAME }}"
+          git config --global user.email "${{ secrets.AUR_EMAIL }}"
+
+          # Clone AUR repository
+          git clone ssh://aur@aur.archlinux.org/claude-desktop-bin.git aur-repo
+
+          # Copy updated files
+          cp PKGBUILD .SRCINFO aur-repo/
+
+          # Commit and push
+          cd aur-repo
+          git add PKGBUILD .SRCINFO
+          git diff --staged --quiet || {
+            git commit -m "Update to version ${{ steps.version.outputs.version }}"
+            git push origin master
+            echo "Successfully pushed to AUR"
+          }
+
+      - name: Create GitHub Release
+        if: steps.check.outputs.needs_update == 'true'
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          release_name: Claude Desktop ${{ steps.version.outputs.version }}
+          body: |
+            ## Claude Desktop ${{ steps.version.outputs.version }}
+
+            This release updates the AUR package to Claude Desktop version ${{ steps.version.outputs.version }}.
+
+            ### Installation
+            ```bash
+            yay -S claude-desktop-bin
+            ```
+
+            ### Changes
+            - Updated to Claude Desktop ${{ steps.version.outputs.version }}
+            - SHA256: ${{ steps.download.outputs.sha256 }}
+
+            ### AUR Package
+            https://aur.archlinux.org/packages/claude-desktop-bin
+          draft: false
+          prerelease: false
+
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -f Claude-Setup-x64.exe
+          rm -rf ~/.ssh/aur

@@ -1,0 +1,24 @@
+# Build artifacts
+*.pkg.tar.zst
+*.pkg.tar.xz
+pkg/
+src/
+
+# Downloaded files
+Claude-Setup-x64.exe
+claude-desktop-linux-flake/
+
+# Temp files
+*.log
+*.tmp
+.SRCINFO
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*~
+
+# System files
+.DS_Store
+Thumbs.db
