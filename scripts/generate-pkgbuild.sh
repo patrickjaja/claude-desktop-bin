@@ -2,8 +2,8 @@
 set -e
 
 VERSION="$1"
-MAINTAINER_NAME="${AUR_USERNAME:-Your Name}"
-MAINTAINER_EMAIL="${AUR_EMAIL:-your@email.com}"
+MAINTAINER_NAME="${AUR_USERNAME:-Patrick Jaja}"
+MAINTAINER_EMAIL="${AUR_EMAIL:-patrickjajaa@gmail.com}"
 SHA256SUM="$2"
 
 if [ -z "$VERSION" ]; then
@@ -17,113 +17,198 @@ fi
 
 cat << EOF
 # Maintainer: ${MAINTAINER_NAME} <${MAINTAINER_EMAIL}>
+# Contributor: Claude Desktop Linux Community
+
 pkgname=claude-desktop-bin
 pkgver=${VERSION}
 pkgrel=1
-pkgdesc="Unofficial Linux build of Claude Desktop AI assistant"
+pkgdesc="Claude AI Desktop Application (Official Binary - Linux Compatible)"
 arch=('x86_64')
-url="https://github.com/patrickjaja/claude-desktop-bin"
-license=('custom')
-depends=(
-    'electron'
-    'nodejs'
-)
-makedepends=(
-    'p7zip'
-    'imagemagick'
-    'icoutils'
-    'rust'
-    'cargo'
-    'asar'
-)
-source=(
-    "Claude-Setup-x64.exe::https://storage.googleapis.com/osprey-downloads-c02f6a0d-347c-492b-a752-3e0651722e97/nest-win-x64/Claude-Setup-x64.exe"
-    "git+https://github.com/k3d3/claude-desktop-linux-flake.git"
-)
-sha256sums=('${SHA256SUM}' 'SKIP')
+url="https://claude.ai"
+license=('custom:Claude')
+depends=('electron' 'nodejs')
+makedepends=('p7zip' 'wget' 'asar' 'python')
+provides=('claude-desktop')
+conflicts=('claude-desktop')
+source_x86_64=("Claude-Setup-x64.exe::https://storage.googleapis.com/osprey-downloads-c02f6a0d-347c-492b-a752-3e0651722e97/nest-win-x64/Claude-Setup-x64.exe")
+sha256sums_x86_64=('${SHA256SUM}')
+options=('!strip')
 
 prepare() {
-    cd "\${srcdir}"
-    # Build patchy-cnb
-    cd claude-desktop-linux-flake/patchy-cnb
-    cargo build --release
+    cd "\$srcdir"
+
+    # Extract the Windows installer
+    7z x -y "Claude-Setup-x64.exe" -o"extract" >/dev/null 2>&1
+
+    # Extract the nupkg
+    cd extract
+    local nupkg=\$(find . -maxdepth 1 -name "AnthropicClaude-*.nupkg" | head -1)
+    7z x -y "\$nupkg" >/dev/null 2>&1
 }
 
-package() {
-    cd "\${srcdir}"
+build() {
+    cd "\$srcdir/extract"
 
-    # Create working directory
-    mkdir -p build
-    cd build
+    # Prepare app directory
+    mkdir -p "\$srcdir/app"
+    cp "lib/net45/resources/app.asar" "\$srcdir/app/"
+    cp -r "lib/net45/resources/app.asar.unpacked" "\$srcdir/app/" 2>/dev/null || true
 
-    # Extract the Windows installer (force overwrite)
-    7z x -y ../Claude-Setup-x64.exe
-
-    # Find and extract the nupkg file dynamically
-    NUPKG_FILE=\$(ls AnthropicClaude*-full.nupkg)
-    7z x -y "\$NUPKG_FILE"
-
-    # Extract and convert icons
-    wrestool -x -t 14 lib/net45/claude.exe -o claude.ico
-    icotool -x claude.ico
-
-    # Install icons
-    for f in claude_*.png; do
-        if [ -f "\$f" ]; then
-            size=\$(identify -format "%wx%h" "\$f" | cut -d'x' -f1)
-            install -Dm644 "\$f" "\${pkgdir}/usr/share/icons/hicolor/\${size}x\${size}/apps/claude-desktop.png"
-        fi
-    done
-
-    # Process app.asar
-    mkdir -p electron-app
-    cp "lib/net45/resources/app.asar" electron-app/
-    cp -r "lib/net45/resources/app.asar.unpacked" electron-app/
-    cd electron-app
+    # Extract and patch app.asar
+    cd "\$srcdir/app"
     asar extract app.asar app.asar.contents
 
-    # Replace native bindings with our Linux version
-    local _target_triple="x86_64-unknown-linux-gnu"
-    install -Dm755 "\${srcdir}/claude-desktop-linux-flake/patchy-cnb/target/release/libpatchy_cnb.so" \\
-        "app.asar.contents/node_modules/claude-native/claude-native-binding.node"
-    cp "app.asar.contents/node_modules/claude-native/claude-native-binding.node" \\
-        "app.asar.unpacked/node_modules/claude-native/claude-native-binding.node"
+    # Create Linux-compatible native module
+    mkdir -p app.asar.contents/node_modules/claude-native
+    cat > app.asar.contents/node_modules/claude-native/index.js << 'NATIVE_EOF'
+const { app, Tray, Menu, nativeImage, Notification } = require('electron');
+const path = require('path');
 
-    # Copy Tray icons and language files
-    mkdir -p app.asar.contents/resources
-    cp ../lib/net45/resources/Tray* app.asar.contents/resources/
-    cp ../lib/net45/resources/*.json app.asar.contents/resources/
+const KeyboardKey = {
+    Backspace: 43, Tab: 280, Enter: 261, Shift: 272, Control: 61,
+    Alt: 40, CapsLock: 56, Escape: 85, Space: 276, PageUp: 251,
+    PageDown: 250, End: 83, Home: 154, LeftArrow: 175, UpArrow: 282,
+    RightArrow: 262, DownArrow: 81, Delete: 79, Meta: 187
+};
+Object.freeze(KeyboardKey);
 
-    # Patch process.resourcesPath to point to our app directory
-    sed -i 's|process\\.resourcesPath|"/usr/lib/claude-desktop/resources"|g' app.asar.contents/.vite/build/index.js
+let tray = null;
+
+function createTray() {
+    if (tray) return tray;
+    try {
+        const iconPath = path.join(process.resourcesPath || __dirname, 'tray-icon.png');
+        if (require('fs').existsSync(iconPath)) {
+            tray = new Tray(nativeImage.createFromPath(iconPath));
+            tray.setToolTip('Claude Desktop');
+            const menu = Menu.buildFromTemplate([
+                { label: 'Show', click: () => app.focus() },
+                { type: 'separator' },
+                { label: 'Quit', click: () => app.quit() }
+            ]);
+            tray.setContextMenu(menu);
+        }
+    } catch (e) {
+        console.warn('Tray creation failed:', e);
+    }
+    return tray;
+}
+
+module.exports = {
+    getWindowsVersion: () => "10.0.0",
+    setWindowEffect: () => {},
+    removeWindowEffect: () => {},
+    getIsMaximized: () => false,
+    flashFrame: () => {},
+    clearFlashFrame: () => {},
+    showNotification: (title, body) => {
+        if (Notification.isSupported()) {
+            new Notification({ title, body }).show();
+        }
+    },
+    setProgressBar: () => {},
+    clearProgressBar: () => {},
+    setOverlayIcon: () => {},
+    clearOverlayIcon: () => {},
+    createTray,
+    getTray: () => tray,
+    KeyboardKey
+};
+NATIVE_EOF
+
+    # Fix title bar detection issue
+    local js_file=\$(find app.asar.contents -name "MainWindowPage-*.js" 2>/dev/null | head -1)
+    if [ -n "\$js_file" ]; then
+        sed -i -E 's/if\\\\(!([a-zA-Z]+)[[:space:]]*&&[[:space:]]*([a-zA-Z]+)\\\\)/if(\\\\1 \\\\&\\\\& \\\\2)/g' "\$js_file"
+    fi
+
+    # Fix locale file loading using Python for more precise string replacement
+    echo "Patching locale file paths..."
+
+    python3 << 'PYTHON_EOF'
+import os
+import re
+
+# Find the main index.js file
+for root, dirs, files in os.walk("app.asar.contents"):
+    for file in files:
+        if file == "index.js" and ".vite/build" in root:
+            filepath = os.path.join(root, file)
+            print(f"Found index.js at: {filepath}")
+
+            # Read the file
+            with open(filepath, 'rb') as f:
+                content = f.read()
+
+            # Replace process.resourcesPath with our locale path
+            # This handles the actual runtime value
+            original_content = content
+            content = content.replace(
+                b'process.resourcesPath',
+                b'"/usr/lib/claude-desktop-bin/locales"'
+            )
+
+            # Also try to replace any hardcoded electron paths
+            content = re.sub(
+                rb'/usr/lib/electron\\\\d+/resources',
+                b'/usr/lib/claude-desktop-bin/locales',
+                content
+            )
+
+            # Write back if changed
+            if content != original_content:
+                with open(filepath, 'wb') as f:
+                    f.write(content)
+                print("Locale path patch applied successfully")
+            else:
+                print("Warning: No changes made to locale paths")
+
+            break
+PYTHON_EOF
 
     # Repack app.asar
     asar pack app.asar.contents app.asar
+    rm -rf app.asar.contents
 
+    # Copy locales
+    mkdir -p "\$srcdir/app/locales"
+    cp "\$srcdir/extract/lib/net45/resources/"*.json "\$srcdir/app/locales/" 2>/dev/null || true
+}
+
+package() {
     # Install application files
-    install -dm755 "\${pkgdir}/usr/lib/claude-desktop"
-    cp app.asar "\${pkgdir}/usr/lib/claude-desktop/"
-    cp -r app.asar.unpacked "\${pkgdir}/usr/lib/claude-desktop/"
+    install -dm755 "\$pkgdir/usr/lib/\$pkgname"
+    cp -r "\$srcdir/app"/* "\$pkgdir/usr/lib/\$pkgname/"
 
-    # Install language files to the patched location
-    install -dm755 "\${pkgdir}/usr/lib/claude-desktop/resources"
-    cp ../lib/net45/resources/*.json "\${pkgdir}/usr/lib/claude-desktop/resources/"
+    # Install launcher script
+    install -dm755 "\$pkgdir/usr/bin"
+    cat > "\$pkgdir/usr/bin/claude-desktop" << 'LAUNCHER_EOF'
+#!/bin/bash
+exec electron /usr/lib/claude-desktop-bin/app.asar "\$@"
+LAUNCHER_EOF
+    chmod +x "\$pkgdir/usr/bin/claude-desktop"
 
-    # Create desktop entry
-    install -Dm644 /dev/stdin "\${pkgdir}/usr/share/applications/claude-desktop.desktop" << DESKTOP_EOF
+    # Install desktop entry
+    install -dm755 "\$pkgdir/usr/share/applications"
+    cat > "\$pkgdir/usr/share/applications/claude-desktop.desktop" << 'DESKTOP_EOF'
 [Desktop Entry]
 Name=Claude
+Comment=Claude AI Desktop Application
 Exec=claude-desktop %u
 Icon=claude-desktop
 Type=Application
-Categories=Office;Utility;
-Comment=Claude Desktop AI assistant
+Terminal=false
+Categories=Office;Utility;Chat;
+MimeType=x-scheme-handler/claude;
+StartupWMClass=Claude
 DESKTOP_EOF
 
-    # Create launcher script
-    install -Dm755 /dev/stdin "\${pkgdir}/usr/bin/claude-desktop" << LAUNCHER_EOF
-#!/bin/sh
-exec electron /usr/lib/claude-desktop/app.asar "\\\$@"
-LAUNCHER_EOF
+    # Extract and install icon
+    if [ -f "\$srcdir/extract/lib/net45/resources/TrayIconTemplate.png" ]; then
+        install -Dm644 "\$srcdir/extract/lib/net45/resources/TrayIconTemplate.png" \\
+            "\$pkgdir/usr/share/icons/hicolor/256x256/apps/claude-desktop.png"
+    fi
 }
+
+# vim: set ts=4 sw=4 et:
 EOF
