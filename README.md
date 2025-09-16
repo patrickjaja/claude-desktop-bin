@@ -35,7 +35,26 @@ This repository automatically:
 ## Repository Structure
 - `.github/workflows/` - GitHub Actions for automation
 - `scripts/` - Helper scripts for version detection and PKGBUILD generation
-- `PKGBUILD` - Template for the AUR package (dynamically generated)
+- `PKGBUILD` - Dynamically generated (not stored in repo)
+
+## Development
+
+### Git Remotes
+This repository uses two git remotes:
+```bash
+# GitHub remote (main repository)
+git remote add github git@github.com:patrickjaja/claude-desktop-bin.git
+
+# AUR remote (for package updates)
+git remote add aur https://aur.archlinux.org/claude-desktop-bin.git
+```
+
+To push changes to GitHub:
+```bash
+git push github master
+```
+
+The AUR package is automatically updated via GitHub Actions workflow.
 
 ## Notes
 - This is an unofficial package, not supported by Anthropic
