@@ -60,7 +60,7 @@ build() {
 
     # Create Linux-compatible native module
     mkdir -p app.asar.contents/node_modules/claude-native
-    cat > app.asar.contents/node_modules/claude-native/index.js << 'NATIVE_EOF'
+    cat > app.asar.contents/node_modules/claude-native/index.js << 'EOF'
 const { app, Tray, Menu, nativeImage, Notification } = require('electron');
 const path = require('path');
 
@@ -114,18 +114,18 @@ module.exports = {
     getTray: () => tray,
     KeyboardKey
 };
-NATIVE_EOF
+EOF
 
     # Fix title bar detection issue
     local js_file=\$(find app.asar.contents -name "MainWindowPage-*.js" 2>/dev/null | head -1)
     if [ -n "\$js_file" ]; then
-        sed -i -E 's/if\\\\(!([a-zA-Z]+)[[:space:]]*&&[[:space:]]*([a-zA-Z]+)\\\\)/if(\\\\1 \\\\&\\\\& \\\\2)/g' "\$js_file"
+        sed -i -E 's/if\\(!([a-zA-Z]+)[[:space:]]*&&[[:space:]]*([a-zA-Z]+)\\)/if(\\1 \\&\\& \\2)/g' "\$js_file"
     fi
 
     # Fix locale file loading using Python for more precise string replacement
     echo "Patching locale file paths..."
 
-    python3 << 'PYTHON_EOF'
+    python3 << 'EOF'
 import os
 import re
 
@@ -150,7 +150,7 @@ for root, dirs, files in os.walk("app.asar.contents"):
 
             # Also try to replace any hardcoded electron paths
             content = re.sub(
-                rb'/usr/lib/electron\\\\d+/resources',
+                rb'/usr/lib/electron\\d+/resources',
                 b'/usr/lib/claude-desktop-bin/locales',
                 content
             )
@@ -164,7 +164,7 @@ for root, dirs, files in os.walk("app.asar.contents"):
                 print("Warning: No changes made to locale paths")
 
             break
-PYTHON_EOF
+EOF
 
     # Repack app.asar
     asar pack app.asar.contents app.asar
@@ -182,15 +182,15 @@ package() {
 
     # Install launcher script
     install -dm755 "\$pkgdir/usr/bin"
-    cat > "\$pkgdir/usr/bin/claude-desktop" << 'LAUNCHER_EOF'
+    cat > "\$pkgdir/usr/bin/claude-desktop" << 'EOF'
 #!/bin/bash
 exec electron /usr/lib/claude-desktop-bin/app.asar "\$@"
-LAUNCHER_EOF
+EOF
     chmod +x "\$pkgdir/usr/bin/claude-desktop"
 
     # Install desktop entry
     install -dm755 "\$pkgdir/usr/share/applications"
-    cat > "\$pkgdir/usr/share/applications/claude-desktop.desktop" << 'DESKTOP_EOF'
+    cat > "\$pkgdir/usr/share/applications/claude-desktop.desktop" << 'EOF'
 [Desktop Entry]
 Name=Claude
 Comment=Claude AI Desktop Application
@@ -201,7 +201,7 @@ Terminal=false
 Categories=Office;Utility;Chat;
 MimeType=x-scheme-handler/claude;
 StartupWMClass=Claude
-DESKTOP_EOF
+EOF
 
     # Extract and install icon
     if [ -f "\$srcdir/extract/lib/net45/resources/TrayIconTemplate.png" ]; then
