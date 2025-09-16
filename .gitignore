@@ -22,3 +22,7 @@ claude-desktop-linux-flake/
 # System files
 .DS_Store
 Thumbs.db
+
+# Generated files
+PKGBUILD
+*.pkg.tar.zst
