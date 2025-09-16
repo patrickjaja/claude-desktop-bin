@@ -10,6 +10,7 @@ on:
     paths:
       - '.github/workflows/update-aur.yml'
       - 'scripts/**'
+      - 'PKGBUILD.template'
 
 jobs:
   check-and-update:
