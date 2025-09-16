@@ -1,21 +1,15 @@
 pkgbase = claude-desktop-bin
-	pkgdesc = Unofficial Linux build of Claude Desktop AI assistant
+	pkgdesc = Claude AI Desktop Application (Official Binary - Linux Compatible)
 	pkgver = 0.13.11
 	pkgrel = 1
-	url = https://github.com/patrickjaja/claude-desktop-bin
+	url = https://claude.ai
 	arch = x86_64
-	license = custom
+	license = custom:Claude
 	makedepends = p7zip
-	makedepends = imagemagick
-	makedepends = icoutils
-	makedepends = rust
-	makedepends = cargo
+	makedepends = wget
 	makedepends = asar
+	makedepends = python
 	depends = electron
 	depends = nodejs
-	source = Claude-Setup-x64.exe::https://storage.googleapis.com/osprey-downloads-c02f6a0d-347c-492b-a752-3e0651722e97/nest-win-x64/Claude-Setup-x64.exe
-	source = git+https://github.com/k3d3/claude-desktop-linux-flake.git
-	sha256sums = 477ee0bcd7af02f1f1ffb15f5a4ad1209d7d4c755b5745550fc8bb24c5248ae3
-	sha256sums = SKIP
 
 pkgname = claude-desktop-bin
