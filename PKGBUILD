@@ -1,9 +1,9 @@
-# Maintainer: {{MAINTAINER_NAME}} <{{MAINTAINER_EMAIL}}>
+# Maintainer: Patrick Jaja <patrickjajaa@gmail.com>
 # Contributor: Claude Desktop Linux Community
 
 pkgname=claude-desktop-bin
-pkgver={{VERSION}}
-pkgrel=1
+pkgver=0.7.7
+pkgrel=2
 pkgdesc="Claude AI Desktop Application (Official Binary - Linux Compatible)"
 arch=('x86_64')
 url="https://claude.ai"
@@ -12,15 +12,14 @@ depends=('electron' 'nodejs')
 makedepends=('p7zip' 'wget' 'asar' 'python')
 provides=('claude-desktop')
 conflicts=('claude-desktop')
-source_x86_64=("Claude-Setup-x64-${pkgver}.exe::https://storage.googleapis.com/osprey-downloads-c02f6a0d-347c-492b-a752-3e0651722e97/nest-win-x64/Claude-Setup-x64.exe")
-sha256sums_x86_64=('{{SHA256SUM}}')
+source_x86_64=("Claude-Setup-x64.exe::https://storage.googleapis.com/osprey-downloads-c02f6a0d-347c-492b-a752-3e0651722e97/nest-win-x64/Claude-Setup-x64.exe")
+sha256sums_x86_64=('SKIP')
 options=('!strip')
-
 prepare() {
     cd "$srcdir"
 
     # Extract the Windows installer
-    7z x -y "Claude-Setup-x64-${pkgver}.exe" -o"extract" >/dev/null 2>&1
+    7z x -y "Claude-Setup-x64.exe" -o"extract" >/dev/null 2>&1
 
     # Extract the nupkg
     cd extract
@@ -156,7 +155,6 @@ EOF
     mkdir -p "$srcdir/app/locales"
     cp "$srcdir/extract/lib/net45/resources/"*.json "$srcdir/app/locales/" 2>/dev/null || true
 }
-
 package() {
     # Install application files
     install -dm755 "$pkgdir/usr/lib/$pkgname"
