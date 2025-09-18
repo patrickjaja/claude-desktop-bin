@@ -12,7 +12,7 @@ depends=('electron' 'nodejs')
 makedepends=('p7zip' 'wget' 'asar' 'python')
 provides=('claude-desktop')
 conflicts=('claude-desktop')
-source_x86_64=("Claude-Setup-x64.exe::https://storage.googleapis.com/osprey-downloads-c02f6a0d-347c-492b-a752-3e0651722e97/nest-win-x64/Claude-Setup-x64.exe")
+source_x86_64=("Claude-Setup-x64-${pkgver}.exe::https://storage.googleapis.com/osprey-downloads-c02f6a0d-347c-492b-a752-3e0651722e97/nest-win-x64/Claude-Setup-x64.exe")
 sha256sums_x86_64=('0f00a04d20692b6f2c4420540416ad3ec681650fb2c8bac96c0ae24a47f57fc1')
 options=('!strip')
 
@@ -20,7 +20,7 @@ prepare() {
     cd "$srcdir"
 
     # Extract the Windows installer
-    7z x -y "Claude-Setup-x64.exe" -o"extract" >/dev/null 2>&1
+    7z x -y "Claude-Setup-x64-${pkgver}.exe" -o"extract" >/dev/null 2>&1
 
     # Extract the nupkg
     cd extract
