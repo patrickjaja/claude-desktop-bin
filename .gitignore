@@ -26,3 +26,4 @@ Thumbs.db
 # Generated files
 *.pkg.tar.zst
 .SRCINFO
+PKGBUILD
