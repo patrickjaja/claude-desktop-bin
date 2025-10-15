@@ -40,6 +40,18 @@ build() {
     cd "$srcdir/app"
     asar extract app.asar app.asar.contents
 
+    # Copy i18n files into app.asar contents before repacking
+    echo "Looking for i18n files..."
+    mkdir -p app.asar.contents/resources/i18n
+    if ls "$srcdir/extract/lib/net45/resources/"*.json 1> /dev/null 2>&1; then
+        echo "Found JSON files, copying to app.asar.contents/resources/i18n/"
+        cp "$srcdir/extract/lib/net45/resources/"*.json app.asar.contents/resources/i18n/
+        # List what we copied for debugging
+        ls -la app.asar.contents/resources/i18n/
+    else
+        echo "Warning: No JSON files found in lib/net45/resources/"
+    fi
+
     # Create Linux-compatible native module
     mkdir -p app.asar.contents/node_modules/claude-native
     cat > app.asar.contents/node_modules/claude-native/index.js << 'EOF'
