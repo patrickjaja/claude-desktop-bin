@@ -2,7 +2,7 @@
 # Contributor: Claude Desktop Linux Community
 
 pkgname=claude-desktop-bin
-pkgver=0.13.64
+pkgver=0.13.108
 pkgrel=1
 pkgdesc="Claude AI Desktop Application (Official Binary - Linux Compatible)"
 arch=('x86_64')
@@ -13,7 +13,7 @@ makedepends=('p7zip' 'wget' 'asar' 'python')
 provides=('claude-desktop')
 conflicts=('claude-desktop')
 source_x86_64=("Claude-Setup-x64-${pkgver}.exe::https://storage.googleapis.com/osprey-downloads-c02f6a0d-347c-492b-a752-3e0651722e97/nest-win-x64/Claude-Setup-x64.exe")
-sha256sums_x86_64=('20d4cc3843a7abddec6784abf041a36bc77356bb5ba7ddfe510e5ddf1bc755a0')
+sha256sums_x86_64=('bbbcf0dcdbff89877c93b0fafd24246edb10db657cc5dabadfe4781ccb5aa731')
 options=('!strip')
 
 prepare() {
