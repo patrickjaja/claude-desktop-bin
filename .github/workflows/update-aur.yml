@@ -29,14 +29,15 @@ jobs:
       - name: Get latest download URL
         id: get_url
         run: |
-          # Follow redirect and capture final URL
-          DOWNLOAD_URL=$(curl -L -s -o /dev/null -w '%{url_effective}' \
+          # Get the Location header from the redirect using verbose mode
+          DOWNLOAD_URL=$(curl -s -D - -o /dev/null \
             -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36" \
-            "https://claude.ai/api/desktop/win32/x64/exe/latest/redirect")
+            "https://claude.ai/api/desktop/win32/x64/exe/latest/redirect" \
+            | grep -i '^location:' | sed 's/^location: //i' | tr -d '\r')
 
           # Validate URL was captured
           if [ -z "$DOWNLOAD_URL" ]; then
-            echo "Error: Failed to get download URL"
+            echo "Error: Failed to get download URL from redirect"
             exit 1
           fi
 
