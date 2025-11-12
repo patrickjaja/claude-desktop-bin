@@ -29,18 +29,19 @@ jobs:
       - name: Download Claude Setup and capture URL
         id: download
         run: |
-          # Use wget to download and capture the redirect URL from its output
-          # wget follows redirects and we can parse its verbose output
-          wget --spider --server-response \
+          # Download the file and capture headers in verbose mode
+          # wget follows redirects by default and logs the final URL
+          wget --server-response -O Claude-Setup-x64.exe \
             -U "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
             "https://claude.ai/api/desktop/win32/x64/exe/latest/redirect" \
             2>&1 | tee wget_output.txt
 
-          # Extract the Location header from wget output
+          # Extract the Location header from the redirect response
           DOWNLOAD_URL=$(grep -i '^ *Location:' wget_output.txt | tail -1 | sed -E 's/^[[:space:]]*[Ll]ocation:[[:space:]]*//' | tr -d '\r\n')
 
           if [ -z "$DOWNLOAD_URL" ]; then
             echo "Error: Failed to extract download URL from redirect"
+            echo "wget output:"
             cat wget_output.txt
             exit 1
           fi
@@ -48,11 +49,7 @@ jobs:
           echo "Resolved download URL: ${DOWNLOAD_URL}"
           echo "url=${DOWNLOAD_URL}" >> $GITHUB_OUTPUT
 
-          # Now download the actual file
-          wget -q -O Claude-Setup-x64.exe \
-            -U "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
-            "${DOWNLOAD_URL}"
-
+          # Calculate SHA256 of the downloaded file
           SHA256=$(sha256sum Claude-Setup-x64.exe | cut -d' ' -f1)
           echo "sha256=${SHA256}" >> $GITHUB_OUTPUT
 
