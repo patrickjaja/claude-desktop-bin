@@ -12,7 +12,7 @@ depends=('electron' 'nodejs')
 makedepends=('p7zip' 'wget' 'asar' 'python')
 provides=('claude-desktop')
 conflicts=('claude-desktop')
-source_x86_64=("Claude-Setup-x64-${pkgver}.exe::https://storage.googleapis.com/osprey-downloads-c02f6a0d-347c-492b-a752-3e0651722e97/nest-win-x64/Claude-Setup-x64.exe")
+source_x86_64=("Claude-Setup-x64-${pkgver}.exe::{{DOWNLOAD_URL}}")
 sha256sums_x86_64=('{{SHA256SUM}}')
 options=('!strip')
 

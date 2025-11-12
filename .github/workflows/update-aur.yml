@@ -26,10 +26,22 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y p7zip-full wget
 
+      - name: Get latest download URL
+        id: get_url
+        run: |
+          # Get redirect URL with proper User-Agent
+          DOWNLOAD_URL=$(curl -X GET -sI -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
+            "https://claude.ai/api/desktop/win32/x64/exe/latest/redirect" \
+            | grep -i "^location:" | cut -d' ' -f2 | tr -d '\r')
+          echo "url=${DOWNLOAD_URL}" >> $GITHUB_OUTPUT
+          echo "Download URL: ${DOWNLOAD_URL}"
+
       - name: Download Claude Setup
         id: download
         run: |
-          wget -q -O Claude-Setup-x64.exe "https://storage.googleapis.com/osprey-downloads-c02f6a0d-347c-492b-a752-3e0651722e97/nest-win-x64/Claude-Setup-x64.exe"
+          wget -q -O Claude-Setup-x64.exe \
+            -U "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
+            "${{ steps.get_url.outputs.url }}"
           SHA256=$(sha256sum Claude-Setup-x64.exe | cut -d' ' -f1)
           echo "sha256=${SHA256}" >> $GITHUB_OUTPUT
 
@@ -62,7 +74,7 @@ jobs:
           AUR_USERNAME: ${{ secrets.AUR_USERNAME }}
           AUR_EMAIL: ${{ secrets.AUR_EMAIL }}
         run: |
-          bash ./scripts/generate-pkgbuild.sh "${{ steps.version.outputs.version }}" "${{ steps.download.outputs.sha256 }}" > PKGBUILD
+          bash ./scripts/generate-pkgbuild.sh "${{ steps.version.outputs.version }}" "${{ steps.download.outputs.sha256 }}" "${{ steps.get_url.outputs.url }}" > PKGBUILD
 
       - name: Generate .SRCINFO
         if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
