@@ -29,10 +29,17 @@ jobs:
       - name: Get latest download URL
         id: get_url
         run: |
-          # Get redirect URL with proper User-Agent
-          DOWNLOAD_URL=$(curl -X GET -sI -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
-            "https://claude.ai/api/desktop/win32/x64/exe/latest/redirect" \
-            | grep -i "^location:" | cut -d' ' -f2 | tr -d '\r')
+          # Follow redirect and capture final URL
+          DOWNLOAD_URL=$(curl -L -s -o /dev/null -w '%{url_effective}' \
+            -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36" \
+            "https://claude.ai/api/desktop/win32/x64/exe/latest/redirect")
+
+          # Validate URL was captured
+          if [ -z "$DOWNLOAD_URL" ]; then
+            echo "Error: Failed to get download URL"
+            exit 1
+          fi
+
           echo "url=${DOWNLOAD_URL}" >> $GITHUB_OUTPUT
           echo "Download URL: ${DOWNLOAD_URL}"
 
