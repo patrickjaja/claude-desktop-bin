@@ -29,15 +29,21 @@ jobs:
       - name: Get latest download URL
         id: get_url
         run: |
-          # Get the Location header from the redirect using verbose mode
-          DOWNLOAD_URL=$(curl -s -D - -o /dev/null \
+          # Get the Location header from the redirect
+          echo "Fetching redirect..."
+          RESPONSE=$(curl -s -D - -o /dev/null \
             -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36" \
-            "https://claude.ai/api/desktop/win32/x64/exe/latest/redirect" \
-            | grep -i '^location:' | sed 's/^location: //i' | tr -d '\r')
+            "https://claude.ai/api/desktop/win32/x64/exe/latest/redirect")
+
+          echo "Response headers:"
+          echo "$RESPONSE"
+
+          DOWNLOAD_URL=$(echo "$RESPONSE" | grep -i '^location:' | head -1 | sed -E 's/^[Ll]ocation:[[:space:]]*//' | tr -d '\r\n')
 
           # Validate URL was captured
           if [ -z "$DOWNLOAD_URL" ]; then
             echo "Error: Failed to get download URL from redirect"
+            echo "Could not find Location header in response"
             exit 1
           fi
 
