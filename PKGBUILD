@@ -2,7 +2,7 @@
 # Contributor: Claude Desktop Linux Community
 
 pkgname=claude-desktop-bin
-pkgver=0.13.64
+pkgver=0.14.10
 pkgrel=1
 pkgdesc="Claude AI Desktop Application (Official Binary - Linux Compatible)"
 arch=('x86_64')
@@ -13,7 +13,7 @@ makedepends=('p7zip' 'wget' 'asar' 'python')
 provides=('claude-desktop')
 conflicts=('claude-desktop')
 source_x86_64=("Claude-Setup-x64-${pkgver}.exe::https://storage.googleapis.com/osprey-downloads-c02f6a0d-347c-492b-a752-3e0651722e97/nest-win-x64/Claude-Setup-x64.exe")
-sha256sums_x86_64=('20d4cc3843a7abddec6784abf041a36bc77356bb5ba7ddfe510e5ddf1bc755a0')
+sha256sums_x86_64=('4a7fe5bcc95f29dedbfeeb45bc2c6b916343253ba0e0e392038968f5857c6aa9')
 options=('!strip')
 
 prepare() {
@@ -39,6 +39,18 @@ build() {
     # Extract and patch app.asar
     cd "$srcdir/app"
     asar extract app.asar app.asar.contents
+
+    # Copy i18n files into app.asar contents before repacking
+    echo "Looking for i18n files..."
+    mkdir -p app.asar.contents/resources/i18n
+    if ls "$srcdir/extract/lib/net45/resources/"*.json 1> /dev/null 2>&1; then
+        echo "Found JSON files, copying to app.asar.contents/resources/i18n/"
+        cp "$srcdir/extract/lib/net45/resources/"*.json app.asar.contents/resources/i18n/
+        # List what we copied for debugging
+        ls -la app.asar.contents/resources/i18n/
+    else
+        echo "Warning: No JSON files found in lib/net45/resources/"
+    fi
 
     # Create Linux-compatible native module
     mkdir -p app.asar.contents/node_modules/claude-native
