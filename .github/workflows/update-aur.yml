@@ -37,7 +37,7 @@ jobs:
             2>&1 | tee wget_output.txt
 
           # Extract the Location header from the redirect response
-          DOWNLOAD_URL=$(grep -i '^ *Location:' wget_output.txt | tail -1 | sed -E 's/^[[:space:]]*[Ll]ocation:[[:space:]]*//' | tr -d '\r\n')
+          DOWNLOAD_URL=$(grep -i '^ *Location:' wget_output.txt | tail -1 | sed -E 's/^[[:space:]]*[Ll]ocation:[[:space:]]*//' | sed 's/ \[following\]$//' | tr -d '\r\n')
 
           if [ -z "$DOWNLOAD_URL" ]; then
             echo "Error: Failed to extract download URL from redirect"
