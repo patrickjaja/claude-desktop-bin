@@ -1,5 +1,6 @@
 # Maintainer: {{MAINTAINER_NAME}} <{{MAINTAINER_EMAIL}}>
 # Contributor: Claude Desktop Linux Community
+# AUR Package Repository: https://github.com/patrickjaja/claude-desktop-bin
 
 pkgname=claude-desktop-bin
 pkgver={{VERSION}}
