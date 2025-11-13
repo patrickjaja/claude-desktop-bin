@@ -12,7 +12,7 @@ depends=('electron' 'nodejs')
 makedepends=('p7zip' 'wget' 'asar' 'python')
 provides=('claude-desktop')
 conflicts=('claude-desktop')
-source_x86_64=("Claude-Setup-x64-${pkgver}.exe::https://claude.ai/api/desktop/win32/x64/exe/latest/redirect")
+source_x86_64=("Claude-Setup-x64-${pkgver}.exe::https://downloads.claude.ai/releases/win32/x64/1.0.332/Claude-b563c986e881440c8f6255bb65a677101ee38579.exe [following]")
 sha256sums_x86_64=('82fbea295c365fca6c26a9b6f57abf66b365932360585701d037dbe1ae953b6a')
 options=('!strip')
 
