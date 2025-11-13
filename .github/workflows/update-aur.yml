@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: '0 2 * * *'  # Run daily at 2 AM UTC
   workflow_dispatch:  # Allow manual trigger
+    inputs:
+      download_url:
+        description: 'Manual download URL (optional - bypasses auto-detection if Cloudflare blocks)'
+        required: false
+        type: string
   push:
     branches:
       - master
@@ -29,31 +34,45 @@ jobs:
       - name: Download Claude Setup and capture URL
         id: download
         run: |
-          # Download the file and capture headers in verbose mode
-          # wget follows redirects by default and logs the final URL
-          wget --server-response -O Claude-Setup-x64.exe \
-            -U "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
-            "https://claude.ai/api/desktop/win32/x64/exe/latest/redirect" \
-            2>&1 | tee wget_output.txt
+          # Check if manual download URL was provided via workflow_dispatch input
+          if [ -n "${{ github.event.inputs.download_url }}" ]; then
+            echo "Using manually provided download URL"
+            DOWNLOAD_URL="${{ github.event.inputs.download_url }}"
+            echo "Download URL: ${DOWNLOAD_URL}"
 
-          # Extract the Location header from the redirect response
-          DOWNLOAD_URL=$(grep -i '^ *Location:' wget_output.txt | tail -1 | sed -E 's/^[[:space:]]*[Ll]ocation:[[:space:]]*//' | sed 's/ \[following\]$//' | tr -d '\r\n')
+            # Download using the provided URL
+            wget -q -O Claude-Setup-x64.exe \
+              -U "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
+              "${DOWNLOAD_URL}"
+          else
+            echo "Auto-detecting download URL from redirect"
+            # Download the file and capture headers in verbose mode
+            # wget follows redirects by default and logs the final URL
+            wget --server-response -O Claude-Setup-x64.exe \
+              -U "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
+              "https://claude.ai/api/desktop/win32/x64/exe/latest/redirect" \
+              2>&1 | tee wget_output.txt
 
-          if [ -z "$DOWNLOAD_URL" ]; then
-            echo "Error: Failed to extract download URL from redirect"
-            echo "wget output:"
-            cat wget_output.txt
-            exit 1
+            # Extract the Location header from the redirect response
+            DOWNLOAD_URL=$(grep -i '^ *Location:' wget_output.txt | tail -1 | sed -E 's/^[[:space:]]*[Ll]ocation:[[:space:]]*//' | sed 's/ \[following\]$//' | tr -d '\r\n')
+
+            if [ -z "$DOWNLOAD_URL" ]; then
+              echo "Error: Failed to extract download URL from redirect"
+              echo "wget output:"
+              cat wget_output.txt
+              exit 1
+            fi
+
+            echo "Resolved download URL: ${DOWNLOAD_URL}"
+            rm -f wget_output.txt
           fi
 
-          echo "Resolved download URL: ${DOWNLOAD_URL}"
+          # Save URL to output for PKGBUILD generation
           echo "url=${DOWNLOAD_URL}" >> $GITHUB_OUTPUT
 
           # Calculate SHA256 of the downloaded file
           SHA256=$(sha256sum Claude-Setup-x64.exe | cut -d' ' -f1)
           echo "sha256=${SHA256}" >> $GITHUB_OUTPUT
-
-          rm -f wget_output.txt
 
       - name: Extract version
         id: version
