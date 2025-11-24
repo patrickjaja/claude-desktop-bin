@@ -3,7 +3,7 @@
 # AUR Package Repository: https://github.com/patrickjaja/claude-desktop-bin
 
 pkgname=claude-desktop-bin
-pkgver=1.0.734
+pkgver=1.0.1217
 pkgrel=1
 pkgdesc="Claude AI Desktop Application (Official Binary - Linux Compatible)"
 arch=('x86_64')
@@ -13,8 +13,8 @@ depends=('electron' 'nodejs')
 makedepends=('p7zip' 'wget' 'asar' 'python')
 provides=('claude-desktop')
 conflicts=('claude-desktop')
-source_x86_64=("Claude-Setup-x64-${pkgver}.exe::https://downloads.claude.ai/releases/win32/x64/1.0.734/Claude-b8f837f8b9db51221c5dce2de52fa05581927c64.exe")
-sha256sums_x86_64=('f4e41b0b19f76851b533195936c25b1320bd4fb751e19dcad12b761b312d0c12')
+source_x86_64=("Claude-Setup-x64-${pkgver}.exe::https://downloads.claude.ai/releases/win32/x64/1.0.1217/Claude-0cb4a3120aa28421aeb48e8c54f5adf8414ab411.exe")
+sha256sums_x86_64=('6da48ea20930934c1c1bd52666de0c1458fea2fb7089d3d0b479ac527b140880')
 options=('!strip')
 
 prepare() {
