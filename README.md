@@ -51,7 +51,11 @@ The package applies several patches to make Claude Desktop work on Linux. Each p
 | `claude-native.js` | Linux-compatible native module (replaces Windows-only `@anthropic/claude-native`) |
 | `fix_claude_code.py` | Enables Claude Code CLI integration by detecting `/usr/bin/claude` |
 | `fix_locale_paths.py` | Redirects locale file paths to Linux install location |
-| `fix_title_bar.py` | Fixes title bar detection issue on Linux |
+| `fix_title_bar.py` | Shows internal title bar on Linux (hamburger menu, Claude icon) |
+| `fix_native_frame.py` | Uses native window frames on Linux/XFCE while preserving Quick Entry transparency |
+| `fix_quick_entry_position.py` | Spawns Quick Entry window on the monitor where the cursor is located |
+| `fix_tray_dbus.py` | Prevents DBus race conditions with mutex guard and cleanup delay |
+| `fix_tray_path.py` | Redirects tray icon path to package directory on Linux |
 
 When Claude Desktop updates break a patch, only the specific patch file needs updating.
 
