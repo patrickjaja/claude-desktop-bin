@@ -121,15 +121,16 @@ jobs:
           sed -i "s|sha256sums_x86_64=.*|sha256sums_x86_64=('SKIP')|" /tmp/test-build/PKGBUILD
 
           # Run build in Arch container
+          # Use pipefail to catch errors in piped commands
           docker run --rm \
             -v /tmp/test-build:/build \
             -w /build \
             archlinux:base-devel \
             bash -c "
-              set -e
+              set -eo pipefail
               echo '=== Installing build dependencies ==='
               pacman -Syu --noconfirm
-              pacman -S --noconfirm p7zip wget python nodejs npm fakeroot binutils
+              pacman -S --noconfirm p7zip wget python nodejs npm fakeroot binutils electron
               npm install -g asar
 
               echo '=== Creating builder user ==='
@@ -137,7 +138,13 @@ jobs:
               chown -R builder:builder /build
 
               echo '=== Running makepkg (test build) ==='
-              su builder -c 'makepkg -sf --noconfirm 2>&1' | tee /build/build.log
+              # Use process substitution to capture exit code while still logging
+              su builder -c 'makepkg -sf --noconfirm' 2>&1 | tee /build/build.log
+              MAKEPKG_EXIT=\${PIPESTATUS[0]}
+              if [ \$MAKEPKG_EXIT -ne 0 ]; then
+                echo 'ERROR: makepkg failed with exit code' \$MAKEPKG_EXIT
+                exit \$MAKEPKG_EXIT
+              fi
 
               echo '=== Test build completed successfully ==='
               echo 'All patches applied correctly!'

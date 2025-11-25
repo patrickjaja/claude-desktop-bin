@@ -33,6 +33,9 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 - Installer files now include version number (e.g., `Claude-Setup-x64-0.13.19.exe`)
 
 ### Fixed
+- **Native frame patch** - Updated to handle upstream code changes in v1.0.1217+ where main window no longer explicitly sets frame:false
+- **Patch validation script** - Fixed handling of replace-type patches that create new files
+- **CI pipeline** - Improved error handling with pipefail to catch build failures in piped commands
 - Fixed PKGBUILD generation script - resolved menu display issue
 - Fixed missing menu/title bar issue by replacing Rust binding with JavaScript implementation
 - Fixed missing asar dependency in PKGBUILD

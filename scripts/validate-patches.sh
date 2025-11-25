@@ -81,6 +81,15 @@ for patch_file in "$PATCHES_DIR"/*.py "$PATCHES_DIR"/*.js; do
         actual_target="$APP_CONTENTS/${target#app.asar.contents/}"
     fi
 
+    # For replace patches, target doesn't need to exist (we're creating it)
+    if [ "$patch_type" = "replace" ]; then
+        echo "  Resolved: (will be created)"
+        echo "  Status: PASS (file replacement)"
+        PASSED=$((PASSED + 1))
+        echo ""
+        continue
+    fi
+
     if [ -z "$actual_target" ] || [ ! -f "$actual_target" ]; then
         echo "  Status: FAIL (target file not found)"
         echo "  Searched: $search_dir/$file_pattern"
@@ -105,10 +114,6 @@ for patch_file in "$PATCHES_DIR"/*.py "$PATCHES_DIR"/*.js; do
         fi
 
         rm -f "$tmp_file"
-    elif [ "$patch_type" = "replace" ]; then
-        # For replace patches, just check target exists
-        echo "  Status: PASS (file replacement)"
-        PASSED=$((PASSED + 1))
     else
         echo "  Status: SKIP (unknown type: $patch_type)"
         SKIPPED=$((SKIPPED + 1))
