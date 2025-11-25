@@ -130,15 +130,25 @@ jobs:
               set -eo pipefail
               echo '=== Installing build dependencies ==='
               pacman -Syu --noconfirm
-              pacman -S --noconfirm p7zip wget python nodejs npm fakeroot binutils electron
-              npm install -g asar
+              pacman -S --noconfirm p7zip wget python nodejs npm fakeroot binutils electron git base-devel
 
               echo '=== Creating builder user ==='
               useradd -m builder
+              echo 'builder ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
               chown -R builder:builder /build
 
+              echo '=== Installing yay (AUR helper) ==='
+              cd /tmp
+              git clone https://aur.archlinux.org/yay-bin.git
+              chown -R builder:builder yay-bin
+              cd yay-bin
+              su builder -c 'makepkg -si --noconfirm'
+
+              echo '=== Installing asar from AUR ==='
+              su builder -c 'yay -S --noconfirm asar'
+
               echo '=== Running makepkg (test build) ==='
-              # Use process substitution to capture exit code while still logging
+              cd /build
               su builder -c 'makepkg -sf --noconfirm' 2>&1 | tee /build/build.log
               MAKEPKG_EXIT=\${PIPESTATUS[0]}
               if [ \$MAKEPKG_EXIT -ne 0 ]; then
