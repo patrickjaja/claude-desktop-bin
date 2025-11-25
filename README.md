@@ -12,12 +12,20 @@ Using an AUR helper like yay:
 yay -S claude-desktop-bin
 ```
 
-Or manually:
+For a fresh installation (clears cached builds):
 ```bash
-git clone https://aur.archlinux.org/claude-desktop-bin.git
-cd claude-desktop-bin
-makepkg -si
+rm -rf ~/.cache/yay/claude-desktop-bin
+yay -S claude-desktop-bin --noconfirm --cleanafter
 ```
+
+Or manually from GitHub:
+```bash
+git clone https://github.com/patrickjaja/claude-desktop-bin.git
+cd claude-desktop-bin
+./scripts/build-local.sh --install
+```
+
+Note: The script will automatically download the installer. Alternatively, download `Claude-Setup-x64.exe` from https://claude.ai/download to the project root before running.
 
 ## Features
 - Native Linux support
