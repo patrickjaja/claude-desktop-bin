@@ -64,6 +64,10 @@ build() {
     # Copy locales
     mkdir -p "$srcdir/app/locales"
     cp "$srcdir/extract/lib/net45/resources/"*.json "$srcdir/app/locales/" 2>/dev/null || true
+
+    # Copy tray icons (must be in filesystem, not inside asar, for Electron Tray API)
+    echo "Copying tray icon files..."
+    cp "$srcdir/extract/lib/net45/resources/TrayIconTemplate"*.png "$srcdir/app/locales/" 2>/dev/null || true
 }
 
 package() {

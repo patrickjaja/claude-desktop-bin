@@ -24,6 +24,7 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 - Fixed PKGBUILD generation script - resolved menu display issue
 - Fixed missing menu/title bar issue by replacing Rust binding with JavaScript implementation
 - Fixed missing asar dependency in PKGBUILD
+- Fixed tray icon loading - copy TrayIconTemplate PNG files to locales directory for Electron Tray API
 
 ### Removed
 - Removed .SRCINFO from git tracking (auto-generated file)
