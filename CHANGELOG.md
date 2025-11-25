@@ -6,6 +6,7 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 
 ### Added
 - **Claude Code CLI integration** - Patch to detect and use system-installed `/usr/bin/claude`
+- **AuthRequest stub** - Added AuthRequest class stub to claude-native.js for Linux authentication fallback
 - Isolated patch files in `patches/` directory for easier maintenance
 - Local build script `scripts/build-local.sh` for development testing
 - Version-specific filename for installer to prevent cache conflicts between updates

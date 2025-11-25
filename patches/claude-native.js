@@ -19,6 +19,21 @@ const KeyboardKey = {
 };
 Object.freeze(KeyboardKey);
 
+// AuthRequest stub - not available on Linux, will cause fallback to system browser
+class AuthRequest {
+    static isAvailable() {
+        return false;
+    }
+
+    async start(url, scheme, windowHandle) {
+        throw new Error('AuthRequest not available on Linux');
+    }
+
+    cancel() {
+        // no-op
+    }
+}
+
 let tray = null;
 
 function createTray() {
@@ -59,5 +74,6 @@ module.exports = {
     clearOverlayIcon: () => {},
     createTray,
     getTray: () => tray,
-    KeyboardKey
+    KeyboardKey,
+    AuthRequest
 };
