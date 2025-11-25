@@ -27,3 +27,4 @@ Thumbs.db
 *.pkg.tar.zst
 .SRCINFO
 PKGBUILD
+build

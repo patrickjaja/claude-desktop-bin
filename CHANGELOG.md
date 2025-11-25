@@ -7,6 +7,10 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 ### Added
 - **Claude Code CLI integration** - Patch to detect and use system-installed `/usr/bin/claude`
 - **AuthRequest stub** - Added AuthRequest class stub to claude-native.js for Linux authentication fallback
+- **Native frame patch** - Use native window frames on Linux/XFCE while preserving Quick Entry transparency
+- **Quick Entry position patch** - Spawn Quick Entry on the monitor where cursor is located
+- **Tray DBus fix** - Prevent DBus race conditions with mutex guard and cleanup delay
+- **Tray path fix** - Redirect tray icon path to package directory on Linux
 - Isolated patch files in `patches/` directory for easier maintenance
 - Local build script `scripts/build-local.sh` for development testing
 - Version-specific filename for installer to prevent cache conflicts between updates
@@ -17,6 +21,10 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
   - `patches/fix_claude_code.py` - Claude Code CLI support
   - `patches/fix_locale_paths.py` - Locale file path fixes
   - `patches/fix_title_bar.py` - Title bar detection fix
+  - `patches/fix_native_frame.py` - Native window frame handling
+  - `patches/fix_quick_entry_position.py` - Multi-monitor Quick Entry positioning
+  - `patches/fix_tray_dbus.py` - Tray menu DBus race condition fix
+  - `patches/fix_tray_path.py` - Tray icon path redirection
 - Refactored PKGBUILD generation to use template approach
 - Installer files now include version number (e.g., `Claude-Setup-x64-0.13.19.exe`)
 

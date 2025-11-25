@@ -2,10 +2,21 @@
 # @patch-target: app.asar.contents/.vite/renderer/main_window/assets/MainWindowPage-*.js
 # @patch-type: python
 """
-Patch Claude Desktop title bar detection issue on Linux.
+Patch Claude Desktop to show internal title bar on Linux.
 
-The original code has a negated condition that causes issues on Linux.
-This patch fixes: if(!var1 && var2) -> if(var1 && var2)
+The original code has: if(!B&&e)return null
+Where B = process.platform==="win32" (true on Windows)
+
+Original behavior:
+- Windows: !true=false, condition fails → title bar SHOWS
+- Linux: !false=true, condition true → returns null → title bar HIDDEN
+
+This patch changes: if(!B&&e) -> if(B&&e)
+New behavior:
+- Windows: true&&e=true → returns null → title bar hidden (uses native)
+- Linux: false&&e=false → condition fails → title bar SHOWS
+
+This gives Linux the same internal title bar that Windows has.
 
 Usage: python3 fix_title_bar.py <path_to_MainWindowPage-*.js>
 """
@@ -16,7 +27,7 @@ import re
 
 
 def patch_title_bar(filepath):
-    """Patch the title bar detection logic."""
+    """Patch the title bar detection to show on Linux."""
 
     print(f"Patching title bar in: {filepath}")
 
@@ -26,8 +37,7 @@ def patch_title_bar(filepath):
     original_content = content
 
     # Fix: if(!B&&e) -> if(B&&e) - removes the negation
-    # The title bar check has a negated condition that fails on Linux
-    # Pattern: if(!X&&Y) where X and Y are variable names (minified, no spaces)
+    # This makes Linux show the internal title bar like Windows does
     pattern = rb'if\(!([a-zA-Z_][a-zA-Z0-9_]*)\s*&&\s*([a-zA-Z_][a-zA-Z0-9_]*)\)'
     replacement = rb'if(\1&&\2)'
 
@@ -53,6 +63,5 @@ if __name__ == "__main__":
         print(f"Error: File not found: {filepath}")
         sys.exit(1)
 
-    # Always exit 0 - patch is optional (some versions may not need it)
     patch_title_bar(filepath)
     sys.exit(0)
