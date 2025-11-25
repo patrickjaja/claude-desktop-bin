@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# @patch-target: app.asar.contents/.vite/build/index.js
+# @patch-type: python
 """
 Patch Claude Desktop locale file paths for Linux.
 

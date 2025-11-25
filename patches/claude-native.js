@@ -1,11 +1,11 @@
+// @patch-target: app.asar.contents/node_modules/claude-native/index.js
+// @patch-type: replace
 /**
  * Linux-compatible native module for Claude Desktop.
  *
  * The official Claude Desktop uses @anthropic/claude-native which contains
  * Windows-specific native bindings. This module provides Linux-compatible
  * stubs and implementations using Electron APIs.
- *
- * Installation: Copy to app.asar.contents/node_modules/claude-native/index.js
  */
 
 const { app, Tray, Menu, nativeImage, Notification } = require('electron');

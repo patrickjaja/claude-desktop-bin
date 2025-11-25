@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# @patch-target: app.asar.contents/.vite/renderer/main_window/assets/MainWindowPage-*.js
+# @patch-type: python
 """
 Patch Claude Desktop title bar detection issue on Linux.
 
@@ -23,10 +25,11 @@ def patch_title_bar(filepath):
 
     original_content = content
 
-    # Fix: if(!var && var2) -> if(var && var2)
-    # Pattern: if(!X && Y) where X and Y are variable names
+    # Fix: if(!B&&e) -> if(B&&e) - removes the negation
+    # The title bar check has a negated condition that fails on Linux
+    # Pattern: if(!X&&Y) where X and Y are variable names (minified, no spaces)
     pattern = rb'if\(!([a-zA-Z_][a-zA-Z0-9_]*)\s*&&\s*([a-zA-Z_][a-zA-Z0-9_]*)\)'
-    replacement = rb'if(\1 && \2)'
+    replacement = rb'if(\1&&\2)'
 
     content, count = re.subn(pattern, replacement, content)
 
@@ -50,5 +53,6 @@ if __name__ == "__main__":
         print(f"Error: File not found: {filepath}")
         sys.exit(1)
 
-    success = patch_title_bar(filepath)
-    sys.exit(0 if success else 1)
+    # Always exit 0 - patch is optional (some versions may not need it)
+    patch_title_bar(filepath)
+    sys.exit(0)

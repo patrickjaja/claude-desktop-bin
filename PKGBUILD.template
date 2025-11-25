@@ -54,40 +54,8 @@ build() {
         echo "Warning: No JSON files found in lib/net45/resources/"
     fi
 
-    # Install Linux-compatible native module (replaces Windows-only @anthropic/claude-native)
-    echo "Installing claude-native module..."
-    mkdir -p app.asar.contents/node_modules/claude-native
-    if [ -f "$startdir/patches/claude-native.js" ]; then
-        cp "$startdir/patches/claude-native.js" app.asar.contents/node_modules/claude-native/index.js
-        echo "  claude-native module installed"
-    else
-        echo "Warning: claude-native.js not found"
-    fi
-
-    # Apply title bar fix patch
-    echo "Applying title bar fix..."
-    local mainwindow_js=$(find app.asar.contents -name "MainWindowPage-*.js" 2>/dev/null | head -1)
-    if [ -n "$mainwindow_js" ] && [ -f "$startdir/patches/fix_title_bar.py" ]; then
-        python3 "$startdir/patches/fix_title_bar.py" "$mainwindow_js" || echo "Warning: Title bar patch failed (non-fatal)"
-    else
-        echo "Warning: MainWindowPage-*.js or fix_title_bar.py not found"
-    fi
-
-    # Apply locale paths fix
-    echo "Applying locale paths fix..."
-    if [ -f "$startdir/patches/fix_locale_paths.py" ]; then
-        python3 "$startdir/patches/fix_locale_paths.py" app.asar.contents/.vite/build/index.js || echo "Warning: Locale paths patch failed (non-fatal)"
-    else
-        echo "Warning: fix_locale_paths.py not found"
-    fi
-
-    # Apply Claude Code Linux support patch
-    echo "Applying Claude Code Linux support patch..."
-    if [ -f "$startdir/patches/fix_claude_code.py" ]; then
-        python3 "$startdir/patches/fix_claude_code.py" app.asar.contents/.vite/build/index.js || echo "Warning: Claude Code patch failed (non-fatal)"
-    else
-        echo "Warning: fix_claude_code.py not found, skipping Claude Code patch"
-    fi
+    # Apply all patches (embedded by generate-pkgbuild.sh)
+{{PATCHES}}
 
     # Repack app.asar
     asar pack app.asar.contents app.asar
