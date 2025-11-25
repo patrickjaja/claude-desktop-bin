@@ -5,6 +5,8 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 ## [Unreleased]
 
 ### Added
+- **Patch validation in CI pipeline** - Test build in Docker container before pushing to AUR
+- **validate-patches.sh script** - Local validation tool for developers to test patches
 - **Claude Code CLI integration** - Patch to detect and use system-installed `/usr/bin/claude`
 - **AuthRequest stub** - Added AuthRequest class stub to claude-native.js for Linux authentication fallback
 - **Native frame patch** - Use native window frames on Linux/XFCE while preserving Quick Entry transparency
@@ -16,6 +18,8 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 - Version-specific filename for installer to prevent cache conflicts between updates
 
 ### Changed
+- **Patches now fail on pattern mismatch** - All Python patches exit with code 1 if patterns don't match
+- **generate-pkgbuild.sh captures exit codes** - Build fails if any patch fails to apply
 - Refactored all inline patches into separate files:
   - `patches/claude-native.js` - Linux-compatible native module
   - `patches/fix_claude_code.py` - Claude Code CLI support

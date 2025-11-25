@@ -21,59 +21,62 @@ import re
 def patch_quick_entry_position(filepath):
     """Patch Quick Entry to spawn on cursor's monitor instead of primary display."""
 
-    print(f"Patching Quick Entry position in: {filepath}")
+    print(f"=== Patch: fix_quick_entry_position ===")
+    print(f"  Target: {filepath}")
+
+    if not os.path.exists(filepath):
+        print(f"  [FAIL] File not found: {filepath}")
+        return False
 
     with open(filepath, 'rb') as f:
         content = f.read()
 
     original_content = content
-    patches_applied = 0
-
-    # There are TWO functions that determine Quick Entry position:
-    # 1. dTe() - primary function, uses saved position or falls back to pTe()
-    #    It also has a fallback to getPrimaryDisplay() inside
-    # 2. pTe() - fallback function that creates initial position
-    #
-    # We need to patch BOTH to always use cursor position
+    failed = False
 
     # Patch 1: In pTe() function - the fallback position generator
-    # Original: function pTe(){const t=ce.screen.getPrimaryDisplay(),...}
     pattern1 = rb'(function pTe\(\)\{const t=ce\.screen\.)getPrimaryDisplay\(\)'
     replacement1 = rb'\1getDisplayNearestPoint(ce.screen.getCursorScreenPoint())'
     content, count1 = re.subn(pattern1, replacement1, content)
     if count1 > 0:
-        patches_applied += count1
-        print(f"  Patched pTe(): {count1} occurrence(s)")
+        print(f"  [OK] pTe() function: {count1} match(es)")
+    else:
+        print(f"  [FAIL] pTe() function: 0 matches, expected >= 1")
+        failed = True
 
-    # Patch 2: In dTe() function - the main position function
-    # It has: r||(r=ce.screen.getPrimaryDisplay())
-    # We want: r||(r=ce.screen.getDisplayNearestPoint(ce.screen.getCursorScreenPoint()))
+    # Patch 2: In dTe() function - the fallback display lookup
     pattern2 = rb'r\|\|\(r=ce\.screen\.getPrimaryDisplay\(\)\)'
     replacement2 = rb'r||(r=ce.screen.getDisplayNearestPoint(ce.screen.getCursorScreenPoint()))'
     content, count2 = re.subn(pattern2, replacement2, content)
     if count2 > 0:
-        patches_applied += count2
-        print(f"  Patched dTe() fallback: {count2} occurrence(s)")
+        print(f"  [OK] dTe() fallback: {count2} match(es)")
+    else:
+        print(f"  [FAIL] dTe() fallback: 0 matches, expected >= 1")
+        failed = True
 
-    # Patch 3: Override the entire position logic to ALWAYS use cursor position
-    # The dTe function tries to restore saved position which might be on wrong monitor
-    # We'll make it always calculate fresh position based on cursor
-    # Replace the whole dTe function to always call pTe (which now uses cursor position)
+    # Patch 3: Override dTe to always use cursor position (optional enhancement)
     pattern3 = rb'function dTe\(\)\{const t=hn\.get\("quickWindowPosition",null\),e=ce\.screen\.getAllDisplays\(\);if\(!\(t&&t\.absolutePointInWorkspace&&t\.monitor&&t\.relativePointFromMonitor\)\)return pTe\(\)'
     replacement3 = rb'function dTe(){return pTe()/*patched to always use cursor position*/;const t=hn.get("quickWindowPosition",null),e=ce.screen.getAllDisplays();if(!(t&&t.absolutePointInWorkspace&&t.monitor&&t.relativePointFromMonitor))return pTe()'
     content, count3 = re.subn(pattern3, replacement3, content)
     if count3 > 0:
-        patches_applied += count3
-        print(f"  Patched dTe() to always use cursor position: {count3} occurrence(s)")
+        print(f"  [OK] dTe() override: {count3} match(es)")
+    else:
+        print(f"  [INFO] dTe() override: 0 matches (optional)")
 
+    # Check results
+    if failed:
+        print("  [FAIL] Required patterns did not match")
+        return False
+
+    # Write back if changed
     if content != original_content:
         with open(filepath, 'wb') as f:
             f.write(content)
-        print(f"Quick Entry position patches applied: {patches_applied} total")
+        print("  [PASS] Quick Entry position patched successfully")
         return True
     else:
-        print("Warning: No Quick Entry position patches applied (pattern not found)")
-        return False
+        print("  [WARN] No changes made (patterns may have already been applied)")
+        return True
 
 
 if __name__ == "__main__":
@@ -81,11 +84,5 @@ if __name__ == "__main__":
         print(f"Usage: {sys.argv[0]} <path_to_index.js>")
         sys.exit(1)
 
-    filepath = sys.argv[1]
-    if not os.path.exists(filepath):
-        print(f"Error: File not found: {filepath}")
-        sys.exit(1)
-
-    patch_quick_entry_position(filepath)
-    # Always exit 0 - patch is best-effort
-    sys.exit(0)
+    success = patch_quick_entry_position(sys.argv[1])
+    sys.exit(0 if success else 1)

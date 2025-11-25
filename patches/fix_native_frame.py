@@ -21,38 +21,61 @@ import re
 def patch_native_frame(filepath):
     """Patch BrowserWindow to use native frames on Linux (main window only)."""
 
-    print(f"Patching native frames in: {filepath}")
+    print(f"=== Patch: fix_native_frame ===")
+    print(f"  Target: {filepath}")
+
+    if not os.path.exists(filepath):
+        print(f"  [FAIL] File not found: {filepath}")
+        return False
 
     with open(filepath, 'rb') as f:
         content = f.read()
 
     original_content = content
-    patches_applied = 0
+    failed = False
 
-    # Step 1: Temporarily mark the Quick Entry pattern (transparent windows need frame:false)
+    # Step 1: Check if transparent window pattern exists (Quick Entry)
+    quick_entry_pattern = rb'transparent:!0,frame:!1'
+    has_quick_entry = quick_entry_pattern in content
+    if has_quick_entry:
+        print(f"  [OK] Quick Entry pattern found (will preserve)")
+    else:
+        print(f"  [INFO] Quick Entry pattern not found (may be already patched)")
+
+    # Step 2: Temporarily mark the Quick Entry pattern
     marker = b'__QUICK_ENTRY_FRAME_PRESERVE__'
-    content = re.sub(rb'transparent:!0,frame:!1', b'transparent:!0,' + marker, content)
+    if has_quick_entry:
+        content = content.replace(quick_entry_pattern, b'transparent:!0,' + marker)
 
-    # Step 2: Replace frame:!1 (false) with frame:true for main window
+    # Step 3: Replace frame:!1 (false) with frame:true for main window
     pattern = rb'frame\s*:\s*!1'
     replacement = b'frame:true'
     content, count = re.subn(pattern, replacement, content)
     if count > 0:
-        patches_applied += count
-        print(f"  Replaced frame:!1 -> frame:true: {count} occurrence(s)")
+        print(f"  [OK] frame:!1 -> frame:true: {count} match(es)")
+    else:
+        print(f"  [FAIL] frame:!1: 0 matches, expected >= 1")
+        failed = True
 
-    # Step 3: Restore Quick Entry frame setting
-    content = content.replace(marker, b'frame:!1')
-    print(f"  Preserved frame:!1 for Quick Entry window (transparent)")
+    # Step 4: Restore Quick Entry frame setting
+    if has_quick_entry:
+        content = content.replace(b'transparent:!0,' + marker, quick_entry_pattern)
+        print(f"  [OK] Restored Quick Entry frame:!1 (transparent)")
 
+    # Check results
+    if failed:
+        print("  [FAIL] Required patterns did not match")
+        return False
+
+    # Write back if changed
     if content != original_content:
         with open(filepath, 'wb') as f:
             f.write(content)
-        print(f"Native frame patches applied: {patches_applied} total")
+        print("  [PASS] Native frame patched successfully")
         return True
     else:
-        print("No native frame patches needed")
-        return False
+        print("  [WARN] No changes made (patterns may have already been applied)")
+        return True
 
 
 if __name__ == "__main__":
@@ -60,11 +83,5 @@ if __name__ == "__main__":
         print(f"Usage: {sys.argv[0]} <path_to_index.js>")
         sys.exit(1)
 
-    filepath = sys.argv[1]
-    if not os.path.exists(filepath):
-        print(f"Error: File not found: {filepath}")
-        sys.exit(1)
-
-    patch_native_frame(filepath)
-    # Always exit 0 - patch is best-effort
-    sys.exit(0)
+    success = patch_native_frame(sys.argv[1])
+    sys.exit(0 if success else 1)

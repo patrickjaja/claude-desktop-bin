@@ -23,7 +23,12 @@ import re
 def patch_tray_path(filepath):
     """Patch the tray icon resources path to use our package directory."""
 
-    print(f"Patching tray icon path in: {filepath}")
+    print(f"=== Patch: fix_tray_path ===")
+    print(f"  Target: {filepath}")
+
+    if not os.path.exists(filepath):
+        print(f"  [FAIL] File not found: {filepath}")
+        return False
 
     with open(filepath, 'rb') as f:
         content = f.read()
@@ -31,26 +36,17 @@ def patch_tray_path(filepath):
     original_content = content
     patches_applied = 0
 
-    # Find the wTe function that returns the resources path
-    # Pattern: function wTe(){return ce.app.isPackaged?pn.resourcesPath:$e.resolve(__dirname,"..","..","resources")}
-    # We need to make it return our locales directory instead of process.resourcesPath
+    # Pattern 1: Generic function pattern
+    # Pattern: function FUNCNAME(){return ce.app.isPackaged?pn.resourcesPath:...}
+    pattern1 = rb'(function \w+\(\)\{return ce\.app\.isPackaged\?)pn\.resourcesPath(:[^}]+\})'
+    replacement1 = rb'\1(pn.platform==="linux"?"/usr/lib/claude-desktop-bin/locales":pn.resourcesPath)\2'
 
-    # Look for the pattern: ce.app.isPackaged?pn.resourcesPath:
-    # and replace pn.resourcesPath with our hardcoded path
-    pattern = rb'(function \w+\(\)\{return ce\.app\.isPackaged\?)pn\.resourcesPath(:[^}]+\})'
+    content, count1 = re.subn(pattern1, replacement1, content)
+    if count1 > 0:
+        patches_applied += count1
+        print(f"  [OK] generic resources path function: {count1} match(es)")
 
-    # Replace with a path that checks for Linux and returns our locales path
-    # On Linux: /usr/lib/claude-desktop-bin/locales
-    # Otherwise: use original pn.resourcesPath
-    replacement = rb'\1(pn.platform==="linux"?"/usr/lib/claude-desktop-bin/locales":pn.resourcesPath)\2'
-
-    content, count = re.subn(pattern, replacement, content)
-    if count > 0:
-        patches_applied += count
-        print(f"  Patched resources path function: {count} occurrence(s)")
-
-    # Alternative pattern - sometimes the function name is obfuscated differently
-    # Try a more specific pattern for wTe
+    # Pattern 2: Specific wTe function pattern (alternative)
     if patches_applied == 0:
         pattern2 = rb'function wTe\(\)\{return ce\.app\.isPackaged\?pn\.resourcesPath:'
         replacement2 = rb'function wTe(){return ce.app.isPackaged?(pn.platform==="linux"?"/usr/lib/claude-desktop-bin/locales":pn.resourcesPath):'
@@ -58,16 +54,22 @@ def patch_tray_path(filepath):
         content, count2 = re.subn(pattern2, replacement2, content)
         if count2 > 0:
             patches_applied += count2
-            print(f"  Patched wTe function directly: {count2} occurrence(s)")
+            print(f"  [OK] specific wTe function: {count2} match(es)")
 
+    # Check results - at least one pattern must match
+    if patches_applied == 0:
+        print(f"  [FAIL] No patterns matched (tried 2 alternatives), expected >= 1")
+        return False
+
+    # Write back if changed
     if content != original_content:
         with open(filepath, 'wb') as f:
             f.write(content)
-        print(f"Tray path patches applied: {patches_applied} total")
+        print("  [PASS] Tray path patched successfully")
         return True
     else:
-        print("Warning: No tray path patches applied")
-        return False
+        print("  [WARN] No changes made (patterns may have already been applied)")
+        return True
 
 
 if __name__ == "__main__":
@@ -75,11 +77,5 @@ if __name__ == "__main__":
         print(f"Usage: {sys.argv[0]} <path_to_index.js>")
         sys.exit(1)
 
-    filepath = sys.argv[1]
-    if not os.path.exists(filepath):
-        print(f"Error: File not found: {filepath}")
-        sys.exit(1)
-
-    patch_tray_path(filepath)
-    # Always exit 0 - patch is best-effort
-    sys.exit(0)
+    success = patch_tray_path(sys.argv[1])
+    sys.exit(0 if success else 1)

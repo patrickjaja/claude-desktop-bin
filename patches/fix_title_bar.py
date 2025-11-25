@@ -29,7 +29,12 @@ import re
 def patch_title_bar(filepath):
     """Patch the title bar detection to show on Linux."""
 
-    print(f"Patching title bar in: {filepath}")
+    print(f"=== Patch: fix_title_bar ===")
+    print(f"  Target: {filepath}")
+
+    if not os.path.exists(filepath):
+        print(f"  [FAIL] File not found: {filepath}")
+        return False
 
     with open(filepath, 'rb') as f:
         content = f.read()
@@ -37,20 +42,26 @@ def patch_title_bar(filepath):
     original_content = content
 
     # Fix: if(!B&&e) -> if(B&&e) - removes the negation
-    # This makes Linux show the internal title bar like Windows does
     pattern = rb'if\(!([a-zA-Z_][a-zA-Z0-9_]*)\s*&&\s*([a-zA-Z_][a-zA-Z0-9_]*)\)'
     replacement = rb'if(\1&&\2)'
 
     content, count = re.subn(pattern, replacement, content)
 
+    if count >= 1:
+        print(f"  [OK] title bar condition: {count} match(es)")
+    else:
+        print(f"  [FAIL] title bar condition: 0 matches, expected >= 1")
+        return False
+
+    # Write back if changed
     if content != original_content:
         with open(filepath, 'wb') as f:
             f.write(content)
-        print(f"Title bar patch applied: {count} replacement(s)")
+        print("  [PASS] Title bar patched successfully")
         return True
     else:
-        print("Warning: No title bar patterns found to patch")
-        return False
+        print("  [WARN] No changes made (patterns may have already been applied)")
+        return True
 
 
 if __name__ == "__main__":
@@ -58,10 +69,5 @@ if __name__ == "__main__":
         print(f"Usage: {sys.argv[0]} <path_to_MainWindowPage-*.js>")
         sys.exit(1)
 
-    filepath = sys.argv[1]
-    if not os.path.exists(filepath):
-        print(f"Error: File not found: {filepath}")
-        sys.exit(1)
-
-    patch_title_bar(filepath)
-    sys.exit(0)
+    success = patch_title_bar(sys.argv[1])
+    sys.exit(0 if success else 1)

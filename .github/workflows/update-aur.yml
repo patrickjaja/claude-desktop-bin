@@ -105,6 +105,69 @@ jobs:
         run: |
           bash ./scripts/generate-pkgbuild.sh "${{ steps.version.outputs.version }}" "${{ steps.download.outputs.sha256 }}" "${{ steps.download.outputs.url }}" > PKGBUILD
 
+      - name: Test Build in Arch Container
+        if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
+        run: |
+          echo "=== Testing PKGBUILD in Arch Linux container ==="
+          echo "This validates all patches apply correctly before pushing to AUR"
+
+          # Prepare build directory
+          mkdir -p /tmp/test-build
+          cp PKGBUILD /tmp/test-build/
+          cp "Claude-Setup-x64.exe" "/tmp/test-build/Claude-Setup-x64-${{ steps.version.outputs.version }}.exe"
+
+          # Modify PKGBUILD to use local file instead of downloading
+          sed -i "s|source_x86_64=.*|source_x86_64=(\"Claude-Setup-x64-\${pkgver}.exe\")|" /tmp/test-build/PKGBUILD
+          sed -i "s|sha256sums_x86_64=.*|sha256sums_x86_64=('SKIP')|" /tmp/test-build/PKGBUILD
+
+          # Run build in Arch container
+          docker run --rm \
+            -v /tmp/test-build:/build \
+            -w /build \
+            archlinux:base-devel \
+            bash -c "
+              set -e
+              echo '=== Installing build dependencies ==='
+              pacman -Syu --noconfirm
+              pacman -S --noconfirm p7zip wget python nodejs npm fakeroot binutils
+              npm install -g asar
+
+              echo '=== Creating builder user ==='
+              useradd -m builder
+              chown -R builder:builder /build
+
+              echo '=== Running makepkg (test build) ==='
+              su builder -c 'makepkg -sf --noconfirm 2>&1' | tee /build/build.log
+
+              echo '=== Test build completed successfully ==='
+              echo 'All patches applied correctly!'
+            " 2>&1 | tee build-output.log
+
+          BUILD_EXIT=${PIPESTATUS[0]}
+
+          if [ $BUILD_EXIT -ne 0 ]; then
+            echo ""
+            echo "::error::Test build FAILED!"
+            echo ""
+            echo "=== PATCH FAILURE DETAILS ==="
+            grep -E "(ERROR|FAIL|\[FAIL\])" build-output.log || true
+            echo ""
+            echo "The upstream Claude Desktop may have changed."
+            echo "Please update the patch patterns to match the new file structure."
+            exit 1
+          fi
+
+          echo "Test build passed - safe to push to AUR"
+
+      - name: Upload Build Log
+        if: always() && (steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch')
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-${{ steps.version.outputs.version }}
+          path: build-output.log
+          retention-days: 30
+          if-no-files-found: ignore
+
       - name: Generate .SRCINFO
         if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
         run: |

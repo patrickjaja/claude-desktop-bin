@@ -66,24 +66,36 @@ $heredoc_marker
                 ;;
             python)
                 # For python patches, handle glob patterns in target
+                # Exit codes are now captured - patch failure stops the build
                 if [[ "$patch_target" == *"*"* ]]; then
                     # Has glob pattern - use find
                     local dir_part=$(dirname "$patch_target")
                     local file_pattern=$(basename "$patch_target")
                     patches_code+="    local target_file=\$(find $dir_part -name \"$file_pattern\" 2>/dev/null | head -1)
     if [ -n \"\$target_file\" ]; then
-        python3 - \"\$target_file\" << '$heredoc_marker'
+        if ! python3 - \"\$target_file\" << '$heredoc_marker'
 $patch_content
 $heredoc_marker
+        then
+            echo \"ERROR: Patch $filename FAILED - patterns did not match\"
+            echo \"Please check if upstream changed the target file structure\"
+            exit 1
+        fi
     else
-        echo \"Warning: Target not found for pattern: $patch_target\"
+        echo \"ERROR: Target not found for pattern: $patch_target\"
+        exit 1
     fi
 "
                 else
                     # Direct path
-                    patches_code+="    python3 - \"$patch_target\" << '$heredoc_marker'
+                    patches_code+="    if ! python3 - \"$patch_target\" << '$heredoc_marker'
 $patch_content
 $heredoc_marker
+    then
+        echo \"ERROR: Patch $filename FAILED - patterns did not match\"
+        echo \"Please check if upstream changed the target file structure\"
+        exit 1
+    fi
 "
                 fi
                 ;;
