@@ -11,6 +11,7 @@ url="https://claude.ai"
 license=('custom:Claude')
 depends=('electron' 'nodejs')
 makedepends=('p7zip' 'wget' 'asar' 'python')
+optdepends=('claude-code: Claude Code CLI for agentic coding features (npm i -g @anthropic-ai/claude-code)')
 provides=('claude-desktop')
 conflicts=('claude-desktop')
 source_x86_64=("Claude-Setup-x64-${pkgver}.exe::{{DOWNLOAD_URL}}")
@@ -53,113 +54,40 @@ build() {
         echo "Warning: No JSON files found in lib/net45/resources/"
     fi
 
-    # Create Linux-compatible native module
+    # Install Linux-compatible native module (replaces Windows-only @anthropic/claude-native)
+    echo "Installing claude-native module..."
     mkdir -p app.asar.contents/node_modules/claude-native
-    cat > app.asar.contents/node_modules/claude-native/index.js << 'EOF'
-const { app, Tray, Menu, nativeImage, Notification } = require('electron');
-const path = require('path');
-
-const KeyboardKey = {
-    Backspace: 43, Tab: 280, Enter: 261, Shift: 272, Control: 61,
-    Alt: 40, CapsLock: 56, Escape: 85, Space: 276, PageUp: 251,
-    PageDown: 250, End: 83, Home: 154, LeftArrow: 175, UpArrow: 282,
-    RightArrow: 262, DownArrow: 81, Delete: 79, Meta: 187
-};
-Object.freeze(KeyboardKey);
-
-let tray = null;
-
-function createTray() {
-    if (tray) return tray;
-    try {
-        const iconPath = path.join(process.resourcesPath || __dirname, 'tray-icon.png');
-        if (require('fs').existsSync(iconPath)) {
-            tray = new Tray(nativeImage.createFromPath(iconPath));
-            tray.setToolTip('Claude Desktop');
-            const menu = Menu.buildFromTemplate([
-                { label: 'Show', click: () => app.focus() },
-                { type: 'separator' },
-                { label: 'Quit', click: () => app.quit() }
-            ]);
-            tray.setContextMenu(menu);
-        }
-    } catch (e) {
-        console.warn('Tray creation failed:', e);
-    }
-    return tray;
-}
-
-module.exports = {
-    getWindowsVersion: () => "10.0.0",
-    setWindowEffect: () => {},
-    removeWindowEffect: () => {},
-    getIsMaximized: () => false,
-    flashFrame: () => {},
-    clearFlashFrame: () => {},
-    showNotification: (title, body) => {
-        if (Notification.isSupported()) {
-            new Notification({ title, body }).show();
-        }
-    },
-    setProgressBar: () => {},
-    clearProgressBar: () => {},
-    setOverlayIcon: () => {},
-    clearOverlayIcon: () => {},
-    createTray,
-    getTray: () => tray,
-    KeyboardKey
-};
-EOF
-
-    # Fix title bar detection issue
-    local js_file=$(find app.asar.contents -name "MainWindowPage-*.js" 2>/dev/null | head -1)
-    if [ -n "$js_file" ]; then
-        sed -i -E 's/if\(!([a-zA-Z]+)[[:space:]]*&&[[:space:]]*([a-zA-Z]+)\)/if(\1 \&\& \2)/g' "$js_file"
+    if [ -f "$startdir/patches/claude-native.js" ]; then
+        cp "$startdir/patches/claude-native.js" app.asar.contents/node_modules/claude-native/index.js
+        echo "  claude-native module installed"
+    else
+        echo "Warning: claude-native.js not found"
     fi
 
-    # Fix locale file loading using Python for more precise string replacement
-    echo "Patching locale file paths..."
+    # Apply title bar fix patch
+    echo "Applying title bar fix..."
+    local mainwindow_js=$(find app.asar.contents -name "MainWindowPage-*.js" 2>/dev/null | head -1)
+    if [ -n "$mainwindow_js" ] && [ -f "$startdir/patches/fix_title_bar.py" ]; then
+        python3 "$startdir/patches/fix_title_bar.py" "$mainwindow_js" || echo "Warning: Title bar patch failed (non-fatal)"
+    else
+        echo "Warning: MainWindowPage-*.js or fix_title_bar.py not found"
+    fi
 
-    python3 << 'EOF'
-import os
-import re
+    # Apply locale paths fix
+    echo "Applying locale paths fix..."
+    if [ -f "$startdir/patches/fix_locale_paths.py" ]; then
+        python3 "$startdir/patches/fix_locale_paths.py" app.asar.contents/.vite/build/index.js || echo "Warning: Locale paths patch failed (non-fatal)"
+    else
+        echo "Warning: fix_locale_paths.py not found"
+    fi
 
-# Find the main index.js file
-for root, dirs, files in os.walk("app.asar.contents"):
-    for file in files:
-        if file == "index.js" and ".vite/build" in root:
-            filepath = os.path.join(root, file)
-            print(f"Found index.js at: {filepath}")
-
-            # Read the file
-            with open(filepath, 'rb') as f:
-                content = f.read()
-
-            # Replace process.resourcesPath with our locale path
-            # This handles the actual runtime value
-            original_content = content
-            content = content.replace(
-                b'process.resourcesPath',
-                b'"/usr/lib/claude-desktop-bin/locales"'
-            )
-
-            # Also try to replace any hardcoded electron paths
-            content = re.sub(
-                rb'/usr/lib/electron\d+/resources',
-                b'/usr/lib/claude-desktop-bin/locales',
-                content
-            )
-
-            # Write back if changed
-            if content != original_content:
-                with open(filepath, 'wb') as f:
-                    f.write(content)
-                print("Locale path patch applied successfully")
-            else:
-                print("Warning: No changes made to locale paths")
-
-            break
-EOF
+    # Apply Claude Code Linux support patch
+    echo "Applying Claude Code Linux support patch..."
+    if [ -f "$startdir/patches/fix_claude_code.py" ]; then
+        python3 "$startdir/patches/fix_claude_code.py" app.asar.contents/.vite/build/index.js || echo "Warning: Claude Code patch failed (non-fatal)"
+    else
+        echo "Warning: fix_claude_code.py not found, skipping Claude Code patch"
+    fi
 
     # Repack app.asar
     asar pack app.asar.contents app.asar

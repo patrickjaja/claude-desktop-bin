@@ -5,9 +5,17 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 ## [Unreleased]
 
 ### Added
+- **Claude Code CLI integration** - Patch to detect and use system-installed `/usr/bin/claude`
+- Isolated patch files in `patches/` directory for easier maintenance
+- Local build script `scripts/build-local.sh` for development testing
 - Version-specific filename for installer to prevent cache conflicts between updates
 
 ### Changed
+- Refactored all inline patches into separate files:
+  - `patches/claude-native.js` - Linux-compatible native module
+  - `patches/fix_claude_code.py` - Claude Code CLI support
+  - `patches/fix_locale_paths.py` - Locale file path fixes
+  - `patches/fix_title_bar.py` - Title bar detection fix
 - Refactored PKGBUILD generation to use template approach
 - Installer files now include version number (e.g., `Claude-Setup-x64-0.13.19.exe`)
 

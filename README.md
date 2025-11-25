@@ -21,9 +21,39 @@ makepkg -si
 
 ## Features
 - Native Linux support
+- **Claude Code CLI integration** - Use system-installed Claude Code (`/usr/bin/claude`)
 - Global hotkey support (Ctrl+Alt+Space)
 - Automated daily version checks and AUR updates
 - GitHub releases for version tracking
+
+## Claude Code Integration
+
+This package patches Claude Desktop to work with system-installed Claude Code on Linux.
+
+![Claude Code CLI](cc.png)
+![Claude Code in Claude Desktop](cc_in_cd.png)
+
+To use Claude Code features:
+```bash
+# Install Claude Code CLI via npm
+npm install -g @anthropic-ai/claude-code
+
+# Verify it's accessible
+which claude  # Should show /usr/bin/claude or similar
+```
+
+## Patches
+
+The package applies several patches to make Claude Desktop work on Linux. Each patch is isolated in `patches/` for easy maintenance:
+
+| Patch | Purpose |
+|-------|---------|
+| `claude-native.js` | Linux-compatible native module (replaces Windows-only `@anthropic/claude-native`) |
+| `fix_claude_code.py` | Enables Claude Code CLI integration by detecting `/usr/bin/claude` |
+| `fix_locale_paths.py` | Redirects locale file paths to Linux install location |
+| `fix_title_bar.py` | Fixes title bar detection issue on Linux |
+
+When Claude Desktop updates break a patch, only the specific patch file needs updating.
 
 ## Automation
 This repository automatically:
@@ -32,9 +62,22 @@ This repository automatically:
 - Creates GitHub releases for tracking updates
 - Maintains proper SHA256 checksums
 
+## Local Development Build
+
+To build and test the package locally:
+```bash
+# Download Claude-Setup-x64.exe from https://claude.ai/download to project root
+# Then run:
+./scripts/build-local.sh
+
+# Or build and install in one step:
+./scripts/build-local.sh --install
+```
+
 ## Repository Structure
 - `.github/workflows/` - GitHub Actions for automation
 - `scripts/` - Helper scripts for version detection and PKGBUILD generation
+- `patches/` - Isolated patch files for Linux compatibility
 - `PKGBUILD` - Dynamically generated (not stored in repo)
 
 ## Development
