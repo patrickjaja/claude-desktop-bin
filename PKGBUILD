@@ -54,40 +54,298 @@ build() {
         echo "Warning: No JSON files found in lib/net45/resources/"
     fi
 
-    # Install Linux-compatible native module (replaces Windows-only @anthropic/claude-native)
-    echo "Installing claude-native module..."
-    mkdir -p app.asar.contents/node_modules/claude-native
-    if [ -f "$startdir/patches/claude-native.js" ]; then
-        cp "$startdir/patches/claude-native.js" app.asar.contents/node_modules/claude-native/index.js
-        echo "  claude-native module installed"
+    # Apply all patches (embedded by generate-pkgbuild.sh)
+    # Applying patch: claude-native.js
+    echo "Applying patch: claude-native.js..."
+    mkdir -p "app.asar.contents/node_modules/claude-native"
+    cat > "app.asar.contents/node_modules/claude-native/index.js" << 'claude_native_js_EOF'
+// @patch-target: app.asar.contents/node_modules/claude-native/index.js
+// @patch-type: replace
+/**
+ * Linux-compatible native module for Claude Desktop.
+ *
+ * The official Claude Desktop uses @anthropic/claude-native which contains
+ * Windows-specific native bindings. This module provides Linux-compatible
+ * stubs and implementations using Electron APIs.
+ */
+
+const { app, Tray, Menu, nativeImage, Notification } = require('electron');
+const path = require('path');
+
+const KeyboardKey = {
+    Backspace: 43, Tab: 280, Enter: 261, Shift: 272, Control: 61,
+    Alt: 40, CapsLock: 56, Escape: 85, Space: 276, PageUp: 251,
+    PageDown: 250, End: 83, Home: 154, LeftArrow: 175, UpArrow: 282,
+    RightArrow: 262, DownArrow: 81, Delete: 79, Meta: 187
+};
+Object.freeze(KeyboardKey);
+
+let tray = null;
+
+function createTray() {
+    if (tray) return tray;
+    try {
+        const iconPath = path.join(process.resourcesPath || __dirname, 'tray-icon.png');
+        if (require('fs').existsSync(iconPath)) {
+            tray = new Tray(nativeImage.createFromPath(iconPath));
+            tray.setToolTip('Claude Desktop');
+            const menu = Menu.buildFromTemplate([
+                { label: 'Show', click: () => app.focus() },
+                { type: 'separator' },
+                { label: 'Quit', click: () => app.quit() }
+            ]);
+            tray.setContextMenu(menu);
+        }
+    } catch (e) {
+        console.warn('Tray creation failed:', e);
+    }
+    return tray;
+}
+
+module.exports = {
+    getWindowsVersion: () => "10.0.0",
+    setWindowEffect: () => {},
+    removeWindowEffect: () => {},
+    getIsMaximized: () => false,
+    flashFrame: () => {},
+    clearFlashFrame: () => {},
+    showNotification: (title, body) => {
+        if (Notification.isSupported()) {
+            new Notification({ title, body }).show();
+        }
+    },
+    setProgressBar: () => {},
+    clearProgressBar: () => {},
+    setOverlayIcon: () => {},
+    clearOverlayIcon: () => {},
+    createTray,
+    getTray: () => tray,
+    KeyboardKey
+};
+claude_native_js_EOF
+
+    # Applying patch: fix_claude_code.py
+    echo "Applying patch: fix_claude_code.py..."
+    python3 - "app.asar.contents/.vite/build/index.js" << 'fix_claude_code_py_EOF'
+#!/usr/bin/env python3
+# @patch-target: app.asar.contents/.vite/build/index.js
+# @patch-type: python
+"""
+Patch Claude Desktop to use system-installed Claude Code on Linux.
+
+The official Claude Desktop app only supports downloading Claude Code for
+macOS and Windows. This patch modifies the app to detect and use a
+system-installed Claude Code binary (/usr/bin/claude) on Linux.
+
+Usage: python3 fix_claude_code.py <path_to_index.js>
+"""
+
+import sys
+import os
+
+
+def patch_claude_code(filepath):
+    """Patch the Claude Code downloader to use system binary on Linux."""
+
+    print(f"Patching Claude Code support in: {filepath}")
+
+    with open(filepath, 'rb') as f:
+        content = f.read()
+
+    original_content = content
+    patches_applied = 0
+
+    # Patch 1: getBinaryPathIfReady() - Check /usr/bin/claude first on Linux
+    # Original: async getBinaryPathIfReady(){return await this.binaryExists(this.requiredVersion)?this.getBinaryPath(this.requiredVersion):null}
+    old_binary_ready = b'async getBinaryPathIfReady(){return await this.binaryExists(this.requiredVersion)?this.getBinaryPath(this.requiredVersion):null}'
+    new_binary_ready = b'async getBinaryPathIfReady(){console.log("[ClaudeCode] getBinaryPathIfReady called, platform:",process.platform);if(process.platform==="linux"){try{const fs=require("fs");const exists=fs.existsSync("/usr/bin/claude");console.log("[ClaudeCode] /usr/bin/claude exists:",exists);if(exists)return"/usr/bin/claude"}catch(e){console.log("[ClaudeCode] error checking /usr/bin/claude:",e)}}return await this.binaryExists(this.requiredVersion)?this.getBinaryPath(this.requiredVersion):null}'
+
+    if old_binary_ready in content:
+        content = content.replace(old_binary_ready, new_binary_ready)
+        patches_applied += 1
+        print("  ✓ getBinaryPathIfReady() patched")
+    else:
+        print("  ⚠ getBinaryPathIfReady() pattern not found")
+
+    # Patch 2: getStatus() - Return Ready if system binary exists on Linux
+    old_status = b'async getStatus(){if(await this.binaryExists(this.requiredVersion))'
+    new_status = b'async getStatus(){console.log("[ClaudeCode] getStatus called, platform:",process.platform);if(process.platform==="linux"){try{const fs=require("fs");const exists=fs.existsSync("/usr/bin/claude");console.log("[ClaudeCode] /usr/bin/claude exists:",exists);if(exists){console.log("[ClaudeCode] returning Ready");return Rv.Ready}}catch(e){console.log("[ClaudeCode] error:",e)}}if(await this.binaryExists(this.requiredVersion))'
+
+    if old_status in content:
+        content = content.replace(old_status, new_status)
+        patches_applied += 1
+        print("  ✓ getStatus() patched")
+    else:
+        print("  ⚠ getStatus() pattern not found")
+
+    # Write back if changed
+    if content != original_content:
+        with open(filepath, 'wb') as f:
+            f.write(content)
+        print(f"Claude Code patches applied: {patches_applied}/2")
+        return True
+    else:
+        print("Warning: No Claude Code patches applied")
+        return False
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print(f"Usage: {sys.argv[0]} <path_to_index.js>")
+        sys.exit(1)
+
+    filepath = sys.argv[1]
+    if not os.path.exists(filepath):
+        print(f"Error: File not found: {filepath}")
+        sys.exit(1)
+
+    success = patch_claude_code(filepath)
+    sys.exit(0 if success else 1)
+fix_claude_code_py_EOF
+
+    # Applying patch: fix_locale_paths.py
+    echo "Applying patch: fix_locale_paths.py..."
+    python3 - "app.asar.contents/.vite/build/index.js" << 'fix_locale_paths_py_EOF'
+#!/usr/bin/env python3
+# @patch-target: app.asar.contents/.vite/build/index.js
+# @patch-type: python
+"""
+Patch Claude Desktop locale file paths for Linux.
+
+The official Claude Desktop expects locale files in Electron's resourcesPath,
+but on Linux with system Electron, we need to redirect to our install location.
+
+Usage: python3 fix_locale_paths.py <path_to_index.js>
+"""
+
+import sys
+import os
+import re
+
+
+def patch_locale_paths(filepath):
+    """Patch locale file paths to use Linux install location."""
+
+    print(f"Patching locale paths in: {filepath}")
+
+    with open(filepath, 'rb') as f:
+        content = f.read()
+
+    original_content = content
+    patches_applied = 0
+
+    # Replace process.resourcesPath with our locale path
+    old_resource_path = b'process.resourcesPath'
+    new_resource_path = b'"/usr/lib/claude-desktop-bin/locales"'
+
+    if old_resource_path in content:
+        count = content.count(old_resource_path)
+        content = content.replace(old_resource_path, new_resource_path)
+        patches_applied += count
+        print(f"  Replaced process.resourcesPath: {count} occurrence(s)")
+
+    # Also replace any hardcoded electron paths
+    pattern = rb'/usr/lib/electron\d+/resources'
+    replacement = b'/usr/lib/claude-desktop-bin/locales'
+    content, count = re.subn(pattern, replacement, content)
+    if count > 0:
+        patches_applied += count
+        print(f"  Replaced hardcoded electron paths: {count} occurrence(s)")
+
+    if content != original_content:
+        with open(filepath, 'wb') as f:
+            f.write(content)
+        print(f"Locale path patches applied: {patches_applied} total")
+        return True
+    else:
+        print("Warning: No locale path changes made")
+        return False
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print(f"Usage: {sys.argv[0]} <path_to_index.js>")
+        sys.exit(1)
+
+    filepath = sys.argv[1]
+    if not os.path.exists(filepath):
+        print(f"Error: File not found: {filepath}")
+        sys.exit(1)
+
+    success = patch_locale_paths(filepath)
+    sys.exit(0 if success else 1)
+fix_locale_paths_py_EOF
+
+    # Applying patch: fix_title_bar.py
+    echo "Applying patch: fix_title_bar.py..."
+    local target_file=$(find app.asar.contents/.vite/renderer/main_window/assets -name "MainWindowPage-*.js" 2>/dev/null | head -1)
+    if [ -n "$target_file" ]; then
+        python3 - "$target_file" << 'fix_title_bar_py_EOF'
+#!/usr/bin/env python3
+# @patch-target: app.asar.contents/.vite/renderer/main_window/assets/MainWindowPage-*.js
+# @patch-type: python
+"""
+Patch Claude Desktop title bar detection issue on Linux.
+
+The original code has a negated condition that causes issues on Linux.
+This patch fixes: if(!var1 && var2) -> if(var1 && var2)
+
+Usage: python3 fix_title_bar.py <path_to_MainWindowPage-*.js>
+"""
+
+import sys
+import os
+import re
+
+
+def patch_title_bar(filepath):
+    """Patch the title bar detection logic."""
+
+    print(f"Patching title bar in: {filepath}")
+
+    with open(filepath, 'rb') as f:
+        content = f.read()
+
+    original_content = content
+
+    # Fix: if(!B&&e) -> if(B&&e) - removes the negation
+    # The title bar check has a negated condition that fails on Linux
+    # Pattern: if(!X&&Y) where X and Y are variable names (minified, no spaces)
+    pattern = rb'if\(!([a-zA-Z_][a-zA-Z0-9_]*)\s*&&\s*([a-zA-Z_][a-zA-Z0-9_]*)\)'
+    replacement = rb'if(\1&&\2)'
+
+    content, count = re.subn(pattern, replacement, content)
+
+    if content != original_content:
+        with open(filepath, 'wb') as f:
+            f.write(content)
+        print(f"Title bar patch applied: {count} replacement(s)")
+        return True
+    else:
+        print("Warning: No title bar patterns found to patch")
+        return False
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print(f"Usage: {sys.argv[0]} <path_to_MainWindowPage-*.js>")
+        sys.exit(1)
+
+    filepath = sys.argv[1]
+    if not os.path.exists(filepath):
+        print(f"Error: File not found: {filepath}")
+        sys.exit(1)
+
+    # Always exit 0 - patch is optional (some versions may not need it)
+    patch_title_bar(filepath)
+    sys.exit(0)
+fix_title_bar_py_EOF
     else
-        echo "Warning: claude-native.js not found"
+        echo "Warning: Target not found for pattern: app.asar.contents/.vite/renderer/main_window/assets/MainWindowPage-*.js"
     fi
 
-    # Apply title bar fix patch
-    echo "Applying title bar fix..."
-    local mainwindow_js=$(find app.asar.contents -name "MainWindowPage-*.js" 2>/dev/null | head -1)
-    if [ -n "$mainwindow_js" ] && [ -f "$startdir/patches/fix_title_bar.py" ]; then
-        python3 "$startdir/patches/fix_title_bar.py" "$mainwindow_js" || echo "Warning: Title bar patch failed (non-fatal)"
-    else
-        echo "Warning: MainWindowPage-*.js or fix_title_bar.py not found"
-    fi
 
-    # Apply locale paths fix
-    echo "Applying locale paths fix..."
-    if [ -f "$startdir/patches/fix_locale_paths.py" ]; then
-        python3 "$startdir/patches/fix_locale_paths.py" app.asar.contents/.vite/build/index.js || echo "Warning: Locale paths patch failed (non-fatal)"
-    else
-        echo "Warning: fix_locale_paths.py not found"
-    fi
 
-    # Apply Claude Code Linux support patch
-    echo "Applying Claude Code Linux support patch..."
-    if [ -f "$startdir/patches/fix_claude_code.py" ]; then
-        python3 "$startdir/patches/fix_claude_code.py" app.asar.contents/.vite/build/index.js || echo "Warning: Claude Code patch failed (non-fatal)"
-    else
-        echo "Warning: fix_claude_code.py not found, skipping Claude Code patch"
-    fi
 
     # Repack app.asar
     asar pack app.asar.contents app.asar
