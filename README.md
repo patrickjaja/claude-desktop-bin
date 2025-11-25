@@ -70,9 +70,24 @@ When Claude Desktop updates break a patch, only the specific patch file needs up
 ## Automation
 This repository automatically:
 - Checks for new Claude Desktop versions daily
+- **Validates all patches in Docker** before pushing to AUR
 - Updates the AUR package when new versions are detected
 - Creates GitHub releases for tracking updates
 - Maintains proper SHA256 checksums
+
+### Patch Validation
+
+The CI pipeline includes a test build step that validates patches before updating AUR:
+
+1. **Docker Test Build** - Runs `makepkg` in an `archlinux:base-devel` container
+2. **Pattern Matching Validation** - Each patch exits with code 1 if patterns don't match
+3. **Pipeline Stops on Failure** - Broken packages never reach AUR users
+4. **Build Logs Uploaded** - Artifacts available for debugging failures
+
+If upstream Claude Desktop changes break a patch:
+- The pipeline fails with clear `[FAIL]` output
+- Build logs show which pattern didn't match
+- AUR package remains unchanged until patches are updated
 
 ## Local Development Build
 
@@ -86,10 +101,38 @@ To build and test the package locally:
 ./scripts/build-local.sh --install
 ```
 
+### Validating Patches Locally
+
+Before committing patch changes, validate them against an extracted app:
+```bash
+# Extract the app.asar
+asar extract app.asar app.asar.contents
+
+# Run validation
+./scripts/validate-patches.sh ./app.asar.contents
+```
+
+Example output:
+```
+=== Patch Validation Report ===
+[fix_claude_code.py]
+  Target: app.asar.contents/.vite/build/index.js
+  [OK] getBinaryPathIfReady(): 1 match(es)
+  [OK] getStatus(): 1 match(es)
+  Status: PASS
+...
+Summary: 7 passed, 0 failed
+```
+
 ## Repository Structure
 - `.github/workflows/` - GitHub Actions for automation
-- `scripts/` - Helper scripts for version detection and PKGBUILD generation
+- `scripts/` - Helper scripts for version detection, PKGBUILD generation, and validation
+  - `build-local.sh` - Build package locally
+  - `extract-version.sh` - Extract version from Windows installer
+  - `generate-pkgbuild.sh` - Generate PKGBUILD from template
+  - `validate-patches.sh` - Validate patches against extracted app
 - `patches/` - Isolated patch files for Linux compatibility
+- `PKGBUILD.template` - Template for generating PKGBUILD
 - `PKGBUILD` - Dynamically generated (not stored in repo)
 
 ## Development
