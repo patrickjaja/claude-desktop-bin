@@ -34,34 +34,41 @@ def patch_quick_entry_position(filepath):
     original_content = content
     failed = False
 
-    # Patch 1: In pTe() function - the fallback position generator
-    pattern1 = rb'(function pTe\(\)\{const t=ce\.screen\.)getPrimaryDisplay\(\)'
-    replacement1 = rb'\1getDisplayNearestPoint(ce.screen.getCursorScreenPoint())'
-    content, count1 = re.subn(pattern1, replacement1, content)
+    # Patch 1: In position function - the fallback position generator
+    # Pattern matches: function FUNCNAME(){const t=ELECTRON.screen.getPrimaryDisplay()
+    # Function names change between versions (pTe, lPe, etc.), electron var changes (ce, de, etc.)
+    pattern1 = rb'(function \w+\(\)\{const t=)(\w+)(\.screen\.)getPrimaryDisplay\(\)'
+
+    def replacement1_func(m):
+        electron_var = m.group(2).decode('utf-8')
+        return (m.group(1) + m.group(2) + m.group(3) +
+                f'getDisplayNearestPoint({electron_var}.screen.getCursorScreenPoint())'.encode('utf-8'))
+
+    content, count1 = re.subn(pattern1, replacement1_func, content)
     if count1 > 0:
-        print(f"  [OK] pTe() function: {count1} match(es)")
+        print(f"  [OK] position function: {count1} match(es)")
     else:
-        print(f"  [FAIL] pTe() function: 0 matches, expected >= 1")
+        print(f"  [FAIL] position function: 0 matches, expected >= 1")
         failed = True
 
-    # Patch 2: In dTe() function - the fallback display lookup
-    pattern2 = rb'r\|\|\(r=ce\.screen\.getPrimaryDisplay\(\)\)'
-    replacement2 = rb'r||(r=ce.screen.getDisplayNearestPoint(ce.screen.getCursorScreenPoint()))'
-    content, count2 = re.subn(pattern2, replacement2, content)
+    # Patch 2: In fallback display lookup
+    # Pattern matches: r||(r=ELECTRON.screen.getPrimaryDisplay())
+    pattern2 = rb'r\|\|\(r=(\w+)\.screen\.getPrimaryDisplay\(\)\)'
+
+    def replacement2_func(m):
+        electron_var = m.group(1).decode('utf-8')
+        return f'r||(r={electron_var}.screen.getDisplayNearestPoint({electron_var}.screen.getCursorScreenPoint()))'.encode('utf-8')
+
+    content, count2 = re.subn(pattern2, replacement2_func, content)
     if count2 > 0:
-        print(f"  [OK] dTe() fallback: {count2} match(es)")
+        print(f"  [OK] fallback display: {count2} match(es)")
     else:
-        print(f"  [FAIL] dTe() fallback: 0 matches, expected >= 1")
+        print(f"  [FAIL] fallback display: 0 matches, expected >= 1")
         failed = True
 
-    # Patch 3: Override dTe to always use cursor position (optional enhancement)
-    pattern3 = rb'function dTe\(\)\{const t=hn\.get\("quickWindowPosition",null\),e=ce\.screen\.getAllDisplays\(\);if\(!\(t&&t\.absolutePointInWorkspace&&t\.monitor&&t\.relativePointFromMonitor\)\)return pTe\(\)'
-    replacement3 = rb'function dTe(){return pTe()/*patched to always use cursor position*/;const t=hn.get("quickWindowPosition",null),e=ce.screen.getAllDisplays();if(!(t&&t.absolutePointInWorkspace&&t.monitor&&t.relativePointFromMonitor))return pTe()'
-    content, count3 = re.subn(pattern3, replacement3, content)
-    if count3 > 0:
-        print(f"  [OK] dTe() override: {count3} match(es)")
-    else:
-        print(f"  [INFO] dTe() override: 0 matches (optional)")
+    # Patch 3: Disabled - this optional enhancement caused syntax errors
+    # The pattern only matched part of a function, leaving dangling code
+    print(f"  [INFO] dTe() override: skipped (disabled)")
 
     # Check results
     if failed:

@@ -36,25 +36,43 @@ def patch_tray_path(filepath):
     original_content = content
     patches_applied = 0
 
-    # Pattern 1: Generic function pattern
-    # Pattern: function FUNCNAME(){return ce.app.isPackaged?pn.resourcesPath:...}
-    pattern1 = rb'(function \w+\(\)\{return ce\.app\.isPackaged\?)pn\.resourcesPath(:[^}]+\})'
-    replacement1 = rb'\1(pn.platform==="linux"?"/usr/lib/claude-desktop-bin/locales":pn.resourcesPath)\2'
+    # Pattern 1: Generic function pattern with variable electron/process module names
+    # Pattern: function FUNCNAME(){return ELECTRON.app.isPackaged?PROCESS.resourcesPath:...}
+    # Variable names change between versions (ce->de, pn->gn, etc.)
+    pattern1 = rb'(function \w+\(\)\{return )(\w+)(\.app\.isPackaged\?)(\w+)(\.resourcesPath)(:[^}]+\})'
 
-    content, count1 = re.subn(pattern1, replacement1, content)
+    def replacement1_func(m):
+        prefix = m.group(1)
+        electron_var = m.group(2)
+        middle = m.group(3)
+        process_var = m.group(4)
+        suffix = m.group(5) + m.group(6)
+        # Insert Linux check: (process.platform==="linux"?"/usr/lib/claude-desktop-bin/locales":process.resourcesPath)
+        return (prefix + electron_var + middle +
+                b'(' + process_var + b'.platform==="linux"?"/usr/lib/claude-desktop-bin/locales":' +
+                process_var + b'.resourcesPath)' + m.group(6))
+
+    content, count1 = re.subn(pattern1, replacement1_func, content)
     if count1 > 0:
         patches_applied += count1
         print(f"  [OK] generic resources path function: {count1} match(es)")
 
-    # Pattern 2: Specific wTe function pattern (alternative)
+    # Pattern 2: Alternative pattern with process.resourcesPath directly (no variable)
     if patches_applied == 0:
-        pattern2 = rb'function wTe\(\)\{return ce\.app\.isPackaged\?pn\.resourcesPath:'
-        replacement2 = rb'function wTe(){return ce.app.isPackaged?(pn.platform==="linux"?"/usr/lib/claude-desktop-bin/locales":pn.resourcesPath):'
+        pattern2 = rb'(function \w+\(\)\{return )(\w+)(\.app\.isPackaged\?)process\.resourcesPath(:[^}]+\})'
 
-        content, count2 = re.subn(pattern2, replacement2, content)
+        def replacement2_func(m):
+            prefix = m.group(1)
+            electron_var = m.group(2)
+            middle = m.group(3)
+            suffix = m.group(4)
+            return (prefix + electron_var + middle +
+                    b'(process.platform==="linux"?"/usr/lib/claude-desktop-bin/locales":process.resourcesPath)' + suffix)
+
+        content, count2 = re.subn(pattern2, replacement2_func, content)
         if count2 > 0:
             patches_applied += count2
-            print(f"  [OK] specific wTe function: {count2} match(es)")
+            print(f"  [OK] process.resourcesPath function: {count2} match(es)")
 
     # Check results - at least one pattern must match
     if patches_applied == 0:
