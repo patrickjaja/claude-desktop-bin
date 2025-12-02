@@ -52,12 +52,14 @@ def patch_quick_entry_position(filepath):
         failed = True
 
     # Patch 2: In fallback display lookup
-    # Pattern matches: r||(r=ELECTRON.screen.getPrimaryDisplay())
-    pattern2 = rb'r\|\|\(r=(\w+)\.screen\.getPrimaryDisplay\(\)\)'
+    # Pattern matches: VAR||(VAR=ELECTRON.screen.getPrimaryDisplay())
+    # Variable name changes between versions (r, n, etc.), so use backreference
+    pattern2 = rb'(\w)\|\|\(\1=(\w+)\.screen\.getPrimaryDisplay\(\)\)'
 
     def replacement2_func(m):
-        electron_var = m.group(1).decode('utf-8')
-        return f'r||(r={electron_var}.screen.getDisplayNearestPoint({electron_var}.screen.getCursorScreenPoint()))'.encode('utf-8')
+        var_name = m.group(1).decode('utf-8')
+        electron_var = m.group(2).decode('utf-8')
+        return f'{var_name}||({var_name}={electron_var}.screen.getDisplayNearestPoint({electron_var}.screen.getCursorScreenPoint()))'.encode('utf-8')
 
     content, count2 = re.subn(pattern2, replacement2_func, content)
     if count2 > 0:
