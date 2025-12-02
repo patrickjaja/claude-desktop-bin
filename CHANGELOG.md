@@ -2,7 +2,20 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
-## [Unreleased]
+## 2025-12-02
+
+### Fixed
+- **Patch patterns for v1.0.1405** - Updated fix_quick_entry_position.py to use backreference pattern for fallback display variable (r→n)
+
+## 2025-11-26
+
+### Added
+- **CLAUDE.md** - Patch debugging guidelines for developers
+
+### Fixed
+- **Patch patterns for v1.0.1307** - Updated fix_quick_entry_position.py and fix_tray_path.py to use flexible regex patterns (ce→de, pn→gn, pTe→lPe)
+
+## 2025-11-25
 
 ### Added
 - **Patch validation in CI pipeline** - Test build in Docker container before pushing to AUR
@@ -15,38 +28,43 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 - **Tray path fix** - Redirect tray icon path to package directory on Linux
 - Isolated patch files in `patches/` directory for easier maintenance
 - Local build script `scripts/build-local.sh` for development testing
-- Version-specific filename for installer to prevent cache conflicts between updates
 
 ### Changed
 - **Patches now fail on pattern mismatch** - All Python patches exit with code 1 if patterns don't match
 - **generate-pkgbuild.sh captures exit codes** - Build fails if any patch fails to apply
-- Refactored all inline patches into separate files:
-  - `patches/claude-native.js` - Linux-compatible native module
-  - `patches/fix_claude_code.py` - Claude Code CLI support
-  - `patches/fix_locale_paths.py` - Locale file path fixes
-  - `patches/fix_title_bar.py` - Title bar detection fix
-  - `patches/fix_native_frame.py` - Native window frame handling
-  - `patches/fix_quick_entry_position.py` - Multi-monitor Quick Entry positioning
-  - `patches/fix_tray_dbus.py` - Tray menu DBus race condition fix
-  - `patches/fix_tray_path.py` - Tray icon path redirection
+- Refactored all inline patches into separate files
 - Refactored PKGBUILD generation to use template approach
-- Installer files now include version number (e.g., `Claude-Setup-x64-0.13.19.exe`)
 
 ### Fixed
-- **Patch patterns for v1.0.1307/v1.0.1405** - Updated fix_quick_entry_position.py and fix_tray_path.py to use flexible regex patterns that handle minified variable name changes between versions (ce→de, pn→gn, pTe→lPe, r→n)
-- **Native frame patch** - Updated to handle upstream code changes in v1.0.1217+ where main window no longer explicitly sets frame:false
+- **Native frame patch** - Handle upstream code changes in v1.0.1217+ where main window no longer explicitly sets frame:false
 - **Patch validation script** - Fixed handling of replace-type patches that create new files
 - **CI pipeline** - Improved error handling with pipefail to catch build failures in piped commands
-- Fixed PKGBUILD generation script - resolved menu display issue
-- Fixed missing menu/title bar issue by replacing Rust binding with JavaScript implementation
-- Fixed missing asar dependency in PKGBUILD
 - Fixed tray icon loading - copy TrayIconTemplate PNG files to locales directory for Electron Tray API
 
 ### Removed
 - Removed .SRCINFO from git tracking (auto-generated file)
 - Removed PKGBUILD from repo (generated from template)
 
-## [0.13.11] - 2024-09-16
+## 2025-11-24
+
+### Changed
+- Update to version 1.0.1217
+
+## 2025-11-17
+
+### Changed
+- Update to version 1.0.734
+
+## 2025-11-13
+
+### Added
+- Add GitHub repository link to PKGBUILD
+- Add manual download URL input for workflow_dispatch
+
+### Changed
+- Update to version 1.0.332
+
+## 2024-09-16
 
 ### Added
 - Initial working package with patched claude-native module
