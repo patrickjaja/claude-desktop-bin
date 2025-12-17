@@ -413,6 +413,88 @@ fix_native_frame_py_EOF
         exit 1
     fi
 
+    # Applying patch: fix_node_host.py
+    echo "Applying patch: fix_node_host.py..."
+    if ! python3 - "app.asar.contents/.vite/build/index.js" << 'fix_node_host_py_EOF'
+#!/usr/bin/env python3
+# @patch-target: app.asar.contents/.vite/build/index.js
+# @patch-type: python
+"""
+Patch Claude Desktop to fix MCP node host path on Linux.
+
+The fix_locale_paths.py patch replaces process.resourcesPath with our locale path,
+but this breaks the MCP node host path construction. This patch fixes it by
+using app.getAppPath() which correctly points to the app.asar location.
+
+Usage: python3 fix_node_host.py <path_to_index.js>
+"""
+
+import sys
+import os
+import re
+
+
+def patch_node_host(filepath):
+    """Patch the MCP node host path to use app.getAppPath()."""
+
+    print(f"=== Patch: fix_node_host ===")
+    print(f"  Target: {filepath}")
+
+    if not os.path.exists(filepath):
+        print(f"  [FAIL] File not found: {filepath}")
+        return False
+
+    with open(filepath, 'rb') as f:
+        content = f.read()
+
+    original_content = content
+
+    # Pattern matches the nodeHostPath assignment after fix_locale_paths.py has run
+    # It captures:
+    #   Group 1: electron module variable (de, ce, etc.)
+    #   Group 2: path module variable ($e, etc.) - note [\w$]+ to match $
+    pattern = rb'this\.nodeHostPath=([\w$]+)\.app\.isPackaged\?([\w$]+)\.join\("/usr/lib/claude-desktop-bin/locales","app\.asar","\.vite","build","mcp-runtime","nodeHost\.js"\):\2\.join\(\1\.app\.getAppPath\(\),"\.vite","build","mcp-runtime","nodeHost\.js"\)'
+
+    def replacement(m):
+        electron_var = m.group(1)
+        path_var = m.group(2)
+        # Use getAppPath() unconditionally - it returns the correct path on Linux
+        return b'this.nodeHostPath=' + path_var + b'.join(' + electron_var + b'.app.getAppPath(),".vite","build","mcp-runtime","nodeHost.js")'
+
+    content, count = re.subn(pattern, replacement, content)
+
+    if count > 0:
+        print(f"  [OK] nodeHostPath: {count} match(es)")
+    else:
+        print(f"  [FAIL] nodeHostPath: 0 matches, expected 1")
+        print(f"  This patch must run AFTER fix_locale_paths.py")
+        return False
+
+    # Write back if changed
+    if content != original_content:
+        with open(filepath, 'wb') as f:
+            f.write(content)
+        print("  [PASS] Node host path patched successfully")
+        return True
+    else:
+        print("  [WARN] No changes made")
+        return True
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print(f"Usage: {sys.argv[0]} <path_to_index.js>")
+        sys.exit(1)
+
+    success = patch_node_host(sys.argv[1])
+    sys.exit(0 if success else 1)
+fix_node_host_py_EOF
+    then
+        echo "ERROR: Patch fix_node_host.py FAILED - patterns did not match"
+        echo "Please check if upstream changed the target file structure"
+        exit 1
+    fi
+
     # Applying patch: fix_quick_entry_position.py
     echo "Applying patch: fix_quick_entry_position.py..."
     if ! python3 - "app.asar.contents/.vite/build/index.js" << 'fix_quick_entry_position_py_EOF'
@@ -516,6 +598,103 @@ if __name__ == "__main__":
 fix_quick_entry_position_py_EOF
     then
         echo "ERROR: Patch fix_quick_entry_position.py FAILED - patterns did not match"
+        echo "Please check if upstream changed the target file structure"
+        exit 1
+    fi
+
+    # Applying patch: fix_startup_settings.py
+    echo "Applying patch: fix_startup_settings.py..."
+    if ! python3 - "app.asar.contents/.vite/build/index.js" << 'fix_startup_settings_py_EOF'
+#!/usr/bin/env python3
+# @patch-target: app.asar.contents/.vite/build/index.js
+# @patch-type: python
+"""
+Patch Claude Desktop to fix startup settings on Linux.
+
+On Linux, Electron's app.getLoginItemSettings() returns undefined values for
+openAtLogin and executableWillLaunchAtLogin, causing validation errors.
+This patch adds a Linux platform check to return false immediately.
+
+Linux autostart is typically handled via .desktop files in ~/.config/autostart/
+which is outside the app's control anyway.
+
+Usage: python3 fix_startup_settings.py <path_to_index.js>
+"""
+
+import sys
+import os
+import re
+
+
+def patch_startup_settings(filepath):
+    """Patch startup settings to handle Linux correctly."""
+
+    print(f"=== Patch: fix_startup_settings ===")
+    print(f"  Target: {filepath}")
+
+    if not os.path.exists(filepath):
+        print(f"  [FAIL] File not found: {filepath}")
+        return False
+
+    with open(filepath, 'rb') as f:
+        content = f.read()
+
+    original_content = content
+    patches_applied = 0
+
+    # Pattern 1: isStartupOnLoginEnabled function
+    # Add Linux platform check before the existing env var check
+    pattern1 = rb'isStartupOnLoginEnabled\(\)\{if\(process\.env\.CLAUDE_AVOID_READING_LOGING_ITEM_SETTINGS\)return!1;'
+    replacement1 = b'isStartupOnLoginEnabled(){if(process.platform==="linux"||process.env.CLAUDE_AVOID_READING_LOGING_ITEM_SETTINGS)return!1;'
+
+    content, count1 = re.subn(pattern1, replacement1, content)
+    if count1 > 0:
+        patches_applied += count1
+        print(f"  [OK] isStartupOnLoginEnabled: {count1} match(es)")
+    else:
+        print(f"  [FAIL] isStartupOnLoginEnabled: 0 matches")
+
+    # Pattern 2: setStartupOnLoginEnabled function - make it a no-op on Linux
+    # Find the function and add early return for Linux
+    pattern2 = rb'setStartupOnLoginEnabled\((\w+)\)\{re\.debug\('
+
+    def replacement2_func(m):
+        arg_var = m.group(1)
+        return b'setStartupOnLoginEnabled(' + arg_var + b'){if(process.platform==="linux")return;re.debug('
+
+    content, count2 = re.subn(pattern2, replacement2_func, content)
+    if count2 > 0:
+        patches_applied += count2
+        print(f"  [OK] setStartupOnLoginEnabled: {count2} match(es)")
+    else:
+        print(f"  [INFO] setStartupOnLoginEnabled: 0 matches (optional)")
+
+    # Check results
+    if patches_applied == 0:
+        print(f"  [FAIL] No patterns matched")
+        return False
+
+    # Write back if changed
+    if content != original_content:
+        with open(filepath, 'wb') as f:
+            f.write(content)
+        print("  [PASS] Startup settings patched successfully")
+        return True
+    else:
+        print("  [WARN] No changes made")
+        return True
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print(f"Usage: {sys.argv[0]} <path_to_index.js>")
+        sys.exit(1)
+
+    success = patch_startup_settings(sys.argv[1])
+    sys.exit(0 if success else 1)
+fix_startup_settings_py_EOF
+    then
+        echo "ERROR: Patch fix_startup_settings.py FAILED - patterns did not match"
         echo "Please check if upstream changed the target file structure"
         exit 1
     fi
@@ -756,6 +935,102 @@ if __name__ == "__main__":
 fix_tray_dbus_py_EOF
     then
         echo "ERROR: Patch fix_tray_dbus.py FAILED - patterns did not match"
+        echo "Please check if upstream changed the target file structure"
+        exit 1
+    fi
+
+    # Applying patch: fix_tray_icon_theme.py
+    echo "Applying patch: fix_tray_icon_theme.py..."
+    if ! python3 - "app.asar.contents/.vite/build/index.js" << 'fix_tray_icon_theme_py_EOF'
+#!/usr/bin/env python3
+# @patch-target: app.asar.contents/.vite/build/index.js
+# @patch-type: python
+"""
+Patch Claude Desktop to use correct tray icon based on theme on Linux.
+
+On Windows, the app checks nativeTheme.shouldUseDarkColors to select the
+appropriate icon (light icon for dark theme, dark icon for light theme).
+On Linux, it always uses TrayIconTemplate.png regardless of theme.
+
+This patch adds theme detection for Linux to use:
+- TrayIconTemplate.png for light panels (dark icon)
+- TrayIconTemplate-Dark.png for dark panels (light icon)
+
+Usage: python3 fix_tray_icon_theme.py <path_to_index.js>
+"""
+
+import sys
+import os
+import re
+
+
+def patch_tray_icon_theme(filepath):
+    """Patch tray icon selection to respect theme on Linux."""
+
+    print(f"=== Patch: fix_tray_icon_theme ===")
+    print(f"  Target: {filepath}")
+
+    if not os.path.exists(filepath):
+        print(f"  [FAIL] File not found: {filepath}")
+        return False
+
+    with open(filepath, 'rb') as f:
+        content = f.read()
+
+    original_content = content
+
+    # Pattern: The tray icon selection logic
+    # Original: Si?e=de.nativeTheme.shouldUseDarkColors?"Tray-Win32-Dark.ico":"Tray-Win32.ico":e="TrayIconTemplate.png"
+    # We want to change the Linux branch to also check the theme
+    #
+    # The variable names:
+    # - Si = isWindows check
+    # - de = electron module
+    # - e = icon filename variable
+
+    # Match the pattern with flexible variable names
+    pattern = rb'([\w$]+)\?(\w+)=(\w+)\.nativeTheme\.shouldUseDarkColors\?"Tray-Win32-Dark\.ico":"Tray-Win32\.ico":\2="TrayIconTemplate\.png"'
+
+    def replacement(m):
+        is_win_var = m.group(1)  # Si
+        icon_var = m.group(2)     # e
+        electron_var = m.group(3) # de
+        # On Windows: use .ico files with theme check
+        # On Linux: use .png files with theme check
+        return (is_win_var + b'?' + icon_var + b'=' + electron_var +
+                b'.nativeTheme.shouldUseDarkColors?"Tray-Win32-Dark.ico":"Tray-Win32.ico":' +
+                icon_var + b'=' + electron_var +
+                b'.nativeTheme.shouldUseDarkColors?"TrayIconTemplate-Dark.png":"TrayIconTemplate.png"')
+
+    content, count = re.subn(pattern, replacement, content)
+
+    if count > 0:
+        print(f"  [OK] tray icon theme logic: {count} match(es)")
+    else:
+        print(f"  [FAIL] tray icon theme logic: 0 matches")
+        return False
+
+    # Write back if changed
+    if content != original_content:
+        with open(filepath, 'wb') as f:
+            f.write(content)
+        print("  [PASS] Tray icon theme patched successfully")
+        return True
+    else:
+        print("  [WARN] No changes made")
+        return True
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print(f"Usage: {sys.argv[0]} <path_to_index.js>")
+        sys.exit(1)
+
+    success = patch_tray_icon_theme(sys.argv[1])
+    sys.exit(0 if success else 1)
+fix_tray_icon_theme_py_EOF
+    then
+        echo "ERROR: Patch fix_tray_icon_theme.py FAILED - patterns did not match"
         echo "Please check if upstream changed the target file structure"
         exit 1
     fi
