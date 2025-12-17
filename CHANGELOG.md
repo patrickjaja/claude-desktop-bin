@@ -2,6 +2,13 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2025-12-17
+
+### Added
+- **MCP node host path fix** - Fix incorrect path for MCP server node host on Linux (fix_node_host.py)
+- **Startup settings fix** - Handle Linux platform in startup settings to avoid validation errors (fix_startup_settings.py)
+- **Tray icon theme fix** - Use theme-aware tray icon selection on Linux (fix_tray_icon_theme.py)
+
 ## 2025-12-02
 
 ### Fixed
