@@ -130,7 +130,7 @@ jobs:
               set -eo pipefail
               echo '=== Installing build dependencies ==='
               pacman -Syu --noconfirm
-              pacman -S --noconfirm p7zip wget python nodejs npm fakeroot binutils electron git base-devel
+              pacman -S --noconfirm p7zip wget python nodejs npm fakeroot binutils electron git base-devel icoutils
 
               echo '=== Creating builder user ==='
               useradd -m builder

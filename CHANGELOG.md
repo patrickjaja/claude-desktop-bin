@@ -7,7 +7,7 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 ### Added
 - **App quit fix** - Fix app not quitting after cleanup on Linux (fix_app_quit.py). After `will-quit` handler calls `preventDefault()`, `app.quit()` becomes a no-op. Solution uses `app.exit(0)` with `setImmediate` after cleanup completes.
 - **UtilityProcess SIGKILL fix** - Use SIGKILL as fallback when UtilityProcess doesn't exit gracefully (fix_utility_process_kill.py)
-- **Custom app icon** - Use full-color orange Claude logo instead of tray icon template
+- **Custom app icon** - Extract full-color orange Claude logo from setupIcon.ico at build time (requires icoutils)
 
 ### Fixed
 - Fixed app hanging on exit when using integrated Node.js server for MCP
