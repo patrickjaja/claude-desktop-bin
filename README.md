@@ -67,6 +67,8 @@ The package applies several patches to make Claude Desktop work on Linux. Each p
 | `fix_tray_dbus.py` | Prevents DBus race conditions with mutex guard and cleanup delay |
 | `fix_tray_icon_theme.py` | Uses theme-aware tray icon selection (light/dark) on Linux |
 | `fix_tray_path.py` | Redirects tray icon path to package directory on Linux |
+| `fix_app_quit.py` | Fixes app not quitting after cleanup on Linux (uses `app.exit(0)` instead of `app.quit()`) |
+| `fix_utility_process_kill.py` | Uses SIGKILL as fallback when UtilityProcess doesn't exit gracefully |
 
 When Claude Desktop updates break a patch, only the specific patch file needs updating.
 
