@@ -140,6 +140,74 @@ module.exports = {
 };
 claude_native_js_EOF
 
+    # Applying patch: fix_app_quit.py
+    echo "Applying patch: fix_app_quit.py..."
+    if ! python3 - "app.asar.contents/.vite/build/index.js" << 'fix_app_quit_py_EOF'
+#!/usr/bin/env python3
+"""
+@patch-target: app.asar.contents/.vite/build/index.js
+@patch-type: python
+
+Fix app not quitting after cleanup completes.
+
+After the will-quit handler calls preventDefault() and runs cleanup,
+calling app.quit() again becomes a no-op on Linux. The will-quit event
+never fires again, leaving the app stuck.
+
+Solution: Use app.exit(0) instead of app.quit() after cleanup is complete.
+Since all cleanup handlers have already run (mcp-shutdown, quick-entry-cleanup,
+prototype-cleanup), we can safely force exit. Using setImmediate ensures
+the exit happens in the next event loop tick.
+"""
+
+import sys
+import re
+
+def main():
+    if len(sys.argv) != 2:
+        print("Usage: fix_app_quit.py <file>")
+        sys.exit(1)
+
+    file_path = sys.argv[1]
+
+    with open(file_path, 'rb') as f:
+        content = f.read()
+
+    print("=== Patch: fix_app_quit ===")
+    print(f"  Target: {file_path}")
+
+    # Original: clearTimeout(n)}S_&&he.app.quit()}
+    # The S_&&he.app.quit() doesn't work after preventDefault() on Linux
+    # Replace with setImmediate + app.exit(0) for reliable exit
+    pattern = rb'(clearTimeout\(\w+\)\})(S_&&he\.app\.quit\(\))'
+    replacement = rb'\1if(S_){setImmediate(()=>he.app.exit(0))}'
+
+    new_content, count = re.subn(pattern, replacement, content)
+
+    if count == 0:
+        print("  [WARN] app.quit pattern: 0 matches (may need pattern update)")
+        # Debug: check if the string exists
+        if b'S_&&he.app.quit()' in content:
+            print("  [INFO] Found 'S_&&he.app.quit()' in file but pattern didn't match")
+        sys.exit(0)
+
+    print(f"  [OK] app.quit -> app.exit: {count} match(es)")
+
+    with open(file_path, 'wb') as f:
+        f.write(new_content)
+
+    print("  [PASS] App quit patched successfully")
+    sys.exit(0)
+
+if __name__ == "__main__":
+    main()
+fix_app_quit_py_EOF
+    then
+        echo "ERROR: Patch fix_app_quit.py FAILED - patterns did not match"
+        echo "Please check if upstream changed the target file structure"
+        exit 1
+    fi
+
     # Applying patch: fix_claude_code.py
     echo "Applying patch: fix_claude_code.py..."
     if ! python3 - "app.asar.contents/.vite/build/index.js" << 'fix_claude_code_py_EOF'
@@ -1140,6 +1208,83 @@ if __name__ == "__main__":
 fix_tray_path_py_EOF
     then
         echo "ERROR: Patch fix_tray_path.py FAILED - patterns did not match"
+        echo "Please check if upstream changed the target file structure"
+        exit 1
+    fi
+
+    # Applying patch: fix_utility_process_kill.py
+    echo "Applying patch: fix_utility_process_kill.py..."
+    if ! python3 - "app.asar.contents/.vite/build/index.js" << 'fix_utility_process_kill_py_EOF'
+#!/usr/bin/env python3
+"""
+@patch-target: app.asar.contents/.vite/build/index.js
+@patch-type: python
+
+Fix UtilityProcess not terminating on app exit.
+
+When using the integrated Node.js server for MCP, the fallback kill
+after SIGTERM timeout sends another SIGTERM instead of SIGKILL,
+causing the process to remain alive and preventing app exit.
+
+Original pattern found in code:
+  const a=(s=this.process)==null?void 0:s.kill();te.info(`Killing utiltiy proccess again
+
+Note: "utiltiy" and "proccess" are typos in the original Anthropic code.
+"""
+
+import sys
+import re
+
+def main():
+    if len(sys.argv) != 2:
+        print("Usage: fix_utility_process_kill.py <file>")
+        sys.exit(1)
+
+    file_path = sys.argv[1]
+
+    with open(file_path, 'rb') as f:
+        content = f.read()
+
+    print("=== Patch: fix_utility_process_kill ===")
+    print(f"  Target: {file_path}")
+
+    # Pattern: The setTimeout callback that tries to kill the UtilityProcess
+    # after 5 seconds. Matches:
+    #   const a=(s=this.process)==null?void 0:s.kill();te.info(`Killing utiltiy proccess again
+    # Uses \w+ to capture minified variable names (s, a) flexibly
+    pattern = rb'(const \w+=\(\w+=this\.process\)==null\?void 0:\w+)(\.kill\(\))(;\w+\.info\(`Killing utiltiy proccess again)'
+
+    def replacement(m):
+        # Replace .kill() with .kill("SIGKILL")
+        return m.group(1) + b'.kill("SIGKILL")' + m.group(3)
+
+    new_content, count = re.subn(pattern, replacement, content)
+
+    if count == 0:
+        print("  [WARN] UtilityProcess kill pattern: 0 matches (may need pattern update)")
+        # Debug: show what we're looking for
+        if b'Killing utiltiy proccess again' in content:
+            print("  [INFO] Found 'Killing utiltiy proccess again' string in file")
+            # Try to find nearby context
+            ctx = re.search(rb'.{50}Killing utiltiy proccess again.{20}', content)
+            if ctx:
+                print(f"  [DEBUG] Context: {ctx.group(0)}")
+        print("  [PASS] No changes needed (pattern may have changed)")
+        sys.exit(0)  # Don't fail build, just warn
+
+    print(f"  [OK] UtilityProcess SIGKILL fix: {count} match(es)")
+
+    with open(file_path, 'wb') as f:
+        f.write(new_content)
+
+    print("  [PASS] UtilityProcess kill patched successfully")
+    sys.exit(0)
+
+if __name__ == "__main__":
+    main()
+fix_utility_process_kill_py_EOF
+    then
+        echo "ERROR: Patch fix_utility_process_kill.py FAILED - patterns did not match"
         echo "Please check if upstream changed the target file structure"
         exit 1
     fi
