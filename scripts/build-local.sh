@@ -113,6 +113,10 @@ log_info "Generating PKGBUILD..."
 log_info "Copying patches..."
 cp -r "$PROJECT_DIR/patches" "$BUILD_DIR/"
 
+# Copy icons directory
+log_info "Copying icons..."
+cp -r "$PROJECT_DIR/icons" "$BUILD_DIR/"
+
 # Build the package
 log_info "Building package with makepkg..."
 cd "$BUILD_DIR"

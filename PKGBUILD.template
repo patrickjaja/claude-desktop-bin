@@ -98,11 +98,9 @@ MimeType=x-scheme-handler/claude;
 StartupWMClass=Claude
 EOF
 
-    # Extract and install icon
-    if [ -f "$srcdir/extract/lib/net45/resources/TrayIconTemplate.png" ]; then
-        install -Dm644 "$srcdir/extract/lib/net45/resources/TrayIconTemplate.png" \
-            "$pkgdir/usr/share/icons/hicolor/256x256/apps/claude-desktop.png"
-    fi
+    # Install icon (full-color orange Claude logo, pre-extracted from setupIcon.ico)
+    install -Dm644 "$startdir/icons/claude-desktop.png" \
+        "$pkgdir/usr/share/icons/hicolor/256x256/apps/claude-desktop.png"
 }
 
 # vim: set ts=4 sw=4 et:
