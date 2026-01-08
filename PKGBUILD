@@ -10,7 +10,7 @@ arch=('x86_64')
 url="https://claude.ai"
 license=('custom:Claude')
 depends=('electron' 'nodejs')
-makedepends=('p7zip' 'wget' 'asar' 'python')
+makedepends=('p7zip' 'wget' 'asar' 'python' 'icoutils')
 optdepends=('claude-code: Claude Code CLI for agentic coding features (npm i -g @anthropic-ai/claude-code)')
 provides=('claude-desktop')
 conflicts=('claude-desktop')
@@ -1333,11 +1333,11 @@ MimeType=x-scheme-handler/claude;
 StartupWMClass=Claude
 EOF
 
-    # Extract and install icon
-    if [ -f "$srcdir/extract/lib/net45/resources/TrayIconTemplate.png" ]; then
-        install -Dm644 "$srcdir/extract/lib/net45/resources/TrayIconTemplate.png" \
-            "$pkgdir/usr/share/icons/hicolor/256x256/apps/claude-desktop.png"
-    fi
+    # Extract and install icon from setupIcon.ico (full-color Claude logo)
+    icotool -x -o "$srcdir/" "$srcdir/extract/setupIcon.ico"
+    # Use the largest icon (256x256) - index 6 in the ico file
+    install -Dm644 "$srcdir/setupIcon_6_256x256x32.png" \
+        "$pkgdir/usr/share/icons/hicolor/256x256/apps/claude-desktop.png"
 }
 
 # vim: set ts=4 sw=4 et:

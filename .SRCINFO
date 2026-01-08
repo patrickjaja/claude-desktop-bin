@@ -9,6 +9,7 @@ pkgbase = claude-desktop-bin
 	makedepends = wget
 	makedepends = asar
 	makedepends = python
+	makedepends = icoutils
 	depends = electron
 	depends = nodejs
 
