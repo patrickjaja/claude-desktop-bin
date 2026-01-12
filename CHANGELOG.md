@@ -5,6 +5,11 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 ## 2026-01-13
 
 ### Added
+- **Local Agent Mode for Linux** - New patch (enable_local_agent_mode.py) enables the "chillingSloth" feature on Linux:
+  - Enables Local Agent Mode sessions with git worktree isolation
+  - Enables Claude Code for Desktop integration
+  - Patches qWe() and zWe() platform checks to return "supported" on all platforms
+  - Note: SecureVM (yukonSilver) and Echo features still require macOS-only Swift modules
 - **ClaudeVM Linux handling** - New patch (fix_vm_session_handlers.py) to gracefully handle VM features not supported on Linux:
   - getDownloadStatus returns NotDownloaded on Linux
   - getRunningStatus returns Offline on Linux
