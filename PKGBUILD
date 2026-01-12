@@ -140,6 +140,118 @@ module.exports = {
 };
 claude_native_js_EOF
 
+    # Applying patch: enable_local_agent_mode.py
+    echo "Applying patch: enable_local_agent_mode.py..."
+    if ! python3 - "app.asar.contents/.vite/build/index.js" << 'enable_local_agent_mode_py_EOF'
+#!/usr/bin/env python3
+# @patch-target: app.asar.contents/.vite/build/index.js
+# @patch-type: python
+"""
+Enable Local Agent Mode (chillingSlothFeat) on Linux.
+
+The original code gates this feature with `process.platform!=="darwin"` check,
+returning {status:"unavailable"} on Linux. This patch removes that check to
+enable the Local Agent Mode feature (Claude Code for Desktop with git worktrees).
+
+This feature provides:
+- Local agent sessions with isolated git worktrees
+- Claude Code integration in Desktop app
+- MCP server support for agent sessions
+- PTY terminal support
+
+NOTE: This does NOT enable:
+- yukonSilver/SecureVM (requires @ant/claude-swift macOS native module)
+- Echo/Screen capture (requires @ant/claude-swift macOS native module)
+- Native Quick Entry (requires macOS-specific Swift code)
+
+Usage: python3 enable_local_agent_mode.py <path_to_index.js>
+"""
+
+import sys
+import os
+import re
+
+
+def patch_local_agent_mode(filepath):
+    """Enable Local Agent Mode (chillingSlothFeat) on Linux by patching qWe function."""
+
+    print(f"=== Patch: enable_local_agent_mode ===")
+    print(f"  Target: {filepath}")
+
+    if not os.path.exists(filepath):
+        print(f"  [FAIL] File not found: {filepath}")
+        return False
+
+    with open(filepath, 'rb') as f:
+        content = f.read()
+
+    original_content = content
+    failed = False
+
+    # Patch 1: Modify qWe() function (chillingSlothFeat)
+    # Original: function qWe(){return process.platform!=="darwin"?{status:"unavailable"}:{status:"supported"}}
+    # Changed:  function qWe(){return{status:"supported"}}
+    #
+    # Pattern matches the darwin-only check and replaces with always-supported
+    pattern1 = rb'function qWe\(\)\{return process\.platform!=="darwin"\?\{status:"unavailable"\}:\{status:"supported"\}\}'
+    replacement1 = b'function qWe(){return{status:"supported"}}'
+
+    content, count1 = re.subn(pattern1, replacement1, content)
+    if count1 > 0:
+        print(f"  [OK] qWe (chillingSlothFeat): {count1} match(es)")
+    else:
+        # Try alternative pattern in case of slight variations
+        pattern1_alt = rb'(function qWe\(\)\{return )process\.platform!=="darwin"\?\{status:"unavailable"\}:(\{status:"supported"\})\}'
+        content, count1 = re.subn(pattern1_alt, rb'\1\2}', content)
+        if count1 > 0:
+            print(f"  [OK] qWe (chillingSlothFeat) alt: {count1} match(es)")
+        else:
+            print(f"  [FAIL] qWe (chillingSlothFeat): 0 matches, expected 1")
+            failed = True
+
+    # Patch 2: Modify zWe() function (quietPenguin)
+    # This feature is also darwin-only but may be related to agent mode
+    # Original: function zWe(){return process.platform!=="darwin"?{status:"unavailable"}:{status:"supported"}}
+    # Changed:  function zWe(){return{status:"supported"}}
+    pattern2 = rb'function zWe\(\)\{return process\.platform!=="darwin"\?\{status:"unavailable"\}:\{status:"supported"\}\}'
+    replacement2 = b'function zWe(){return{status:"supported"}}'
+
+    content, count2 = re.subn(pattern2, replacement2, content)
+    if count2 > 0:
+        print(f"  [OK] zWe (quietPenguin): {count2} match(es)")
+    else:
+        print(f"  [INFO] zWe (quietPenguin): 0 matches (may not exist in this version)")
+
+    # Check results
+    if failed:
+        print("  [FAIL] Required patterns did not match")
+        return False
+
+    # Write back if changed
+    if content != original_content:
+        with open(filepath, 'wb') as f:
+            f.write(content)
+        print("  [PASS] Local Agent Mode enabled successfully")
+        return True
+    else:
+        print("  [WARN] No changes made (patterns may have already been applied)")
+        return True
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print(f"Usage: {sys.argv[0]} <path_to_index.js>")
+        sys.exit(1)
+
+    success = patch_local_agent_mode(sys.argv[1])
+    sys.exit(0 if success else 1)
+enable_local_agent_mode_py_EOF
+    then
+        echo "ERROR: Patch enable_local_agent_mode.py FAILED - patterns did not match"
+        echo "Please check if upstream changed the target file structure"
+        exit 1
+    fi
+
     # Applying patch: fix_app_quit.py
     echo "Applying patch: fix_app_quit.py..."
     if ! python3 - "app.asar.contents/.vite/build/index.js" << 'fix_app_quit_py_EOF'
@@ -249,28 +361,41 @@ def patch_claude_code(filepath):
     original_content = content
     failed = False
 
-    # Patch 1: getBinaryPathIfReady() - Check /usr/bin/claude first on Linux
-    # Pattern updated for v1.0.3218: now uses getHostTarget() and binaryExistsForTarget()
-    old_binary_ready = b'async getBinaryPathIfReady(){const e=this.getHostTarget();return await this.binaryExistsForTarget(e,this.requiredVersion)?this.getBinaryPathForTarget(e,this.requiredVersion):null}'
-    new_binary_ready = b'async getBinaryPathIfReady(){const e=this.getHostTarget();console.log("[ClaudeCode] getBinaryPathIfReady called, platform:",process.platform);if(process.platform==="linux"){try{const fs=require("fs");const exists=fs.existsSync("/usr/bin/claude");console.log("[ClaudeCode] /usr/bin/claude exists:",exists);if(exists)return"/usr/bin/claude"}catch(e){console.log("[ClaudeCode] error checking /usr/bin/claude:",e)}}return await this.binaryExistsForTarget(e,this.requiredVersion)?this.getBinaryPathForTarget(e,this.requiredVersion):null}'
+    # Patch 1: getHostPlatform() - Add Linux support
+    # This is the root cause - it throws "Unsupported platform" for Linux
+    old_platform = b'getHostPlatform(){const e=process.arch;if(process.platform==="darwin")return e==="arm64"?"darwin-arm64":"darwin-x64";if(process.platform==="win32")return"win32-x64";throw new Error(`Unsupported platform: ${process.platform}-${e}`)}'
+    new_platform = b'getHostPlatform(){const e=process.arch;if(process.platform==="darwin")return e==="arm64"?"darwin-arm64":"darwin-x64";if(process.platform==="win32")return"win32-x64";if(process.platform==="linux")return e==="arm64"?"linux-arm64":"linux-x64";throw new Error(`Unsupported platform: ${process.platform}-${e}`)}'
 
-    count1 = content.count(old_binary_ready)
+    count1 = content.count(old_platform)
     if count1 >= 1:
+        content = content.replace(old_platform, new_platform)
+        print(f"  [OK] getHostPlatform(): {count1} match(es)")
+    else:
+        print(f"  [FAIL] getHostPlatform(): 0 matches, expected >= 1")
+        failed = True
+
+    # Patch 2: getBinaryPathIfReady() - Check /usr/bin/claude first on Linux
+    # IMPORTANT: Check Linux BEFORE calling getHostTarget() for safety
+    old_binary_ready = b'async getBinaryPathIfReady(){const e=this.getHostTarget();return await this.binaryExistsForTarget(e,this.requiredVersion)?this.getBinaryPathForTarget(e,this.requiredVersion):null}'
+    new_binary_ready = b'async getBinaryPathIfReady(){if(process.platform==="linux"){try{const fs=require("fs");if(fs.existsSync("/usr/bin/claude"))return"/usr/bin/claude"}catch(err){}}const e=this.getHostTarget();return await this.binaryExistsForTarget(e,this.requiredVersion)?this.getBinaryPathForTarget(e,this.requiredVersion):null}'
+
+    count2 = content.count(old_binary_ready)
+    if count2 >= 1:
         content = content.replace(old_binary_ready, new_binary_ready)
-        print(f"  [OK] getBinaryPathIfReady(): {count1} match(es)")
+        print(f"  [OK] getBinaryPathIfReady(): {count2} match(es)")
     else:
         print(f"  [FAIL] getBinaryPathIfReady(): 0 matches, expected >= 1")
         failed = True
 
-    # Patch 2: getStatus() - Return Ready if system binary exists on Linux
-    # Pattern updated for v1.0.3218: now uses getHostTarget(), preparingPromise check, and Yo enum
+    # Patch 3: getStatus() - Return Ready if system binary exists on Linux
+    # IMPORTANT: Check Linux BEFORE calling getHostTarget() for safety
     old_status = b'async getStatus(){const e=this.getHostTarget();if(this.preparingPromise)return Yo.Updating;if(await this.binaryExistsForTarget(e,this.requiredVersion))'
-    new_status = b'async getStatus(){const e=this.getHostTarget();console.log("[ClaudeCode] getStatus called, platform:",process.platform);if(process.platform==="linux"){try{const fs=require("fs");const exists=fs.existsSync("/usr/bin/claude");console.log("[ClaudeCode] /usr/bin/claude exists:",exists);if(exists){console.log("[ClaudeCode] returning Ready");return Yo.Ready}}catch(e){console.log("[ClaudeCode] error:",e)}}if(this.preparingPromise)return Yo.Updating;if(await this.binaryExistsForTarget(e,this.requiredVersion))'
+    new_status = b'async getStatus(){if(process.platform==="linux"){try{const fs=require("fs");if(fs.existsSync("/usr/bin/claude")){return Yo.Ready}return Yo.NotInstalled}catch(err){return Yo.NotInstalled}}const e=this.getHostTarget();if(this.preparingPromise)return Yo.Updating;if(await this.binaryExistsForTarget(e,this.requiredVersion))'
 
-    count2 = content.count(old_status)
-    if count2 >= 1:
+    count3 = content.count(old_status)
+    if count3 >= 1:
         content = content.replace(old_status, new_status)
-        print(f"  [OK] getStatus(): {count2} match(es)")
+        print(f"  [OK] getStatus(): {count3} match(es)")
     else:
         print(f"  [FAIL] getStatus(): 0 matches, expected >= 1")
         failed = True
@@ -1299,6 +1424,161 @@ if __name__ == "__main__":
 fix_utility_process_kill_py_EOF
     then
         echo "ERROR: Patch fix_utility_process_kill.py FAILED - patterns did not match"
+        echo "Please check if upstream changed the target file structure"
+        exit 1
+    fi
+
+    # Applying patch: fix_vm_session_handlers.py
+    echo "Applying patch: fix_vm_session_handlers.py..."
+    if ! python3 - "app.asar.contents/.vite/build/index.js" << 'fix_vm_session_handlers_py_EOF'
+#!/usr/bin/env python3
+# @patch-target: app.asar.contents/.vite/build/index.js
+# @patch-type: python
+"""
+Patch Claude Desktop to handle ClaudeVM and LocalAgentModeSessions IPC on Linux.
+
+The claude.ai web frontend and popup windows may generate runtime UUIDs for IPC channels
+that differ from the hardcoded UUID in the main process handlers. This causes "No handler
+registered" errors on Linux.
+
+This patch:
+1. Modifies ClaudeVM implementation to return Linux-appropriate values immediately
+2. Ensures graceful degradation when VM features are not available
+3. Suppresses VM-related functionality on Linux since it's not supported
+
+Usage: python3 fix_vm_session_handlers.py <path_to_index.js>
+"""
+
+import sys
+import os
+import re
+
+
+def patch_vm_session_handlers(filepath):
+    """Add Linux-specific handling for ClaudeVM and LocalAgentModeSessions."""
+
+    print(f"=== Patch: fix_vm_session_handlers ===")
+    print(f"  Target: {filepath}")
+
+    if not os.path.exists(filepath):
+        print(f"  [FAIL] File not found: {filepath}")
+        return False
+
+    with open(filepath, 'rb') as f:
+        content = f.read()
+
+    original_content = content
+    patches_applied = 0
+
+    # Patch 1: Modify the ClaudeVM getDownloadStatus to always return NotDownloaded on Linux
+    # This prevents the UI from trying to download the VM
+    old_vm_status = b'getDownloadStatus(){return WBe()?Zc.Downloading:IS()?Zc.Ready:Zc.NotDownloaded}'
+    new_vm_status = b'getDownloadStatus(){if(process.platform==="linux"){return Zc.NotDownloaded}return WBe()?Zc.Downloading:IS()?Zc.Ready:Zc.NotDownloaded}'
+
+    count1 = content.count(old_vm_status)
+    if count1 >= 1:
+        content = content.replace(old_vm_status, new_vm_status)
+        print(f"  [OK] ClaudeVM.getDownloadStatus: {count1} match(es)")
+        patches_applied += 1
+    else:
+        print(f"  [WARN] ClaudeVM.getDownloadStatus pattern not found")
+
+    # Patch 2: Modify the ClaudeVM getRunningStatus to always return Offline on Linux
+    old_vm_running = b'async getRunningStatus(){return await ty()?qd.Ready:qd.Offline}'
+    new_vm_running = b'async getRunningStatus(){if(process.platform==="linux"){return qd.Offline}return await ty()?qd.Ready:qd.Offline}'
+
+    count2 = content.count(old_vm_running)
+    if count2 >= 1:
+        content = content.replace(old_vm_running, new_vm_running)
+        print(f"  [OK] ClaudeVM.getRunningStatus: {count2} match(es)")
+        patches_applied += 1
+    else:
+        print(f"  [WARN] ClaudeVM.getRunningStatus pattern not found")
+
+    # Patch 3: Modify the download function to fail gracefully on Linux
+    old_vm_download = b'async download(){try{return await Qhe(),{success:IS()}}'
+    new_vm_download = b'async download(){if(process.platform==="linux"){return{success:false,error:"VM download not supported on Linux. Install claude-code from npm: npm install -g @anthropic-ai/claude-code"}}try{return await Qhe(),{success:IS()}}'
+
+    count3 = content.count(old_vm_download)
+    if count3 >= 1:
+        content = content.replace(old_vm_download, new_vm_download)
+        print(f"  [OK] ClaudeVM.download: {count3} match(es)")
+        patches_applied += 1
+    else:
+        print(f"  [WARN] ClaudeVM.download pattern not found")
+
+    # Patch 4: Modify startVM to fail gracefully on Linux
+    old_vm_start = b'async startVM(e){try{return await Jhe(e),{success:!0}}'
+    new_vm_start = b'async startVM(e){if(process.platform==="linux"){return{success:false,error:"VM not supported on Linux"}}try{return await Jhe(e),{success:!0}}'
+
+    count4 = content.count(old_vm_start)
+    if count4 >= 1:
+        content = content.replace(old_vm_start, new_vm_start)
+        print(f"  [OK] ClaudeVM.startVM: {count4} match(es)")
+        patches_applied += 1
+    else:
+        print(f"  [WARN] ClaudeVM.startVM pattern not found")
+
+    # Patch 5: Add global IPC error handler to suppress known Linux unsupported feature errors
+    # Find the app initialization and add error handler
+    # Look for ce.app.on pattern and add error suppression
+    old_app_ready = b"ce.app.on(\"ready\",async()=>{"
+    new_app_ready = b"ce.app.on(\"ready\",async()=>{if(process.platform===\"linux\"){process.on(\"uncaughtException\",(e)=>{if(e.message&&(e.message.includes(\"ClaudeVM\")||e.message.includes(\"LocalAgentModeSessions\"))){console.log(\"[LinuxPatch] Suppressing unsupported feature error:\",e.message);return}throw e})};"
+
+    count5 = content.count(old_app_ready)
+    if count5 >= 1:
+        content = content.replace(old_app_ready, new_app_ready)
+        print(f"  [OK] App error handler: {count5} match(es)")
+        patches_applied += 1
+    else:
+        # Try alternative pattern
+        old_app_ready_alt = b'ce.app.on("ready",()=>{'
+        new_app_ready_alt = b'ce.app.on("ready",()=>{if(process.platform==="linux"){process.on("uncaughtException",(e)=>{if(e.message&&(e.message.includes("ClaudeVM")||e.message.includes("LocalAgentModeSessions"))){console.log("[LinuxPatch] Suppressing unsupported feature error:",e.message);return}throw e})};'
+
+        count5_alt = content.count(old_app_ready_alt)
+        if count5_alt >= 1:
+            content = content.replace(old_app_ready_alt, new_app_ready_alt)
+            print(f"  [OK] App error handler (alt): {count5_alt} match(es)")
+            patches_applied += 1
+        else:
+            print(f"  [WARN] App ready pattern not found")
+
+    # Check results
+    if patches_applied == 0:
+        print("  [FAIL] No patches could be applied")
+        return False
+
+    if content == original_content:
+        print("  [WARN] No changes made (patterns may have already been applied)")
+        return True
+
+    # Verify syntax (basic check)
+    try:
+        # Check for balanced braces (very basic validation)
+        open_braces = content.count(b'{')
+        close_braces = content.count(b'}')
+        if open_braces != close_braces:
+            print(f"  [WARN] Brace mismatch: {open_braces} open, {close_braces} close")
+    except:
+        pass
+
+    # Write back
+    with open(filepath, 'wb') as f:
+        f.write(content)
+    print(f"  [PASS] {patches_applied} patches applied")
+    return True
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print(f"Usage: {sys.argv[0]} <path_to_index.js>")
+        sys.exit(1)
+
+    success = patch_vm_session_handlers(sys.argv[1])
+    sys.exit(0 if success else 1)
+fix_vm_session_handlers_py_EOF
+    then
+        echo "ERROR: Patch fix_vm_session_handlers.py FAILED - patterns did not match"
         echo "Please check if upstream changed the target file structure"
         exit 1
     fi
