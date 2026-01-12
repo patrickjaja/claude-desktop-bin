@@ -3,7 +3,7 @@
 # AUR Package Repository: https://github.com/patrickjaja/claude-desktop-bin
 
 pkgname=claude-desktop-bin
-pkgver=1.0.2768
+pkgver=1.0.3218
 pkgrel=1
 pkgdesc="Claude AI Desktop Application (Official Binary - Linux Compatible)"
 arch=('x86_64')
@@ -14,8 +14,8 @@ makedepends=('p7zip' 'wget' 'asar' 'python' 'icoutils')
 optdepends=('claude-code: Claude Code CLI for agentic coding features (npm i -g @anthropic-ai/claude-code)')
 provides=('claude-desktop')
 conflicts=('claude-desktop')
-source_x86_64=("Claude-Setup-x64-${pkgver}.exe::https://downloads.claude.ai/releases/win32/x64/1.0.2768/Claude-21341c944a9d74880b52a77c4f1522f47f52d0da.exe")
-sha256sums_x86_64=('0cadeaa33a86238aa53fd4358297d9b4435506d90cbe3601e966a8b7c65ead9d')
+source_x86_64=("Claude-Setup-x64-${pkgver}.exe::https://downloads.claude.ai/releases/win32/x64/1.0.3218/Claude-8679c9141fe246eb88af18130504c064d14b9004.exe")
+sha256sums_x86_64=('ade7b25c1db6d6e9963df4ce2f0456de364a6a12b67d7bc7647ffb3f69c3dcb3')
 options=('!strip')
 
 prepare() {
@@ -176,19 +176,24 @@ def main():
     print("=== Patch: fix_app_quit ===")
     print(f"  Target: {file_path}")
 
-    # Original: clearTimeout(n)}S_&&he.app.quit()}
-    # The S_&&he.app.quit() doesn't work after preventDefault() on Linux
+    # Original pattern: clearTimeout(n)}XX&&YY.app.quit()}
+    # Variables change between versions (e.g., S_&&he → TS&&ce)
+    # The XX&&YY.app.quit() doesn't work after preventDefault() on Linux
     # Replace with setImmediate + app.exit(0) for reliable exit
-    pattern = rb'(clearTimeout\(\w+\)\})(S_&&he\.app\.quit\(\))'
-    replacement = rb'\1if(S_){setImmediate(()=>he.app.exit(0))}'
+    pattern = rb'(clearTimeout\(\w+\)\})(\w+)&&(\w+)(\.app\.quit\(\))'
+
+    def replacement(m):
+        flag_var = m.group(2).decode('utf-8')
+        electron_var = m.group(3).decode('utf-8')
+        return f'{m.group(1).decode("utf-8")}if({flag_var}){{setImmediate(()=>{electron_var}.app.exit(0))}}'.encode('utf-8')
 
     new_content, count = re.subn(pattern, replacement, content)
 
     if count == 0:
         print("  [WARN] app.quit pattern: 0 matches (may need pattern update)")
-        # Debug: check if the string exists
-        if b'S_&&he.app.quit()' in content:
-            print("  [INFO] Found 'S_&&he.app.quit()' in file but pattern didn't match")
+        # Debug: check for any app.quit patterns
+        if b'.app.quit()' in content:
+            print("  [INFO] Found '.app.quit()' in file but pattern didn't match")
         sys.exit(0)
 
     print(f"  [OK] app.quit -> app.exit: {count} match(es)")
@@ -245,8 +250,9 @@ def patch_claude_code(filepath):
     failed = False
 
     # Patch 1: getBinaryPathIfReady() - Check /usr/bin/claude first on Linux
-    old_binary_ready = b'async getBinaryPathIfReady(){return await this.binaryExists(this.requiredVersion)?this.getBinaryPath(this.requiredVersion):null}'
-    new_binary_ready = b'async getBinaryPathIfReady(){console.log("[ClaudeCode] getBinaryPathIfReady called, platform:",process.platform);if(process.platform==="linux"){try{const fs=require("fs");const exists=fs.existsSync("/usr/bin/claude");console.log("[ClaudeCode] /usr/bin/claude exists:",exists);if(exists)return"/usr/bin/claude"}catch(e){console.log("[ClaudeCode] error checking /usr/bin/claude:",e)}}return await this.binaryExists(this.requiredVersion)?this.getBinaryPath(this.requiredVersion):null}'
+    # Pattern updated for v1.0.3218: now uses getHostTarget() and binaryExistsForTarget()
+    old_binary_ready = b'async getBinaryPathIfReady(){const e=this.getHostTarget();return await this.binaryExistsForTarget(e,this.requiredVersion)?this.getBinaryPathForTarget(e,this.requiredVersion):null}'
+    new_binary_ready = b'async getBinaryPathIfReady(){const e=this.getHostTarget();console.log("[ClaudeCode] getBinaryPathIfReady called, platform:",process.platform);if(process.platform==="linux"){try{const fs=require("fs");const exists=fs.existsSync("/usr/bin/claude");console.log("[ClaudeCode] /usr/bin/claude exists:",exists);if(exists)return"/usr/bin/claude"}catch(e){console.log("[ClaudeCode] error checking /usr/bin/claude:",e)}}return await this.binaryExistsForTarget(e,this.requiredVersion)?this.getBinaryPathForTarget(e,this.requiredVersion):null}'
 
     count1 = content.count(old_binary_ready)
     if count1 >= 1:
@@ -257,8 +263,9 @@ def patch_claude_code(filepath):
         failed = True
 
     # Patch 2: getStatus() - Return Ready if system binary exists on Linux
-    old_status = b'async getStatus(){if(await this.binaryExists(this.requiredVersion))'
-    new_status = b'async getStatus(){console.log("[ClaudeCode] getStatus called, platform:",process.platform);if(process.platform==="linux"){try{const fs=require("fs");const exists=fs.existsSync("/usr/bin/claude");console.log("[ClaudeCode] /usr/bin/claude exists:",exists);if(exists){console.log("[ClaudeCode] returning Ready");return Rv.Ready}}catch(e){console.log("[ClaudeCode] error:",e)}}if(await this.binaryExists(this.requiredVersion))'
+    # Pattern updated for v1.0.3218: now uses getHostTarget(), preparingPromise check, and Yo enum
+    old_status = b'async getStatus(){const e=this.getHostTarget();if(this.preparingPromise)return Yo.Updating;if(await this.binaryExistsForTarget(e,this.requiredVersion))'
+    new_status = b'async getStatus(){const e=this.getHostTarget();console.log("[ClaudeCode] getStatus called, platform:",process.platform);if(process.platform==="linux"){try{const fs=require("fs");const exists=fs.existsSync("/usr/bin/claude");console.log("[ClaudeCode] /usr/bin/claude exists:",exists);if(exists){console.log("[ClaudeCode] returning Ready");return Yo.Ready}}catch(e){console.log("[ClaudeCode] error:",e)}}if(this.preparingPromise)return Yo.Updating;if(await this.binaryExistsForTarget(e,this.requiredVersion))'
 
     count2 = content.count(old_status)
     if count2 >= 1:
@@ -923,19 +930,25 @@ def patch_tray_dbus(filepath):
     if tray_func:
         old_func = b'function ' + tray_func + b'(){'
         new_func = b'async function ' + tray_func + b'(){'
-        if old_func in content and b'async function ' + tray_func not in content:
+        # Use full pattern with () to avoid matching similar function names like _Be
+        async_check = b'async function ' + tray_func + b'(){'
+        if old_func in content and async_check not in content:
             content = content.replace(old_func, new_func)
             print(f"  [OK] async conversion: made {tray_func.decode()}() async")
-        elif b'async function ' + tray_func in content:
+        elif async_check in content:
             print(f"  [INFO] async conversion: already async")
         else:
             print(f"  [FAIL] async conversion: function pattern not found")
             failed = True
 
     # Step 4: Find first const variable in the function
+    # Pattern accounts for: async function _B(){if(!ce.app.isReady())return;const t=
+    # or with mutex: async function _B(){if(_B._running)return;_B._running=true;...const t=
     first_const = None
     if tray_func:
-        pattern = rb'async function ' + tray_func + rb'\(\)\{(?:if\(' + tray_func + rb'\._running\)[^}]*?)?const (\w+)='
+        # More flexible pattern that allows various preamble code before the first const
+        # Match function start, then non-greedy to first 'const'
+        pattern = rb'async function ' + tray_func + rb'\(\)\{.+?const (\w+)='
         match = re.search(pattern, content)
         if not match:
             print("  [FAIL] first const in function: 0 matches")
@@ -945,17 +958,18 @@ def patch_tray_dbus(filepath):
             print(f"  [OK] first const in function: found '{first_const.decode()}'")
 
     # Step 5: Add mutex guard (if not already present)
+    # Insert mutex right after function opening brace
     if tray_func and first_const:
         mutex_check = tray_func + b'._running'
         if mutex_check not in content:
-            old_start = b'async function ' + tray_func + b'(){const ' + first_const + b'='
-            mutex_code = (
+            # Match function declaration and insert mutex at the start
+            old_start = b'async function ' + tray_func + b'(){'
+            mutex_prefix = (
                 b'async function ' + tray_func + b'(){if(' + tray_func + b'._running)return;' +
-                tray_func + b'._running=true;setTimeout(()=>' + tray_func + b'._running=false,500);const ' +
-                first_const + b'='
+                tray_func + b'._running=true;setTimeout(()=>' + tray_func + b'._running=false,500);'
             )
             if old_start in content:
-                content = content.replace(old_start, mutex_code)
+                content = content.replace(old_start, mutex_prefix)
                 print(f"  [OK] mutex guard: added")
             else:
                 print(f"  [FAIL] mutex guard: insertion point not found")
@@ -968,10 +982,10 @@ def patch_tray_dbus(filepath):
         old_destroy = tray_var + b'&&(' + tray_var + b'.destroy(),' + tray_var + b'=null)'
         new_destroy = tray_var + b'&&(' + tray_var + b'.destroy(),' + tray_var + b'=null,await new Promise(r=>setTimeout(r,50)))'
 
-        if old_destroy in content and b'await new Promise' not in content:
+        if old_destroy in content and new_destroy not in content:
             content = content.replace(old_destroy, new_destroy)
             print(f"  [OK] DBus cleanup delay: added after {tray_var.decode()}.destroy()")
-        elif b'await new Promise' in content:
+        elif new_destroy in content:
             print(f"  [INFO] DBus cleanup delay: already present")
         else:
             print(f"  [FAIL] DBus cleanup delay: destroy pattern not found")
