@@ -62,19 +62,25 @@ def patch_tray_dbus(filepath):
     if tray_func:
         old_func = b'function ' + tray_func + b'(){'
         new_func = b'async function ' + tray_func + b'(){'
-        if old_func in content and b'async function ' + tray_func not in content:
+        # Use full pattern with () to avoid matching similar function names like _Be
+        async_check = b'async function ' + tray_func + b'(){'
+        if old_func in content and async_check not in content:
             content = content.replace(old_func, new_func)
             print(f"  [OK] async conversion: made {tray_func.decode()}() async")
-        elif b'async function ' + tray_func in content:
+        elif async_check in content:
             print(f"  [INFO] async conversion: already async")
         else:
             print(f"  [FAIL] async conversion: function pattern not found")
             failed = True
 
     # Step 4: Find first const variable in the function
+    # Pattern accounts for: async function _B(){if(!ce.app.isReady())return;const t=
+    # or with mutex: async function _B(){if(_B._running)return;_B._running=true;...const t=
     first_const = None
     if tray_func:
-        pattern = rb'async function ' + tray_func + rb'\(\)\{(?:if\(' + tray_func + rb'\._running\)[^}]*?)?const (\w+)='
+        # More flexible pattern that allows various preamble code before the first const
+        # Match function start, then non-greedy to first 'const'
+        pattern = rb'async function ' + tray_func + rb'\(\)\{.+?const (\w+)='
         match = re.search(pattern, content)
         if not match:
             print("  [FAIL] first const in function: 0 matches")
@@ -84,17 +90,18 @@ def patch_tray_dbus(filepath):
             print(f"  [OK] first const in function: found '{first_const.decode()}'")
 
     # Step 5: Add mutex guard (if not already present)
+    # Insert mutex right after function opening brace
     if tray_func and first_const:
         mutex_check = tray_func + b'._running'
         if mutex_check not in content:
-            old_start = b'async function ' + tray_func + b'(){const ' + first_const + b'='
-            mutex_code = (
+            # Match function declaration and insert mutex at the start
+            old_start = b'async function ' + tray_func + b'(){'
+            mutex_prefix = (
                 b'async function ' + tray_func + b'(){if(' + tray_func + b'._running)return;' +
-                tray_func + b'._running=true;setTimeout(()=>' + tray_func + b'._running=false,500);const ' +
-                first_const + b'='
+                tray_func + b'._running=true;setTimeout(()=>' + tray_func + b'._running=false,500);'
             )
             if old_start in content:
-                content = content.replace(old_start, mutex_code)
+                content = content.replace(old_start, mutex_prefix)
                 print(f"  [OK] mutex guard: added")
             else:
                 print(f"  [FAIL] mutex guard: insertion point not found")
@@ -107,10 +114,10 @@ def patch_tray_dbus(filepath):
         old_destroy = tray_var + b'&&(' + tray_var + b'.destroy(),' + tray_var + b'=null)'
         new_destroy = tray_var + b'&&(' + tray_var + b'.destroy(),' + tray_var + b'=null,await new Promise(r=>setTimeout(r,50)))'
 
-        if old_destroy in content and b'await new Promise' not in content:
+        if old_destroy in content and new_destroy not in content:
             content = content.replace(old_destroy, new_destroy)
             print(f"  [OK] DBus cleanup delay: added after {tray_var.decode()}.destroy()")
-        elif b'await new Promise' in content:
+        elif new_destroy in content:
             print(f"  [INFO] DBus cleanup delay: already present")
         else:
             print(f"  [FAIL] DBus cleanup delay: destroy pattern not found")
