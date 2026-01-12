@@ -2,6 +2,20 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-01-13
+
+### Added
+- **ClaudeVM Linux handling** - New patch (fix_vm_session_handlers.py) to gracefully handle VM features not supported on Linux:
+  - getDownloadStatus returns NotDownloaded on Linux
+  - getRunningStatus returns Offline on Linux
+  - download/startVM fail with helpful error messages
+  - Error handler suppresses unsupported feature errors
+
+### Fixed
+- **Claude Code Linux platform support** - Updated fix_claude_code.py to add Linux support:
+  - Added Linux platform detection to getHostPlatform() (root cause of "Unsupported platform: linux-x64" error)
+  - Linux checks now run BEFORE getHostTarget() to avoid throwing errors
+
 ## 2026-01-12
 
 ### Fixed

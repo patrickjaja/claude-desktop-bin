@@ -31,28 +31,41 @@ def patch_claude_code(filepath):
     original_content = content
     failed = False
 
-    # Patch 1: getBinaryPathIfReady() - Check /usr/bin/claude first on Linux
-    # Pattern updated for v1.0.3218: now uses getHostTarget() and binaryExistsForTarget()
-    old_binary_ready = b'async getBinaryPathIfReady(){const e=this.getHostTarget();return await this.binaryExistsForTarget(e,this.requiredVersion)?this.getBinaryPathForTarget(e,this.requiredVersion):null}'
-    new_binary_ready = b'async getBinaryPathIfReady(){const e=this.getHostTarget();console.log("[ClaudeCode] getBinaryPathIfReady called, platform:",process.platform);if(process.platform==="linux"){try{const fs=require("fs");const exists=fs.existsSync("/usr/bin/claude");console.log("[ClaudeCode] /usr/bin/claude exists:",exists);if(exists)return"/usr/bin/claude"}catch(e){console.log("[ClaudeCode] error checking /usr/bin/claude:",e)}}return await this.binaryExistsForTarget(e,this.requiredVersion)?this.getBinaryPathForTarget(e,this.requiredVersion):null}'
+    # Patch 1: getHostPlatform() - Add Linux support
+    # This is the root cause - it throws "Unsupported platform" for Linux
+    old_platform = b'getHostPlatform(){const e=process.arch;if(process.platform==="darwin")return e==="arm64"?"darwin-arm64":"darwin-x64";if(process.platform==="win32")return"win32-x64";throw new Error(`Unsupported platform: ${process.platform}-${e}`)}'
+    new_platform = b'getHostPlatform(){const e=process.arch;if(process.platform==="darwin")return e==="arm64"?"darwin-arm64":"darwin-x64";if(process.platform==="win32")return"win32-x64";if(process.platform==="linux")return e==="arm64"?"linux-arm64":"linux-x64";throw new Error(`Unsupported platform: ${process.platform}-${e}`)}'
 
-    count1 = content.count(old_binary_ready)
+    count1 = content.count(old_platform)
     if count1 >= 1:
+        content = content.replace(old_platform, new_platform)
+        print(f"  [OK] getHostPlatform(): {count1} match(es)")
+    else:
+        print(f"  [FAIL] getHostPlatform(): 0 matches, expected >= 1")
+        failed = True
+
+    # Patch 2: getBinaryPathIfReady() - Check /usr/bin/claude first on Linux
+    # IMPORTANT: Check Linux BEFORE calling getHostTarget() for safety
+    old_binary_ready = b'async getBinaryPathIfReady(){const e=this.getHostTarget();return await this.binaryExistsForTarget(e,this.requiredVersion)?this.getBinaryPathForTarget(e,this.requiredVersion):null}'
+    new_binary_ready = b'async getBinaryPathIfReady(){if(process.platform==="linux"){try{const fs=require("fs");if(fs.existsSync("/usr/bin/claude"))return"/usr/bin/claude"}catch(err){}}const e=this.getHostTarget();return await this.binaryExistsForTarget(e,this.requiredVersion)?this.getBinaryPathForTarget(e,this.requiredVersion):null}'
+
+    count2 = content.count(old_binary_ready)
+    if count2 >= 1:
         content = content.replace(old_binary_ready, new_binary_ready)
-        print(f"  [OK] getBinaryPathIfReady(): {count1} match(es)")
+        print(f"  [OK] getBinaryPathIfReady(): {count2} match(es)")
     else:
         print(f"  [FAIL] getBinaryPathIfReady(): 0 matches, expected >= 1")
         failed = True
 
-    # Patch 2: getStatus() - Return Ready if system binary exists on Linux
-    # Pattern updated for v1.0.3218: now uses getHostTarget(), preparingPromise check, and Yo enum
+    # Patch 3: getStatus() - Return Ready if system binary exists on Linux
+    # IMPORTANT: Check Linux BEFORE calling getHostTarget() for safety
     old_status = b'async getStatus(){const e=this.getHostTarget();if(this.preparingPromise)return Yo.Updating;if(await this.binaryExistsForTarget(e,this.requiredVersion))'
-    new_status = b'async getStatus(){const e=this.getHostTarget();console.log("[ClaudeCode] getStatus called, platform:",process.platform);if(process.platform==="linux"){try{const fs=require("fs");const exists=fs.existsSync("/usr/bin/claude");console.log("[ClaudeCode] /usr/bin/claude exists:",exists);if(exists){console.log("[ClaudeCode] returning Ready");return Yo.Ready}}catch(e){console.log("[ClaudeCode] error:",e)}}if(this.preparingPromise)return Yo.Updating;if(await this.binaryExistsForTarget(e,this.requiredVersion))'
+    new_status = b'async getStatus(){if(process.platform==="linux"){try{const fs=require("fs");if(fs.existsSync("/usr/bin/claude")){return Yo.Ready}return Yo.NotInstalled}catch(err){return Yo.NotInstalled}}const e=this.getHostTarget();if(this.preparingPromise)return Yo.Updating;if(await this.binaryExistsForTarget(e,this.requiredVersion))'
 
-    count2 = content.count(old_status)
-    if count2 >= 1:
+    count3 = content.count(old_status)
+    if count3 >= 1:
         content = content.replace(old_status, new_status)
-        print(f"  [OK] getStatus(): {count2} match(es)")
+        print(f"  [OK] getStatus(): {count3} match(es)")
     else:
         print(f"  [FAIL] getStatus(): 0 matches, expected >= 1")
         failed = True
