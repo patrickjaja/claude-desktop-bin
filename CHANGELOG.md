@@ -2,6 +2,13 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-01-12
+
+### Fixed
+- **Patch patterns for v1.0.3218** - Updated fix_claude_code.py and fix_app_quit.py to use flexible regex patterns:
+  - fix_claude_code.py: Updated for new `getHostTarget()` and `binaryExistsForTarget()` APIs, status enum `Rv→Yo`
+  - fix_app_quit.py: Use dynamic capture for variable names (`S_&&he→TS&&ce`)
+
 ## 2026-01-08
 
 ### Added

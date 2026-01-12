@@ -31,19 +31,24 @@ def main():
     print("=== Patch: fix_app_quit ===")
     print(f"  Target: {file_path}")
 
-    # Original: clearTimeout(n)}S_&&he.app.quit()}
-    # The S_&&he.app.quit() doesn't work after preventDefault() on Linux
+    # Original pattern: clearTimeout(n)}XX&&YY.app.quit()}
+    # Variables change between versions (e.g., S_&&he → TS&&ce)
+    # The XX&&YY.app.quit() doesn't work after preventDefault() on Linux
     # Replace with setImmediate + app.exit(0) for reliable exit
-    pattern = rb'(clearTimeout\(\w+\)\})(S_&&he\.app\.quit\(\))'
-    replacement = rb'\1if(S_){setImmediate(()=>he.app.exit(0))}'
+    pattern = rb'(clearTimeout\(\w+\)\})(\w+)&&(\w+)(\.app\.quit\(\))'
+
+    def replacement(m):
+        flag_var = m.group(2).decode('utf-8')
+        electron_var = m.group(3).decode('utf-8')
+        return f'{m.group(1).decode("utf-8")}if({flag_var}){{setImmediate(()=>{electron_var}.app.exit(0))}}'.encode('utf-8')
 
     new_content, count = re.subn(pattern, replacement, content)
 
     if count == 0:
         print("  [WARN] app.quit pattern: 0 matches (may need pattern update)")
-        # Debug: check if the string exists
-        if b'S_&&he.app.quit()' in content:
-            print("  [INFO] Found 'S_&&he.app.quit()' in file but pattern didn't match")
+        # Debug: check for any app.quit patterns
+        if b'.app.quit()' in content:
+            print("  [INFO] Found '.app.quit()' in file but pattern didn't match")
         sys.exit(0)
 
     print(f"  [OK] app.quit -> app.exit: {count} match(es)")
