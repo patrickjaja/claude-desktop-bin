@@ -57,6 +57,7 @@ The package applies several patches to make Claude Desktop work on Linux. Each p
 | Patch | Purpose |
 |-------|---------|
 | `claude-native.js` | Linux-compatible native module (replaces Windows-only `@anthropic/claude-native`) |
+| `enable_local_agent_mode.py` | Enables Local Agent Mode (chillingSlothFeat) on Linux for git worktrees and agent sessions |
 | `fix_claude_code.py` | Enables Claude Code CLI integration by detecting `/usr/bin/claude` |
 | `fix_locale_paths.py` | Redirects locale file paths to Linux install location |
 | `fix_node_host.py` | Fixes MCP server node host path for Linux (uses `app.getAppPath()`) |
@@ -67,6 +68,7 @@ The package applies several patches to make Claude Desktop work on Linux. Each p
 | `fix_tray_dbus.py` | Prevents DBus race conditions with mutex guard and cleanup delay |
 | `fix_tray_icon_theme.py` | Uses theme-aware tray icon selection (light/dark) on Linux |
 | `fix_tray_path.py` | Redirects tray icon path to package directory on Linux |
+| `fix_vm_session_handlers.py` | Handles ClaudeVM IPC on Linux with graceful degradation (returns NotDownloaded) |
 | `fix_app_quit.py` | Fixes app not quitting after cleanup on Linux (uses `app.exit(0)` instead of `app.quit()`) |
 | `fix_utility_process_kill.py` | Uses SIGKILL as fallback when UtilityProcess doesn't exit gracefully |
 
