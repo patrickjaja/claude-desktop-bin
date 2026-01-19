@@ -39,48 +39,67 @@ def patch_vm_session_handlers(filepath):
 
     # Patch 1: Modify the ClaudeVM getDownloadStatus to always return NotDownloaded on Linux
     # This prevents the UI from trying to download the VM
-    old_vm_status = b'getDownloadStatus(){return WBe()?Zc.Downloading:IS()?Zc.Ready:Zc.NotDownloaded}'
-    new_vm_status = b'getDownloadStatus(){if(process.platform==="linux"){return Zc.NotDownloaded}return WBe()?Zc.Downloading:IS()?Zc.Ready:Zc.NotDownloaded}'
+    # Pattern: getDownloadStatus(){return WBe()?Zc.Downloading:IS()?Zc.Ready:Zc.NotDownloaded}
+    # Variable names change between versions (WBe→Wme, Zc→Xc, IS→YS)
+    vm_status_pattern = rb'getDownloadStatus\(\)\{return (\w+)\(\)\?(\w+)\.Downloading:(\w+)\(\)\?\2\.Ready:\2\.NotDownloaded\}'
 
-    count1 = content.count(old_vm_status)
+    def vm_status_replacement(m):
+        enum_name = m.group(2)  # Zc, Xc, etc.
+        return (b'getDownloadStatus(){if(process.platform==="linux"){return ' + enum_name +
+                b'.NotDownloaded}return ' + m.group(1) + b'()?' + enum_name + b'.Downloading:' +
+                m.group(3) + b'()?' + enum_name + b'.Ready:' + enum_name + b'.NotDownloaded}')
+
+    content, count1 = re.subn(vm_status_pattern, vm_status_replacement, content)
     if count1 >= 1:
-        content = content.replace(old_vm_status, new_vm_status)
         print(f"  [OK] ClaudeVM.getDownloadStatus: {count1} match(es)")
         patches_applied += 1
     else:
         print(f"  [WARN] ClaudeVM.getDownloadStatus pattern not found")
 
     # Patch 2: Modify the ClaudeVM getRunningStatus to always return Offline on Linux
-    old_vm_running = b'async getRunningStatus(){return await ty()?qd.Ready:qd.Offline}'
-    new_vm_running = b'async getRunningStatus(){if(process.platform==="linux"){return qd.Offline}return await ty()?qd.Ready:qd.Offline}'
+    # Pattern: async getRunningStatus(){return await ty()?qd.Ready:qd.Offline}
+    # Variable names change between versions (ty→g0, qd→Qd)
+    vm_running_pattern = rb'async getRunningStatus\(\)\{return await (\w+)\(\)\?(\w+)\.Ready:\2\.Offline\}'
 
-    count2 = content.count(old_vm_running)
+    def vm_running_replacement(m):
+        enum_name = m.group(2)  # qd, Qd, etc.
+        return (b'async getRunningStatus(){if(process.platform==="linux"){return ' + enum_name +
+                b'.Offline}return await ' + m.group(1) + b'()?' + enum_name + b'.Ready:' + enum_name + b'.Offline}')
+
+    content, count2 = re.subn(vm_running_pattern, vm_running_replacement, content)
     if count2 >= 1:
-        content = content.replace(old_vm_running, new_vm_running)
         print(f"  [OK] ClaudeVM.getRunningStatus: {count2} match(es)")
         patches_applied += 1
     else:
         print(f"  [WARN] ClaudeVM.getRunningStatus pattern not found")
 
     # Patch 3: Modify the download function to fail gracefully on Linux
-    old_vm_download = b'async download(){try{return await Qhe(),{success:IS()}}'
-    new_vm_download = b'async download(){if(process.platform==="linux"){return{success:false,error:"VM download not supported on Linux. Install claude-code from npm: npm install -g @anthropic-ai/claude-code"}}try{return await Qhe(),{success:IS()}}'
+    # Pattern: async download(){try{return await Qhe(),{success:IS()}}
+    # Variable names change between versions (Qhe→Hme, IS→YS)
+    vm_download_pattern = rb'async download\(\)\{try\{return await (\w+)\(\),\{success:(\w+)\(\)\}'
 
-    count3 = content.count(old_vm_download)
+    def vm_download_replacement(m):
+        return (b'async download(){if(process.platform==="linux"){return{success:false,error:"VM download not supported on Linux. Install claude-code from npm: npm install -g @anthropic-ai/claude-code"}}try{return await ' +
+                m.group(1) + b'(),{success:' + m.group(2) + b'()}')
+
+    content, count3 = re.subn(vm_download_pattern, vm_download_replacement, content)
     if count3 >= 1:
-        content = content.replace(old_vm_download, new_vm_download)
         print(f"  [OK] ClaudeVM.download: {count3} match(es)")
         patches_applied += 1
     else:
         print(f"  [WARN] ClaudeVM.download pattern not found")
 
     # Patch 4: Modify startVM to fail gracefully on Linux
-    old_vm_start = b'async startVM(e){try{return await Jhe(e),{success:!0}}'
-    new_vm_start = b'async startVM(e){if(process.platform==="linux"){return{success:false,error:"VM not supported on Linux"}}try{return await Jhe(e),{success:!0}}'
+    # Pattern: async startVM(e){try{return await Jhe(e),{success:!0}}
+    # Variable names change between versions (Jhe→MB)
+    vm_start_pattern = rb'async startVM\(e\)\{try\{return await (\w+)\(e\),\{success:!0\}'
 
-    count4 = content.count(old_vm_start)
+    def vm_start_replacement(m):
+        return (b'async startVM(e){if(process.platform==="linux"){return{success:false,error:"VM not supported on Linux"}}try{return await ' +
+                m.group(1) + b'(e),{success:!0}')
+
+    content, count4 = re.subn(vm_start_pattern, vm_start_replacement, content)
     if count4 >= 1:
-        content = content.replace(old_vm_start, new_vm_start)
         print(f"  [OK] ClaudeVM.startVM: {count4} match(es)")
         patches_applied += 1
     else:
@@ -88,23 +107,28 @@ def patch_vm_session_handlers(filepath):
 
     # Patch 5: Add global IPC error handler to suppress known Linux unsupported feature errors
     # Find the app initialization and add error handler
-    # Look for ce.app.on pattern and add error suppression
-    old_app_ready = b"ce.app.on(\"ready\",async()=>{"
-    new_app_ready = b"ce.app.on(\"ready\",async()=>{if(process.platform===\"linux\"){process.on(\"uncaughtException\",(e)=>{if(e.message&&(e.message.includes(\"ClaudeVM\")||e.message.includes(\"LocalAgentModeSessions\"))){console.log(\"[LinuxPatch] Suppressing unsupported feature error:\",e.message);return}throw e})};"
+    # Look for XX.app.on("ready" pattern and add error suppression
+    # Variable names change between versions (ce→oe)
+    app_ready_pattern = rb'(\w+)\.app\.on\("ready",async\(\)=>\{'
 
-    count5 = content.count(old_app_ready)
+    def app_ready_replacement(m):
+        electron_var = m.group(1)
+        return (electron_var + b'.app.on("ready",async()=>{if(process.platform==="linux"){process.on("uncaughtException",(e)=>{if(e.message&&(e.message.includes("ClaudeVM")||e.message.includes("LocalAgentModeSessions"))){console.log("[LinuxPatch] Suppressing unsupported feature error:",e.message);return}throw e})};')
+
+    content, count5 = re.subn(app_ready_pattern, app_ready_replacement, content, count=1)
     if count5 >= 1:
-        content = content.replace(old_app_ready, new_app_ready)
         print(f"  [OK] App error handler: {count5} match(es)")
         patches_applied += 1
     else:
-        # Try alternative pattern
-        old_app_ready_alt = b'ce.app.on("ready",()=>{'
-        new_app_ready_alt = b'ce.app.on("ready",()=>{if(process.platform==="linux"){process.on("uncaughtException",(e)=>{if(e.message&&(e.message.includes("ClaudeVM")||e.message.includes("LocalAgentModeSessions"))){console.log("[LinuxPatch] Suppressing unsupported feature error:",e.message);return}throw e})};'
+        # Try alternative pattern (non-async)
+        app_ready_pattern_alt = rb'(\w+)\.app\.on\("ready",\(\)=>\{'
 
-        count5_alt = content.count(old_app_ready_alt)
+        def app_ready_replacement_alt(m):
+            electron_var = m.group(1)
+            return (electron_var + b'.app.on("ready",()=>{if(process.platform==="linux"){process.on("uncaughtException",(e)=>{if(e.message&&(e.message.includes("ClaudeVM")||e.message.includes("LocalAgentModeSessions"))){console.log("[LinuxPatch] Suppressing unsupported feature error:",e.message);return}throw e})};')
+
+        content, count5_alt = re.subn(app_ready_pattern_alt, app_ready_replacement_alt, content, count=1)
         if count5_alt >= 1:
-            content = content.replace(old_app_ready_alt, new_app_ready_alt)
             print(f"  [OK] App error handler (alt): {count5_alt} match(es)")
             patches_applied += 1
         else:

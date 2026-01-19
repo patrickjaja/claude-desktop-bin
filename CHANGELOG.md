@@ -9,6 +9,7 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
   - enable_local_agent_mode.py: Use `\w+` wildcard for minified function names (qWe→wYe, zWe→EYe)
   - fix_claude_code.py: Use regex with capture group for status enum name (Yo→tc)
   - fix_tray_icon_theme.py: Always use light tray icon on Linux (trays are universally dark)
+  - fix_vm_session_handlers.py: Use regex patterns for all VM functions (WBe→Wme, Zc→Xc, IS→YS, ty→g0, qd→Qd, Qhe→Hme, Jhe→MB, ce→oe)
 
 ## 2026-01-13
 
