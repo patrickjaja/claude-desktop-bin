@@ -3,7 +3,7 @@
 # AUR Package Repository: https://github.com/patrickjaja/claude-desktop-bin
 
 pkgname=claude-desktop-bin
-pkgver=1.0.3218
+pkgver=1.1.381
 pkgrel=1
 pkgdesc="Claude AI Desktop Application (Official Binary - Linux Compatible)"
 arch=('x86_64')
@@ -14,8 +14,8 @@ makedepends=('p7zip' 'wget' 'asar' 'python' 'icoutils')
 optdepends=('claude-code: Claude Code CLI for agentic coding features (npm i -g @anthropic-ai/claude-code)')
 provides=('claude-desktop')
 conflicts=('claude-desktop')
-source_x86_64=("Claude-Setup-x64-${pkgver}.exe::https://downloads.claude.ai/releases/win32/x64/1.0.3218/Claude-8679c9141fe246eb88af18130504c064d14b9004.exe")
-sha256sums_x86_64=('ade7b25c1db6d6e9963df4ce2f0456de364a6a12b67d7bc7647ffb3f69c3dcb3')
+source_x86_64=("Claude-Setup-x64-${pkgver}.exe::https://downloads.claude.ai/releases/win32/x64/1.1.381/Claude-c2a39e9c82f5a4d51f511f53f532afd276312731.exe")
+sha256sums_x86_64=('4123e01f28b1dda131630176a51039b2c0a13e4aa6c4c5727f5fd21fb94e9b8d')
 options=('!strip')
 
 prepare() {
@@ -173,7 +173,7 @@ import re
 
 
 def patch_local_agent_mode(filepath):
-    """Enable Local Agent Mode (chillingSlothFeat) on Linux by patching qWe function."""
+    """Enable Local Agent Mode (chillingSlothFeat) on Linux by patching platform-gated functions."""
 
     print(f"=== Patch: enable_local_agent_mode ===")
     print(f"  Target: {filepath}")
@@ -188,39 +188,30 @@ def patch_local_agent_mode(filepath):
     original_content = content
     failed = False
 
-    # Patch 1: Modify qWe() function (chillingSlothFeat)
-    # Original: function qWe(){return process.platform!=="darwin"?{status:"unavailable"}:{status:"supported"}}
-    # Changed:  function qWe(){return{status:"supported"}}
+    # Patch 1: Modify chillingSlothFeat function (variable name changes between versions)
+    # Original: function XXX(){return process.platform!=="darwin"?{status:"unavailable"}:{status:"supported"}}
+    # Changed:  function XXX(){return{status:"supported"}}
     #
-    # Pattern matches the darwin-only check and replaces with always-supported
-    pattern1 = rb'function qWe\(\)\{return process\.platform!=="darwin"\?\{status:"unavailable"\}:\{status:"supported"\}\}'
-    replacement1 = b'function qWe(){return{status:"supported"}}'
+    # Use flexible pattern with \w+ to match any minified function name
+    # Known names: qWe (v1.0.x), wYe (v1.1.381)
+    pattern1 = rb'(function )(\w+)(\(\)\{return )process\.platform!=="darwin"\?\{status:"unavailable"\}:(\{status:"supported"\}\})'
 
-    content, count1 = re.subn(pattern1, replacement1, content)
-    if count1 > 0:
-        print(f"  [OK] qWe (chillingSlothFeat): {count1} match(es)")
+    def replacement1(m):
+        func_name = m.group(2).decode('utf-8')
+        return m.group(1) + m.group(2) + m.group(3) + m.group(4)
+
+    # Count matches first to identify which function is chillingSlothFeat
+    matches = list(re.finditer(pattern1, content))
+    if len(matches) >= 1:
+        # Replace all darwin-gated functions with always-supported
+        content, count1 = re.subn(pattern1, replacement1, content)
+        func_names = [m.group(2).decode('utf-8') for m in matches]
+        print(f"  [OK] chillingSlothFeat ({func_names[0]}): 1 match")
+        if len(matches) >= 2:
+            print(f"  [OK] quietPenguin ({func_names[1]}): 1 match")
     else:
-        # Try alternative pattern in case of slight variations
-        pattern1_alt = rb'(function qWe\(\)\{return )process\.platform!=="darwin"\?\{status:"unavailable"\}:(\{status:"supported"\})\}'
-        content, count1 = re.subn(pattern1_alt, rb'\1\2}', content)
-        if count1 > 0:
-            print(f"  [OK] qWe (chillingSlothFeat) alt: {count1} match(es)")
-        else:
-            print(f"  [FAIL] qWe (chillingSlothFeat): 0 matches, expected 1")
-            failed = True
-
-    # Patch 2: Modify zWe() function (quietPenguin)
-    # This feature is also darwin-only but may be related to agent mode
-    # Original: function zWe(){return process.platform!=="darwin"?{status:"unavailable"}:{status:"supported"}}
-    # Changed:  function zWe(){return{status:"supported"}}
-    pattern2 = rb'function zWe\(\)\{return process\.platform!=="darwin"\?\{status:"unavailable"\}:\{status:"supported"\}\}'
-    replacement2 = b'function zWe(){return{status:"supported"}}'
-
-    content, count2 = re.subn(pattern2, replacement2, content)
-    if count2 > 0:
-        print(f"  [OK] zWe (quietPenguin): {count2} match(es)")
-    else:
-        print(f"  [INFO] zWe (quietPenguin): 0 matches (may not exist in this version)")
+        print(f"  [FAIL] chillingSlothFeat: 0 matches, expected at least 1")
+        failed = True
 
     # Check results
     if failed:
@@ -343,6 +334,7 @@ Usage: python3 fix_claude_code.py <path_to_index.js>
 
 import sys
 import os
+import re
 
 
 def patch_claude_code(filepath):
@@ -389,12 +381,18 @@ def patch_claude_code(filepath):
 
     # Patch 3: getStatus() - Return Ready if system binary exists on Linux
     # IMPORTANT: Check Linux BEFORE calling getHostTarget() for safety
-    old_status = b'async getStatus(){const e=this.getHostTarget();if(this.preparingPromise)return Yo.Updating;if(await this.binaryExistsForTarget(e,this.requiredVersion))'
-    new_status = b'async getStatus(){if(process.platform==="linux"){try{const fs=require("fs");if(fs.existsSync("/usr/bin/claude")){return Yo.Ready}return Yo.NotInstalled}catch(err){return Yo.NotInstalled}}const e=this.getHostTarget();if(this.preparingPromise)return Yo.Updating;if(await this.binaryExistsForTarget(e,this.requiredVersion))'
+    # Use regex to capture the enum name (Yo, tc, etc.) dynamically
+    status_pattern = rb'async getStatus\(\)\{const e=this\.getHostTarget\(\);if\(this\.preparingPromise\)return (\w+)\.Updating;if\(await this\.binaryExistsForTarget\(e,this\.requiredVersion\)\)'
 
-    count3 = content.count(old_status)
+    def status_replacement(m):
+        enum_name = m.group(1)  # Capture the enum name (Yo, tc, etc.)
+        return (b'async getStatus(){if(process.platform==="linux"){try{const fs=require("fs");if(fs.existsSync("/usr/bin/claude")){return ' +
+                enum_name + b'.Ready}return ' + enum_name + b'.NotInstalled}catch(err){return ' + enum_name +
+                b'.NotInstalled}}const e=this.getHostTarget();if(this.preparingPromise)return ' + enum_name +
+                b'.Updating;if(await this.binaryExistsForTarget(e,this.requiredVersion))')
+
+    content, count3 = re.subn(status_pattern, status_replacement, content)
     if count3 >= 1:
-        content = content.replace(old_status, new_status)
         print(f"  [OK] getStatus(): {count3} match(es)")
     else:
         print(f"  [FAIL] getStatus(): 0 matches, expected >= 1")
@@ -1153,15 +1151,15 @@ fix_tray_dbus_py_EOF
 # @patch-target: app.asar.contents/.vite/build/index.js
 # @patch-type: python
 """
-Patch Claude Desktop to use correct tray icon based on theme on Linux.
+Patch Claude Desktop to use correct tray icon on Linux.
 
 On Windows, the app checks nativeTheme.shouldUseDarkColors to select the
 appropriate icon (light icon for dark theme, dark icon for light theme).
-On Linux, it always uses TrayIconTemplate.png regardless of theme.
+On Linux, it always uses TrayIconTemplate.png (dark icon).
 
-This patch adds theme detection for Linux to use:
-- TrayIconTemplate.png for light panels (dark icon)
-- TrayIconTemplate-Dark.png for dark panels (light icon)
+Linux system trays are almost universally dark (GNOME, KDE, etc.), so we
+always need TrayIconTemplate-Dark.png (the light icon) regardless of the
+desktop theme setting.
 
 Usage: python3 fix_tray_icon_theme.py <path_to_index.js>
 """
@@ -1203,11 +1201,10 @@ def patch_tray_icon_theme(filepath):
         icon_var = m.group(2)     # e
         electron_var = m.group(3) # de
         # On Windows: use .ico files with theme check
-        # On Linux: use .png files with theme check
+        # On Linux: always use light icon (Dark.png) since trays are universally dark
         return (is_win_var + b'?' + icon_var + b'=' + electron_var +
                 b'.nativeTheme.shouldUseDarkColors?"Tray-Win32-Dark.ico":"Tray-Win32.ico":' +
-                icon_var + b'=' + electron_var +
-                b'.nativeTheme.shouldUseDarkColors?"TrayIconTemplate-Dark.png":"TrayIconTemplate.png"')
+                icon_var + b'="TrayIconTemplate-Dark.png"')
 
     content, count = re.subn(pattern, replacement, content)
 
@@ -1472,48 +1469,67 @@ def patch_vm_session_handlers(filepath):
 
     # Patch 1: Modify the ClaudeVM getDownloadStatus to always return NotDownloaded on Linux
     # This prevents the UI from trying to download the VM
-    old_vm_status = b'getDownloadStatus(){return WBe()?Zc.Downloading:IS()?Zc.Ready:Zc.NotDownloaded}'
-    new_vm_status = b'getDownloadStatus(){if(process.platform==="linux"){return Zc.NotDownloaded}return WBe()?Zc.Downloading:IS()?Zc.Ready:Zc.NotDownloaded}'
+    # Pattern: getDownloadStatus(){return WBe()?Zc.Downloading:IS()?Zc.Ready:Zc.NotDownloaded}
+    # Variable names change between versions (WBe→Wme, Zc→Xc, IS→YS)
+    vm_status_pattern = rb'getDownloadStatus\(\)\{return (\w+)\(\)\?(\w+)\.Downloading:(\w+)\(\)\?\2\.Ready:\2\.NotDownloaded\}'
 
-    count1 = content.count(old_vm_status)
+    def vm_status_replacement(m):
+        enum_name = m.group(2)  # Zc, Xc, etc.
+        return (b'getDownloadStatus(){if(process.platform==="linux"){return ' + enum_name +
+                b'.NotDownloaded}return ' + m.group(1) + b'()?' + enum_name + b'.Downloading:' +
+                m.group(3) + b'()?' + enum_name + b'.Ready:' + enum_name + b'.NotDownloaded}')
+
+    content, count1 = re.subn(vm_status_pattern, vm_status_replacement, content)
     if count1 >= 1:
-        content = content.replace(old_vm_status, new_vm_status)
         print(f"  [OK] ClaudeVM.getDownloadStatus: {count1} match(es)")
         patches_applied += 1
     else:
         print(f"  [WARN] ClaudeVM.getDownloadStatus pattern not found")
 
     # Patch 2: Modify the ClaudeVM getRunningStatus to always return Offline on Linux
-    old_vm_running = b'async getRunningStatus(){return await ty()?qd.Ready:qd.Offline}'
-    new_vm_running = b'async getRunningStatus(){if(process.platform==="linux"){return qd.Offline}return await ty()?qd.Ready:qd.Offline}'
+    # Pattern: async getRunningStatus(){return await ty()?qd.Ready:qd.Offline}
+    # Variable names change between versions (ty→g0, qd→Qd)
+    vm_running_pattern = rb'async getRunningStatus\(\)\{return await (\w+)\(\)\?(\w+)\.Ready:\2\.Offline\}'
 
-    count2 = content.count(old_vm_running)
+    def vm_running_replacement(m):
+        enum_name = m.group(2)  # qd, Qd, etc.
+        return (b'async getRunningStatus(){if(process.platform==="linux"){return ' + enum_name +
+                b'.Offline}return await ' + m.group(1) + b'()?' + enum_name + b'.Ready:' + enum_name + b'.Offline}')
+
+    content, count2 = re.subn(vm_running_pattern, vm_running_replacement, content)
     if count2 >= 1:
-        content = content.replace(old_vm_running, new_vm_running)
         print(f"  [OK] ClaudeVM.getRunningStatus: {count2} match(es)")
         patches_applied += 1
     else:
         print(f"  [WARN] ClaudeVM.getRunningStatus pattern not found")
 
     # Patch 3: Modify the download function to fail gracefully on Linux
-    old_vm_download = b'async download(){try{return await Qhe(),{success:IS()}}'
-    new_vm_download = b'async download(){if(process.platform==="linux"){return{success:false,error:"VM download not supported on Linux. Install claude-code from npm: npm install -g @anthropic-ai/claude-code"}}try{return await Qhe(),{success:IS()}}'
+    # Pattern: async download(){try{return await Qhe(),{success:IS()}}
+    # Variable names change between versions (Qhe→Hme, IS→YS)
+    vm_download_pattern = rb'async download\(\)\{try\{return await (\w+)\(\),\{success:(\w+)\(\)\}'
 
-    count3 = content.count(old_vm_download)
+    def vm_download_replacement(m):
+        return (b'async download(){if(process.platform==="linux"){return{success:false,error:"VM download not supported on Linux. Install claude-code from npm: npm install -g @anthropic-ai/claude-code"}}try{return await ' +
+                m.group(1) + b'(),{success:' + m.group(2) + b'()}')
+
+    content, count3 = re.subn(vm_download_pattern, vm_download_replacement, content)
     if count3 >= 1:
-        content = content.replace(old_vm_download, new_vm_download)
         print(f"  [OK] ClaudeVM.download: {count3} match(es)")
         patches_applied += 1
     else:
         print(f"  [WARN] ClaudeVM.download pattern not found")
 
     # Patch 4: Modify startVM to fail gracefully on Linux
-    old_vm_start = b'async startVM(e){try{return await Jhe(e),{success:!0}}'
-    new_vm_start = b'async startVM(e){if(process.platform==="linux"){return{success:false,error:"VM not supported on Linux"}}try{return await Jhe(e),{success:!0}}'
+    # Pattern: async startVM(e){try{return await Jhe(e),{success:!0}}
+    # Variable names change between versions (Jhe→MB)
+    vm_start_pattern = rb'async startVM\(e\)\{try\{return await (\w+)\(e\),\{success:!0\}'
 
-    count4 = content.count(old_vm_start)
+    def vm_start_replacement(m):
+        return (b'async startVM(e){if(process.platform==="linux"){return{success:false,error:"VM not supported on Linux"}}try{return await ' +
+                m.group(1) + b'(e),{success:!0}')
+
+    content, count4 = re.subn(vm_start_pattern, vm_start_replacement, content)
     if count4 >= 1:
-        content = content.replace(old_vm_start, new_vm_start)
         print(f"  [OK] ClaudeVM.startVM: {count4} match(es)")
         patches_applied += 1
     else:
@@ -1521,23 +1537,28 @@ def patch_vm_session_handlers(filepath):
 
     # Patch 5: Add global IPC error handler to suppress known Linux unsupported feature errors
     # Find the app initialization and add error handler
-    # Look for ce.app.on pattern and add error suppression
-    old_app_ready = b"ce.app.on(\"ready\",async()=>{"
-    new_app_ready = b"ce.app.on(\"ready\",async()=>{if(process.platform===\"linux\"){process.on(\"uncaughtException\",(e)=>{if(e.message&&(e.message.includes(\"ClaudeVM\")||e.message.includes(\"LocalAgentModeSessions\"))){console.log(\"[LinuxPatch] Suppressing unsupported feature error:\",e.message);return}throw e})};"
+    # Look for XX.app.on("ready" pattern and add error suppression
+    # Variable names change between versions (ce→oe)
+    app_ready_pattern = rb'(\w+)\.app\.on\("ready",async\(\)=>\{'
 
-    count5 = content.count(old_app_ready)
+    def app_ready_replacement(m):
+        electron_var = m.group(1)
+        return (electron_var + b'.app.on("ready",async()=>{if(process.platform==="linux"){process.on("uncaughtException",(e)=>{if(e.message&&(e.message.includes("ClaudeVM")||e.message.includes("LocalAgentModeSessions"))){console.log("[LinuxPatch] Suppressing unsupported feature error:",e.message);return}throw e})};')
+
+    content, count5 = re.subn(app_ready_pattern, app_ready_replacement, content, count=1)
     if count5 >= 1:
-        content = content.replace(old_app_ready, new_app_ready)
         print(f"  [OK] App error handler: {count5} match(es)")
         patches_applied += 1
     else:
-        # Try alternative pattern
-        old_app_ready_alt = b'ce.app.on("ready",()=>{'
-        new_app_ready_alt = b'ce.app.on("ready",()=>{if(process.platform==="linux"){process.on("uncaughtException",(e)=>{if(e.message&&(e.message.includes("ClaudeVM")||e.message.includes("LocalAgentModeSessions"))){console.log("[LinuxPatch] Suppressing unsupported feature error:",e.message);return}throw e})};'
+        # Try alternative pattern (non-async)
+        app_ready_pattern_alt = rb'(\w+)\.app\.on\("ready",\(\)=>\{'
 
-        count5_alt = content.count(old_app_ready_alt)
+        def app_ready_replacement_alt(m):
+            electron_var = m.group(1)
+            return (electron_var + b'.app.on("ready",()=>{if(process.platform==="linux"){process.on("uncaughtException",(e)=>{if(e.message&&(e.message.includes("ClaudeVM")||e.message.includes("LocalAgentModeSessions"))){console.log("[LinuxPatch] Suppressing unsupported feature error:",e.message);return}throw e})};')
+
+        content, count5_alt = re.subn(app_ready_pattern_alt, app_ready_replacement_alt, content, count=1)
         if count5_alt >= 1:
-            content = content.replace(old_app_ready_alt, new_app_ready_alt)
             print(f"  [OK] App error handler (alt): {count5_alt} match(es)")
             patches_applied += 1
         else:
