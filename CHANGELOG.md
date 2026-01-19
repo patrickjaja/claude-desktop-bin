@@ -5,10 +5,10 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 ## 2026-01-19
 
 ### Fixed
-- **Patch patterns for v1.1.381** - Updated enable_local_agent_mode.py to use flexible regex patterns:
-  - Use `\w+` wildcard for minified function names instead of hardcoded names
-  - Dynamically captures function names (qWe→wYe, zWe→EYe) and uses replacement function
-  - Tested variable name changes: qWe→wYe (chillingSlothFeat), zWe→EYe (quietPenguin)
+- **Patch patterns for v1.1.381** - Updated patches to use flexible regex patterns:
+  - enable_local_agent_mode.py: Use `\w+` wildcard for minified function names (qWe→wYe, zWe→EYe)
+  - fix_claude_code.py: Use regex with capture group for status enum name (Yo→tc)
+  - fix_tray_icon_theme.py: Always use light tray icon on Linux (trays are universally dark)
 
 ## 2026-01-13
 

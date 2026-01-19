@@ -13,6 +13,7 @@ Usage: python3 fix_claude_code.py <path_to_index.js>
 
 import sys
 import os
+import re
 
 
 def patch_claude_code(filepath):
@@ -59,12 +60,18 @@ def patch_claude_code(filepath):
 
     # Patch 3: getStatus() - Return Ready if system binary exists on Linux
     # IMPORTANT: Check Linux BEFORE calling getHostTarget() for safety
-    old_status = b'async getStatus(){const e=this.getHostTarget();if(this.preparingPromise)return Yo.Updating;if(await this.binaryExistsForTarget(e,this.requiredVersion))'
-    new_status = b'async getStatus(){if(process.platform==="linux"){try{const fs=require("fs");if(fs.existsSync("/usr/bin/claude")){return Yo.Ready}return Yo.NotInstalled}catch(err){return Yo.NotInstalled}}const e=this.getHostTarget();if(this.preparingPromise)return Yo.Updating;if(await this.binaryExistsForTarget(e,this.requiredVersion))'
+    # Use regex to capture the enum name (Yo, tc, etc.) dynamically
+    status_pattern = rb'async getStatus\(\)\{const e=this\.getHostTarget\(\);if\(this\.preparingPromise\)return (\w+)\.Updating;if\(await this\.binaryExistsForTarget\(e,this\.requiredVersion\)\)'
 
-    count3 = content.count(old_status)
+    def status_replacement(m):
+        enum_name = m.group(1)  # Capture the enum name (Yo, tc, etc.)
+        return (b'async getStatus(){if(process.platform==="linux"){try{const fs=require("fs");if(fs.existsSync("/usr/bin/claude")){return ' +
+                enum_name + b'.Ready}return ' + enum_name + b'.NotInstalled}catch(err){return ' + enum_name +
+                b'.NotInstalled}}const e=this.getHostTarget();if(this.preparingPromise)return ' + enum_name +
+                b'.Updating;if(await this.binaryExistsForTarget(e,this.requiredVersion))')
+
+    content, count3 = re.subn(status_pattern, status_replacement, content)
     if count3 >= 1:
-        content = content.replace(old_status, new_status)
         print(f"  [OK] getStatus(): {count3} match(es)")
     else:
         print(f"  [FAIL] getStatus(): 0 matches, expected >= 1")
