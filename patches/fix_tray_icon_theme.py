@@ -2,15 +2,15 @@
 # @patch-target: app.asar.contents/.vite/build/index.js
 # @patch-type: python
 """
-Patch Claude Desktop to use correct tray icon based on theme on Linux.
+Patch Claude Desktop to use correct tray icon on Linux.
 
 On Windows, the app checks nativeTheme.shouldUseDarkColors to select the
 appropriate icon (light icon for dark theme, dark icon for light theme).
-On Linux, it always uses TrayIconTemplate.png regardless of theme.
+On Linux, it always uses TrayIconTemplate.png (dark icon).
 
-This patch adds theme detection for Linux to use:
-- TrayIconTemplate.png for light panels (dark icon)
-- TrayIconTemplate-Dark.png for dark panels (light icon)
+Linux system trays are almost universally dark (GNOME, KDE, etc.), so we
+always need TrayIconTemplate-Dark.png (the light icon) regardless of the
+desktop theme setting.
 
 Usage: python3 fix_tray_icon_theme.py <path_to_index.js>
 """
@@ -52,11 +52,10 @@ def patch_tray_icon_theme(filepath):
         icon_var = m.group(2)     # e
         electron_var = m.group(3) # de
         # On Windows: use .ico files with theme check
-        # On Linux: use .png files with theme check
+        # On Linux: always use light icon (Dark.png) since trays are universally dark
         return (is_win_var + b'?' + icon_var + b'=' + electron_var +
                 b'.nativeTheme.shouldUseDarkColors?"Tray-Win32-Dark.ico":"Tray-Win32.ico":' +
-                icon_var + b'=' + electron_var +
-                b'.nativeTheme.shouldUseDarkColors?"TrayIconTemplate-Dark.png":"TrayIconTemplate.png"')
+                icon_var + b'="TrayIconTemplate-Dark.png"')
 
     content, count = re.subn(pattern, replacement, content)
 
