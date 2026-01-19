@@ -2,6 +2,14 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-01-19
+
+### Fixed
+- **Patch patterns for v1.1.381** - Updated enable_local_agent_mode.py to use flexible regex patterns:
+  - Use `\w+` wildcard for minified function names instead of hardcoded names
+  - Dynamically captures function names (qWe→wYe, zWe→EYe) and uses replacement function
+  - Tested variable name changes: qWe→wYe (chillingSlothFeat), zWe→EYe (quietPenguin)
+
 ## 2026-01-13
 
 ### Added

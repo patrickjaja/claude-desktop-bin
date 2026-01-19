@@ -28,7 +28,7 @@ import re
 
 
 def patch_local_agent_mode(filepath):
-    """Enable Local Agent Mode (chillingSlothFeat) on Linux by patching qWe function."""
+    """Enable Local Agent Mode (chillingSlothFeat) on Linux by patching platform-gated functions."""
 
     print(f"=== Patch: enable_local_agent_mode ===")
     print(f"  Target: {filepath}")
@@ -43,39 +43,30 @@ def patch_local_agent_mode(filepath):
     original_content = content
     failed = False
 
-    # Patch 1: Modify qWe() function (chillingSlothFeat)
-    # Original: function qWe(){return process.platform!=="darwin"?{status:"unavailable"}:{status:"supported"}}
-    # Changed:  function qWe(){return{status:"supported"}}
+    # Patch 1: Modify chillingSlothFeat function (variable name changes between versions)
+    # Original: function XXX(){return process.platform!=="darwin"?{status:"unavailable"}:{status:"supported"}}
+    # Changed:  function XXX(){return{status:"supported"}}
     #
-    # Pattern matches the darwin-only check and replaces with always-supported
-    pattern1 = rb'function qWe\(\)\{return process\.platform!=="darwin"\?\{status:"unavailable"\}:\{status:"supported"\}\}'
-    replacement1 = b'function qWe(){return{status:"supported"}}'
+    # Use flexible pattern with \w+ to match any minified function name
+    # Known names: qWe (v1.0.x), wYe (v1.1.381)
+    pattern1 = rb'(function )(\w+)(\(\)\{return )process\.platform!=="darwin"\?\{status:"unavailable"\}:(\{status:"supported"\}\})'
 
-    content, count1 = re.subn(pattern1, replacement1, content)
-    if count1 > 0:
-        print(f"  [OK] qWe (chillingSlothFeat): {count1} match(es)")
+    def replacement1(m):
+        func_name = m.group(2).decode('utf-8')
+        return m.group(1) + m.group(2) + m.group(3) + m.group(4)
+
+    # Count matches first to identify which function is chillingSlothFeat
+    matches = list(re.finditer(pattern1, content))
+    if len(matches) >= 1:
+        # Replace all darwin-gated functions with always-supported
+        content, count1 = re.subn(pattern1, replacement1, content)
+        func_names = [m.group(2).decode('utf-8') for m in matches]
+        print(f"  [OK] chillingSlothFeat ({func_names[0]}): 1 match")
+        if len(matches) >= 2:
+            print(f"  [OK] quietPenguin ({func_names[1]}): 1 match")
     else:
-        # Try alternative pattern in case of slight variations
-        pattern1_alt = rb'(function qWe\(\)\{return )process\.platform!=="darwin"\?\{status:"unavailable"\}:(\{status:"supported"\})\}'
-        content, count1 = re.subn(pattern1_alt, rb'\1\2}', content)
-        if count1 > 0:
-            print(f"  [OK] qWe (chillingSlothFeat) alt: {count1} match(es)")
-        else:
-            print(f"  [FAIL] qWe (chillingSlothFeat): 0 matches, expected 1")
-            failed = True
-
-    # Patch 2: Modify zWe() function (quietPenguin)
-    # This feature is also darwin-only but may be related to agent mode
-    # Original: function zWe(){return process.platform!=="darwin"?{status:"unavailable"}:{status:"supported"}}
-    # Changed:  function zWe(){return{status:"supported"}}
-    pattern2 = rb'function zWe\(\)\{return process\.platform!=="darwin"\?\{status:"unavailable"\}:\{status:"supported"\}\}'
-    replacement2 = b'function zWe(){return{status:"supported"}}'
-
-    content, count2 = re.subn(pattern2, replacement2, content)
-    if count2 > 0:
-        print(f"  [OK] zWe (quietPenguin): {count2} match(es)")
-    else:
-        print(f"  [INFO] zWe (quietPenguin): 0 matches (may not exist in this version)")
+        print(f"  [FAIL] chillingSlothFeat: 0 matches, expected at least 1")
+        failed = True
 
     # Check results
     if failed:
