@@ -15,6 +15,7 @@ on:
     paths:
       - '.github/workflows/update-aur.yml'
       - 'scripts/**'
+      - 'patches/**'
       - 'PKGBUILD.template'
 
 jobs:
@@ -67,12 +68,8 @@ jobs:
             rm -f wget_output.txt
           fi
 
-          # Save URL to output for PKGBUILD generation
+          # Save URL to output for reference
           echo "url=${DOWNLOAD_URL}" >> $GITHUB_OUTPUT
-
-          # Calculate SHA256 of the downloaded file
-          SHA256=$(sha256sum Claude-Setup-x64.exe | cut -d' ' -f1)
-          echo "sha256=${SHA256}" >> $GITHUB_OUTPUT
 
       - name: Extract version
         id: version
@@ -97,98 +94,43 @@ jobs:
             echo "Version unchanged"
           fi
 
-      - name: Generate PKGBUILDs
+      - name: Build Patched Tarball
         if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
-        env:
-          AUR_USERNAME: ${{ secrets.AUR_USERNAME }}
-          AUR_EMAIL: ${{ secrets.AUR_EMAIL }}
+        id: build
         run: |
-          # Generate traditional PKGBUILD (for validation/testing)
-          bash ./scripts/generate-pkgbuild.sh "${{ steps.version.outputs.version }}" "${{ steps.download.outputs.sha256 }}" "${{ steps.download.outputs.url }}" > PKGBUILD
-
-          # We'll generate the prebuilt PKGBUILD after the build step once we have the tarball SHA
-
-      - name: Build and Package in Arch Container
-        if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
-        run: |
-          echo "=== Building pre-patched package in Arch Linux container ==="
-          echo "This builds the patched app and creates a distributable tarball"
+          echo "=== Building pre-patched tarball in Arch Linux container ==="
 
           # Prepare build directory
-          mkdir -p /tmp/test-build
-          cp PKGBUILD /tmp/test-build/
-          cp "Claude-Setup-x64.exe" "/tmp/test-build/Claude-Setup-x64-${{ steps.version.outputs.version }}.exe"
-
-          # Modify PKGBUILD to use local file instead of downloading
-          sed -i "s|source_x86_64=.*|source_x86_64=(\"Claude-Setup-x64-\${pkgver}.exe\")|" /tmp/test-build/PKGBUILD
-          sed -i "s|sha256sums_x86_64=.*|sha256sums_x86_64=('SKIP')|" /tmp/test-build/PKGBUILD
+          mkdir -p /tmp/build-input /tmp/build-output
+          cp Claude-Setup-x64.exe /tmp/build-input/
+          cp -r scripts patches /tmp/build-input/
 
           # Run build in Arch container
-          # Use pipefail to catch errors in piped commands
           docker run --rm \
-            -v /tmp/test-build:/build \
-            -w /build \
+            -v /tmp/build-input:/input:ro \
+            -v /tmp/build-output:/output \
             archlinux:base-devel \
             bash -c "
               set -eo pipefail
+
               echo '=== Installing build dependencies ==='
               pacman -Syu --noconfirm
-              pacman -S --noconfirm p7zip wget python nodejs npm fakeroot binutils electron git base-devel icoutils
+              pacman -S --noconfirm p7zip python nodejs npm git icoutils
 
-              echo '=== Creating builder user ==='
+              echo '=== Installing asar from AUR ==='
               useradd -m builder
               echo 'builder ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
-              chown -R builder:builder /build
-
-              echo '=== Installing yay (AUR helper) ==='
               cd /tmp
               git clone https://aur.archlinux.org/yay-bin.git
               chown -R builder:builder yay-bin
               cd yay-bin
               su builder -c 'makepkg -si --noconfirm'
-
-              echo '=== Installing asar from AUR ==='
               su builder -c 'yay -S --noconfirm asar'
 
-              echo '=== Running makepkg (build) ==='
-              cd /build
-              su builder -c 'makepkg -sf --noconfirm' 2>&1 | tee /build/build.log
-              MAKEPKG_EXIT=\${PIPESTATUS[0]}
-              if [ \$MAKEPKG_EXIT -ne 0 ]; then
-                echo 'ERROR: makepkg failed with exit code' \$MAKEPKG_EXIT
-                exit \$MAKEPKG_EXIT
-              fi
+              echo '=== Running build script ==='
+              bash /input/scripts/build-patched-tarball.sh /input/Claude-Setup-x64.exe /output
 
-              echo '=== Creating prebuilt tarball ==='
-              cd /build/src
-
-              # Get version from PKGBUILD
-              source /build/PKGBUILD
-              echo \"Creating tarball for version: \${pkgver}\"
-
-              # Create tarball structure
-              mkdir -p prebuilt/app prebuilt/icons
-              cp -r app/* prebuilt/app/
-
-              # Extract icon for the tarball
-              if [ -f extract/setupIcon.ico ]; then
-                icotool -x -o prebuilt/icons/ extract/setupIcon.ico
-                mv prebuilt/icons/setupIcon_6_256x256x32.png prebuilt/icons/claude-desktop.png 2>/dev/null || \
-                mv prebuilt/icons/setupIcon_*_256x256*.png prebuilt/icons/claude-desktop.png 2>/dev/null || true
-                # Clean up other icon sizes
-                rm -f prebuilt/icons/setupIcon_*.png 2>/dev/null || true
-              fi
-
-              # Create the tarball
-              cd prebuilt
-              tar -czvf /build/claude-desktop-\${pkgver}-linux.tar.gz app/ icons/
-
-              echo '=== Calculating tarball checksum ==='
-              sha256sum /build/claude-desktop-\${pkgver}-linux.tar.gz > /build/tarball-sha256.txt
-              cat /build/tarball-sha256.txt
-
-              echo '=== Build completed successfully ==='
-              echo 'All patches applied and tarball created!'
+              echo '=== Build completed ==='
             " 2>&1 | tee build-output.log
 
           BUILD_EXIT=${PIPESTATUS[0]}
@@ -205,16 +147,17 @@ jobs:
             exit 1
           fi
 
-          # Copy tarball to workspace for upload
-          cp /tmp/test-build/claude-desktop-${{ steps.version.outputs.version }}-linux.tar.gz .
+          # Read build info
+          source /tmp/build-output/build-info.txt
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "tarball_sha256=${SHA256}" >> $GITHUB_OUTPUT
 
-          # Extract tarball checksum
-          TARBALL_SHA256=$(cat /tmp/test-build/tarball-sha256.txt | cut -d' ' -f1)
-          echo "tarball_sha256=${TARBALL_SHA256}" >> $GITHUB_OUTPUT
-          echo "Tarball SHA256: ${TARBALL_SHA256}"
+          # Copy tarball to workspace
+          cp /tmp/build-output/claude-desktop-*-linux.tar.gz .
 
           echo "Build passed - tarball ready for upload"
-        id: build
+          echo "  Version: ${VERSION}"
+          echo "  SHA256:  ${SHA256}"
 
       - name: Upload Build Log
         if: always() && (steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch')
@@ -225,15 +168,15 @@ jobs:
           retention-days: 30
           if-no-files-found: ignore
 
-      - name: Generate Prebuilt PKGBUILD
+      - name: Generate PKGBUILD
         if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
         env:
           AUR_USERNAME: ${{ secrets.AUR_USERNAME }}
           AUR_EMAIL: ${{ secrets.AUR_EMAIL }}
         run: |
-          # Generate prebuilt PKGBUILD using tarball SHA
           PREBUILT_URL="https://github.com/${{ github.repository }}/releases/download/v${{ steps.version.outputs.version }}/claude-desktop-${{ steps.version.outputs.version }}-linux.tar.gz"
-          bash ./scripts/generate-pkgbuild.sh --prebuilt "${{ steps.version.outputs.version }}" "${{ steps.build.outputs.tarball_sha256 }}" "$PREBUILT_URL" > PKGBUILD
+          bash ./scripts/generate-pkgbuild.sh "${{ steps.version.outputs.version }}" "${{ steps.build.outputs.tarball_sha256 }}" "$PREBUILT_URL" > PKGBUILD
+          cat PKGBUILD
 
       - name: Extract Changelog for Release
         if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
@@ -255,10 +198,7 @@ jobs:
       - name: Generate .SRCINFO
         if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
         run: |
-          # Install makepkg dependencies
-          sudo apt-get install -y libarchive-tools binutils fakeroot
-
-          # Generate .SRCINFO without building
+          # Generate .SRCINFO from PKGBUILD
           cat << 'EOF' > generate-srcinfo.sh
           #!/bin/bash
           source PKGBUILD
@@ -279,17 +219,12 @@ jobs:
             echo -e "\tdepends = ${dep}"
           done
 
-          i=0
-          for src in "${source[@]}"; do
-            if [[ $src == *"::"* ]]; then
-              echo -e "\tsource = ${src}"
-            else
-              echo -e "\tsource = ${src}"
-            fi
+          for src in "${source_x86_64[@]}"; do
+            echo -e "\tsource_x86_64 = ${src}"
           done
 
-          for sum in "${sha256sums[@]}"; do
-            echo -e "\tsha256sums = ${sum}"
+          for sum in "${sha256sums_x86_64[@]}"; do
+            echo -e "\tsha256sums_x86_64 = ${sum}"
           done
 
           echo ""
@@ -298,6 +233,7 @@ jobs:
 
           bash generate-srcinfo.sh > .SRCINFO
           rm generate-srcinfo.sh
+          cat .SRCINFO
 
       - name: Setup SSH for AUR
         if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'

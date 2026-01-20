@@ -10,70 +10,19 @@ arch=('x86_64')
 url="https://claude.ai"
 license=('custom:Claude')
 depends=('electron' 'nodejs')
-makedepends=('p7zip' 'wget' 'asar' 'python' 'icoutils')
 optdepends=('claude-code: Claude Code CLI for agentic coding features (npm i -g @anthropic-ai/claude-code)')
 provides=('claude-desktop')
 conflicts=('claude-desktop')
-source_x86_64=("Claude-Setup-x64-${pkgver}.exe::{{DOWNLOAD_URL}}")
+source_x86_64=("claude-desktop-${pkgver}-linux.tar.gz::{{DOWNLOAD_URL}}")
 sha256sums_x86_64=('{{SHA256SUM}}')
 options=('!strip')
 
-prepare() {
+package() {
     cd "$srcdir"
 
-    # Extract the Windows installer
-    7z x -y "Claude-Setup-x64-${pkgver}.exe" -o"extract" >/dev/null 2>&1
-
-    # Extract the nupkg
-    cd extract
-    local nupkg=$(find . -maxdepth 1 -name "AnthropicClaude-*.nupkg" | head -1)
-    7z x -y "$nupkg" >/dev/null 2>&1
-}
-
-build() {
-    cd "$srcdir/extract"
-
-    # Prepare app directory
-    mkdir -p "$srcdir/app"
-    cp "lib/net45/resources/app.asar" "$srcdir/app/"
-    cp -r "lib/net45/resources/app.asar.unpacked" "$srcdir/app/" 2>/dev/null || true
-
-    # Extract and patch app.asar
-    cd "$srcdir/app"
-    asar extract app.asar app.asar.contents
-
-    # Copy i18n files into app.asar contents before repacking
-    echo "Looking for i18n files..."
-    mkdir -p app.asar.contents/resources/i18n
-    if ls "$srcdir/extract/lib/net45/resources/"*.json 1> /dev/null 2>&1; then
-        echo "Found JSON files, copying to app.asar.contents/resources/i18n/"
-        cp "$srcdir/extract/lib/net45/resources/"*.json app.asar.contents/resources/i18n/
-        # List what we copied for debugging
-        ls -la app.asar.contents/resources/i18n/
-    else
-        echo "Warning: No JSON files found in lib/net45/resources/"
-    fi
-
-    # Apply all patches (embedded by generate-pkgbuild.sh)
-{{PATCHES}}
-
-    # Repack app.asar
-    asar pack app.asar.contents app.asar
-    rm -rf app.asar.contents
-
-    # Copy locales
-    mkdir -p "$srcdir/app/locales"
-    cp "$srcdir/extract/lib/net45/resources/"*.json "$srcdir/app/locales/" 2>/dev/null || true
-
-    # Copy tray icons (must be in filesystem, not inside asar, for Electron Tray API)
-    echo "Copying tray icon files..."
-    cp "$srcdir/extract/lib/net45/resources/TrayIconTemplate"*.png "$srcdir/app/locales/" 2>/dev/null || true
-}
-
-package() {
-    # Install application files
+    # Install application files (pre-patched)
     install -dm755 "$pkgdir/usr/lib/$pkgname"
-    cp -r "$srcdir/app"/* "$pkgdir/usr/lib/$pkgname/"
+    cp -r app/* "$pkgdir/usr/lib/$pkgname/"
 
     # Install launcher script
     install -dm755 "$pkgdir/usr/bin"
@@ -98,11 +47,11 @@ MimeType=x-scheme-handler/claude;
 StartupWMClass=Claude
 EOF
 
-    # Extract and install icon from setupIcon.ico (full-color Claude logo)
-    icotool -x -o "$srcdir/" "$srcdir/extract/setupIcon.ico"
-    # Use the largest icon (256x256) - index 6 in the ico file
-    install -Dm644 "$srcdir/setupIcon_6_256x256x32.png" \
-        "$pkgdir/usr/share/icons/hicolor/256x256/apps/claude-desktop.png"
+    # Install icon (included in tarball)
+    if [ -f "$srcdir/icons/claude-desktop.png" ]; then
+        install -Dm644 "$srcdir/icons/claude-desktop.png" \
+            "$pkgdir/usr/share/icons/hicolor/256x256/apps/claude-desktop.png"
+    fi
 }
 
 # vim: set ts=4 sw=4 et:
