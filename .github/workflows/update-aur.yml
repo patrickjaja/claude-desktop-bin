@@ -285,49 +285,6 @@ jobs:
           echo "Debian package built: $DEB_FILE"
           echo "SHA256: $DEB_SHA256"
 
-      - name: Generate Flatpak Manifest
-        if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
-        run: |
-          echo "=== Generating Flatpak Manifest ==="
-          VERSION="${{ steps.version.outputs.version }}"
-          TARBALL_SHA256="${{ steps.build.outputs.tarball_sha256 }}"
-          TARBALL_URL="https://github.com/${{ github.repository }}/releases/download/v${VERSION}/claude-desktop-${VERSION}-linux.tar.gz"
-          ELECTRON_VERSION="${{ steps.appimage.outputs.electron_version }}"
-
-          # Download Electron to get SHA256
-          ELECTRON_URL="https://github.com/electron/electron/releases/download/v${ELECTRON_VERSION}/electron-v${ELECTRON_VERSION}-linux-x64.zip"
-          wget -q -O /tmp/electron.zip "$ELECTRON_URL"
-          ELECTRON_SHA256=$(sha256sum /tmp/electron.zip | cut -d' ' -f1)
-          rm /tmp/electron.zip
-
-          # Generate the filled manifest
-          mkdir -p dist/flatpak
-          sed -e "s|TARBALL_URL_PLACEHOLDER|${TARBALL_URL}|g" \
-              -e "s|TARBALL_SHA256_PLACEHOLDER|${TARBALL_SHA256}|g" \
-              -e "s|ELECTRON_URL_PLACEHOLDER|${ELECTRON_URL}|g" \
-              -e "s|ELECTRON_SHA256_PLACEHOLDER|${ELECTRON_SHA256}|g" \
-              -e "s|VERSION_PLACEHOLDER|${VERSION}|g" \
-              -e "s|DATE_PLACEHOLDER|$(date +%Y-%m-%d)|g" \
-              packaging/flatpak/com.anthropic.claude-desktop.yml > dist/flatpak/com.anthropic.claude-desktop.yml
-
-          # Copy supporting files
-          cp packaging/flatpak/claude-desktop.sh dist/flatpak/
-          cp packaging/flatpak/com.anthropic.claude-desktop.desktop dist/flatpak/
-
-          # Update metainfo with version
-          sed -e "s|VERSION_PLACEHOLDER|${VERSION}|g" \
-              -e "s|DATE_PLACEHOLDER|$(date +%Y-%m-%d)|g" \
-              packaging/flatpak/com.anthropic.claude-desktop.metainfo.xml > dist/flatpak/com.anthropic.claude-desktop.metainfo.xml
-
-          # Create tarball of flatpak files for easy download
-          cd dist/flatpak && tar -czvf ../claude-desktop-${VERSION}-flatpak-manifest.tar.gz *
-          cd ../..
-
-          echo "Flatpak manifest generated with:"
-          echo "  Electron: ${ELECTRON_VERSION}"
-          echo "  Tarball SHA256: ${TARBALL_SHA256}"
-          echo "  Electron SHA256: ${ELECTRON_SHA256}"
-
       - name: Setup SSH for AUR
         if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
         run: |
@@ -376,7 +333,6 @@ jobs:
             claude-desktop-${{ steps.version.outputs.version }}-linux.tar.gz
             dist/Claude_Desktop-${{ steps.version.outputs.version }}-x86_64.AppImage
             dist/claude-desktop_${{ steps.version.outputs.version }}_amd64.deb
-            dist/claude-desktop-${{ steps.version.outputs.version }}-flatpak-manifest.tar.gz
           body: |
             ## Claude Desktop ${{ steps.version.outputs.version }}
 
@@ -400,12 +356,6 @@ jobs:
             ```bash
             chmod +x Claude_Desktop-${{ steps.version.outputs.version }}-x86_64.AppImage
             ./Claude_Desktop-${{ steps.version.outputs.version }}-x86_64.AppImage
-            ```
-
-            **Flatpak**
-            ```bash
-            # Download and extract the flatpak manifest tarball, then:
-            flatpak-builder --user --install --force-clean build-dir com.anthropic.claude-desktop.yml
             ```
 
             ### Checksums

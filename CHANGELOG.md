@@ -8,7 +8,6 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 - **Multi-distro packaging** - Claude Desktop now available for multiple Linux distributions:
   - **AppImage** - Portable, runs on any distro without installation (bundles Electron)
   - **Debian/Ubuntu (.deb)** - Native package for apt-based systems
-  - **Flatpak** - Sandboxed package with manifest for Flathub submission
   - All formats built automatically in CI and uploaded to GitHub Releases
 - **Pre-built package distribution** - CI now builds and uploads pre-patched tarballs to GitHub Releases:
   - Reduced dependencies for users (no python, asar, p7zip needed)
