@@ -162,6 +162,10 @@ jobs:
               echo '=== Creating prebuilt tarball ==='
               cd /build/src
 
+              # Get version from PKGBUILD
+              source /build/PKGBUILD
+              echo \"Creating tarball for version: \${pkgver}\"
+
               # Create tarball structure
               mkdir -p prebuilt/app prebuilt/icons
               cp -r app/* prebuilt/app/
