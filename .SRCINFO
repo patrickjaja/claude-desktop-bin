@@ -5,12 +5,9 @@ pkgbase = claude-desktop-bin
 	url = https://claude.ai
 	arch = x86_64
 	license = custom:Claude
-	makedepends = p7zip
-	makedepends = wget
-	makedepends = asar
-	makedepends = python
-	makedepends = icoutils
 	depends = electron
 	depends = nodejs
+	source_x86_64 = claude-desktop-1.1.381-linux.tar.gz::https://github.com/patrickjaja/claude-desktop-bin/releases/download/v1.1.381/claude-desktop-1.1.381-linux.tar.gz
+	sha256sums_x86_64 = e0110a65aab1fb5e095f37f2e468c35ab6c040305498352962fac433c18698c7
 
 pkgname = claude-desktop-bin
