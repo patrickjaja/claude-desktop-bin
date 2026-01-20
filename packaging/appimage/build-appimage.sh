@@ -84,12 +84,13 @@ wget -q -O "$ELECTRON_ZIP" \
 
 # Extract Electron to AppDir
 log_info "Extracting Electron..."
+mkdir -p "$APPDIR/usr/lib/claude-desktop"
 unzip -q "$ELECTRON_ZIP" -d "$APPDIR/usr/lib/claude-desktop"
 
 # Extract tarball
 log_info "Extracting Claude Desktop tarball..."
-tar -xzf "$TARBALL_PATH" -C "$WORK_DIR/tarball" --strip-components=0 || \
-    (mkdir -p "$WORK_DIR/tarball" && tar -xzf "$TARBALL_PATH" -C "$WORK_DIR/tarball")
+mkdir -p "$WORK_DIR/tarball"
+tar -xzf "$TARBALL_PATH" -C "$WORK_DIR/tarball"
 
 # Copy app files to Electron resources directory
 log_info "Installing application files..."
