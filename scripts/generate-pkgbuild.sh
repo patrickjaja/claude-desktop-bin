@@ -1,6 +1,13 @@
 #!/bin/bash
 set -e
 
+# Parse arguments
+PREBUILT_MODE=false
+if [ "$1" = "--prebuilt" ]; then
+    PREBUILT_MODE=true
+    shift
+fi
+
 VERSION="$1"
 MAINTAINER_NAME="${AUR_USERNAME:-Patrick Jaja}"
 MAINTAINER_EMAIL="${AUR_EMAIL:-patrickjajaa@gmail.com}"
@@ -8,7 +15,10 @@ SHA256SUM="$2"
 DOWNLOAD_URL="$3"
 
 if [ -z "$VERSION" ]; then
-    echo "Usage: $0 <version> [sha256sum] [download_url]" >&2
+    echo "Usage: $0 [--prebuilt] <version> [sha256sum] [download_url]" >&2
+    echo "" >&2
+    echo "Options:" >&2
+    echo "  --prebuilt   Use prebuilt template (downloads pre-patched tarball)" >&2
     exit 1
 fi
 
@@ -17,17 +27,27 @@ if [ -z "$SHA256SUM" ]; then
 fi
 
 if [ -z "$DOWNLOAD_URL" ]; then
-    DOWNLOAD_URL="https://claude.ai/api/desktop/win32/x64/exe/latest/redirect"
+    if [ "$PREBUILT_MODE" = true ]; then
+        # Default prebuilt URL
+        DOWNLOAD_URL="https://github.com/patrickjaja/claude-desktop-bin/releases/download/v${VERSION}/claude-desktop-${VERSION}-linux.tar.gz"
+    else
+        DOWNLOAD_URL="https://claude.ai/api/desktop/win32/x64/exe/latest/redirect"
+    fi
 fi
 
 # Find the PKGBUILD.template and patches
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-TEMPLATE_FILE="$PROJECT_DIR/PKGBUILD.template"
 PATCHES_DIR="$PROJECT_DIR/patches"
 
+if [ "$PREBUILT_MODE" = true ]; then
+    TEMPLATE_FILE="$PROJECT_DIR/PKGBUILD.prebuilt.template"
+else
+    TEMPLATE_FILE="$PROJECT_DIR/PKGBUILD.template"
+fi
+
 if [ ! -f "$TEMPLATE_FILE" ]; then
-    echo "Error: PKGBUILD.template not found at $TEMPLATE_FILE" >&2
+    echo "Error: Template not found at $TEMPLATE_FILE" >&2
     exit 1
 fi
 
@@ -110,6 +130,26 @@ $heredoc_marker
 
     echo "$patches_code"
 }
+
+# For prebuilt mode, we don't need patches
+if [ "$PREBUILT_MODE" = true ]; then
+    OUTPUT_FILE=$(mktemp)
+    trap "rm -f $OUTPUT_FILE" EXIT
+
+    cp "$TEMPLATE_FILE" "$OUTPUT_FILE"
+
+    # Replace simple placeholders
+    sed -i \
+        -e "s/{{VERSION}}/$VERSION/g" \
+        -e "s/{{SHA256SUM}}/$SHA256SUM/g" \
+        -e "s|{{PREBUILT_URL}}|$DOWNLOAD_URL|g" \
+        -e "s/{{MAINTAINER_NAME}}/$MAINTAINER_NAME/g" \
+        -e "s/{{MAINTAINER_EMAIL}}/$MAINTAINER_EMAIL/g" \
+        "$OUTPUT_FILE"
+
+    cat "$OUTPUT_FILE"
+    exit 0
+fi
 
 # Generate patches code to a temp file (avoids bash/awk & interpretation issues)
 PATCHES_FILE=$(mktemp)

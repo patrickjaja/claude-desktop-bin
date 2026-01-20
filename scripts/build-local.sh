@@ -25,10 +25,15 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 # Parse arguments
 INSTALL_AFTER_BUILD=false
+CREATE_TARBALL=false
 for arg in "$@"; do
     case $arg in
         --install|-i)
             INSTALL_AFTER_BUILD=true
+            shift
+            ;;
+        --tarball|-t)
+            CREATE_TARBALL=true
             shift
             ;;
         --help|-h)
@@ -36,6 +41,7 @@ for arg in "$@"; do
             echo ""
             echo "Options:"
             echo "  --install, -i    Install the package after building"
+            echo "  --tarball, -t    Create prebuilt tarball for GitHub release"
             echo "  --help, -h       Show this help message"
             exit 0
             ;;
@@ -45,7 +51,12 @@ done
 # Check dependencies
 log_info "Checking build dependencies..."
 MISSING_DEPS=()
-for dep in wget 7z makepkg asar python3; do
+REQUIRED_DEPS="wget 7z makepkg asar python3"
+if [ "$CREATE_TARBALL" = true ]; then
+    REQUIRED_DEPS="$REQUIRED_DEPS icotool"
+fi
+
+for dep in $REQUIRED_DEPS; do
     if ! command -v "$dep" &> /dev/null; then
         MISSING_DEPS+=("$dep")
     fi
@@ -53,8 +64,8 @@ done
 
 if [ ${#MISSING_DEPS[@]} -ne 0 ]; then
     log_error "Missing dependencies: ${MISSING_DEPS[*]}"
-    echo "Install them with: sudo pacman -S p7zip wget base-devel python"
-    echo "For asar: npm install -g asar"
+    echo "Install them with: sudo pacman -S p7zip wget base-devel python icoutils"
+    echo "For asar: yay -S asar (or npm install -g asar)"
     exit 1
 fi
 
@@ -130,6 +141,40 @@ if [ -z "$PKG_FILE" ]; then
 fi
 
 log_info "Package built successfully: $BUILD_DIR/$PKG_FILE"
+
+# Create prebuilt tarball if requested
+if [ "$CREATE_TARBALL" = true ]; then
+    log_info "Creating prebuilt tarball..."
+
+    TARBALL_DIR="$BUILD_DIR/tarball"
+    mkdir -p "$TARBALL_DIR/app" "$TARBALL_DIR/icons"
+
+    # Copy the patched app files
+    cp -r "$BUILD_DIR/src/app"/* "$TARBALL_DIR/app/"
+
+    # Extract icon
+    if command -v icotool &> /dev/null && [ -f "$BUILD_DIR/src/extract/setupIcon.ico" ]; then
+        icotool -x -o "$TARBALL_DIR/icons/" "$BUILD_DIR/src/extract/setupIcon.ico"
+        mv "$TARBALL_DIR/icons/setupIcon_6_256x256x32.png" "$TARBALL_DIR/icons/claude-desktop.png" 2>/dev/null || \
+        mv "$TARBALL_DIR/icons/"setupIcon_*_256x256*.png "$TARBALL_DIR/icons/claude-desktop.png" 2>/dev/null || true
+        rm -f "$TARBALL_DIR/icons/setupIcon_"*.png 2>/dev/null || true
+    fi
+
+    # Create the tarball
+    TARBALL_FILE="$BUILD_DIR/claude-desktop-${VERSION}-linux.tar.gz"
+    cd "$TARBALL_DIR"
+    tar -czvf "$TARBALL_FILE" app/ icons/
+
+    # Calculate SHA256
+    TARBALL_SHA256=$(sha256sum "$TARBALL_FILE" | cut -d' ' -f1)
+
+    log_info "Tarball created: $TARBALL_FILE"
+    log_info "Tarball SHA256: $TARBALL_SHA256"
+
+    echo ""
+    log_info "To generate prebuilt PKGBUILD:"
+    echo "  ./scripts/generate-pkgbuild.sh --prebuilt $VERSION $TARBALL_SHA256 <github-release-url>"
+fi
 
 # Install if requested
 if [ "$INSTALL_AFTER_BUILD" = true ]; then

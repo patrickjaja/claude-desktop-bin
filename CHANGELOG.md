@@ -2,6 +2,17 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-01-20
+
+### Added
+- **Pre-built package distribution** - CI now builds and uploads pre-patched tarballs to GitHub Releases:
+  - New `PKGBUILD.prebuilt.template` for simplified installation (no client-side patching)
+  - Reduced makedepends for users (only wget needed instead of python, asar, p7zip)
+  - Faster package installation
+  - Changelog included in GitHub release notes
+- **Local tarball creation** - `build-local.sh --tarball` creates prebuilt tarball for testing
+- **Prebuilt PKGBUILD generation** - `generate-pkgbuild.sh --prebuilt` generates simplified PKGBUILD
+
 ## 2026-01-19
 
 ### Fixed

@@ -97,19 +97,22 @@ jobs:
             echo "Version unchanged"
           fi
 
-      - name: Generate PKGBUILD
+      - name: Generate PKGBUILDs
         if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
         env:
           AUR_USERNAME: ${{ secrets.AUR_USERNAME }}
           AUR_EMAIL: ${{ secrets.AUR_EMAIL }}
         run: |
+          # Generate traditional PKGBUILD (for validation/testing)
           bash ./scripts/generate-pkgbuild.sh "${{ steps.version.outputs.version }}" "${{ steps.download.outputs.sha256 }}" "${{ steps.download.outputs.url }}" > PKGBUILD
 
-      - name: Test Build in Arch Container
+          # We'll generate the prebuilt PKGBUILD after the build step once we have the tarball SHA
+
+      - name: Build and Package in Arch Container
         if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
         run: |
-          echo "=== Testing PKGBUILD in Arch Linux container ==="
-          echo "This validates all patches apply correctly before pushing to AUR"
+          echo "=== Building pre-patched package in Arch Linux container ==="
+          echo "This builds the patched app and creates a distributable tarball"
 
           # Prepare build directory
           mkdir -p /tmp/test-build
@@ -147,7 +150,7 @@ jobs:
               echo '=== Installing asar from AUR ==='
               su builder -c 'yay -S --noconfirm asar'
 
-              echo '=== Running makepkg (test build) ==='
+              echo '=== Running makepkg (build) ==='
               cd /build
               su builder -c 'makepkg -sf --noconfirm' 2>&1 | tee /build/build.log
               MAKEPKG_EXIT=\${PIPESTATUS[0]}
@@ -156,15 +159,39 @@ jobs:
                 exit \$MAKEPKG_EXIT
               fi
 
-              echo '=== Test build completed successfully ==='
-              echo 'All patches applied correctly!'
+              echo '=== Creating prebuilt tarball ==='
+              cd /build/src
+
+              # Create tarball structure
+              mkdir -p prebuilt/app prebuilt/icons
+              cp -r app/* prebuilt/app/
+
+              # Extract icon for the tarball
+              if [ -f extract/setupIcon.ico ]; then
+                icotool -x -o prebuilt/icons/ extract/setupIcon.ico
+                mv prebuilt/icons/setupIcon_6_256x256x32.png prebuilt/icons/claude-desktop.png 2>/dev/null || \
+                mv prebuilt/icons/setupIcon_*_256x256*.png prebuilt/icons/claude-desktop.png 2>/dev/null || true
+                # Clean up other icon sizes
+                rm -f prebuilt/icons/setupIcon_*.png 2>/dev/null || true
+              fi
+
+              # Create the tarball
+              cd prebuilt
+              tar -czvf /build/claude-desktop-\${pkgver}-linux.tar.gz app/ icons/
+
+              echo '=== Calculating tarball checksum ==='
+              sha256sum /build/claude-desktop-\${pkgver}-linux.tar.gz > /build/tarball-sha256.txt
+              cat /build/tarball-sha256.txt
+
+              echo '=== Build completed successfully ==='
+              echo 'All patches applied and tarball created!'
             " 2>&1 | tee build-output.log
 
           BUILD_EXIT=${PIPESTATUS[0]}
 
           if [ $BUILD_EXIT -ne 0 ]; then
             echo ""
-            echo "::error::Test build FAILED!"
+            echo "::error::Build FAILED!"
             echo ""
             echo "=== PATCH FAILURE DETAILS ==="
             grep -E "(ERROR|FAIL|\[FAIL\])" build-output.log || true
@@ -174,7 +201,16 @@ jobs:
             exit 1
           fi
 
-          echo "Test build passed - safe to push to AUR"
+          # Copy tarball to workspace for upload
+          cp /tmp/test-build/claude-desktop-${{ steps.version.outputs.version }}-linux.tar.gz .
+
+          # Extract tarball checksum
+          TARBALL_SHA256=$(cat /tmp/test-build/tarball-sha256.txt | cut -d' ' -f1)
+          echo "tarball_sha256=${TARBALL_SHA256}" >> $GITHUB_OUTPUT
+          echo "Tarball SHA256: ${TARBALL_SHA256}"
+
+          echo "Build passed - tarball ready for upload"
+        id: build
 
       - name: Upload Build Log
         if: always() && (steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch')
@@ -184,6 +220,33 @@ jobs:
           path: build-output.log
           retention-days: 30
           if-no-files-found: ignore
+
+      - name: Generate Prebuilt PKGBUILD
+        if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
+        env:
+          AUR_USERNAME: ${{ secrets.AUR_USERNAME }}
+          AUR_EMAIL: ${{ secrets.AUR_EMAIL }}
+        run: |
+          # Generate prebuilt PKGBUILD using tarball SHA
+          PREBUILT_URL="https://github.com/${{ github.repository }}/releases/download/v${{ steps.version.outputs.version }}/claude-desktop-${{ steps.version.outputs.version }}-linux.tar.gz"
+          bash ./scripts/generate-pkgbuild.sh --prebuilt "${{ steps.version.outputs.version }}" "${{ steps.build.outputs.tarball_sha256 }}" "$PREBUILT_URL" > PKGBUILD
+
+      - name: Extract Changelog for Release
+        if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
+        id: changelog
+        run: |
+          # Extract the latest changelog section (up to the next date header)
+          CHANGELOG=$(awk '/^## [0-9]{4}-[0-9]{2}-[0-9]{2}/ { if (found) exit; found=1; next } found' CHANGELOG.md)
+
+          # If no changelog entry for today, use the first section
+          if [ -z "$CHANGELOG" ]; then
+            CHANGELOG=$(awk 'BEGIN{found=0} /^## [0-9]{4}-[0-9]{2}-[0-9]{2}/ { if (found==1) exit; found=1; next } found==1' CHANGELOG.md)
+          fi
+
+          # Escape for GitHub Actions output
+          echo "content<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Generate .SRCINFO
         if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
@@ -276,22 +339,28 @@ jobs:
         with:
           tag_name: v${{ steps.version.outputs.version }}
           name: Claude Desktop ${{ steps.version.outputs.version }}
+          files: |
+            claude-desktop-${{ steps.version.outputs.version }}-linux.tar.gz
           body: |
             ## Claude Desktop ${{ steps.version.outputs.version }}
 
-            This release updates the AUR package to Claude Desktop version ${{ steps.version.outputs.version }}.
+            This release provides Claude Desktop version ${{ steps.version.outputs.version }} pre-patched for Linux.
 
-            ### Installation
+            ### Installation (AUR)
             ```bash
             yay -S claude-desktop-bin
             ```
 
-            ### Changes
-            - Updated to Claude Desktop ${{ steps.version.outputs.version }}
-            - SHA256: ${{ steps.download.outputs.sha256 }}
+            ### What's Included
+            - Pre-patched application files (no build-time patching needed)
+            - Tarball SHA256: `${{ steps.build.outputs.tarball_sha256 }}`
 
-            ### AUR Package
-            https://aur.archlinux.org/packages/claude-desktop-bin
+            ### Recent Changes
+            ${{ steps.changelog.outputs.content }}
+
+            ### Links
+            - [AUR Package](https://aur.archlinux.org/packages/claude-desktop-bin)
+            - [Full Changelog](https://github.com/${{ github.repository }}/blob/master/CHANGELOG.md)
           draft: false
           prerelease: false
           token: ${{ secrets.GITHUB_TOKEN }}
