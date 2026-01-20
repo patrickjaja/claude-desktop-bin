@@ -1,0 +1,26 @@
+Source: claude-desktop
+Section: utils
+Priority: optional
+Maintainer: Claude Desktop Linux Community <claude-desktop-linux@users.noreply.github.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.0
+Homepage: https://claude.ai
+Rules-Requires-Root: no
+
+Package: claude-desktop
+Architecture: amd64
+Depends: ${shlibs:Depends}, ${misc:Depends}, electron | electron-bin | electron33
+Recommends: libnotify-bin
+Description: Claude AI Desktop Application
+ Claude is an AI assistant created by Anthropic to be helpful,
+ harmless, and honest. This desktop application provides native
+ access to Claude with features including:
+ .
+  * Conversational AI assistance
+  * Code generation and analysis
+  * Document understanding
+  * Quick Entry for fast access
+  * System tray integration
+ .
+ Note: This is an unofficial Linux port of the official Claude
+ Desktop application. Requires an Anthropic account to use.

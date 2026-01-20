@@ -1,0 +1,27 @@
+#!/usr/bin/make -f
+
+%:
+	dh $@
+
+override_dh_auto_install:
+	# Install application files
+	install -d debian/claude-desktop/usr/lib/claude-desktop
+	cp -r app/* debian/claude-desktop/usr/lib/claude-desktop/
+
+	# Install launcher script
+	install -d debian/claude-desktop/usr/bin
+	install -m755 debian/claude-desktop.sh debian/claude-desktop/usr/bin/claude-desktop
+
+	# Install desktop file
+	install -d debian/claude-desktop/usr/share/applications
+	install -m644 debian/claude-desktop.desktop debian/claude-desktop/usr/share/applications/
+
+	# Install icon
+	install -d debian/claude-desktop/usr/share/icons/hicolor/256x256/apps
+	install -m644 icons/claude-desktop.png debian/claude-desktop/usr/share/icons/hicolor/256x256/apps/
+
+override_dh_strip:
+	# Don't strip - Electron binaries don't like it
+
+override_dh_shlibdeps:
+	# Skip shlibdeps for Electron app

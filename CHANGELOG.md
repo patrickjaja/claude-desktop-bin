@@ -4,20 +4,25 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 
 ## 2026-01-20
 
+### Added
+- **Multi-distro packaging** - Claude Desktop now available for multiple Linux distributions:
+  - **AppImage** - Portable, runs on any distro without installation (bundles Electron)
+  - **Debian/Ubuntu (.deb)** - Native package for apt-based systems
+  - **Flatpak** - Sandboxed package with manifest for Flathub submission
+  - All formats built automatically in CI and uploaded to GitHub Releases
+- **Pre-built package distribution** - CI now builds and uploads pre-patched tarballs to GitHub Releases:
+  - Reduced dependencies for users (no python, asar, p7zip needed)
+  - Faster package installation
+  - Changelog included in GitHub release notes
+
 ### Changed
 - **Refactored build architecture** - Separated patching logic from package generation:
   - New `scripts/build-patched-tarball.sh` contains all patching logic in one place
   - `PKGBUILD.template` is now a simple tarball-based installer (no patches)
   - `generate-pkgbuild.sh` simplified to just template substitution
-  - CI builds tarball once, uploads to GitHub Releases
+  - CI builds tarball once, then builds AppImage/.deb/Flatpak from it
   - Users download pre-patched tarball (no build-time patching needed)
-  - This architecture enables easy support for Debian, Snap, Flatpak in the future
-
-### Added
-- **Pre-built package distribution** - CI now builds and uploads pre-patched tarballs to GitHub Releases:
-  - Reduced dependencies for users (no python, asar, p7zip needed)
-  - Faster package installation
-  - Changelog included in GitHub release notes
+- **Electron version** - AppImage/Flatpak now fetch latest stable Electron automatically
 
 ## 2026-01-19
 
