@@ -35,11 +35,12 @@ cd claude-desktop-bin
 ```
 
 ## Features
-- Native Linux support
+- Native Linux support (Arch, Debian/Ubuntu, AppImage)
 - **Claude Code CLI integration** - Use system-installed Claude Code (`/usr/bin/claude`)
-- Global hotkey support (Ctrl+Alt+Space)
-- Automated daily version checks and AUR updates
-- GitHub releases for version tracking
+- **Local Agent Mode** - Git worktrees and agent sessions
+- **MCP server support** - Model Context Protocol servers work on Linux
+- Global hotkey support (Ctrl+Alt+Space) with multi-monitor awareness
+- Automated daily version checks
 
 ## Claude Code Integration
 
