@@ -1,31 +1,38 @@
-# Claude Desktop for Arch Linux / Manjaro
+# Claude Desktop for Linux
 
 [![AUR version](https://img.shields.io/aur/version/claude-desktop-bin)](https://aur.archlinux.org/packages/claude-desktop-bin)
 [![Update AUR Package](https://github.com/patrickjaja/claude-desktop-bin/actions/workflows/update-aur.yml/badge.svg)](https://github.com/patrickjaja/claude-desktop-bin/actions/workflows/update-aur.yml)
 
-Unofficial AUR package for Claude Desktop AI assistant with automated updates.
+Unofficial Linux packages for Claude Desktop AI assistant with automated updates.
 
 ## Installation
 
-Using an AUR helper like yay:
+### Arch Linux / Manjaro (AUR)
 ```bash
 yay -S claude-desktop-bin
 ```
 
-For a fresh installation (clears cached builds):
+### Debian / Ubuntu
 ```bash
-rm -rf ~/.cache/yay/claude-desktop-bin
-yay -S claude-desktop-bin --noconfirm --cleanafter
+# Download from GitHub Releases
+wget https://github.com/patrickjaja/claude-desktop-bin/releases/latest/download/claude-desktop_VERSION_amd64.deb
+sudo dpkg -i claude-desktop_*_amd64.deb
 ```
 
-Or manually from GitHub:
+### AppImage (Any Distro)
+```bash
+# Download from GitHub Releases
+wget https://github.com/patrickjaja/claude-desktop-bin/releases/latest/download/Claude_Desktop-VERSION-x86_64.AppImage
+chmod +x Claude_Desktop-*-x86_64.AppImage
+./Claude_Desktop-*-x86_64.AppImage
+```
+
+### From Source
 ```bash
 git clone https://github.com/patrickjaja/claude-desktop-bin.git
 cd claude-desktop-bin
 ./scripts/build-local.sh --install
 ```
-
-Note: The script will automatically download the installer. Alternatively, download `Claude-Setup-x64.exe` from https://claude.ai/download to the project root before running.
 
 ## Features
 - Native Linux support
@@ -96,73 +103,14 @@ If upstream Claude Desktop changes break a patch:
 - Build logs show which pattern didn't match
 - AUR package remains unchanged until patches are updated
 
-## Local Development Build
-
-To build and test the package locally:
-```bash
-# Download Claude-Setup-x64.exe from https://claude.ai/download to project root
-# Then run:
-./scripts/build-local.sh
-
-# Or build and install in one step:
-./scripts/build-local.sh --install
-```
-
-### Validating Patches Locally
-
-Before committing patch changes, validate them against an extracted app:
-```bash
-# Extract the app.asar
-asar extract app.asar app.asar.contents
-
-# Run validation
-./scripts/validate-patches.sh ./app.asar.contents
-```
-
-Example output:
-```
-=== Patch Validation Report ===
-[fix_claude_code.py]
-  Target: app.asar.contents/.vite/build/index.js
-  [OK] getBinaryPathIfReady(): 1 match(es)
-  [OK] getStatus(): 1 match(es)
-  Status: PASS
-...
-Summary: 7 passed, 0 failed
-```
-
 ## Repository Structure
 - `.github/workflows/` - GitHub Actions for automation
-- `scripts/` - Helper scripts for version detection, PKGBUILD generation, and validation
-  - `build-local.sh` - Build package locally
-  - `extract-version.sh` - Extract version from Windows installer
-  - `generate-pkgbuild.sh` - Generate PKGBUILD from template
-  - `validate-patches.sh` - Validate patches against extracted app
-- `patches/` - Isolated patch files for Linux compatibility
-- `PKGBUILD.template` - Template for generating PKGBUILD
-- `PKGBUILD` - Dynamically generated (not stored in repo)
-
-## Development
-
-### Git Remotes
-This repository uses two git remotes:
-```bash
-# GitHub remote (main repository)
-git remote add github git@github.com:patrickjaja/claude-desktop-bin.git
-
-# AUR remote (for package updates)
-git remote add aur https://aur.archlinux.org/claude-desktop-bin.git
-```
-
-To push changes to GitHub:
-```bash
-git push github master
-```
-
-The AUR package is automatically updated via GitHub Actions workflow.
+- `scripts/` - Build and validation scripts
+- `patches/` - Linux compatibility patches
+- `packaging/` - Debian and AppImage build scripts
+- `PKGBUILD.template` - AUR package template
 
 ## Notes
-- This is an unofficial package, not supported by Anthropic
-- Report package-specific issues to this GitHub repository
-- AUR package: https://aur.archlinux.org/packages/claude-desktop-bin
+- Unofficial package, not supported by Anthropic
+- Issues: https://github.com/patrickjaja/claude-desktop-bin/issues
 - Based on: https://github.com/k3d3/claude-desktop-linux-flake
