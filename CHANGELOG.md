@@ -2,6 +2,13 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-01-26
+
+### Fixed
+- **Patch patterns for v1.1.886** - Updated fix_title_bar.py to handle new code structure:
+  - New pattern matches `[]),!W&&e)return` (useEffect with comma operator in if condition)
+  - Keeps old pattern as fallback for backward compatibility with pre-v1.1.886 versions
+
 ## 2026-01-20
 
 ### Added
