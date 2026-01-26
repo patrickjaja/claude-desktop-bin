@@ -4,22 +4,24 @@
 """
 Patch Claude Desktop to show internal title bar on Linux.
 
-v1.1.886+ code structure (comma operator in if condition):
-  if(c.useEffect(()=>{...},[]),!W&&e)return ...
-  Where W = platform check (imported from main-*.js)
+v1.1.886+ code structure:
+  function _e({isMainWindow:e,...}){
+    const[a,s]=c.useState(!1);
+    if(c.useEffect(...),[]),!W&&e)return <drag-div>;  // Early return 1
+    if(a&&e)return null;                              // Early return 2
+    // ... render full title bar
+  }
 
-Pre-v1.1.886 code structure:
-  if(!B&&e)return null
-  Where B = process.platform==="win32" (true on Windows)
+  Where:
+  - W = process.platform==="win32" (true on Windows, false on Linux)
+  - e = isMainWindow
+  - a = state from onTopBarStateChanged
 
-Original behavior:
-- Windows: negation makes condition false → title bar SHOWS
-- Linux: negation makes condition true → returns null → title bar HIDDEN
+  This patch replaces both conditions with "false&&" prefix to disable them:
+  - !W&&e -> false&&!W&&e (always false)
+  - a&&e -> false&&a&&e (always false)
 
-This patch removes the negation: !VAR&&VAR -> VAR&&VAR
-New behavior:
-- Windows: condition true → returns null → title bar hidden (uses native)
-- Linux: condition false → title bar SHOWS
+  Result: Both early returns are disabled, title bar always renders.
 
 Usage: python3 fix_title_bar.py <path_to_MainWindowPage-*.js>
 """
@@ -45,42 +47,46 @@ def patch_title_bar(filepath):
     original_content = content
     patches_applied = 0
 
-    # Pattern 1: New structure (v1.1.886+) - useEffect with comma operator
-    # Matches: []),!W&&e)return
-    # Changes: []),!W&&e)return -> []),W&&e)return (removes negation)
+    # Pattern 1: Disable first early return (Linux drag-div return)
+    # Change: []),!W&&e)return -> []),false&&!W&&e)return
     pattern1 = rb'\[\]\),!(\w+)&&(\w+)\)return'
-    replacement1 = rb'[]),\1&&\2)return'
+    replacement1 = rb'[]),false&&!\1&&\2)return'
 
     content, count1 = re.subn(pattern1, replacement1, content)
     if count1 > 0:
         patches_applied += count1
-        print(f"  [OK] title bar condition (new pattern): {count1} match(es)")
+        print(f"  [OK] first early return: disabled with false&& prefix ({count1} match)")
 
-    # Pattern 2: Old structure (pre-v1.1.886) - direct if condition
-    # Matches: if(!B&&e)
-    # Changes: if(!B&&e) -> if(B&&e) (removes negation)
+    # Pattern 2: Disable second early return (native frame null return)
+    # Change: ;if(a&&e)return null -> ;if(false&&a&&e)return null
+    pattern2 = rb';if\((\w+)&&(\w+)\)return null'
+    replacement2 = rb';if(false&&\1&&\2)return null'
+
+    content, count2 = re.subn(pattern2, replacement2, content, count=1)
+    if count2 > 0:
+        patches_applied += count2
+        print(f"  [OK] second early return: disabled with false&& prefix ({count2} match)")
+
+    # Pattern 3: Old structure (pre-v1.1.886)
     if patches_applied == 0:
-        pattern2 = rb'if\(!([a-zA-Z_][a-zA-Z0-9_]*)\s*&&\s*([a-zA-Z_][a-zA-Z0-9_]*)\)'
-        replacement2 = rb'if(\1&&\2)'
+        pattern3 = rb'if\(!([a-zA-Z_]\w*)\s*&&\s*([a-zA-Z_]\w*)\)return null'
+        replacement3 = rb'if(false&&!\1&&\2)return null'
+        content, count3 = re.subn(pattern3, replacement3, content)
+        if count3 > 0:
+            patches_applied += count3
+            print(f"  [OK] old pattern: disabled with false&& prefix ({count3} match)")
 
-        content, count2 = re.subn(pattern2, replacement2, content)
-        if count2 > 0:
-            patches_applied += count2
-            print(f"  [OK] title bar condition (old pattern): {count2} match(es)")
-
-    # Validation
     if patches_applied == 0:
-        print(f"  [FAIL] title bar condition: 0 matches (tried 2 patterns)")
+        print(f"  [FAIL] No patterns matched")
         return False
 
-    # Write back if changed
     if content != original_content:
         with open(filepath, 'wb') as f:
             f.write(content)
         print("  [PASS] Title bar patched successfully")
         return True
     else:
-        print("  [WARN] No changes made (patterns may have already been applied)")
+        print("  [WARN] No changes made")
         return True
 
 

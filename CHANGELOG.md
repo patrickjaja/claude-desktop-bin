@@ -5,9 +5,9 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 ## 2026-01-26
 
 ### Fixed
-- **Patch patterns for v1.1.886** - Updated fix_title_bar.py to handle new code structure:
-  - New pattern matches `[]),!W&&e)return` (useEffect with comma operator in if condition)
-  - Keeps old pattern as fallback for backward compatibility with pre-v1.1.886 versions
+- **Title bar and sidebar issues for v1.1.886** - Fixed two related issues where title bar hides and sidebar toggle is not clickable:
+  - New patch `fix_browserview_position.py`: Fixes BrowserView y-positioning - changes `c=Ds?eS+1:0` to `c=Pn?0:eS+1` so Linux gets the 37px title bar offset like Windows
+  - Updated `fix_title_bar.py`: Disables both early returns in renderer with `false&&` prefix instead of removing negation
 
 ## 2026-01-20
 
