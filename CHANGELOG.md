@@ -2,6 +2,20 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-01-30
+
+### Fixed
+- **Code tab and title bar for v1.1.1520** - Fixed two UI regressions after upgrading to Claude Desktop v1.1.1520:
+  - **Code tab disabled**: The QL() production gate blocks `louderPenguin`/`quietPenguin` features in packaged builds. Added mC() async merger patch to override QL-blocked features, plus preferences defaults patch (`louderPenguinEnabled`/`quietPenguinEnabled` → true)
+  - **Title bar missing**: Electron 39's WebContentsView architecture occludes parent webContents. Switched from internal React title bar to native WM title bar (`titleBarStyle:"hidden"` → `"default"`)
+  - Removed `fix_browserview_position.py` (not needed with native WM title bar)
+
+### Added
+- **Feature flag documentation** (`CLAUDE_FEATURE_FLAGS.md`) - Documents all 12 feature flags, the 3-layer override architecture (Oh → mC → IPC), and the QL() production gate
+
+### Changed
+- **validate-patches.sh** - Fixed exit code checking (was checking sed's exit code instead of python3's due to piping)
+
 ## 2026-01-26
 
 ### Fixed

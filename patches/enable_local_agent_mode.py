@@ -2,22 +2,21 @@
 # @patch-target: app.asar.contents/.vite/build/index.js
 # @patch-type: python
 """
-Enable Local Agent Mode (chillingSlothFeat) on Linux.
+Enable Local Agent Mode and Code features on Linux.
 
-The original code gates this feature with `process.platform!=="darwin"` check,
-returning {status:"unavailable"} on Linux. This patch removes that check to
-enable the Local Agent Mode feature (Claude Code for Desktop with git worktrees).
+Three-part patch:
+1. Individual function patches: Remove platform!=="darwin" gates from
+   chillingSlothFeat and quietPenguin functions in Oh() (static layer).
+2. mC() merger patch: Override QL()-blocked features at the async merger
+   layer by appending quietPenguin, louderPenguin, and chillingSlothFeat
+   with {status:"supported"} after the spread of Oh().
+3. Preferences defaults patch: Change louderPenguinEnabled and
+   quietPenguinEnabled defaults from false to true so the renderer
+   (claude.ai web content) enables the Code tab UI.
 
-This feature provides:
-- Local agent sessions with isolated git worktrees
-- Claude Code integration in Desktop app
-- MCP server support for agent sessions
-- PTY terminal support
-
-NOTE: This does NOT enable:
-- yukonSilver/SecureVM (requires @ant/claude-swift macOS native module)
-- Echo/Screen capture (requires @ant/claude-swift macOS native module)
-- Native Quick Entry (requires macOS-specific Swift code)
+The mC() patch makes features "supported" (capability), but the renderer
+also checks the "Enabled" preference (user setting). Both must be true
+for the Code tab to appear.
 
 Usage: python3 enable_local_agent_mode.py <path_to_index.js>
 """
@@ -73,11 +72,52 @@ def patch_local_agent_mode(filepath):
         print("  [FAIL] Required patterns did not match")
         return False
 
+    # Patch 2: Override QL()-blocked features in mC() async merger
+    # The mC() function merges Oh() with async overrides. Features wrapped by QL()
+    # in Oh() are blocked in production. We append overrides after the last async
+    # property so they take precedence over the ...Oh() spread.
+    #
+    # Before: yukonSilverGems:await XXX()})
+    # After:  yukonSilverGems:await XXX(),quietPenguin:{status:"supported"},louderPenguin:{status:"supported"},chillingSlothFeat:{status:"supported"}})
+    pattern2 = rb'(yukonSilverGems:await \w+\(\))\}\)'
+    replacement2 = rb'\1,quietPenguin:{status:"supported"},louderPenguin:{status:"supported"},chillingSlothFeat:{status:"supported"}})'
+
+    content, count2 = re.subn(pattern2, replacement2, content)
+    if count2 >= 1:
+        print(f"  [OK] mC() feature merger: 3 Code features overridden ({count2} match)")
+    else:
+        print(f"  [FAIL] mC() feature merger: 0 matches, expected 1")
+        failed = True
+
+    # Check results
+    if failed:
+        print("  [FAIL] Required patterns did not match")
+        return False
+
+    # Patch 3: Change preferences defaults for Code features
+    # The renderer (claude.ai web content) checks louderPenguinEnabled and
+    # quietPenguinEnabled preferences to show the Code tab. The defaults are
+    # false (disabled). We change them to true so the Code tab appears.
+    # Feature name strings are stable IPC identifiers (not minified).
+    pattern3a = rb'quietPenguinEnabled:!1,louderPenguinEnabled:!1'
+    replacement3a = rb'quietPenguinEnabled:!0,louderPenguinEnabled:!0'
+    content, count3a = re.subn(pattern3a, replacement3a, content)
+    if count3a >= 1:
+        print(f"  [OK] Preferences defaults: quietPenguinEnabled + louderPenguinEnabled → true ({count3a} match)")
+    else:
+        print(f"  [FAIL] Preferences defaults: 0 matches for quietPenguinEnabled/louderPenguinEnabled")
+        failed = True
+
+    # Check results
+    if failed:
+        print("  [FAIL] Required patterns did not match")
+        return False
+
     # Write back if changed
     if content != original_content:
         with open(filepath, 'wb') as f:
             f.write(content)
-        print("  [PASS] Local Agent Mode enabled successfully")
+        print("  [PASS] Local Agent Mode and Code features enabled successfully")
         return True
     else:
         print("  [WARN] No changes made (patterns may have already been applied)")

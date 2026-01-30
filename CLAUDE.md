@@ -133,7 +133,7 @@ patches/
   fix_locale_paths.py       # Locale file path fixes
   fix_native_frame.py       # Native window frame handling
   fix_quick_entry_position.py  # Multi-monitor Quick Entry positioning
-  fix_title_bar.py          # Title bar detection fix
+  fix_title_bar.py          # Internal title bar rendering on Linux
   fix_tray_dbus.py          # Tray menu DBus race condition fix
   fix_tray_path.py          # Tray icon path redirection
 
@@ -143,6 +143,10 @@ scripts/
   generate-pkgbuild.sh      # Generate PKGBUILD from template
   validate-patches.sh       # Validate patches against extracted app
 ```
+
+## Feature Flag System
+
+See [CLAUDE_FEATURE_FLAGS.md](CLAUDE_FEATURE_FLAGS.md) for full documentation of the 12 feature flags, the 3-layer override architecture (Oh → mC → IPC), and how `enable_local_agent_mode.py` bypasses the QL() production gate.
 
 ## CI Pipeline
 

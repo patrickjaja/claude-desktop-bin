@@ -105,7 +105,10 @@ for patch_file in "$PATCHES_DIR"/*.py "$PATCHES_DIR"/*.js; do
         tmp_file=$(mktemp)
         cp "$actual_target" "$tmp_file"
 
-        if python3 "$patch_file" "$tmp_file" 2>&1 | sed 's/^/  /'; then
+        output=$(python3 "$patch_file" "$tmp_file" 2>&1)
+        result=$?
+        echo "$output" | sed 's/^/  /'
+        if [ $result -eq 0 ]; then
             echo "  Status: PASS"
             PASSED=$((PASSED + 1))
         else

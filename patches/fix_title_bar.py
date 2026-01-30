@@ -1,29 +1,22 @@
 #!/usr/bin/env python3
-# @patch-target: app.asar.contents/.vite/renderer/main_window/assets/MainWindowPage-*.js
+# @patch-target: app.asar.contents/.vite/build/index.js
 # @patch-type: python
 """
-Patch Claude Desktop to show internal title bar on Linux.
+Fix missing title bar on Linux by using the native window manager title bar.
 
-v1.1.886+ code structure:
-  function _e({isMainWindow:e,...}){
-    const[a,s]=c.useState(!1);
-    if(c.useEffect(...),[]),!W&&e)return <drag-div>;  // Early return 1
-    if(a&&e)return null;                              // Early return 2
-    // ... render full title bar
-  }
+The main window is created with titleBarStyle:"hidden", which tells Electron
+to hide the native title bar. On macOS/Windows, a custom internal title bar
+component renders inside the web content. On Linux with Electron 39's
+WebContentsView architecture, the internal title bar (rendered in the parent
+BrowserWindow's webContents) is occluded by child WebContentsViews and
+never visible.
 
-  Where:
-  - W = process.platform==="win32" (true on Windows, false on Linux)
-  - e = isMainWindow
-  - a = state from onTopBarStateChanged
+This patch changes titleBarStyle from "hidden" to "default" for the main
+window only, letting the Linux window manager provide a native title bar.
+The pattern is anchored by titleBarOverlay (only present on the main window)
+to avoid affecting the Quick Entry window which also uses titleBarStyle:"hidden".
 
-  This patch replaces both conditions with "false&&" prefix to disable them:
-  - !W&&e -> false&&!W&&e (always false)
-  - a&&e -> false&&a&&e (always false)
-
-  Result: Both early returns are disabled, title bar always renders.
-
-Usage: python3 fix_title_bar.py <path_to_MainWindowPage-*.js>
+Usage: python3 fix_title_bar.py <path_to_index.js>
 """
 
 import sys
@@ -32,7 +25,7 @@ import re
 
 
 def patch_title_bar(filepath):
-    """Patch the title bar detection to show on Linux."""
+    """Use native WM title bar on Linux by changing titleBarStyle from hidden to default."""
 
     print(f"=== Patch: fix_title_bar ===")
     print(f"  Target: {filepath}")
@@ -45,54 +38,33 @@ def patch_title_bar(filepath):
         content = f.read()
 
     original_content = content
-    patches_applied = 0
 
-    # Pattern 1: Disable first early return (Linux drag-div return)
-    # Change: []),!W&&e)return -> []),false&&!W&&e)return
-    pattern1 = rb'\[\]\),!(\w+)&&(\w+)\)return'
-    replacement1 = rb'[]),false&&!\1&&\2)return'
+    # Pattern: titleBarStyle:"hidden",titleBarOverlay:XX
+    # The titleBarOverlay anchor ensures we only match the main window,
+    # not the Quick Entry window (which has skipTaskbar after titleBarStyle)
+    pattern = rb'titleBarStyle:"hidden",(titleBarOverlay:\w+)'
+    replacement = rb'titleBarStyle:"default",\1'
 
-    content, count1 = re.subn(pattern1, replacement1, content)
-    if count1 > 0:
-        patches_applied += count1
-        print(f"  [OK] first early return: disabled with false&& prefix ({count1} match)")
-
-    # Pattern 2: Disable second early return (native frame null return)
-    # Change: ;if(a&&e)return null -> ;if(false&&a&&e)return null
-    pattern2 = rb';if\((\w+)&&(\w+)\)return null'
-    replacement2 = rb';if(false&&\1&&\2)return null'
-
-    content, count2 = re.subn(pattern2, replacement2, content, count=1)
-    if count2 > 0:
-        patches_applied += count2
-        print(f"  [OK] second early return: disabled with false&& prefix ({count2} match)")
-
-    # Pattern 3: Old structure (pre-v1.1.886)
-    if patches_applied == 0:
-        pattern3 = rb'if\(!([a-zA-Z_]\w*)\s*&&\s*([a-zA-Z_]\w*)\)return null'
-        replacement3 = rb'if(false&&!\1&&\2)return null'
-        content, count3 = re.subn(pattern3, replacement3, content)
-        if count3 > 0:
-            patches_applied += count3
-            print(f"  [OK] old pattern: disabled with false&& prefix ({count3} match)")
-
-    if patches_applied == 0:
-        print(f"  [FAIL] No patterns matched")
+    content, count = re.subn(pattern, replacement, content, count=1)
+    if count == 1:
+        print(f'  [OK] Main window titleBarStyle: "hidden" → "default" ({count} match)')
+    else:
+        print(f"  [FAIL] titleBarStyle pattern: {count} matches, expected 1")
         return False
 
     if content != original_content:
         with open(filepath, 'wb') as f:
             f.write(content)
-        print("  [PASS] Title bar patched successfully")
+        print("  [PASS] Native title bar enabled for Linux")
         return True
     else:
-        print("  [WARN] No changes made")
+        print("  [WARN] No changes made (pattern may have already been applied)")
         return True
 
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print(f"Usage: {sys.argv[0]} <path_to_MainWindowPage-*.js>")
+        print(f"Usage: {sys.argv[0]} <path_to_index.js>")
         sys.exit(1)
 
     success = patch_title_bar(sys.argv[1])

@@ -70,9 +70,9 @@ The package applies several patches to make Claude Desktop work on Linux. Each p
 | `fix_locale_paths.py` | Redirects locale file paths to Linux install location |
 | `fix_node_host.py` | Fixes MCP server node host path for Linux (uses `app.getAppPath()`) |
 | `fix_startup_settings.py` | Skips startup settings on Linux to avoid validation errors |
-| `fix_title_bar.py` | Shows internal title bar on Linux (hamburger menu, Claude icon) |
 | `fix_native_frame.py` | Uses native window frames on Linux/XFCE while preserving Quick Entry transparency |
 | `fix_quick_entry_position.py` | Spawns Quick Entry window on the monitor where the cursor is located |
+| `fix_title_bar.py` | Renders internal title bar on Linux (disables platform-gated early returns) |
 | `fix_tray_dbus.py` | Prevents DBus race conditions with mutex guard and cleanup delay |
 | `fix_tray_icon_theme.py` | Uses theme-aware tray icon selection (light/dark) on Linux |
 | `fix_tray_path.py` | Redirects tray icon path to package directory on Linux |
