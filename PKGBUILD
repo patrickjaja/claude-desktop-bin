@@ -14,7 +14,7 @@ optdepends=('claude-code: Claude Code CLI for agentic coding features (npm i -g 
 provides=('claude-desktop')
 conflicts=('claude-desktop')
 source_x86_64=("claude-desktop-${pkgver}-linux.tar.gz::https://github.com/patrickjaja/claude-desktop-bin/releases/download/v1.1.1520/claude-desktop-1.1.1520-linux.tar.gz")
-sha256sums_x86_64=('b0e9f89f97236271e60425c30e105b9f224114e9bedcad9612b452e9ba94eed3')
+sha256sums_x86_64=('2455061054de1032b483f57507c1efa002235bc79d23808a58f8e52cda001c11')
 options=('!strip')
 
 package() {
