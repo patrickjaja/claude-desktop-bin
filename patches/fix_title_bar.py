@@ -2,19 +2,15 @@
 # @patch-target: app.asar.contents/.vite/build/index.js
 # @patch-type: python
 """
-Fix missing title bar on Linux by using the native window manager title bar.
+Fix title bar visibility on Linux by offsetting the child WebContentsView.
 
-The main window is created with titleBarStyle:"hidden", which tells Electron
-to hide the native title bar. On macOS/Windows, a custom internal title bar
-component renders inside the web content. On Linux with Electron 39's
-WebContentsView architecture, the internal title bar (rendered in the parent
-BrowserWindow's webContents) is occluded by child WebContentsViews and
-never visible.
+On Linux, the child WebContentsView (claude.ai content) is positioned at y=0,
+completely covering the parent BrowserWindow's webContents which renders the
+React title bar component. This patch changes the offset from 0 to 36px,
+leaving a gap at the top where the React title bar shows through.
 
-This patch changes titleBarStyle from "hidden" to "default" for the main
-window only, letting the Linux window manager provide a native title bar.
-The pattern is anchored by titleBarOverlay (only present on the main window)
-to avoid affecting the Quick Entry window which also uses titleBarStyle:"hidden".
+The companion patch fix_title_bar_renderer.py modifies the React title bar
+component to render a functional hamburger menu button on Linux.
 
 Usage: python3 fix_title_bar.py <path_to_index.js>
 """
@@ -25,7 +21,7 @@ import re
 
 
 def patch_title_bar(filepath):
-    """Use native WM title bar on Linux by changing titleBarStyle from hidden to default."""
+    """Offset child WebContentsView to expose React title bar on Linux."""
 
     print(f"=== Patch: fix_title_bar ===")
     print(f"  Target: {filepath}")
@@ -38,27 +34,52 @@ def patch_title_bar(filepath):
         content = f.read()
 
     original_content = content
+    failed = False
 
-    # Pattern: titleBarStyle:"hidden",titleBarOverlay:XX
-    # The titleBarOverlay anchor ensures we only match the main window,
-    # not the Quick Entry window (which has skipTaskbar after titleBarStyle)
-    pattern = rb'titleBarStyle:"hidden",(titleBarOverlay:\w+)'
-    replacement = rb'titleBarStyle:"default",\1'
+    # Match the resize callback that positions the child WebContentsView:
+    #   const i=()=>{const o=e.getContentBounds(),c=0;
+    #   r.setBounds({x:0,y:c,width:o.width,height:o.height-c})
+    #
+    # We change c=0 to c=36 on Linux, pushing the claude.ai view down
+    # to expose the React title bar rendered by the parent BrowserWindow.
+    #
+    # Pattern uses \w+ for minified variable names.
+    pattern = (
+        rb'(const \w+=\(\)=>\{const (\w+)=e\.getContentBounds\(\)),(\w+)=0;'
+        rb'(\w+)\.setBounds\(\{x:0,y:\3,width:\2\.width,height:\2\.height-\3\}\)'
+    )
+
+    def replacement(m):
+        resize_start = m.group(1).decode('utf-8')
+        o_var = m.group(2).decode('utf-8')
+        c_var = m.group(3).decode('utf-8')
+        r_var = m.group(4).decode('utf-8')
+
+        # On Linux, offset by 36px for title bar; on other platforms keep 0
+        result = (
+            f'{resize_start},{c_var}=process.platform==="linux"?36:0;'
+            f'{r_var}.setBounds({{x:0,y:{c_var},width:{o_var}.width,height:{o_var}.height-{c_var}}})'
+        )
+        return result.encode('utf-8')
 
     content, count = re.subn(pattern, replacement, content, count=1)
     if count == 1:
-        print(f'  [OK] Main window titleBarStyle: "hidden" → "default" ({count} match)')
+        print(f"  [OK] Child view offset: c=0 → c=36 on Linux (1 match)")
     else:
-        print(f"  [FAIL] titleBarStyle pattern: {count} matches, expected 1")
+        print(f"  [FAIL] setBounds offset pattern: {count} matches, expected 1")
+        failed = True
+
+    if failed:
+        print("  [FAIL] Required patterns did not match")
         return False
 
     if content != original_content:
         with open(filepath, 'wb') as f:
             f.write(content)
-        print("  [PASS] Native title bar enabled for Linux")
+        print("  [PASS] Title bar offset enabled for Linux")
         return True
     else:
-        print("  [WARN] No changes made (pattern may have already been applied)")
+        print("  [WARN] No changes made")
         return True
 
 

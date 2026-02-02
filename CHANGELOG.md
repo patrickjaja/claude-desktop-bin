@@ -2,13 +2,23 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-02-02
+
+### Fixed
+- **Title bar hamburger menu now clickable** - Rewrote title bar approach for v1.1.1520:
+  - **Previous approach** (custom WebContentsView with HTML) had no working IPC channel, making the hamburger menu button non-functional
+  - **New approach**: Offset the claude.ai child WebContentsView by 36px (`c=0` → `c=36` on Linux) to expose the parent BrowserWindow's built-in React title bar component
+  - New `fix_title_bar_renderer.py` patches `MainWindowPage-*.js` to render a hamburger button with working `requestMainMenuPopup()` IPC on Linux, replacing the plain drag div
+  - Hamburger button triggers the native application menu (File, Edit, View, etc.)
+- **Full patch audit for v1.1.1520** - Validated all 15 patches against fresh source; all pass with syntax check clean
+
 ## 2026-01-30
 
 ### Fixed
 - **Code tab and title bar for v1.1.1520** - Fixed two UI regressions after upgrading to Claude Desktop v1.1.1520:
   - **Code tab disabled**: The QL() production gate blocks `louderPenguin`/`quietPenguin` features in packaged builds. Added mC() async merger patch to override QL-blocked features, plus preferences defaults patch (`louderPenguinEnabled`/`quietPenguinEnabled` → true)
-  - **Title bar missing**: Electron 39's WebContentsView architecture occludes parent webContents. Switched from internal React title bar to native WM title bar (`titleBarStyle:"hidden"` → `"default"`)
-  - Removed `fix_browserview_position.py` (not needed with native WM title bar)
+  - **Title bar missing**: Electron 39's WebContentsView architecture occludes parent webContents. Created a dedicated WebContentsView (`tb`) for the title bar that loads the same `index.html` with its own IPC handlers, positioned at y=0 with 36px height, pushing the claude.ai view down
+  - Removed `fix_browserview_position.py` (title bar is now a separate WebContentsView)
 
 ### Added
 - **Feature flag documentation** (`CLAUDE_FEATURE_FLAGS.md`) - Documents all 12 feature flags, the 3-layer override architecture (Oh → mC → IPC), and the QL() production gate
