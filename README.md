@@ -111,6 +111,19 @@ If upstream Claude Desktop changes break a patch:
 - `packaging/` - Debian and AppImage build scripts
 - `PKGBUILD.template` - AUR package template
 
+## Wayland: Global Shortcut Not Working
+
+On pure Wayland compositors (e.g. Hyprland, Sway), the Quick Entry shortcut (Ctrl+Alt+Space) doesn't work because Electron's `globalShortcut` relies on X11. Force XWayland mode to fix it:
+
+```bash
+claude-desktop --ozone-platform=x11
+```
+
+To make it persistent, edit `~/.local/share/applications/claude-desktop.desktop`:
+```ini
+Exec=claude-desktop --ozone-platform=x11 %u
+```
+
 ## Notes
 - Unofficial package, not supported by Anthropic
 - Issues: https://github.com/patrickjaja/claude-desktop-bin/issues
