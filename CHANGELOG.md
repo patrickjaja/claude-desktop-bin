@@ -5,12 +5,10 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 ## 2026-02-02
 
 ### Fixed
-- **Title bar hamburger menu now clickable** - Rewrote title bar approach for v1.1.1520:
-  - **Previous approach** (custom WebContentsView with HTML) had no working IPC channel, making the hamburger menu button non-functional
-  - **New approach**: Offset the claude.ai child WebContentsView by 36px (`c=0` → `c=36` on Linux) to expose the parent BrowserWindow's built-in React title bar component
-  - New `fix_title_bar_renderer.py` patches `MainWindowPage-*.js` to render a hamburger button with working `requestMainMenuPopup()` IPC on Linux, replacing the plain drag div
-  - Hamburger button triggers the native application menu (File, Edit, View, etc.)
-- **Full patch audit for v1.1.1520** - Validated all 15 patches against fresh source; all pass with syntax check clean
+- **Top bar now clickable on Linux** - Fixed non-clickable top bar elements (sidebar toggle, back/forward arrows, Chat/Code tabs, incognito button):
+  - **Root cause**: `titleBarStyle:"hidden"` creates an invisible drag region across the top ~36px on Linux, intercepting all mouse events even with `frame:true`
+  - **Fix**: `fix_native_frame.py` now replaces `titleBarStyle:"hidden"` with `"default"` on Linux via platform-conditional (`process.platform==="linux"?"default":"hidden"`), targeting only the main window (Quick Entry window preserved)
+  - Removed `fix_title_bar.py` and `fix_title_bar_renderer.py` (no longer needed — the native top bar works correctly once the invisible drag region is eliminated)
 
 ## 2026-01-30
 

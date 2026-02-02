@@ -133,7 +133,6 @@ patches/
   fix_locale_paths.py       # Locale file path fixes
   fix_native_frame.py       # Native window frame handling
   fix_quick_entry_position.py  # Multi-monitor Quick Entry positioning
-  fix_title_bar.py          # Internal title bar rendering on Linux
   fix_tray_dbus.py          # Tray menu DBus race condition fix
   fix_tray_path.py          # Tray icon path redirection
 

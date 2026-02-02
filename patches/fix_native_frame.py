@@ -4,15 +4,14 @@
 """
 Patch Claude Desktop to use native window frames on Linux.
 
-On Linux/XFCE, frame:false doesn't work properly - the WM still adds decorations.
-So we use frame:true for native window management, but also show Claude's internal
-title bar for the hamburger menu and Claude icon.
+On Linux, titleBarStyle:"hidden" with frame defaulting to true causes Electron to
+create an invisible drag region across the top of the window, intercepting mouse
+events and making the top bar non-clickable. We:
+1. Set frame:true explicitly for native window management
+2. Replace titleBarStyle:"hidden" with "default" on Linux (main window only)
 
-IMPORTANT: Quick Entry window needs frame:false for transparency - we preserve that.
-
-NOTE: As of version 1.0.1217+, the main window no longer explicitly sets frame:false,
-so it defaults to native frames. This patch now only needs to verify the structure
-is correct and preserve the Quick Entry window's frame:false setting.
+IMPORTANT: Quick Entry window needs frame:false + titleBarStyle:"hidden" for
+transparency - we preserve that by targeting only the main window pattern.
 
 Usage: python3 fix_native_frame.py <path_to_index.js>
 """
@@ -65,6 +64,25 @@ def patch_native_frame(filepath):
     if has_quick_entry:
         content = content.replace(b'transparent:!0,' + marker, quick_entry_pattern)
         print(f"  [OK] Restored Quick Entry frame:!1 (transparent)")
+
+    # Step 5: Replace titleBarStyle:"hidden" with platform-conditional for main window
+    # The main window pattern includes titleBarOverlay nearby, distinguishing it from
+    # Quick Entry. On Linux, titleBarStyle:"hidden" creates an invisible drag region
+    # that blocks clicks on the top bar even when frame:true.
+    main_titlebar_pattern = rb'titleBarStyle:"hidden",(titleBarOverlay:\w+)'
+    def titlebar_replacement(m):
+        overlay = m.group(1)
+        return b'titleBarStyle:process.platform==="linux"?"default":"hidden",' + overlay
+
+    content, count = re.subn(main_titlebar_pattern, titlebar_replacement, content)
+    if count > 0:
+        print(f"  [OK] titleBarStyle:\"hidden\" -> platform-conditional: {count} match(es)")
+    else:
+        # Check if already patched or pattern changed
+        if b'titleBarStyle:process.platform==="linux"?"default":"hidden"' in content:
+            print(f"  [INFO] titleBarStyle already patched")
+        else:
+            print(f"  [WARN] titleBarStyle:\"hidden\" pattern not found near titleBarOverlay")
 
     # Write back if changed
     if content != original_content:
