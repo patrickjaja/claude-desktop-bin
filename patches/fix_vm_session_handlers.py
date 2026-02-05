@@ -92,11 +92,13 @@ def patch_vm_session_handlers(filepath):
     # Patch 4: Modify startVM to fail gracefully on Linux
     # Pattern: async startVM(e){try{return await Jhe(e),{success:!0}}
     # Variable names change between versions (Jhe→MB)
-    vm_start_pattern = rb'async startVM\(e\)\{try\{return await (\w+)\(e\),\{success:!0\}'
+    vm_start_pattern = rb'async startVM\((\w+)\)\{try\{return await (\w+)\(\1\),\{success:!0\}'
 
     def vm_start_replacement(m):
-        return (b'async startVM(e){if(process.platform==="linux"){return{success:false,error:"VM not supported on Linux"}}try{return await ' +
-                m.group(1) + b'(e),{success:!0}')
+        param = m.group(1)   # e.g. r
+        func = m.group(2)    # e.g. Sg
+        return (b'async startVM(' + param + b'){if(process.platform==="linux"){return{success:false,error:"VM not supported on Linux"}}try{return await ' +
+                func + b'(' + param + b'),{success:!0}')
 
     content, count4 = re.subn(vm_start_pattern, vm_start_replacement, content)
     if count4 >= 1:

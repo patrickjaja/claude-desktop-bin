@@ -91,11 +91,11 @@ Calls `mC()`, validates the result against a schema, and sends it to the rendere
 
 ### enable_local_agent_mode.py
 
-**Patch 1 - Individual functions:** Remove `process.platform!=="darwin"` gates from `pot()` (chillingSlothFeat) and `mot()` (quietPenguin inner). This handles code paths that call `Oh()` directly.
+**Patch 1 - Individual functions:** Remove `process.platform!=="darwin"` gate from `mot()` (quietPenguin inner) only. The `pot()` (chillingSlothFeat/Cowork) function is intentionally left gated because it requires ClaudeVM which is not available on Linux.
 
 **Patch 2 - mC() merger override:** Append to the `mC()` return object:
 ```javascript
-,quietPenguin:{status:"supported"},louderPenguin:{status:"supported"},chillingSlothFeat:{status:"supported"}
+,quietPenguin:{status:"supported"},louderPenguin:{status:"supported"}
 ```
 
 This bypasses the QL() gate by overriding at the merger level. The spread order ensures our values win:
@@ -104,6 +104,8 @@ This bypasses the QL() gate by overriding at the merger level. The spread order 
 ...our overrides  -> quietPenguin: {status:"supported"}    (wins)
 ```
 
+Note: `chillingSlothFeat` is **not** overridden here. It stays gated by its darwin check in `Oh()`, returning `{status:"unavailable"}` on Linux. This prevents the Cowork tab from appearing, since it would hang with infinite loading (the Cowork feature requires ClaudeVM for filesystem/session operations).
+
 ### Features we do NOT enable
 
 | Feature | Reason |
@@ -111,6 +113,7 @@ This bypasses the QL() gate by overriding at the merger level. The spread order 
 | `nativeQuickEntry` | Requires macOS Swift code |
 | `quickEntryDictation` | Requires macOS Swift code |
 | `plushRaccoon` | Dictation shortcut, macOS-only |
+| `chillingSlothFeat` | Requires ClaudeVM (Cowork tab would hang with infinite loading) |
 | `yukonSilver` / `yukonSilverGems` | Requires `@ant/claude-swift` native module |
 
 ## Debugging Feature Flags

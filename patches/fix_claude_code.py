@@ -47,8 +47,8 @@ def patch_claude_code(filepath):
 
     # Patch 2: getBinaryPathIfReady() - Check /usr/bin/claude first on Linux
     # IMPORTANT: Check Linux BEFORE calling getHostTarget() for safety
-    old_binary_ready = b'async getBinaryPathIfReady(){const e=this.getHostTarget();return await this.binaryExistsForTarget(e,this.requiredVersion)?this.getBinaryPathForTarget(e,this.requiredVersion):null}'
-    new_binary_ready = b'async getBinaryPathIfReady(){if(process.platform==="linux"){try{const fs=require("fs");if(fs.existsSync("/usr/bin/claude"))return"/usr/bin/claude"}catch(err){}}const e=this.getHostTarget();return await this.binaryExistsForTarget(e,this.requiredVersion)?this.getBinaryPathForTarget(e,this.requiredVersion):null}'
+    old_binary_ready = b'async getBinaryPathIfReady(){const e=await this.getLocalBinaryPath();if(e)return e;const r=this.getHostTarget();return await this.binaryExistsForTarget(r,this.requiredVersion)?this.getBinaryPathForTarget(r,this.requiredVersion):null}'
+    new_binary_ready = b'async getBinaryPathIfReady(){if(process.platform==="linux"){try{const fs=require("fs");if(fs.existsSync("/usr/bin/claude"))return"/usr/bin/claude"}catch(err){}}const e=await this.getLocalBinaryPath();if(e)return e;const r=this.getHostTarget();return await this.binaryExistsForTarget(r,this.requiredVersion)?this.getBinaryPathForTarget(r,this.requiredVersion):null}'
 
     count2 = content.count(old_binary_ready)
     if count2 >= 1:
@@ -61,14 +61,16 @@ def patch_claude_code(filepath):
     # Patch 3: getStatus() - Return Ready if system binary exists on Linux
     # IMPORTANT: Check Linux BEFORE calling getHostTarget() for safety
     # Use regex to capture the enum name (Yo, tc, etc.) dynamically
-    status_pattern = rb'async getStatus\(\)\{const e=this\.getHostTarget\(\);if\(this\.preparingPromise\)return (\w+)\.Updating;if\(await this\.binaryExistsForTarget\(e,this\.requiredVersion\)\)'
+    status_pattern = rb'async getStatus\(\)\{if\(await this\.getLocalBinaryPath\(\)\)return (\w+)\.Ready;const (\w+)=this\.getHostTarget\(\);if\(this\.preparingPromise\)return \1\.Updating;if\(await this\.binaryExistsForTarget\(\2,this\.requiredVersion\)\)'
 
     def status_replacement(m):
-        enum_name = m.group(1)  # Capture the enum name (Yo, tc, etc.)
+        enum_name = m.group(1)  # Capture the enum name (ps, etc.)
+        var_name = m.group(2)   # Capture the variable name (r, etc.)
         return (b'async getStatus(){if(process.platform==="linux"){try{const fs=require("fs");if(fs.existsSync("/usr/bin/claude")){return ' +
                 enum_name + b'.Ready}return ' + enum_name + b'.NotInstalled}catch(err){return ' + enum_name +
-                b'.NotInstalled}}const e=this.getHostTarget();if(this.preparingPromise)return ' + enum_name +
-                b'.Updating;if(await this.binaryExistsForTarget(e,this.requiredVersion))')
+                b'.NotInstalled}}if(await this.getLocalBinaryPath())return ' + enum_name + b'.Ready;const ' +
+                var_name + b'=this.getHostTarget();if(this.preparingPromise)return ' + enum_name +
+                b'.Updating;if(await this.binaryExistsForTarget(' + var_name + b',this.requiredVersion))')
 
     content, count3 = re.subn(status_pattern, status_replacement, content)
     if count3 >= 1:
