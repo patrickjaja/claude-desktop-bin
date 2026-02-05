@@ -4,6 +4,10 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 
 ## 2026-02-05
 
+### Added
+- **Auto-hide menu bar on Linux** — Native menu bar (File, Edit, View, Help) is now hidden by default; press Alt to show it temporarily
+- **Window icon on Linux** — Claude icon now appears in the window title bar
+
 ### Fixed
 - **Disable non-functional Cowork tab** — Cowork requires ClaudeVM (unavailable on Linux); tab is now visually disabled with reduced opacity and click prevention via `fix_hide_cowork_tab.py`
 - **Suppress false update notifications** — New `fix_disable_autoupdate.py` patch makes the isInstalled check return false on Linux, preventing "Update heruntergeladen" popups

@@ -84,6 +84,39 @@ def patch_native_frame(filepath):
         else:
             print(f"  [WARN] titleBarStyle:\"hidden\" pattern not found near titleBarOverlay")
 
+    # Step 6: Add autoHideMenuBar:true for Linux (hides native menu bar by default)
+    # The menu bar will appear when pressing Alt key (standard Electron behavior)
+    autohide_pattern = rb'(titleBarStyle:process\.platform==="linux"\?"default":"hidden"),(titleBarOverlay:\w+)'
+    def autohide_replacement(m):
+        titlebar = m.group(1)
+        overlay = m.group(2)
+        return titlebar + b',autoHideMenuBar:process.platform==="linux",' + overlay
+
+    content, count = re.subn(autohide_pattern, autohide_replacement, content)
+    if count > 0:
+        print(f"  [OK] autoHideMenuBar added: {count} match(es)")
+    else:
+        if b'autoHideMenuBar:process.platform==="linux"' in content:
+            print(f"  [INFO] autoHideMenuBar already patched")
+        else:
+            print(f"  [WARN] autoHideMenuBar pattern not found")
+
+    # Step 7: Add window icon for Linux (shows Claude icon in title bar)
+    icon_pattern = rb'(autoHideMenuBar:process\.platform==="linux"),(titleBarOverlay:\w+)'
+    def icon_replacement(m):
+        autohide = m.group(1)
+        overlay = m.group(2)
+        return autohide + b',icon:process.platform==="linux"?"/usr/share/icons/hicolor/256x256/apps/claude-desktop.png":void 0,' + overlay
+
+    content, count = re.subn(icon_pattern, icon_replacement, content)
+    if count > 0:
+        print(f"  [OK] window icon added: {count} match(es)")
+    else:
+        if b'icon:process.platform==="linux"' in content:
+            print(f"  [INFO] window icon already patched")
+        else:
+            print(f"  [WARN] window icon pattern not found")
+
     # Write back if changed
     if content != original_content:
         with open(filepath, 'wb') as f:
