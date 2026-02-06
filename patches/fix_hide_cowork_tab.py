@@ -37,12 +37,12 @@ def patch_hide_cowork_tab(filepath):
     # Patch: Inject JS on dom-ready to hide the Cowork tab button
     #
     # The main webContents has a dom-ready handler:
-    #   r.webContents.on("dom-ready",()=>{xg()})
+    #   r.webContents.on("dom-ready",()=>{FUNC()})
     #
     # We add executeJavaScript that uses a MutationObserver to find and
     # hide any button/link with "Cowork" text. Uses single-quoted JS
     # string with double quotes inside to avoid escaping issues.
-    pattern = rb'(\.webContents\.on\("dom-ready",\(\)=>\{)(xg\(\))\}'
+    pattern = rb'(\.webContents\.on\("dom-ready",\(\)=>\{)(\w+\(\))\}'
 
     # Build the JS to inject. Single-quoted outer string, double quotes inside.
     # The script:

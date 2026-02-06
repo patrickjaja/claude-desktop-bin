@@ -2,6 +2,11 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-02-06
+
+### Fixed
+- **fix_hide_cowork_tab.py** — Use flexible `\w+` regex instead of hardcoded `xg` function name, preventing breakage on minified variable name changes across releases
+
 ## 2026-02-05
 
 ### Added
