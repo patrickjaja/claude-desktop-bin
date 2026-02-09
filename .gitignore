@@ -29,3 +29,15 @@ Thumbs.db
 PKGBUILD
 build
 extract
+
+# Extracted app source (debug artifacts)
+/index.js
+/index.html
+/mainWindow.js
+/MainWindowPage-*.js
+/window-shared.css
+__pycache__/
+
+# Debug notes
+/latest.md
+/validate_and_fix_claude-setup-x64.md
