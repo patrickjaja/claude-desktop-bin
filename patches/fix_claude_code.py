@@ -34,26 +34,42 @@ def patch_claude_code(filepath):
 
     # Patch 1: getHostPlatform() - Add Linux support
     # This is the root cause - it throws "Unsupported platform" for Linux
-    old_platform = b'getHostPlatform(){const e=process.arch;if(process.platform==="darwin")return e==="arm64"?"darwin-arm64":"darwin-x64";if(process.platform==="win32")return"win32-x64";throw new Error(`Unsupported platform: ${process.platform}-${e}`)}'
-    new_platform = b'getHostPlatform(){const e=process.arch;if(process.platform==="darwin")return e==="arm64"?"darwin-arm64":"darwin-x64";if(process.platform==="win32")return"win32-x64";if(process.platform==="linux")return e==="arm64"?"linux-arm64":"linux-x64";throw new Error(`Unsupported platform: ${process.platform}-${e}`)}'
+    # Use flexible regex to capture the arch variable name dynamically
+    platform_pattern = rb'(getHostPlatform\(\)\{const (\w+)=process\.arch;if\(process\.platform==="darwin"\)return \2==="arm64"\?"darwin-arm64":"darwin-x64";if\(process\.platform==="win32"\)return"win32-x64";)(throw new Error\()'
 
-    count1 = content.count(old_platform)
+    def platform_replacement(m):
+        arch_var = m.group(2)
+        linux_check = (b'if(process.platform==="linux")return ' + arch_var +
+                       b'==="arm64"?"linux-arm64":"linux-x64";')
+        return m.group(1) + linux_check + m.group(3)
+
+    content, count1 = re.subn(platform_pattern, platform_replacement, content)
     if count1 >= 1:
-        content = content.replace(old_platform, new_platform)
         print(f"  [OK] getHostPlatform(): {count1} match(es)")
+    elif b'if(process.platform==="linux")return' in content and b'getHostPlatform()' in content:
+        print(f"  [OK] getHostPlatform(): already patched")
     else:
         print(f"  [FAIL] getHostPlatform(): 0 matches, expected >= 1")
         failed = True
 
     # Patch 2: getBinaryPathIfReady() - Check /usr/bin/claude first on Linux
     # IMPORTANT: Check Linux BEFORE calling getHostTarget() for safety
-    old_binary_ready = b'async getBinaryPathIfReady(){const e=await this.getLocalBinaryPath();if(e)return e;const r=this.getHostTarget();return await this.binaryExistsForTarget(r,this.requiredVersion)?this.getBinaryPathForTarget(r,this.requiredVersion):null}'
-    new_binary_ready = b'async getBinaryPathIfReady(){if(process.platform==="linux"){try{const fs=require("fs");if(fs.existsSync("/usr/bin/claude"))return"/usr/bin/claude"}catch(err){}}const e=await this.getLocalBinaryPath();if(e)return e;const r=this.getHostTarget();return await this.binaryExistsForTarget(r,this.requiredVersion)?this.getBinaryPathForTarget(r,this.requiredVersion):null}'
+    # Match only the function signature and inject Linux check right after {
+    # Negative lookahead ensures idempotency (won't re-patch if already applied)
+    binary_pattern = rb'(async getBinaryPathIfReady\(\)\{)(?!if\(process\.platform==="linux"\))'
 
-    count2 = content.count(old_binary_ready)
+    linux_binary_check = (b'if(process.platform==="linux"){try{const fs=require("fs");'
+                          b'if(fs.existsSync("/usr/bin/claude"))return"/usr/bin/claude"}'
+                          b'catch(err){}}')
+
+    def binary_replacement(m):
+        return m.group(1) + linux_binary_check
+
+    content, count2 = re.subn(binary_pattern, binary_replacement, content, count=1)
     if count2 >= 1:
-        content = content.replace(old_binary_ready, new_binary_ready)
         print(f"  [OK] getBinaryPathIfReady(): {count2} match(es)")
+    elif b'async getBinaryPathIfReady(){if(process.platform==="linux")' in content:
+        print(f"  [OK] getBinaryPathIfReady(): already patched")
     else:
         print(f"  [FAIL] getBinaryPathIfReady(): 0 matches, expected >= 1")
         failed = True
@@ -75,6 +91,8 @@ def patch_claude_code(filepath):
     content, count3 = re.subn(status_pattern, status_replacement, content)
     if count3 >= 1:
         print(f"  [OK] getStatus(): {count3} match(es)")
+    elif b'async getStatus(){if(process.platform==="linux")' in content:
+        print(f"  [OK] getStatus(): already patched")
     else:
         print(f"  [FAIL] getStatus(): 0 matches, expected >= 1")
         failed = True

@@ -5,17 +5,16 @@
 Enable Code features on Linux.
 
 Four-part patch:
-1. Individual function patch: Remove platform!=="darwin" gate from the
-   quietPenguin function in Oh() (static layer). The chillingSlothFeat
-   (Cowork/Local Agent Mode) function is intentionally left gated because
-   it requires ClaudeVM which is not available on Linux.
-2. Gate chillingSlothLocal on Linux: Add a Linux platform check so
-   it returns {status:"unavailable"}. Without this, the web app shows the
-   Cowork tab button (which hangs on infinite loading).
+1. Individual function patch: Remove platform!=="darwin" gate from both
+   chillingSlothFeat and quietPenguin functions in Oh() (static layer).
+   Cowork tab renders but is visually disabled by fix_hide_cowork_tab.py.
+   VM operations are safely stubbed by fix_vm_session_handlers.py.
+2. chillingSlothLocal: No Linux gate needed — naturally returns
+   {status:"supported"} on Linux (only gates Windows ARM64).
 3. mC() merger patch: Override features at the async merger layer.
-   Enables quietPenguin/louderPenguin with {status:"supported"} (bypasses
-   QL gate), and explicitly disables all chillingSloth* features with
-   {status:"unavailable"} to prevent the Cowork tab from appearing.
+   Enables quietPenguin/louderPenguin (Code tab, bypasses QL gate) and
+   chillingSlothFeat/chillingSlothLocal (Cowork tab) with
+   {status:"supported"}.
 4. Preferences defaults patch: Change louderPenguinEnabled and
    quietPenguinEnabled defaults from false to true so the renderer
    (claude.ai web content) enables the Code tab UI.
@@ -48,12 +47,12 @@ def patch_local_agent_mode(filepath):
     original_content = content
     failed = False
 
-    # Patch 1: Remove platform!=="darwin" gate from quietPenguin function only
+    # Patch 1: Remove platform!=="darwin" gate from both chillingSlothFeat and quietPenguin
     # Original: function XXX(){return process.platform!=="darwin"?{status:"unavailable"}:{status:"supported"}}
     # Changed:  function XXX(){return{status:"supported"}}
     #
     # Two functions match this pattern:
-    #   matches[0] = chillingSlothFeat (e.g. agt) — SKIP (requires ClaudeVM, not available on Linux)
+    #   matches[0] = chillingSlothFeat (e.g. agt) — PATCH (tab renders but fix_hide_cowork_tab.py disables it)
     #   matches[1] = quietPenguin (e.g. ogt) — PATCH
     #
     # Use flexible pattern with \w+ to match any minified function name
@@ -61,17 +60,16 @@ def patch_local_agent_mode(filepath):
 
     matches = list(re.finditer(pattern1, content))
     if len(matches) >= 2:
-        # Two matches: first is chillingSlothFeat (skip), second is quietPenguin (patch)
-        m = matches[1]
-        replacement = m.group(1) + m.group(2) + m.group(3) + m.group(4)
-        content = content[:m.start()] + replacement + content[m.end():]
-        print(f"  [OK] quietPenguin ({matches[1].group(2).decode()}): patched (chillingSlothFeat {matches[0].group(2).decode()} skipped)")
+        # Patch both: reverse order to preserve byte offsets
+        for m in reversed(matches):
+            replacement = m.group(1) + m.group(2) + m.group(3) + m.group(4)
+            content = content[:m.start()] + replacement + content[m.end():]
+        print(f"  [OK] chillingSlothFeat ({matches[0].group(2).decode()}) + quietPenguin ({matches[1].group(2).decode()}): both patched")
     elif len(matches) == 1:
-        # Only one match — assume it's quietPenguin, patch it
         m = matches[0]
         replacement = m.group(1) + m.group(2) + m.group(3) + m.group(4)
         content = content[:m.start()] + replacement + content[m.end():]
-        print(f"  [OK] quietPenguin ({matches[0].group(2).decode()}): 1 match")
+        print(f"  [OK] darwin-gated function ({matches[0].group(2).decode()}): 1 match")
     else:
         print(f"  [FAIL] darwin-gated functions: 0 matches, expected at least 1")
         failed = True
@@ -81,22 +79,30 @@ def patch_local_agent_mode(filepath):
         print("  [FAIL] Required patterns did not match")
         return False
 
-    # Patch 2: Gate chillingSlothLocal on Linux
-    # This function only gates Windows ARM64, but returns {status:"supported"} on Linux.
-    # The web app uses chillingSlothLocal to show the Cowork tab. We need to return
-    # "unavailable" on Linux since Cowork requires ClaudeVM.
-    #
-    # Original: function XXX(){return process.platform==="win32"&&process.arch==="arm64"?{status:"unsupported",...}:{status:"supported"}}
-    # Changed:  function XXX(){if(process.platform==="linux")return{status:"unavailable"};return ...original...}
-    pattern2_local = rb'(function \w+\(\)\{return )(process\.platform==="win32"&&process\.arch==="arm64"\?\{status:"unsupported",reason:"Local sessions are not supported on Windows ARM64"\}:\{status:"supported"\})'
+    # Patch 1b: Bypass yukonSilver (NH) platform gate on Linux
+    # NH() gates yukonSilver on darwin/win32 only. On Linux it returns
+    # {status:"unsupported",reason:"Unsupported platform: linux"} which leaks "linux"
+    # to the renderer and may prevent Cowork from appearing. We inject an early return
+    # for Linux. VM operations are safely stubbed by fix_vm_session_handlers.py.
+    nh_pattern = rb'(function \w+\(\)\{)(const (\w+)=process\.platform;if\(\3!=="darwin"&&\3!=="win32"\)return\{status:"unsupported",reason:`Unsupported platform: \$\{\3\}`\})'
 
-    replacement2_local = rb'\1process.platform==="linux"?{status:"unavailable"}:\2'
+    def nh_replacement(m):
+        return m.group(1) + b'if(process.platform==="linux")return{status:"supported"};' + m.group(2)
 
-    content, count2_local = re.subn(pattern2_local, replacement2_local, content)
-    if count2_local >= 1:
-        print(f"  [OK] chillingSlothLocal Linux gate: {count2_local} match(es)")
+    content, count1b = re.subn(nh_pattern, nh_replacement, content, count=1)
+    if count1b >= 1:
+        print(f"  [OK] yukonSilver (NH): Linux early return injected ({count1b} match)")
+    elif b'if(process.platform==="linux")return{status:"supported"};const' in content:
+        print(f"  [OK] yukonSilver (NH): already patched")
     else:
-        print(f"  [WARN] chillingSlothLocal: 0 matches (pattern may have changed)")
+        print(f"  [WARN] yukonSilver (NH): 0 matches")
+
+    # Patch 2: chillingSlothLocal — no Linux gate needed
+    # This function only gates Windows ARM64, returning {status:"supported"} on Linux
+    # naturally. Previously we gated it on Linux, but Cowork tab should render as
+    # disabled (fix_hide_cowork_tab.py handles the visual disable).
+    # VM operations are safely stubbed by fix_vm_session_handlers.py.
+    print(f"  [OK] chillingSlothLocal: no gate needed (naturally returns supported on Linux)")
 
     # Patch 3: Override features in mC() async merger
     # The mC() function merges Oh() with async overrides. Features wrapped by QL()
@@ -105,18 +111,18 @@ def patch_local_agent_mode(filepath):
     #
     # We override:
     # - quietPenguin/louderPenguin → "supported" (Code tab, bypasses QL gate)
-    # NOTE: Cowork tab visibility is controlled server-side by the claude.ai web app,
-    #   not by these desktop feature flags. Hiding it requires CSS injection
-    #   (see fix_hide_cowork_tab.py).
+    # - chillingSlothFeat/chillingSlothLocal → "supported" (Cowork tab renders,
+    #   fix_hide_cowork_tab.py disables it visually, fix_vm_session_handlers.py
+    #   stubs VM operations)
     #
     # Before: desktopVoiceDictation:await XXX()})
     # After:  desktopVoiceDictation:await XXX(),quietPenguin:...,louderPenguin:...,chillingSloth*:...})
     pattern3 = rb'(desktopVoiceDictation:await \w+\(\))\}\)'
-    replacement3 = rb'\1,quietPenguin:{status:"supported"},louderPenguin:{status:"supported"}})'
+    replacement3 = rb'\1,quietPenguin:{status:"supported"},louderPenguin:{status:"supported"},chillingSlothFeat:{status:"supported"},chillingSlothLocal:{status:"supported"},yukonSilver:{status:"supported"},yukonSilverGems:{status:"supported"}})'
 
     content, count3 = re.subn(pattern3, replacement3, content)
     if count3 >= 1:
-        print(f"  [OK] mC() feature merger: 2 Code features overridden ({count3} match)")
+        print(f"  [OK] mC() feature merger: 6 features overridden ({count3} match)")
     else:
         print(f"  [FAIL] mC() feature merger: 0 matches, expected 1")
         failed = True
@@ -145,15 +151,106 @@ def patch_local_agent_mode(filepath):
         print("  [FAIL] Required patterns did not match")
         return False
 
+    # Patch 5: Spoof platform as "darwin" in HTTP headers
+    # The claude.ai server checks the anthropic-client-os-platform header to decide
+    # whether to send Cowork tab data. Cowork is "a research preview on macOS" per
+    # the admin page. We spoof the platform variable used in the header setup.
+    # Pattern: e=Ma.platform,r=Ma.getSystemVersion();Ae.session...onBeforeSendHeaders
+    # We replace: e=Ma.platform → e=process.platform==="linux"?"darwin":Ma.platform
+    header_pattern = rb'(const \w+=\w+\.app\.getVersion\(\),)(\w+)(=)(\w+)(\.platform,)(\w+)(=\4\.getSystemVersion\(\);)'
+
+    def header_replacement(m):
+        plat_var = m.group(2)  # e
+        os_mod = m.group(4)    # Ma
+        ver_var = m.group(6)   # r
+        return (m.group(1) + plat_var + m.group(3) +
+                b'process.platform==="linux"?"darwin":' + os_mod + m.group(5) +
+                ver_var + m.group(7))
+
+    content, count5 = re.subn(header_pattern, header_replacement, content)
+    if count5 >= 1:
+        print(f"  [OK] HTTP header platform spoof: {count5} match(es)")
+    else:
+        print(f"  [WARN] HTTP header platform spoof: 0 matches")
+
+    # Patch 5b: Spoof User-Agent header to claim macOS
+    # The User-Agent string contains "Linux" which the server uses for platform
+    # detection. Replace "X11; Linux ..." → "Macintosh; Intel Mac OS X 10_15_7" in the UA.
+    # Pattern: let l=o;s.set("user-agent",l)  (the existing no-op UA passthrough)
+    ua_pattern2 = rb'(let )(\w+)(=)(\w+)(;)(s\.set\("user-agent",)\2(\))'
+
+    def ua_replacement2(m):
+        var = m.group(2)   # l
+        orig = m.group(4)  # o
+        return (m.group(1) + var + m.group(3) + orig + m.group(5) +
+                b'if(process.platform==="linux"){' + var +
+                b'=' + var + b'.replace(/X11; Linux [^)]+/g,"Macintosh; Intel Mac OS X 10_15_7")}' +
+                m.group(6) + var + m.group(7))
+
+    content, count5b = re.subn(ua_pattern2, ua_replacement2, content)
+    if count5b >= 1:
+        print(f"  [OK] User-Agent header spoof: {count5b} match(es)")
+    else:
+        print(f"  [WARN] User-Agent header spoof: 0 matches")
+
+    # Patch 6: Spoof platform in getSystemInfo IPC response
+    # The renderer calls getSystemInfo() and checks platform. We report "win32"
+    # on Linux so the renderer shows Ctrl/Alt keyboard shortcuts (not macOS ⌘/⌥).
+    # Server-facing spoofs (HTTP headers) remain "darwin" for Cowork compatibility.
+    sysinfo_pattern = rb'(platform:)process\.platform(,arch:process\.arch,total_memory:\w+\.\w+\(\))'
+
+    sysinfo_replacement = rb'\1(process.platform==="linux"?"win32":process.platform)\2'
+
+    content, count6 = re.subn(sysinfo_pattern, sysinfo_replacement, content)
+    if count6 >= 1:
+        print(f"  [OK] getSystemInfo platform spoof: {count6} match(es)")
+    else:
+        print(f"  [WARN] getSystemInfo platform spoof: 0 matches")
+
     # Write back if changed
     if content != original_content:
         with open(filepath, 'wb') as f:
             f.write(content)
-        print("  [PASS] Code features enabled successfully (Cowork/chillingSlothFeat intentionally left gated)")
-        return True
+        print("  [PASS] Code + Cowork features enabled in index.js")
     else:
-        print("  [WARN] No changes made (patterns may have already been applied)")
-        return True
+        print("  [WARN] No changes made to index.js (patterns may have already been applied)")
+
+    # Patch 7: Spoof window.process.platform in mainView.js preload
+    # The preload script exposes a filtered process object to the renderer via
+    # contextBridge.exposeInMainWorld("process", Oe). The renderer (claude.ai web
+    # app) checks window.process.platform for UI decisions like keyboard shortcuts.
+    # We report "win32" so the renderer shows Ctrl/Alt shortcuts (not macOS ⌘/⌥).
+    mainview_path = os.path.join(os.path.dirname(filepath), 'mainView.js')
+    if os.path.exists(mainview_path):
+        with open(mainview_path, 'rb') as f:
+            mv_content = f.read()
+        mv_original = mv_content
+
+        # Pattern: ...Object.fromEntries(Object.entries(process).filter(([e])=>Na[e]));Oe.version=Ia().appVersion;
+        # We inject: if(process.platform==="linux"){Oe.platform="win32"} after .appVersion;
+        mv_pattern = rb'(Object\.fromEntries\(Object\.entries\(process\)\.filter\(\(\[\w+\]\)=>\w+\[\w+\]\)\);)(\w+)(\.version=\w+\(\)\.appVersion;)'
+
+        def mv_replacement(m):
+            proc_var = m.group(2)
+            return (m.group(1) + proc_var + m.group(3) +
+                    b'if(process.platform==="linux"){' + proc_var + b'.platform="win32"}')
+
+        mv_content, mv_count = re.subn(mv_pattern, mv_replacement, mv_content, count=1)
+        if mv_count >= 1:
+            print(f"  [OK] mainView.js: window.process.platform spoof ({mv_count} match)")
+        elif b'.platform="win32"' in mv_content or b'.platform="darwin"' in mv_content:
+            print(f"  [OK] mainView.js: window.process.platform spoof already applied")
+        else:
+            print(f"  [WARN] mainView.js: window.process.platform spoof: 0 matches")
+
+        if mv_content != mv_original:
+            with open(mainview_path, 'wb') as f:
+                f.write(mv_content)
+            print("  [PASS] mainView.js patched successfully")
+    else:
+        print(f"  [WARN] mainView.js not found at {mainview_path}")
+
+    return True
 
 
 if __name__ == "__main__":

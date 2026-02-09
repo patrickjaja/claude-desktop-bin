@@ -2,13 +2,16 @@
 # @patch-target: app.asar.contents/.vite/build/index.js
 # @patch-type: python
 """
-Hide the Cowork tab on Linux.
+Disable the Cowork tab on Linux.
 
 The Cowork feature requires ClaudeVM which is not available on Linux.
-The tab visibility is controlled server-side by the claude.ai web app,
-so desktop feature flags alone cannot hide it. This patch injects
-JavaScript into the main webContents on dom-ready that uses a
-MutationObserver to hide any button/link with "Cowork" text.
+This patch injects JavaScript into the main webContents on dom-ready
+that uses a MutationObserver to visually disable (grey out) any
+button/link with "Cowork" text while keeping it visible.
+
+IMPORTANT: We do NOT set b.disabled=true because the claude.ai web app
+may hide disabled buttons via CSS. Instead we use pointer-events:none
+and opacity for a visual-only disable.
 
 Usage: python3 fix_hide_cowork_tab.py <path_to_index.js>
 """
@@ -19,7 +22,7 @@ import re
 
 
 def patch_hide_cowork_tab(filepath):
-    """Hide Cowork tab on Linux by injecting JS on dom-ready."""
+    """Visually disable Cowork tab on Linux by injecting JS on dom-ready."""
 
     print(f"=== Patch: fix_hide_cowork_tab ===")
     print(f"  Target: {filepath}")
@@ -52,11 +55,20 @@ def patch_hide_cowork_tab(filepath):
     # JS body uses double quotes inside. The outer wrapper in executeJavaScript
     # uses single quotes: executeJavaScript('...body...')
     # So double quotes inside the body are safe, but single quotes must be avoided.
+    # IMPORTANT: Do NOT set b.disabled=true — the claude.ai CSS hides
+    # disabled buttons, making the tab disappear completely.
+    # Instead use pointer-events:none + opacity for visual-only disable.
     js_body = (
         b'(function(){'
         b'var h=function(){'
         b'document.querySelectorAll("button,a").forEach(function(b){'
-        b'if(b.textContent.trim()==="Cowork"&&!b.__coworkDisabled){b.__coworkDisabled=true;b.disabled=true;b.style.opacity="0.4";b.style.cursor="default";b.addEventListener("click",function(e){e.preventDefault();e.stopImmediatePropagation()},true)}'
+        b'if(b.textContent.trim()==="Cowork"&&!b.__coworkDisabled){'
+        b'b.__coworkDisabled=true;'
+        b'b.style.opacity="0.4";'
+        b'b.style.pointerEvents="none";'
+        b'b.style.cursor="default";'
+        b'b.addEventListener("click",function(e){e.preventDefault();e.stopImmediatePropagation()},true)'
+        b'}'
         b'})'
         b'};'
         b'h();'
@@ -89,7 +101,7 @@ def patch_hide_cowork_tab(filepath):
     if content != original_content:
         with open(filepath, 'wb') as f:
             f.write(content)
-        print("  [PASS] Cowork tab hidden on Linux")
+        print("  [PASS] Cowork tab disabled on Linux")
         return True
     else:
         print("  [WARN] No changes made (pattern may have already been applied)")
