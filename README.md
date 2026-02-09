@@ -124,6 +124,9 @@ To make it persistent, edit `~/.local/share/applications/claude-desktop.desktop`
 Exec=claude-desktop --ozone-platform=x11 %u
 ```
 
+## Tips
+- Press **Alt** to toggle the app menu bar (Electron default)
+
 ## Notes
 - Unofficial package, not supported by Anthropic
 - Issues: https://github.com/patrickjaja/claude-desktop-bin/issues
