@@ -15,14 +15,14 @@ yay -S claude-desktop-bin
 ### Debian / Ubuntu
 ```bash
 # Download from GitHub Releases
-wget https://github.com/patrickjaja/claude-desktop-bin/releases/latest/download/claude-desktop_1.1.2156_amd64.deb
+wget https://github.com/patrickjaja/claude-desktop-bin/releases/latest/download/claude-desktop_1.1.2321_amd64.deb
 sudo dpkg -i claude-desktop_*_amd64.deb
 ```
 
 ### AppImage (Any Distro)
 ```bash
 # Download from GitHub Releases
-wget https://github.com/patrickjaja/claude-desktop-bin/releases/latest/download/Claude_Desktop-1.1.2156-x86_64.AppImage
+wget https://github.com/patrickjaja/claude-desktop-bin/releases/latest/download/Claude_Desktop-1.1.2321-x86_64.AppImage
 chmod +x Claude_Desktop-*-x86_64.AppImage
 ./Claude_Desktop-*-x86_64.AppImage
 ```
