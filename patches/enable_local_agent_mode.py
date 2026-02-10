@@ -115,10 +115,12 @@ def patch_local_agent_mode(filepath):
     #   fix_hide_cowork_tab.py disables it visually, fix_vm_session_handlers.py
     #   stubs VM operations)
     #
-    # Before: desktopVoiceDictation:await XXX()})
-    # After:  desktopVoiceDictation:await XXX(),quietPenguin:...,louderPenguin:...,chillingSloth*:...})
-    pattern3 = rb'(desktopVoiceDictation:await \w+\(\))\}\)'
-    replacement3 = rb'\1,quietPenguin:{status:"supported"},louderPenguin:{status:"supported"},chillingSlothFeat:{status:"supported"},chillingSlothLocal:{status:"supported"},yukonSilver:{status:"supported"},yukonSilverGems:{status:"supported"}})'
+    # The async merger spreads ...dg() and then overrides some features with async versions.
+    # The last property changes between versions. We match any feature:await pattern before })
+    # Before: louderPenguin:await fwt()})  [v1.1.2685]
+    # After:  louderPenguin:await fwt(),quietPenguin:{status:"supported"},...})
+    pattern3 = rb'(const \w+=async\(\)=>\(\{\.\.\.\w+\(\),[^}]+)(await \w+\(\))\}\)'
+    replacement3 = rb'\1\2,quietPenguin:{status:"supported"},louderPenguin:{status:"supported"},chillingSlothFeat:{status:"supported"},chillingSlothLocal:{status:"supported"},yukonSilver:{status:"supported"},yukonSilverGems:{status:"supported"}})'
 
     content, count3 = re.subn(pattern3, replacement3, content)
     if count3 >= 1:
