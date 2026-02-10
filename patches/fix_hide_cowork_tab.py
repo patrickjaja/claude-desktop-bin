@@ -39,13 +39,13 @@ def patch_hide_cowork_tab(filepath):
 
     # Patch: Inject JS on dom-ready to hide the Cowork tab button
     #
-    # The main webContents has a dom-ready handler:
-    #   r.webContents.on("dom-ready",()=>{FUNC()})
+    # The main webContents has a dom-ready handler. We capture the
+    # variable name that owns .webContents so that the injected code
+    # references the correct variable regardless of minification.
     #
-    # We add executeJavaScript that uses a MutationObserver to find and
-    # hide any button/link with "Cowork" text. Uses single-quoted JS
-    # string with double quotes inside to avoid escaping issues.
-    pattern = rb'(\.webContents\.on\("dom-ready",\(\)=>\{)(\w+\(\))\}'
+    # Matches e.g.: n.webContents.on("dom-ready",()=>{Kg()})
+    # Captures:      ^ group(1)                       ^ group(3)
+    pattern = rb'(\w+)(\.webContents\.on\("dom-ready",\(\)=>\{)(\w+\(\))\}'
 
     # Build the JS to inject. Single-quoted outer string, double quotes inside.
     # The script:
@@ -76,15 +76,15 @@ def patch_hide_cowork_tab(filepath):
         b'})()'
     )
 
-    inject = (
-        b"if(process.platform===\"linux\"){"
-        b"r.webContents.executeJavaScript('"
-        + js_body +
-        b"').catch(function(){})}"
-    )
-
     def replacement(m):
-        return m.group(1) + m.group(2) + b';' + inject + b'}'
+        var_name = m.group(1)  # Use the actual variable from the match
+        inject = (
+            b"if(process.platform===\"linux\"){"
+            + var_name + b".webContents.executeJavaScript('"
+            + js_body +
+            b"').catch(function(){})}"
+        )
+        return m.group(1) + m.group(2) + m.group(3) + b';' + inject + b'}'
 
     content, count = re.subn(pattern, replacement, content, count=1)
     if count >= 1:
