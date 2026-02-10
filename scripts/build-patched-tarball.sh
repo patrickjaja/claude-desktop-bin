@@ -183,18 +183,16 @@ cd "$WORK_DIR/app"
 asar pack app.asar.contents app.asar
 rm -rf app.asar.contents
 
-# Electron smoke test disabled — node --check provides sufficient syntax validation.
-# The smoke test has a set -e bug (wait returns SIGTERM exit code 143) and requires
-# electron + xvfb in CI which adds complexity. Re-enable once smoke-test.sh is fixed.
-# if command -v electron &>/dev/null && command -v xvfb-run &>/dev/null; then
-#     log_info "Running Electron smoke test..."
-#     if ! "$SCRIPT_DIR/smoke-test.sh" "$WORK_DIR/app/app.asar"; then
-#         log_error "Smoke test FAILED - the patched app crashes on startup"
-#         exit 1
-#     fi
-# else
-#     log_warn "Skipping smoke test (install electron and xorg-server-xvfb to enable)"
-# fi
+# Run Electron smoke test if dependencies are available
+if command -v electron &>/dev/null && command -v xvfb-run &>/dev/null; then
+    log_info "Running Electron smoke test..."
+    if ! "$SCRIPT_DIR/smoke-test.sh" "$WORK_DIR/app/app.asar"; then
+        log_error "Smoke test FAILED - the patched app crashes on startup"
+        exit 1
+    fi
+else
+    log_warn "Skipping smoke test (install electron and xorg-server-xvfb to enable)"
+fi
 
 # Copy locales
 log_info "Copying locales..."

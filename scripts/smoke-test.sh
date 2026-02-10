@@ -55,7 +55,7 @@ APP_PID=$!
 ELAPSED=0
 while [ $ELAPSED -lt $TIMEOUT_SECONDS ]; do
     if ! kill -0 "$APP_PID" 2>/dev/null; then
-        wait "$APP_PID" 2>/dev/null; EXIT_CODE=$?
+        EXIT_CODE=0; wait "$APP_PID" 2>/dev/null || EXIT_CODE=$?
         echo -e "${RED}[FAIL]${NC} App crashed after ${ELAPSED}s (exit code: $EXIT_CODE)"
         echo "--- stderr output ---"
         cat "$STDERR_LOG"
@@ -70,10 +70,10 @@ done
 if grep -qE "(TypeError|ReferenceError|SyntaxError|Cannot read properties)" "$STDERR_LOG"; then
     echo -e "${RED}[FAIL]${NC} Runtime JS errors detected:"
     grep -E "(TypeError|ReferenceError|SyntaxError|Cannot read properties)" "$STDERR_LOG"
-    kill "$APP_PID" 2>/dev/null; wait "$APP_PID" 2>/dev/null
+    kill "$APP_PID" 2>/dev/null; wait "$APP_PID" 2>/dev/null || true
     exit 1
 fi
 
-kill "$APP_PID" 2>/dev/null; wait "$APP_PID" 2>/dev/null
+kill "$APP_PID" 2>/dev/null; wait "$APP_PID" 2>/dev/null || true
 echo -e "${GREEN}[PASS]${NC} Smoke test passed — app survived ${TIMEOUT_SECONDS}s"
 exit 0
