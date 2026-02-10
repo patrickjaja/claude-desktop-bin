@@ -12,6 +12,7 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
   - CI Docker container now installs `electron` and `xorg-server-xvfb` for smoke testing
 
 ### Fixed
+- **fix_vm_session_handlers.py** — Replace false-positive absolute brace count check with delta check (comparing before/after patching); add support for new `try/catch` wrapper in `getRunningStatus` pattern (v1.1.2685+)
 - **enable_local_agent_mode.py** — Update mC() merger pattern for v1.1.2685: `desktopVoiceDictation` was removed from async merger, now uses flexible pattern matching the full async arrow function instead of hardcoding the last property name
 
 ## 2026-02-06

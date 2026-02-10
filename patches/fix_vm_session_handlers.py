@@ -57,21 +57,38 @@ def patch_vm_session_handlers(filepath):
         print(f"  [WARN] ClaudeVM.getDownloadStatus pattern not found")
 
     # Patch 2: Modify the ClaudeVM getRunningStatus to always return Offline on Linux
-    # Pattern: async getRunningStatus(){return await ty()?qd.Ready:qd.Offline}
-    # Variable names change between versions (ty→g0, qd→Qd)
-    vm_running_pattern = rb'async getRunningStatus\(\)\{return await (\w+)\(\)\?(\w+)\.Ready:\2\.Offline\}'
+    # Pattern (old): async getRunningStatus(){return await ty()?qd.Ready:qd.Offline}
+    # Pattern (new v1.1.2685+): async getRunningStatus(){try{return await CE()?ff.Ready:ff.Offline}catch{return ff.Offline}}
+    # Variable names change between versions (ty→g0→CE, qd→Qd→ff)
 
-    def vm_running_replacement(m):
-        enum_name = m.group(2)  # qd, Qd, etc.
+    # Try new pattern first (with try/catch wrapper)
+    vm_running_pattern_new = rb'async getRunningStatus\(\)\{try\{return await (\w+)\(\)\?(\w+)\.Ready:\2\.Offline\}catch\{return \2\.Offline\}\}'
+
+    def vm_running_replacement_new(m):
+        enum_name = m.group(2)
         return (b'async getRunningStatus(){if(process.platform==="linux"){return ' + enum_name +
-                b'.Offline}return await ' + m.group(1) + b'()?' + enum_name + b'.Ready:' + enum_name + b'.Offline}')
+                b'.Offline}try{return await ' + m.group(1) + b'()?' + enum_name + b'.Ready:' + enum_name +
+                b'.Offline}catch{return ' + enum_name + b'.Offline}}')
 
-    content, count2 = re.subn(vm_running_pattern, vm_running_replacement, content)
+    content, count2 = re.subn(vm_running_pattern_new, vm_running_replacement_new, content)
     if count2 >= 1:
-        print(f"  [OK] ClaudeVM.getRunningStatus: {count2} match(es)")
+        print(f"  [OK] ClaudeVM.getRunningStatus (try/catch): {count2} match(es)")
         patches_applied += 1
     else:
-        print(f"  [WARN] ClaudeVM.getRunningStatus pattern not found")
+        # Fall back to old pattern (without try/catch)
+        vm_running_pattern = rb'async getRunningStatus\(\)\{return await (\w+)\(\)\?(\w+)\.Ready:\2\.Offline\}'
+
+        def vm_running_replacement(m):
+            enum_name = m.group(2)
+            return (b'async getRunningStatus(){if(process.platform==="linux"){return ' + enum_name +
+                    b'.Offline}return await ' + m.group(1) + b'()?' + enum_name + b'.Ready:' + enum_name + b'.Offline}')
+
+        content, count2 = re.subn(vm_running_pattern, vm_running_replacement, content)
+        if count2 >= 1:
+            print(f"  [OK] ClaudeVM.getRunningStatus: {count2} match(es)")
+            patches_applied += 1
+        else:
+            print(f"  [WARN] ClaudeVM.getRunningStatus pattern not found")
 
     # Patch 3: Modify the download function to fail gracefully on Linux
     # Pattern: async download(){try{return await Qhe(),{success:IS()}}
@@ -145,16 +162,17 @@ def patch_vm_session_handlers(filepath):
         print("  [WARN] No changes made (patterns may have already been applied)")
         return True
 
-    # Verify syntax (basic check)
-    try:
-        # Check for balanced braces (very basic validation)
-        open_braces = content.count(b'{')
-        close_braces = content.count(b'}')
-        if open_braces != close_braces:
-            print(f"  [FAIL] Brace mismatch: {open_braces} open, {close_braces} close")
-            return False
-    except:
-        pass
+    # Verify our patches didn't introduce a brace imbalance
+    # (We compare delta before/after patching rather than checking absolute counts,
+    # because minified JS routinely has unequal brace counts due to string literals,
+    # regex patterns, and template literals. node --check in the build pipeline
+    # handles authoritative syntax validation.)
+    original_delta = original_content.count(b'{') - original_content.count(b'}')
+    patched_delta = content.count(b'{') - content.count(b'}')
+    if original_delta != patched_delta:
+        diff = patched_delta - original_delta
+        print(f"  [FAIL] Patch introduced brace imbalance: {diff:+d} unmatched braces")
+        return False
 
     # Write back
     with open(filepath, 'wb') as f:
