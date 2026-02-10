@@ -4,6 +4,13 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 
 ## 2026-02-10
 
+### Added
+- **Runtime smoke testing in CI** — Three layers of defense to prevent broken builds reaching users:
+  - Brace mismatch in `fix_vm_session_handlers.py` now fails the build instead of warning
+  - `node --check` validates JavaScript syntax on all patched files before repacking
+  - New `scripts/smoke-test.sh` runs the Electron app headlessly via `xvfb-run` for 15s to catch runtime crashes
+  - CI Docker container now installs `electron` and `xorg-server-xvfb` for smoke testing
+
 ### Fixed
 - **enable_local_agent_mode.py** — Update mC() merger pattern for v1.1.2685: `desktopVoiceDictation` was removed from async merger, now uses flexible pattern matching the full async arrow function instead of hardcoding the last property name
 

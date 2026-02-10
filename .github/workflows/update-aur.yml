@@ -115,7 +115,7 @@ jobs:
 
               echo '=== Installing build dependencies ==='
               pacman -Syu --noconfirm
-              pacman -S --noconfirm p7zip python nodejs npm git icoutils
+              pacman -S --noconfirm p7zip python nodejs npm git icoutils xorg-server-xvfb electron
 
               echo '=== Installing asar from AUR ==='
               useradd -m builder

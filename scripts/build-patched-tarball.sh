@@ -160,11 +160,39 @@ if [ "$PATCH_FAILED" = true ]; then
     exit 1
 fi
 
+# Validate JavaScript syntax after patching
+log_info "Validating JavaScript syntax..."
+SYNTAX_FAILED=false
+for js_file in "$WORK_DIR/app/app.asar.contents/.vite/build/"*.js; do
+    [ -f "$js_file" ] || continue
+    if ! node --check "$js_file" 2>/dev/null; then
+        log_error "Syntax error in $(basename "$js_file")"
+        SYNTAX_FAILED=true
+    fi
+done
+
+if [ "$SYNTAX_FAILED" = true ]; then
+    log_error "JavaScript syntax validation FAILED - patched files have syntax errors"
+    exit 1
+fi
+log_info "JavaScript syntax validation passed"
+
 # Repack app.asar
 log_info "Repacking app.asar..."
 cd "$WORK_DIR/app"
 asar pack app.asar.contents app.asar
 rm -rf app.asar.contents
+
+# Run Electron smoke test if dependencies are available
+if command -v electron &>/dev/null && command -v xvfb-run &>/dev/null; then
+    log_info "Running Electron smoke test..."
+    if ! "$SCRIPT_DIR/smoke-test.sh" "$WORK_DIR/app/app.asar"; then
+        log_error "Smoke test FAILED - the patched app crashes on startup"
+        exit 1
+    fi
+else
+    log_warn "Skipping smoke test (install electron and xorg-server-xvfb to enable)"
+fi
 
 # Copy locales
 log_info "Copying locales..."

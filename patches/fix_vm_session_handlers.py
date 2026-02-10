@@ -151,7 +151,8 @@ def patch_vm_session_handlers(filepath):
         open_braces = content.count(b'{')
         close_braces = content.count(b'}')
         if open_braces != close_braces:
-            print(f"  [WARN] Brace mismatch: {open_braces} open, {close_braces} close")
+            print(f"  [FAIL] Brace mismatch: {open_braces} open, {close_braces} close")
+            return False
     except:
         pass
 
