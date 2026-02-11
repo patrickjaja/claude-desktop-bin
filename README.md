@@ -42,11 +42,16 @@ cd claude-desktop-bin
 - Global hotkey support (Ctrl+Alt+Space) with multi-monitor awareness
 - Automated daily version checks
 
+## Claude Chat
+
+The main Chat tab running natively on Linux.
+
+![Claude Chat](cc.png)
+
 ## Claude Code Integration
 
 This package patches Claude Desktop to work with system-installed Claude Code on Linux.
 
-![Claude Code CLI](cc.png)
 ![Claude Code in Claude Desktop](cc_in_cd.png)
 
 To use Claude Code features:
