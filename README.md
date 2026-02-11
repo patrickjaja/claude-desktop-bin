@@ -36,7 +36,7 @@ cd claude-desktop-bin
 
 ## Features
 - Native Linux support (Arch, Debian/Ubuntu, AppImage)
-- **Claude Code CLI integration** - Use system-installed Claude Code (`/usr/bin/claude`)
+- **Claude Code CLI integration** - Auto-detects system-installed Claude Code
 - **Local Agent Mode** - Git worktrees and agent sessions
 - **MCP server support** - Model Context Protocol servers work on Linux
 - Global hotkey support (Ctrl+Alt+Space) with multi-monitor awareness
@@ -54,14 +54,16 @@ This package patches Claude Desktop to work with system-installed Claude Code on
 
 ![Claude Code in Claude Desktop](cc_in_cd.png)
 
-To use Claude Code features:
+To use Claude Code (and Cowork) features, install the CLI:
 ```bash
 # Install Claude Code CLI via npm
 npm install -g @anthropic-ai/claude-code
 
 # Verify it's accessible
-which claude  # Should show /usr/bin/claude or similar
+which claude  # e.g. ~/.local/bin/claude, /usr/bin/claude, /usr/local/bin/claude
 ```
+
+The patch auto-detects claude in `/usr/bin`, `~/.local/bin`, and `/usr/local/bin`.
 
 ## Cowork Integration (Experimental)
 
@@ -69,7 +71,7 @@ Cowork is Claude Desktop's agentic workspace feature. This package patches it to
 
 ![Cowork in Claude Desktop](co_in_cd.png)
 
-Requires [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service) running on the host:
+Requires Claude Code CLI (see above) and [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service):
 ```bash
 # Install and start the service
 yay -S claude-cowork-service
