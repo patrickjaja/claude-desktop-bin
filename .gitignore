@@ -4,8 +4,10 @@
 pkg/
 src/
 
-# Downloaded files
+# Downloaded files / binaries
 Claude-Setup-x64.exe
+*.exe
+*.vhdx
 claude-desktop-linux-flake/
 
 # Temp files
