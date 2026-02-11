@@ -4,6 +4,9 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 
 ## 2026-02-11
 
+### Changed
+- **Multi-distro cowork install docs** — README Cowork section now includes universal curl one-liner alongside AUR instructions
+
 ### Added
 - **Cowork Linux support (experimental)** — New `fix_cowork_linux.py` patch enables the Cowork VM feature on Linux:
   - Extends TypeScript VM client (`vZe`) to load on Linux instead of requiring `@ant/claude-swift`
