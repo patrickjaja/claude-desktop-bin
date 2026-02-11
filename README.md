@@ -54,12 +54,8 @@ This package patches Claude Desktop to work with system-installed Claude Code on
 
 ![Claude Code in Claude Desktop](cc_in_cd.png)
 
-To use Claude Code (and Cowork) features, install the CLI:
+To use Claude Code (and Cowork) features, install the CLI following the [official setup guide](https://code.claude.com/docs/en/setup), then verify it's accessible:
 ```bash
-# Install Claude Code CLI via npm
-npm install -g @anthropic-ai/claude-code
-
-# Verify it's accessible
 which claude  # e.g. ~/.local/bin/claude, /usr/bin/claude, /usr/local/bin/claude
 ```
 
