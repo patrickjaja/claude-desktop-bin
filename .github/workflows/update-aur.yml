@@ -9,6 +9,11 @@ on:
         description: 'Manual download URL (optional - bypasses auto-detection if Cloudflare blocks)'
         required: false
         type: string
+      force_rebuild:
+        description: 'Force rebuild & release even if upstream version unchanged (bumps pkgrel for patch/feature updates)'
+        required: false
+        type: boolean
+        default: false
   push:
     branches:
       - master
@@ -26,6 +31,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for git changelog generation
 
       - name: Install dependencies
         run: |
@@ -83,16 +90,89 @@ jobs:
         run: |
           # Get the latest tag from GitHub releases
           LATEST_TAG=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/latest | grep '"tag_name":' | sed -E 's/.*"v?([^"]+)".*/\1/' || echo "0.0.0")
-          echo "Latest GitHub release: ${LATEST_TAG}"
+          # Strip pkgrel suffix (e.g., 1.1.2685-2 → 1.1.2685) for comparison
+          LATEST_VERSION=$(echo "$LATEST_TAG" | sed -E 's/-[0-9]+$//')
+          echo "Latest GitHub release tag: ${LATEST_TAG}"
+          echo "Latest upstream version: ${LATEST_VERSION}"
           echo "Current version: ${{ steps.version.outputs.version }}"
 
-          if [ "$LATEST_TAG" != "${{ steps.version.outputs.version }}" ]; then
+          if [ "$LATEST_VERSION" != "${{ steps.version.outputs.version }}" ]; then
             echo "needs_update=true" >> $GITHUB_OUTPUT
-            echo "Version changed from ${LATEST_TAG} to ${{ steps.version.outputs.version }}"
+            echo "Version changed from ${LATEST_VERSION} to ${{ steps.version.outputs.version }}"
           else
             echo "needs_update=false" >> $GITHUB_OUTPUT
             echo "Version unchanged"
           fi
+
+      - name: Determine package release number
+        id: pkgrel
+        if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          FORCE="${{ github.event.inputs.force_rebuild }}"
+          NEEDS_UPDATE="${{ steps.check.outputs.needs_update }}"
+
+          if [ "$FORCE" == "true" ] && [ "$NEEDS_UPDATE" != "true" ]; then
+            # Same upstream version, force rebuild — bump pkgrel
+            RELEASE_COUNT=$(curl -s "https://api.github.com/repos/${{ github.repository }}/releases?per_page=100" \
+              | jq "[.[] | select(.tag_name | test(\"^v${VERSION}(-[0-9]+)?$\"))] | length")
+            PKGREL=$((RELEASE_COUNT + 1))
+          else
+            # New upstream version or normal scheduled build
+            PKGREL=1
+          fi
+
+          if [ "$PKGREL" -gt 1 ]; then
+            TAG="v${VERSION}-${PKGREL}"
+            RELEASE_NAME="Claude Desktop ${VERSION} (patch release ${PKGREL})"
+          else
+            TAG="v${VERSION}"
+            RELEASE_NAME="Claude Desktop ${VERSION}"
+          fi
+
+          echo "pkgrel=${PKGREL}" >> $GITHUB_OUTPUT
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "release_name=${RELEASE_NAME}" >> $GITHUB_OUTPUT
+          echo "Package release: pkgrel=${PKGREL}, Tag: ${TAG}"
+
+      - name: Generate changelog from git history
+        id: git_changelog
+        if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
+        run: |
+          # Find the latest release tag
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+
+          if [ -n "$LAST_TAG" ]; then
+            echo "Generating changelog since ${LAST_TAG}"
+            CHANGELOG=$(git log "${LAST_TAG}..HEAD" --format="%ad|%s" --date=short --no-merges --reverse | \
+              awk -F'|' '
+                $1 != prev_date {
+                  if (prev_date) print "";
+                  print "### " $1;
+                  prev_date = $1
+                }
+                { print "- " $2 }
+              ')
+          else
+            echo "No previous tag found, using recent commits"
+            CHANGELOG=$(git log -30 --format="%ad|%s" --date=short --no-merges --reverse | \
+              awk -F'|' '
+                $1 != prev_date {
+                  if (prev_date) print "";
+                  print "### " $1;
+                  prev_date = $1
+                }
+                { print "- " $2 }
+              ')
+          fi
+
+          if [ -z "$CHANGELOG" ]; then
+            CHANGELOG="No changes since last release."
+          fi
+
+          echo "content<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Build Patched Tarball
         if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
@@ -174,8 +254,9 @@ jobs:
           AUR_USERNAME: ${{ secrets.AUR_USERNAME }}
           AUR_EMAIL: ${{ secrets.AUR_EMAIL }}
         run: |
-          PREBUILT_URL="https://github.com/${{ github.repository }}/releases/download/v${{ steps.version.outputs.version }}/claude-desktop-${{ steps.version.outputs.version }}-linux.tar.gz"
-          bash ./scripts/generate-pkgbuild.sh "${{ steps.version.outputs.version }}" "${{ steps.build.outputs.tarball_sha256 }}" "$PREBUILT_URL" > PKGBUILD
+          TAG="${{ steps.pkgrel.outputs.tag }}"
+          PREBUILT_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/claude-desktop-${{ steps.version.outputs.version }}-linux.tar.gz"
+          bash ./scripts/generate-pkgbuild.sh "${{ steps.version.outputs.version }}" "${{ steps.build.outputs.tarball_sha256 }}" "$PREBUILT_URL" "${{ steps.pkgrel.outputs.pkgrel }}" > PKGBUILD
           cat PKGBUILD
 
       - name: Extract Changelog for Release
@@ -318,23 +399,23 @@ jobs:
           cd aur-repo
           git add PKGBUILD .SRCINFO
           git diff --staged --quiet || {
-            git commit -m "Update to version ${{ steps.version.outputs.version }}"
+            git commit -m "Update to ${{ steps.version.outputs.version }}-${{ steps.pkgrel.outputs.pkgrel }}"
             git push origin master
             echo "Successfully pushed to AUR"
           }
 
       - name: Create GitHub Release
-        if: steps.check.outputs.needs_update == 'true'
+        if: steps.check.outputs.needs_update == 'true' || github.event.inputs.force_rebuild == 'true'
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: v${{ steps.version.outputs.version }}
-          name: Claude Desktop ${{ steps.version.outputs.version }}
+          tag_name: ${{ steps.pkgrel.outputs.tag }}
+          name: ${{ steps.pkgrel.outputs.release_name }}
           files: |
             claude-desktop-${{ steps.version.outputs.version }}-linux.tar.gz
             dist/Claude_Desktop-${{ steps.version.outputs.version }}-x86_64.AppImage
             dist/claude-desktop_${{ steps.version.outputs.version }}_amd64.deb
           body: |
-            ## Claude Desktop ${{ steps.version.outputs.version }}
+            ## ${{ steps.pkgrel.outputs.release_name }}
 
             This release provides Claude Desktop version ${{ steps.version.outputs.version }} pre-patched for Linux.
 
@@ -365,8 +446,8 @@ jobs:
             | AppImage | `${{ steps.appimage.outputs.appimage_sha256 }}` |
             | Debian | `${{ steps.deb.outputs.deb_sha256 }}` |
 
-            ### Recent Changes
-            ${{ steps.changelog.outputs.content }}
+            ### Changes since last release
+            ${{ steps.git_changelog.outputs.content }}
 
             ### Links
             - [AUR Package](https://aur.archlinux.org/packages/claude-desktop-bin)

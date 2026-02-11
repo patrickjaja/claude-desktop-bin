@@ -4,7 +4,7 @@
 
 pkgname=claude-desktop-bin
 pkgver={{VERSION}}
-pkgrel=1
+pkgrel={{PKGREL}}
 pkgdesc="Claude AI Desktop Application (Official Binary - Linux Compatible)"
 arch=('x86_64')
 url="https://claude.ai"
