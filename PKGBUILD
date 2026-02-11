@@ -4,17 +4,18 @@
 
 pkgname=claude-desktop-bin
 pkgver=1.1.2685
-pkgrel=1
+pkgrel=2
 pkgdesc="Claude AI Desktop Application (Official Binary - Linux Compatible)"
 arch=('x86_64')
 url="https://claude.ai"
 license=('custom:Claude')
 depends=('electron' 'nodejs')
-optdepends=('claude-code: Claude Code CLI for agentic coding features (npm i -g @anthropic-ai/claude-code)')
+optdepends=('claude-code: Claude Code CLI for agentic coding features (npm i -g @anthropic-ai/claude-code)'
+            'claude-cowork-service: Enables Cowork VM features on Linux (experimental)')
 provides=('claude-desktop')
 conflicts=('claude-desktop')
-source_x86_64=("claude-desktop-${pkgver}-linux.tar.gz::https://github.com/patrickjaja/claude-desktop-bin/releases/download/v1.1.2685/claude-desktop-1.1.2685-linux.tar.gz")
-sha256sums_x86_64=('b4ea7800d1116b002569369749a63266374a1154ea130d4911cf03015cf86ce9')
+source_x86_64=("claude-desktop-${pkgver}-linux.tar.gz::https://github.com/patrickjaja/claude-desktop-bin/releases/download/v1.1.2685-2/claude-desktop-1.1.2685-linux.tar.gz")
+sha256sums_x86_64=('e3b5af29cb1e3e6a5f01225aca4480358737f51d91d60b1d5abdc41e0d862ccd')
 options=('!strip')
 
 package() {
