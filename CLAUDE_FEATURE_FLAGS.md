@@ -104,7 +104,18 @@ This bypasses the QL() gate by overriding at the merger level. The spread order 
 ...our overrides  -> quietPenguin: {status:"supported"}    (wins)
 ```
 
-Note: `chillingSlothFeat` is **not** overridden here. It stays gated by its darwin check in `Oh()`, returning `{status:"unavailable"}` on Linux. This prevents the Cowork tab from appearing, since it would hang with infinite loading (the Cowork feature requires ClaudeVM for filesystem/session operations).
+Note: `chillingSlothFeat` **is** now overridden to `{status:"supported"}` along with `chillingSlothLocal`, `yukonSilver`, and `yukonSilverGems`. The Cowork tab is fully functional when `claude-cowork-service` daemon is running. Without the daemon, the UI shows connection errors naturally.
+
+### Cowork on Linux (experimental)
+
+As of v1.1.2685, Cowork uses a decoupled architecture with a TypeScript VM client (`vZe`) that communicates with an external service over a socket. This makes Linux support feasible:
+
+- **`fix_cowork_linux.py`** patches the VM client loader to include Linux (not just `win32`)
+- The Named Pipe path is replaced with a Unix domain socket on Linux
+- **`claude-cowork-service`** (separate Go daemon) provides the QEMU/KVM backend via vsock
+- `chillingSlothFeat`, `chillingSlothLocal`, `yukonSilver`, and `yukonSilverGems` are all overridden to `{status:"supported"}` in the mC() merger
+
+Without the daemon running, Cowork will show connection errors naturally in the UI.
 
 ### Features we do NOT enable
 
@@ -113,8 +124,6 @@ Note: `chillingSlothFeat` is **not** overridden here. It stays gated by its darw
 | `nativeQuickEntry` | Requires macOS Swift code |
 | `quickEntryDictation` | Requires macOS Swift code |
 | `plushRaccoon` | Dictation shortcut, macOS-only |
-| `chillingSlothFeat` | Requires ClaudeVM (Cowork tab would hang with infinite loading) |
-| `yukonSilver` / `yukonSilverGems` | Requires `@ant/claude-swift` native module |
 
 ## Debugging Feature Flags
 

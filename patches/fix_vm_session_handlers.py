@@ -2,16 +2,17 @@
 # @patch-target: app.asar.contents/.vite/build/index.js
 # @patch-type: python
 """
-Patch Claude Desktop to handle ClaudeVM and LocalAgentModeSessions IPC on Linux.
+Add safety-net error handler for ClaudeVM and LocalAgentModeSessions IPC on Linux.
 
-The claude.ai web frontend and popup windows may generate runtime UUIDs for IPC channels
-that differ from the hardcoded UUID in the main process handlers. This causes "No handler
-registered" errors on Linux.
+With the Cowork Linux support (fix_cowork_linux.py), the TypeScript VM client
+now runs on Linux and talks to the cowork-svc-linux daemon via Unix socket.
+The previous Linux stubs (getDownloadStatus, getRunningStatus, download, startVM)
+are no longer needed — those methods now call through to the real VM client which
+communicates with the daemon.
 
-This patch:
-1. Modifies ClaudeVM implementation to return Linux-appropriate values immediately
-2. Ensures graceful degradation when VM features are not available
-3. Suppresses VM-related functionality on Linux since it's not supported
+This patch only keeps the global uncaught exception handler as a safety net to
+suppress any unexpected "ClaudeVM" or "LocalAgentModeSessions" errors that might
+occur if the daemon is not running or connection fails unexpectedly.
 
 Usage: python3 fix_vm_session_handlers.py <path_to_index.js>
 """
@@ -22,7 +23,7 @@ import re
 
 
 def patch_vm_session_handlers(filepath):
-    """Add Linux-specific handling for ClaudeVM and LocalAgentModeSessions."""
+    """Add global error handler for ClaudeVM/LocalAgentModeSessions as safety net."""
 
     print(f"=== Patch: fix_vm_session_handlers ===")
     print(f"  Target: {filepath}")
@@ -37,94 +38,7 @@ def patch_vm_session_handlers(filepath):
     original_content = content
     patches_applied = 0
 
-    # Patch 1: Modify the ClaudeVM getDownloadStatus to always return NotDownloaded on Linux
-    # This prevents the UI from trying to download the VM
-    # Pattern: getDownloadStatus(){return WBe()?Zc.Downloading:IS()?Zc.Ready:Zc.NotDownloaded}
-    # Variable names change between versions (WBe→Wme, Zc→Xc, IS→YS)
-    vm_status_pattern = rb'getDownloadStatus\(\)\{return (\w+)\(\)\?(\w+)\.Downloading:(\w+)\(\)\?\2\.Ready:\2\.NotDownloaded\}'
-
-    def vm_status_replacement(m):
-        enum_name = m.group(2)  # Zc, Xc, etc.
-        return (b'getDownloadStatus(){if(process.platform==="linux"){return ' + enum_name +
-                b'.NotDownloaded}return ' + m.group(1) + b'()?' + enum_name + b'.Downloading:' +
-                m.group(3) + b'()?' + enum_name + b'.Ready:' + enum_name + b'.NotDownloaded}')
-
-    content, count1 = re.subn(vm_status_pattern, vm_status_replacement, content)
-    if count1 >= 1:
-        print(f"  [OK] ClaudeVM.getDownloadStatus: {count1} match(es)")
-        patches_applied += 1
-    else:
-        print(f"  [WARN] ClaudeVM.getDownloadStatus pattern not found")
-
-    # Patch 2: Modify the ClaudeVM getRunningStatus to always return Offline on Linux
-    # Pattern (old): async getRunningStatus(){return await ty()?qd.Ready:qd.Offline}
-    # Pattern (new v1.1.2685+): async getRunningStatus(){try{return await CE()?ff.Ready:ff.Offline}catch{return ff.Offline}}
-    # Variable names change between versions (ty→g0→CE, qd→Qd→ff)
-
-    # Try new pattern first (with try/catch wrapper)
-    vm_running_pattern_new = rb'async getRunningStatus\(\)\{try\{return await (\w+)\(\)\?(\w+)\.Ready:\2\.Offline\}catch\{return \2\.Offline\}\}'
-
-    def vm_running_replacement_new(m):
-        enum_name = m.group(2)
-        return (b'async getRunningStatus(){if(process.platform==="linux"){return ' + enum_name +
-                b'.Offline}try{return await ' + m.group(1) + b'()?' + enum_name + b'.Ready:' + enum_name +
-                b'.Offline}catch{return ' + enum_name + b'.Offline}}')
-
-    content, count2 = re.subn(vm_running_pattern_new, vm_running_replacement_new, content)
-    if count2 >= 1:
-        print(f"  [OK] ClaudeVM.getRunningStatus (try/catch): {count2} match(es)")
-        patches_applied += 1
-    else:
-        # Fall back to old pattern (without try/catch)
-        vm_running_pattern = rb'async getRunningStatus\(\)\{return await (\w+)\(\)\?(\w+)\.Ready:\2\.Offline\}'
-
-        def vm_running_replacement(m):
-            enum_name = m.group(2)
-            return (b'async getRunningStatus(){if(process.platform==="linux"){return ' + enum_name +
-                    b'.Offline}return await ' + m.group(1) + b'()?' + enum_name + b'.Ready:' + enum_name + b'.Offline}')
-
-        content, count2 = re.subn(vm_running_pattern, vm_running_replacement, content)
-        if count2 >= 1:
-            print(f"  [OK] ClaudeVM.getRunningStatus: {count2} match(es)")
-            patches_applied += 1
-        else:
-            print(f"  [WARN] ClaudeVM.getRunningStatus pattern not found")
-
-    # Patch 3: Modify the download function to fail gracefully on Linux
-    # Pattern: async download(){try{return await Qhe(),{success:IS()}}
-    # Variable names change between versions (Qhe→Hme, IS→YS)
-    vm_download_pattern = rb'async download\(\)\{try\{return await (\w+)\(\),\{success:(\w+)\(\)\}'
-
-    def vm_download_replacement(m):
-        return (b'async download(){if(process.platform==="linux"){return{success:false,error:"VM download not supported on Linux. Install claude-code from npm: npm install -g @anthropic-ai/claude-code"}}try{return await ' +
-                m.group(1) + b'(),{success:' + m.group(2) + b'()}')
-
-    content, count3 = re.subn(vm_download_pattern, vm_download_replacement, content)
-    if count3 >= 1:
-        print(f"  [OK] ClaudeVM.download: {count3} match(es)")
-        patches_applied += 1
-    else:
-        print(f"  [WARN] ClaudeVM.download pattern not found")
-
-    # Patch 4: Modify startVM to fail gracefully on Linux
-    # Pattern: async startVM(e){try{return await Jhe(e),{success:!0}}
-    # Variable names change between versions (Jhe→MB)
-    vm_start_pattern = rb'async startVM\((\w+)\)\{try\{return await (\w+)\(\1\),\{success:!0\}'
-
-    def vm_start_replacement(m):
-        param = m.group(1)   # e.g. r
-        func = m.group(2)    # e.g. Sg
-        return (b'async startVM(' + param + b'){if(process.platform==="linux"){return{success:false,error:"VM not supported on Linux"}}try{return await ' +
-                func + b'(' + param + b'),{success:!0}')
-
-    content, count4 = re.subn(vm_start_pattern, vm_start_replacement, content)
-    if count4 >= 1:
-        print(f"  [OK] ClaudeVM.startVM: {count4} match(es)")
-        patches_applied += 1
-    else:
-        print(f"  [WARN] ClaudeVM.startVM pattern not found")
-
-    # Patch 5: Add global IPC error handler to suppress known Linux unsupported feature errors
+    # Global IPC error handler to suppress known Linux unsupported feature errors
     # Find the app initialization and add error handler
     # Look for XX.app.on("ready" pattern and add error suppression
     # Variable names change between versions (ce→oe)
@@ -134,9 +48,9 @@ def patch_vm_session_handlers(filepath):
         electron_var = m.group(1)
         return (electron_var + b'.app.on("ready",async()=>{if(process.platform==="linux"){process.on("uncaughtException",(e)=>{if(e.message&&(e.message.includes("ClaudeVM")||e.message.includes("LocalAgentModeSessions"))){console.log("[LinuxPatch] Suppressing unsupported feature error:",e.message);return}throw e})};')
 
-    content, count5 = re.subn(app_ready_pattern, app_ready_replacement, content, count=1)
-    if count5 >= 1:
-        print(f"  [OK] App error handler: {count5} match(es)")
+    content, count = re.subn(app_ready_pattern, app_ready_replacement, content, count=1)
+    if count >= 1:
+        print(f"  [OK] App error handler: {count} match(es)")
         patches_applied += 1
     else:
         # Try alternative pattern (non-async)
@@ -146,9 +60,9 @@ def patch_vm_session_handlers(filepath):
             electron_var = m.group(1)
             return (electron_var + b'.app.on("ready",()=>{if(process.platform==="linux"){process.on("uncaughtException",(e)=>{if(e.message&&(e.message.includes("ClaudeVM")||e.message.includes("LocalAgentModeSessions"))){console.log("[LinuxPatch] Suppressing unsupported feature error:",e.message);return}throw e})};')
 
-        content, count5_alt = re.subn(app_ready_pattern_alt, app_ready_replacement_alt, content, count=1)
-        if count5_alt >= 1:
-            print(f"  [OK] App error handler (alt): {count5_alt} match(es)")
+        content, count_alt = re.subn(app_ready_pattern_alt, app_ready_replacement_alt, content, count=1)
+        if count_alt >= 1:
+            print(f"  [OK] App error handler (alt): {count_alt} match(es)")
             patches_applied += 1
         else:
             print(f"  [WARN] App ready pattern not found")
@@ -163,10 +77,6 @@ def patch_vm_session_handlers(filepath):
         return True
 
     # Verify our patches didn't introduce a brace imbalance
-    # (We compare delta before/after patching rather than checking absolute counts,
-    # because minified JS routinely has unequal brace counts due to string literals,
-    # regex patterns, and template literals. node --check in the build pipeline
-    # handles authoritative syntax validation.)
     original_delta = original_content.count(b'{') - original_content.count(b'}')
     patched_delta = content.count(b'{') - content.count(b'}')
     if original_delta != patched_delta:

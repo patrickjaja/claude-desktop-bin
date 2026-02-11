@@ -6,7 +6,8 @@ Patch Claude Desktop to use system-installed Claude Code on Linux.
 
 The official Claude Desktop app only supports downloading Claude Code for
 macOS and Windows. This patch modifies the app to detect and use a
-system-installed Claude Code binary (/usr/bin/claude) on Linux.
+system-installed Claude Code binary on Linux, checking multiple known
+install locations (/usr/bin, ~/.local/bin, /usr/local/bin).
 
 Usage: python3 fix_claude_code.py <path_to_index.js>
 """
@@ -52,14 +53,18 @@ def patch_claude_code(filepath):
         print(f"  [FAIL] getHostPlatform(): 0 matches, expected >= 1")
         failed = True
 
-    # Patch 2: getBinaryPathIfReady() - Check /usr/bin/claude first on Linux
+    # Patch 2: getBinaryPathIfReady() - Find claude binary on Linux
     # IMPORTANT: Check Linux BEFORE calling getHostTarget() for safety
     # Match only the function signature and inject Linux check right after {
     # Negative lookahead ensures idempotency (won't re-patch if already applied)
+    # Checks /usr/bin, ~/.local/bin, and /usr/local/bin in order.
     binary_pattern = rb'(async getBinaryPathIfReady\(\)\{)(?!if\(process\.platform==="linux"\))'
 
     linux_binary_check = (b'if(process.platform==="linux"){try{const fs=require("fs");'
-                          b'if(fs.existsSync("/usr/bin/claude"))return"/usr/bin/claude"}'
+                          b'for(const p of["/usr/bin/claude",'
+                          b'(process.env.HOME||"")+"/.local/bin/claude",'
+                          b'"/usr/local/bin/claude"])'
+                          b'if(fs.existsSync(p))return p}'
                           b'catch(err){}}')
 
     def binary_replacement(m):
@@ -82,8 +87,10 @@ def patch_claude_code(filepath):
     def status_replacement(m):
         enum_name = m.group(1)  # Capture the enum name (ps, etc.)
         var_name = m.group(2)   # Capture the variable name (r, etc.)
-        return (b'async getStatus(){if(process.platform==="linux"){try{const fs=require("fs");if(fs.existsSync("/usr/bin/claude")){return ' +
-                enum_name + b'.Ready}return ' + enum_name + b'.NotInstalled}catch(err){return ' + enum_name +
+        return (b'async getStatus(){if(process.platform==="linux"){try{const fs=require("fs");'
+                b'for(const p of["/usr/bin/claude",(process.env.HOME||"")+"/.local/bin/claude","/usr/local/bin/claude"])'
+                b'if(fs.existsSync(p))return ' + enum_name + b'.Ready;'
+                b'return ' + enum_name + b'.NotInstalled}catch(err){return ' + enum_name +
                 b'.NotInstalled}}if(await this.getLocalBinaryPath())return ' + enum_name + b'.Ready;const ' +
                 var_name + b'=this.getHostTarget();if(this.preparingPromise)return ' + enum_name +
                 b'.Updating;if(await this.binaryExistsForTarget(' + var_name + b',this.requiredVersion))')

@@ -10,7 +10,8 @@ arch=('x86_64')
 url="https://claude.ai"
 license=('custom:Claude')
 depends=('electron' 'nodejs')
-optdepends=('claude-code: Claude Code CLI for agentic coding features (npm i -g @anthropic-ai/claude-code)')
+optdepends=('claude-code: Claude Code CLI for agentic coding features (npm i -g @anthropic-ai/claude-code)'
+            'claude-cowork-service: Enables Cowork VM features on Linux (experimental)')
 provides=('claude-desktop')
 conflicts=('claude-desktop')
 source_x86_64=("claude-desktop-${pkgver}-linux.tar.gz::{{DOWNLOAD_URL}}")

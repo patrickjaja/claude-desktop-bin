@@ -2,19 +2,19 @@
 # @patch-target: app.asar.contents/.vite/build/index.js
 # @patch-type: python
 """
-Enable Code features on Linux.
+Enable Code and Cowork features on Linux.
 
 Four-part patch:
 1. Individual function patch: Remove platform!=="darwin" gate from both
    chillingSlothFeat and quietPenguin functions in Oh() (static layer).
-   Cowork tab renders but is visually disabled by fix_hide_cowork_tab.py.
-   VM operations are safely stubbed by fix_vm_session_handlers.py.
+   Cowork tab is functional when claude-cowork-service daemon is running.
+   VM operations go through the TypeScript VM client (patched by fix_cowork_linux.py).
 2. chillingSlothLocal: No Linux gate needed — naturally returns
    {status:"supported"} on Linux (only gates Windows ARM64).
 3. mC() merger patch: Override features at the async merger layer.
    Enables quietPenguin/louderPenguin (Code tab, bypasses QL gate) and
-   chillingSlothFeat/chillingSlothLocal (Cowork tab) with
-   {status:"supported"}.
+   chillingSlothFeat/chillingSlothLocal/yukonSilver/yukonSilverGems (Cowork)
+   with {status:"supported"}.
 4. Preferences defaults patch: Change louderPenguinEnabled and
    quietPenguinEnabled defaults from false to true so the renderer
    (claude.ai web content) enables the Code tab UI.
@@ -52,7 +52,7 @@ def patch_local_agent_mode(filepath):
     # Changed:  function XXX(){return{status:"supported"}}
     #
     # Two functions match this pattern:
-    #   matches[0] = chillingSlothFeat (e.g. agt) — PATCH (tab renders but fix_hide_cowork_tab.py disables it)
+    #   matches[0] = chillingSlothFeat (e.g. agt) — PATCH (Cowork tab, needs daemon)
     #   matches[1] = quietPenguin (e.g. ogt) — PATCH
     #
     # Use flexible pattern with \w+ to match any minified function name
@@ -83,7 +83,7 @@ def patch_local_agent_mode(filepath):
     # NH() gates yukonSilver on darwin/win32 only. On Linux it returns
     # {status:"unsupported",reason:"Unsupported platform: linux"} which leaks "linux"
     # to the renderer and may prevent Cowork from appearing. We inject an early return
-    # for Linux. VM operations are safely stubbed by fix_vm_session_handlers.py.
+    # for Linux so the TypeScript VM client can talk to the cowork-svc-linux daemon.
     nh_pattern = rb'(function \w+\(\)\{)(const (\w+)=process\.platform;if\(\3!=="darwin"&&\3!=="win32"\)return\{status:"unsupported",reason:`Unsupported platform: \$\{\3\}`\})'
 
     def nh_replacement(m):
@@ -99,9 +99,7 @@ def patch_local_agent_mode(filepath):
 
     # Patch 2: chillingSlothLocal — no Linux gate needed
     # This function only gates Windows ARM64, returning {status:"supported"} on Linux
-    # naturally. Previously we gated it on Linux, but Cowork tab should render as
-    # disabled (fix_hide_cowork_tab.py handles the visual disable).
-    # VM operations are safely stubbed by fix_vm_session_handlers.py.
+    # naturally. No additional patching needed.
     print(f"  [OK] chillingSlothLocal: no gate needed (naturally returns supported on Linux)")
 
     # Patch 3: Override features in mC() async merger
@@ -111,9 +109,8 @@ def patch_local_agent_mode(filepath):
     #
     # We override:
     # - quietPenguin/louderPenguin → "supported" (Code tab, bypasses QL gate)
-    # - chillingSlothFeat/chillingSlothLocal → "supported" (Cowork tab renders,
-    #   fix_hide_cowork_tab.py disables it visually, fix_vm_session_handlers.py
-    #   stubs VM operations)
+    # - chillingSlothFeat/chillingSlothLocal → "supported" (Cowork tab, needs daemon)
+    # - yukonSilver/yukonSilverGems → "supported" (VM features, needs daemon)
     #
     # The async merger spreads ...dg() and then overrides some features with async versions.
     # The last property changes between versions. We match any feature:await pattern before })
