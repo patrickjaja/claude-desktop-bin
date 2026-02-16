@@ -7,7 +7,7 @@ pkgbase = claude-desktop-bin
 	license = custom:Claude
 	depends = electron
 	depends = nodejs
-	source_x86_64 = claude-desktop-1.1.3189-linux.tar.gz::https://github.com/patrickjaja/claude-desktop-bin/releases/download/v1.1.3189-2/claude-desktop-1.1.3189-linux.tar.gz
+	source_x86_64 = claude-desktop-1.1.3189-2-linux.tar.gz::https://github.com/patrickjaja/claude-desktop-bin/releases/download/v1.1.3189-2/claude-desktop-1.1.3189-linux.tar.gz
 	sha256sums_x86_64 = daad21991cdbae87730135732895dababc74da2eaf8f268596882a3c5a50cd77
 
 pkgname = claude-desktop-bin

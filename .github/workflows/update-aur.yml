@@ -366,44 +366,6 @@ jobs:
           echo "Debian package built: $DEB_FILE"
           echo "SHA256: $DEB_SHA256"
 
-      - name: Setup SSH for AUR
-        if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.AUR_SSH_KEY }}" > ~/.ssh/aur
-          chmod 600 ~/.ssh/aur
-          ssh-keyscan -t rsa aur.archlinux.org >> ~/.ssh/known_hosts
-
-          # Configure SSH to use the key
-          cat << EOF >> ~/.ssh/config
-          Host aur.archlinux.org
-            User aur
-            IdentityFile ~/.ssh/aur
-            StrictHostKeyChecking no
-          EOF
-
-      - name: Push to AUR
-        if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
-        run: |
-          # Configure git
-          git config --global user.name "${{ secrets.AUR_USERNAME }}"
-          git config --global user.email "${{ secrets.AUR_EMAIL }}"
-
-          # Clone AUR repository
-          git clone ssh://aur@aur.archlinux.org/claude-desktop-bin.git aur-repo
-
-          # Copy updated files
-          cp PKGBUILD .SRCINFO aur-repo/
-
-          # Commit and push
-          cd aur-repo
-          git add PKGBUILD .SRCINFO
-          git diff --staged --quiet || {
-            git commit -m "Update to ${{ steps.version.outputs.version }}-${{ steps.pkgrel.outputs.pkgrel }}"
-            git push origin master
-            echo "Successfully pushed to AUR"
-          }
-
       - name: Create GitHub Release
         if: steps.check.outputs.needs_update == 'true' || github.event.inputs.force_rebuild == 'true'
         uses: softprops/action-gh-release@v1
@@ -455,6 +417,77 @@ jobs:
           draft: false
           prerelease: false
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify release tarball download
+        if: steps.check.outputs.needs_update == 'true' || github.event.inputs.force_rebuild == 'true'
+        run: |
+          TAG="${{ steps.pkgrel.outputs.tag }}"
+          VERSION="${{ steps.version.outputs.version }}"
+          EXPECTED_SHA="${{ steps.build.outputs.tarball_sha256 }}"
+          URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/claude-desktop-${VERSION}-linux.tar.gz"
+
+          echo "Verifying release tarball at: ${URL}"
+          for i in 1 2 3 4 5; do
+            if wget -q -O /tmp/verify-tarball.tar.gz "${URL}" 2>/dev/null; then
+              break
+            fi
+            echo "Attempt $i failed, waiting 10s..."
+            sleep 10
+          done
+
+          if [ ! -f /tmp/verify-tarball.tar.gz ]; then
+            echo "::error::Failed to download release tarball after 5 attempts"
+            exit 1
+          fi
+
+          ACTUAL_SHA=$(sha256sum /tmp/verify-tarball.tar.gz | cut -d' ' -f1)
+          rm -f /tmp/verify-tarball.tar.gz
+
+          if [ "$ACTUAL_SHA" != "$EXPECTED_SHA" ]; then
+            echo "::error::SHA256 MISMATCH! Expected: ${EXPECTED_SHA}, Got: ${ACTUAL_SHA}"
+            echo "Aborting AUR push to prevent broken package."
+            exit 1
+          fi
+
+          echo "Verified: SHA256 matches (${ACTUAL_SHA})"
+
+      - name: Setup SSH for AUR
+        if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.AUR_SSH_KEY }}" > ~/.ssh/aur
+          chmod 600 ~/.ssh/aur
+          ssh-keyscan -t rsa aur.archlinux.org >> ~/.ssh/known_hosts
+
+          # Configure SSH to use the key
+          cat << EOF >> ~/.ssh/config
+          Host aur.archlinux.org
+            User aur
+            IdentityFile ~/.ssh/aur
+            StrictHostKeyChecking no
+          EOF
+
+      - name: Push to AUR
+        if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
+        run: |
+          # Configure git
+          git config --global user.name "${{ secrets.AUR_USERNAME }}"
+          git config --global user.email "${{ secrets.AUR_EMAIL }}"
+
+          # Clone AUR repository
+          git clone ssh://aur@aur.archlinux.org/claude-desktop-bin.git aur-repo
+
+          # Copy updated files
+          cp PKGBUILD .SRCINFO aur-repo/
+
+          # Commit and push
+          cd aur-repo
+          git add PKGBUILD .SRCINFO
+          git diff --staged --quiet || {
+            git commit -m "Update to ${{ steps.version.outputs.version }}-${{ steps.pkgrel.outputs.pkgrel }}"
+            git push origin master
+            echo "Successfully pushed to AUR"
+          }
 
       - name: Update README with new version
         if: steps.check.outputs.needs_update == 'true'
