@@ -9,8 +9,10 @@ bundles to /tmp and then tries fs.rename() to move them to ~/.config/Claude/.
 rename() fails with EXDEV when source and destination are on different
 filesystems.
 
-This patch replaces all fs/promises rename calls with a cross-device-safe
+This patch replaces unguarded fs/promises rename calls with a cross-device-safe
 wrapper that falls back to copyFile+unlink when rename fails with EXDEV.
+Uses flexible pattern for the fs module name (changes between versions)
+and negative lookbehind to skip calls already inside try blocks.
 
 Error: EXDEV: cross-device link not permitted, rename '/tmp/wvm-xxx/rootfs.vhdx'
        -> '/home/user/.config/Claude/vm_bundles/claudevm.bundle/rootfs.vhdx'
@@ -38,29 +40,34 @@ def patch_cross_device_rename(filepath):
 
     original_content = content
 
-    # Replace each await zr.rename(x,y) call with an inline EXDEV-safe
+    # Replace each await <mod>.rename(x,y) call with an inline EXDEV-safe
     # fallback. This avoids scoping issues — the minified bundle has many
     # closures, and a helper function injected in one scope wouldn't be
     # visible in others. The inline approach is self-contained at each call site.
     #
-    # Before: await zr.rename(x,y)
-    # After:  await zr.rename(x,y).catch(async e=>{if(e.code==="EXDEV"){await zr.copyFile(x,y);await zr.unlink(x)}else throw e})
-    rename_pattern = rb'await zr\.rename\((\w+),(\w+)\)'
+    # The fs module name changes between versions (zr, ur, Xe, etc.), so we
+    # use \w+ to match any name. The (?<!try\{) lookbehind skips rename calls
+    # that are already inside a try block with their own EXDEV handler.
+    #
+    # Before: await ur.rename(x,y)
+    # After:  await ur.rename(x,y).catch(async e=>{if(e.code==="EXDEV"){await ur.copyFile(x,y);await ur.unlink(x)}else throw e})
+    rename_pattern = rb'(?<!try\{)await (\w+)\.rename\((\w+),(\w+)\)'
 
     def rename_replacement(m):
-        src = m.group(1)
-        dst = m.group(2)
-        return (b'await zr.rename(' + src + b',' + dst + b')'
+        mod = m.group(1)
+        src = m.group(2)
+        dst = m.group(3)
+        return (b'await ' + mod + b'.rename(' + src + b',' + dst + b')'
                 b'.catch(async e=>{if(e.code==="EXDEV"){'
-                b'await zr.copyFile(' + src + b',' + dst + b');'
-                b'await zr.unlink(' + src + b')'
+                b'await ' + mod + b'.copyFile(' + src + b',' + dst + b');'
+                b'await ' + mod + b'.unlink(' + src + b')'
                 b'}else throw e})')
 
     content, count = re.subn(rename_pattern, rename_replacement, content)
     if count >= 1:
-        print(f"  [OK] Replaced {count} zr.rename() calls with inline EXDEV fallback")
+        print(f"  [OK] Replaced {count} rename() calls with inline EXDEV fallback")
     else:
-        print(f"  [WARN] No zr.rename() calls found")
+        print(f"  [WARN] No unguarded rename() calls found")
 
     if content == original_content:
         print("  [WARN] No changes made")

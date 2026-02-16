@@ -12,9 +12,11 @@ A. Extend the TypeScript VM client (vZe) to load on Linux, not just Windows.
 B. Replace Windows Named Pipe path with a Unix domain socket path on Linux.
    The original hardcodes "\\\\.\\pipe\\cowork-vm-service" for Windows.
    On Linux we use $XDG_RUNTIME_DIR/cowork-vm-service.sock (or /tmp fallback).
-C. Add Linux to the _i.files bundle configuration so the bundle download
-   mechanism works on Linux (reuses win32.x64 file list since the VM images
-   are platform-agnostic).
+C. Add Linux to the _i.files bundle configuration with an empty file list.
+   Since our native Go backend runs Claude Code directly on the host (no VM),
+   we don't need any VM bundle files. An empty array makes C$() return true
+   (vacuously — 0 files all "ready"), so z2e() sets status=Ready without
+   attempting any download. This avoids ENOSPC (tmpfs full) and EXDEV errors.
 
 Requires claude-cowork-service daemon running on the host to actually work.
 Without the daemon, Cowork UI will show connection errors naturally.
@@ -109,30 +111,28 @@ def patch_cowork_linux(filepath):
     else:
         print(f"  [WARN] Socket path: pipe path not found")
 
-    # Patch C: Add Linux to _i.files bundle config
+    # Patch C: Add Linux to _i.files bundle config with EMPTY file list
     #
     # The bundle configuration looks like:
     #   files:{darwin:{arm64:[...]},win32:{arm64:[...],x64:[FILE_LIST]}}
     #
-    # We want to add:   ,linux:{x64:FILE_LIST}
-    # before the final }} that closes files and the _i object.
+    # We inject: ,linux:{x64:[]}  (empty array)
+    # An empty array means: no VM files needed. C$() returns true vacuously
+    # (0 files, all "ready"), so z2e() sets status=Ready without downloading.
     #
-    # Strategy:
-    # 1. Find the win32 x64 file list by searching for ,x64:[ after win32:{
-    # 2. Extract the array contents (balanced bracket matching)
-    # 3. Inject ,linux:{x64:[same_list]} after win32's closing }
+    # Strategy: find the win32 block's closing }, then inject after it.
 
     # Find the bundle config by its unique structure marker
     win32_marker = b'win32:{'
     win32_idx = content.find(win32_marker)
     if win32_idx >= 0:
-        # Find ,x64:[ within the win32 block
+        # Find ,x64:[ within the win32 block to locate the end
         x64_marker = b',x64:['
         x64_search_start = win32_idx
         x64_idx = content.find(x64_marker, x64_search_start)
 
         if x64_idx >= 0:
-            # Extract the x64 array (balanced bracket matching)
+            # Skip past the x64 array (balanced bracket matching)
             array_start = x64_idx + len(x64_marker) - 1  # Position of '['
             depth = 0
             pos = array_start
@@ -145,18 +145,14 @@ def patch_cowork_linux(filepath):
                         break
                 pos += 1
 
-            x64_array = content[array_start:pos+1]  # [...full array...]
-
-            # Now find the closing of the win32 block and files block
-            # After x64 array ends at pos+1, we expect }}} (close win32, files, _i)
+            # After x64 array ends at pos+1, expect }}} (close win32, files, _i)
             after_array = pos + 1
             # Skip the win32 closing }
             if content[after_array:after_array+1] == b'}':
-                # Insert ,linux:{x64:[...]} right after win32's }
-                # before the remaining }} (files close + _i close)
-                inject = b',linux:{x64:' + x64_array + b'}'
+                # Insert ,linux:{x64:[]} right after win32's }
+                inject = b',linux:{x64:[]}'
                 content = content[:after_array+1] + inject + content[after_array+1:]
-                print(f"  [OK] Bundle config: Linux platform added (x64 array: {len(x64_array)} bytes)")
+                print(f"  [OK] Bundle config: Linux platform added (empty file list — no VM download)")
                 patches_applied += 1
             else:
                 print(f"  [WARN] Bundle config: unexpected structure after x64 array")
