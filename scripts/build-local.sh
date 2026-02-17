@@ -77,10 +77,19 @@ if [ -f "$LOCAL_EXE" ]; then
     log_info "Using existing exe: $LOCAL_EXE"
     cp "$LOCAL_EXE" "$EXE_FILE"
 else
-    # Download the latest Claude Desktop
-    DOWNLOAD_URL="https://downloads.claude.ai/releases/win32/x64/latest/Claude-Setup-x64.exe"
+    # Query version API for latest version and hash
+    log_info "Querying Claude Desktop version API..."
+    LATEST_JSON=$(wget -q -O - "https://downloads.claude.ai/releases/win32/x64/.latest")
+    if [ -z "$LATEST_JSON" ]; then
+        log_error "Failed to query version API"
+        exit 1
+    fi
+    LATEST_VERSION=$(echo "$LATEST_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['version'])")
+    LATEST_HASH=$(echo "$LATEST_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['hash'])")
+    DOWNLOAD_URL="https://downloads.claude.ai/releases/win32/x64/${LATEST_VERSION}/Claude-${LATEST_HASH}.exe"
 
     log_info "Downloading Claude Desktop for Windows..."
+    log_info "Latest version: $LATEST_VERSION"
     log_info "Download URL: $DOWNLOAD_URL"
 
     wget -O "$EXE_FILE" \

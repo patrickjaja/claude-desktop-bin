@@ -53,26 +53,24 @@ jobs:
               -U "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
               "${DOWNLOAD_URL}"
           else
-            echo "Auto-detecting download URL from redirect"
-            # Download the file and capture headers in verbose mode
-            # wget follows redirects by default and logs the final URL
-            wget --server-response -O Claude-Setup-x64.exe \
-              -U "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
-              "https://claude.ai/api/desktop/win32/x64/exe/latest/redirect" \
-              2>&1 | tee wget_output.txt
+            echo "Querying Claude Desktop version API..."
+            LATEST_JSON=$(wget -q -O - "https://downloads.claude.ai/releases/win32/x64/.latest")
 
-            # Extract the Location header from the redirect response
-            DOWNLOAD_URL=$(grep -i '^ *Location:' wget_output.txt | tail -1 | sed -E 's/^[[:space:]]*[Ll]ocation:[[:space:]]*//' | sed 's/ \[following\]$//' | tr -d '\r\n')
-
-            if [ -z "$DOWNLOAD_URL" ]; then
-              echo "Error: Failed to extract download URL from redirect"
-              echo "wget output:"
-              cat wget_output.txt
+            if [ -z "$LATEST_JSON" ]; then
+              echo "Error: Failed to query version API"
               exit 1
             fi
 
-            echo "Resolved download URL: ${DOWNLOAD_URL}"
-            rm -f wget_output.txt
+            LATEST_VERSION=$(echo "$LATEST_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['version'])")
+            LATEST_HASH=$(echo "$LATEST_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['hash'])")
+            DOWNLOAD_URL="https://downloads.claude.ai/releases/win32/x64/${LATEST_VERSION}/Claude-${LATEST_HASH}.exe"
+
+            echo "Latest version: ${LATEST_VERSION}"
+            echo "Download URL: ${DOWNLOAD_URL}"
+
+            wget -q -O Claude-Setup-x64.exe \
+              -U "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
+              "$DOWNLOAD_URL"
           fi
 
           # Save URL to output for reference
