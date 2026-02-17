@@ -2,6 +2,14 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-02-17
+
+### Fixed
+- **Browse Plugins empty on Cowork tab** — New `fix_marketplace_linux.py` forces the host CLI runner (`gz`) for marketplace operations on Linux. Previously, the Cowork tab selected the VM runner (`mz`) which routed `claude plugin marketplace` commands through the daemon, failing with `MARKETPLACE_ERROR:UNKNOWN`. Since marketplace management is a host filesystem operation, the host runner is always correct on Linux.
+
+### Known Issues
+- **Cowork sidebar sessions** — Previous local sessions may not appear in the sidebar due to `local_`-prefixed UUIDs failing server-side validation. This is an upstream issue in the claude.ai renderer code.
+
 ## 2026-02-16
 
 ### Fixed
