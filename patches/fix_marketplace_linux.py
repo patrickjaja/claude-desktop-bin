@@ -14,11 +14,16 @@ Since marketplace management is a host filesystem operation (it runs
 `claude plugin marketplace list --json` etc.), we force the host runner
 on Linux regardless of session type.
 
-Two-part patch:
+Three-part patch:
 A. oAt() IPC bridge runner selector — `const e=r=>Hb(r)?gz:mz`
    Add process.platform==="linux" to always pick gz (host) on Linux.
 B. search_plugins tool handler — `r.sessionType==="ccd"?gz:mz`
    Same logic: force gz on Linux.
+C. Hb() CCD/Cowork gate — `function Hb(t){return(t==null?void 0:t.mode)==="ccd"}`
+   Force true on Linux so all plugin operations (getPlugins, uploadPlugin,
+   deletePlugin, setPluginEnabled) use host-local CCD paths instead of
+   account-scoped Cowork paths. On Linux there's no VM, so the CCD path
+   is always correct.
 
 Usage: python3 fix_marketplace_linux.py <path_to_index.js>
 """
@@ -95,6 +100,35 @@ def patch_marketplace_linux(filepath):
         patches_applied += 1
     else:
         print(f"  [FAIL] search_plugins handler: 0 matches")
+
+    # Patch C: Hb() — force CCD mode on Linux
+    #
+    # Hb() is the CCD/Cowork gate called throughout the plugin system.
+    # When Hb() returns true, operations use host-local CCD paths (bq(), gz, oyt()).
+    # When false, they use account-scoped Cowork paths (XA(), mz).
+    # On Linux there's no VM, so all operations should use the CCD path.
+    #
+    # Original: function Hb(t){return(t==null?void 0:t.mode)==="ccd"}
+    # Patched:  function Hb(t){return process.platform==="linux"||(t==null?void 0:t.mode)==="ccd"}
+    #
+    # This fixes 5 call sites at once: oAt() runner selector, getPlugins,
+    # uploadPlugin, deletePlugin, and setPluginEnabled.
+    #
+    # Capture groups:
+    #   1 = parameter name (e.g. "t")
+    pattern_c = rb'function Hb\((\w+)\)\{return\((\1)==null\?void 0:\2\.mode\)==="ccd"\}'
+
+    def replacement_c(m):
+        param = m.group(1)
+        return (b'function Hb(' + param + b'){return process.platform==="linux"||(' +
+                param + b'==null?void 0:' + param + b'.mode)==="ccd"}')
+
+    content, count_c = re.subn(pattern_c, replacement_c, content)
+    if count_c >= 1:
+        print(f"  [OK] Hb() CCD/Cowork gate: force CCD mode on Linux ({count_c} match)")
+        patches_applied += 1
+    else:
+        print(f"  [FAIL] Hb() CCD/Cowork gate: 0 matches")
 
     # Check results
     if patches_applied == 0:
