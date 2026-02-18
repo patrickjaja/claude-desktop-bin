@@ -1,0 +1,36 @@
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA512
+
+Date: Wed, 18 Feb 2026 14:46:04 +0000
+MD5Sum:
+ ea012ddb0e7f72640fa3212594eef19b              920 Packages
+ 08ec708579980e02f5e52cfd4f133e4a              600 Packages.gz
+ cef5bf754df0dcdfe9fdcd03a1afcec4               38 Release
+SHA1:
+ 654a124068a9ff7af775cb1a630f9157ef7b35d5              920 Packages
+ 4faddeb66a504a40b316d15eb95e7eb6a9b2cb4a              600 Packages.gz
+ 10c5588e9012cee378b51da5e2e36721cda867c2               38 Release
+SHA256:
+ 985e909b218f7f399024e6ca20bca43bc32c2a55942812a331557a2724be1ae7              920 Packages
+ 2bba264446bb780bde8b3ff7ec84ab5d00e6f6b928cd70db89f104080f336f3f              600 Packages.gz
+ 19539ee34abeccc532eaa9144c3382cc190583ad44a0e637d2d53a790ad38707               38 Release
+SHA512:
+ f041ec9da4a5212f4658e1a1c3198d95b15c4657e75fa5c4048bd10a29a91b0f7414e2777cf4e52702ab085c604a9f80518f1d47e9f26dd63a3ef6888519496c              920 Packages
+ f6e639434b706238e0e4124223b5b362644caef595e54a6f7645befffbb07c37d6bbf9fdf13ff053df38943f704660abb0d7a9ff721dc3a7bbe31b7bbc0d7dbf              600 Packages.gz
+ d789e0a20171d8fbd4bea2be772a575a73b631d8b84b254ad1b4729aed62f2da5956e410a51a99c47c460cdf3c047b18b86508c819ca2d76f0034292e0eb1421               38 Release
+-----BEGIN PGP SIGNATURE-----
+
+iQIzBAEBCgAdFiEEglp9FdeLq+RWRtXfOCQJ9ZeQiGcFAmmV0KwACgkQOCQJ9ZeQ
+iGcEuRAAi83bpxGmGxtwSHCBasDfJl4HMprZlm7n876g0u0btIw4Ny3mDofg5Pu7
+mXlfms0GF5SYM6rH+li66HRosTqS6tNkYirozW8ob4P0ZKUjLg73PcsNK5Cn6FoP
+gJp4RbQMQS0tTDkhVxOdK+d1WRGpb/9dOCPH7FKE4esW7NChbHbm6EutiV6COKN+
+JNBwqg5ie2ycsKQVnpwpYHT9zGq/oGR8AhV70VSyDEqlMxGmVGc/8vFO2bgkeAvY
+PDP+zdDT7thpf2Hp9wAXbpojw8CNu932m8iJyST6BU2hwEax5BzM9XF5V8jxbTsg
+FTh+aRPlXyHXJQ3ZWJC8OmY8grkPKSYfURiLrsRF8nNkFv8R7NBdMlSbeGgg5AO8
+Dnk2smaVrZwgE8lLKFqmShntHbMWsIMOVfDRsNW/dxZ4FogkFi9MFG9uZmTP69PX
+QHbBALDyBrt34DpZs7Hcqb0AbiX9nI30CPk8gVy00IXMkvIaMmiyFPPllqEuKB6E
+V7QNLgWnvIDgA+mC0cCVjextdsyXdfDjHbkjXjrqMSPTQf5aujzol0bvF5i6xUFp
+0HEogX6Ft/Fxoxt2I03eAOzxNC/oeP5Of8LMQ/V2EeRNKOauiwVW5aK3wdh9Q2jf
+dpUoWwbaqP0Jyvsbmi2nqoq6vOc9MZxN/u0nFNVDRTg06919sO4=
+=wBgN
+-----END PGP SIGNATURE-----
