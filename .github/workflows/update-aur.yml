@@ -28,6 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write  # Need write permission to create releases
+      pages: write     # Need write permission to deploy APT repo to gh-pages
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -363,7 +364,7 @@ jobs:
           files: |
             claude-desktop-${{ steps.version.outputs.version }}-linux.tar.gz
             dist/Claude_Desktop-${{ steps.version.outputs.version }}-x86_64.AppImage
-            dist/claude-desktop_${{ steps.version.outputs.version }}_amd64.deb
+            dist/claude-desktop-bin_${{ steps.version.outputs.version }}_amd64.deb
           body: |
             ## ${{ steps.pkgrel.outputs.release_name }}
 
@@ -376,11 +377,15 @@ jobs:
             yay -S claude-desktop-bin
             ```
 
-            **Debian/Ubuntu (.deb)**
+            **Debian/Ubuntu (APT Repository — recommended)**
             ```bash
-            # Download the .deb file, then:
-            sudo apt install ./claude-desktop_${{ steps.version.outputs.version }}_amd64.deb
-            # Note: Requires 'electron' package from your distro or a PPA
+            curl -fsSL https://patrickjaja.github.io/claude-desktop-bin/install.sh | sudo bash
+            sudo apt install claude-desktop-bin
+            ```
+
+            **Debian/Ubuntu (manual .deb)**
+            ```bash
+            sudo apt install ./claude-desktop-bin_${{ steps.version.outputs.version }}_amd64.deb
             ```
 
             **AppImage (Any Distro)**
@@ -405,6 +410,64 @@ jobs:
           draft: false
           prerelease: false
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update and Deploy APT Repository
+        if: steps.check.outputs.needs_update == 'true' || github.event.inputs.force_rebuild == 'true'
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          DEB_FILE="$(pwd)/dist/claude-desktop-bin_${VERSION}_amd64.deb"
+
+          if [ ! -f "$DEB_FILE" ]; then
+            echo "::warning::No .deb file found at $DEB_FILE — skipping APT repo deploy"
+            exit 0
+          fi
+
+          if [ -z "$GPG_PRIVATE_KEY" ]; then
+            echo "::warning::APT_GPG_PRIVATE_KEY secret not set — skipping APT repo deploy"
+            exit 0
+          fi
+
+          # Install APT repo tools
+          sudo apt-get install -y dpkg-dev apt-utils
+
+          # Import GPG key from secret
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+          GPG_KEY_ID=$(echo "$GPG_PRIVATE_KEY" | gpg --show-keys --with-colons 2>/dev/null \
+            | grep '^sec:' | head -1 | cut -d: -f5)
+
+          # Clone existing gh-pages branch (or init fresh if first time)
+          APT_REPO_DIR="/tmp/apt-repo"
+          rm -rf "$APT_REPO_DIR"
+          REMOTE="https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
+          if git ls-remote --heads "$REMOTE" gh-pages | grep -q gh-pages; then
+            git clone --depth 1 --branch gh-pages "$REMOTE" "$APT_REPO_DIR"
+          else
+            mkdir -p "$APT_REPO_DIR" && cd "$APT_REPO_DIR"
+            git init && git checkout -b gh-pages && git remote add origin "$REMOTE"
+            cd -
+          fi
+
+          # Copy static files from main branch
+          cp packaging/apt/install.sh "$APT_REPO_DIR/"
+          cp packaging/apt/index.html "$APT_REPO_DIR/"
+          gpg --armor --export "$GPG_KEY_ID" > "$APT_REPO_DIR/gpg-key.asc"
+          touch "$APT_REPO_DIR/.nojekyll"
+
+          # Build APT repo metadata
+          bash packaging/apt/update-apt-repo.sh "$DEB_FILE" "$APT_REPO_DIR" "$GPG_KEY_ID"
+
+          # Commit and push
+          cd "$APT_REPO_DIR"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --staged --quiet || {
+            git commit -m "Update APT repo: claude-desktop ${VERSION}"
+            git push origin gh-pages
+          }
 
       - name: Verify release tarball download
         if: steps.check.outputs.needs_update == 'true' || github.event.inputs.force_rebuild == 'true'
@@ -483,7 +546,7 @@ jobs:
           VERSION="${{ steps.version.outputs.version }}"
 
           # Update version numbers in README
-          sed -i -E "s/claude-desktop_[0-9]+\.[0-9]+\.[0-9]+_amd64\.deb/claude-desktop_${VERSION}_amd64.deb/g" README.md
+          sed -i -E "s/claude-desktop-bin_[0-9]+\.[0-9]+\.[0-9]+_amd64\.deb/claude-desktop-bin_${VERSION}_amd64.deb/g" README.md
           sed -i -E "s/Claude_Desktop-[0-9]+\.[0-9]+\.[0-9]+-x86_64\.AppImage/Claude_Desktop-${VERSION}-x86_64.AppImage/g" README.md
 
           # Commit and push if changed

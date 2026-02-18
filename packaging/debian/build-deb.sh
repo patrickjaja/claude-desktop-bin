@@ -32,7 +32,7 @@ if [ -z "$TARBALL_PATH" ] || [ -z "$OUTPUT_DIR" ]; then
     echo "  output_dir    Directory to write .deb package"
     echo ""
     echo "Output:"
-    echo "  <output_dir>/claude-desktop_<version>_amd64.deb"
+    echo "  <output_dir>/claude-desktop-bin_<version>_amd64.deb"
     exit 1
 fi
 
@@ -47,7 +47,7 @@ log_info "Building Debian package for version: $VERSION"
 
 # Create work directory
 WORK_DIR=$(mktemp -d)
-DEB_ROOT="$WORK_DIR/claude-desktop_${VERSION}_amd64"
+DEB_ROOT="$WORK_DIR/claude-desktop-bin_${VERSION}_amd64"
 
 cleanup() {
     rm -rf "$WORK_DIR"
@@ -104,7 +104,7 @@ INSTALLED_SIZE=$(du -sk "$DEB_ROOT" | cut -f1)
 # Create control file
 log_info "Creating control file..."
 cat > "$DEB_ROOT/DEBIAN/control" << EOF
-Package: claude-desktop
+Package: claude-desktop-bin
 Version: ${VERSION}
 Section: utils
 Priority: optional
@@ -154,7 +154,7 @@ chmod +x "$DEB_ROOT/DEBIAN/postrm"
 # Build the package
 log_info "Building .deb package..."
 mkdir -p "$OUTPUT_DIR"
-DEB_PATH="$OUTPUT_DIR/claude-desktop_${VERSION}_amd64.deb"
+DEB_PATH="$OUTPUT_DIR/claude-desktop-bin_${VERSION}_amd64.deb"
 
 if command -v fakeroot &> /dev/null; then
     fakeroot dpkg-deb --build "$DEB_ROOT" "$DEB_PATH"

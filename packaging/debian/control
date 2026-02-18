@@ -1,4 +1,4 @@
-Source: claude-desktop
+Source: claude-desktop-bin
 Section: utils
 Priority: optional
 Maintainer: Claude Desktop Linux Community <claude-desktop-linux@users.noreply.github.com>
@@ -7,7 +7,7 @@ Standards-Version: 4.6.0
 Homepage: https://claude.ai
 Rules-Requires-Root: no
 
-Package: claude-desktop
+Package: claude-desktop-bin
 Architecture: amd64
 Depends: ${shlibs:Depends}, ${misc:Depends}, electron | electron-bin | electron33
 Recommends: libnotify-bin

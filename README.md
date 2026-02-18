@@ -12,12 +12,24 @@ Unofficial Linux packages for Claude Desktop AI assistant with automated updates
 yay -S claude-desktop-bin
 ```
 
-### Debian / Ubuntu
+### Debian / Ubuntu (APT Repository)
 ```bash
-# Download from GitHub Releases
-wget https://github.com/patrickjaja/claude-desktop-bin/releases/latest/download/claude-desktop_1.1.3363_amd64.deb
-sudo dpkg -i claude-desktop_*_amd64.deb
+# Add repository (one-time setup)
+curl -fsSL https://patrickjaja.github.io/claude-desktop-bin/install.sh | sudo bash
+
+# Install
+sudo apt install claude-desktop-bin
 ```
+Updates are automatic via `sudo apt update && sudo apt upgrade`.
+
+<details>
+<summary>Manual .deb install (without APT repo)</summary>
+
+```bash
+wget https://github.com/patrickjaja/claude-desktop-bin/releases/latest/download/claude-desktop-bin_1.1.3363_amd64.deb
+sudo dpkg -i claude-desktop-bin_*_amd64.deb
+```
+</details>
 
 ### AppImage (Any Distro)
 ```bash
