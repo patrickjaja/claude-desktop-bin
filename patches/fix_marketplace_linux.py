@@ -15,15 +15,16 @@ Since marketplace management is a host filesystem operation (it runs
 on Linux regardless of session type.
 
 Three-part patch:
-A. oAt() IPC bridge runner selector — `const e=r=>Hb(r)?gz:mz`
-   Add process.platform==="linux" to always pick gz (host) on Linux.
-B. search_plugins tool handler — `r.sessionType==="ccd"?gz:mz`
-   Same logic: force gz on Linux.
-C. Hb() CCD/Cowork gate — `function Hb(t){return(t==null?void 0:t.mode)==="ccd"}`
+A. IPC bridge runner selector — `const e=r=><gate>(r)?<host>:<vm>`
+   Add process.platform==="linux" to always pick the host runner on Linux.
+B. search_plugins tool handler — `r.sessionType==="ccd"?<host>:<vm>`
+   Same logic: force host runner on Linux.
+C. CCD/Cowork gate function — `function <gate>(t){return(t==null?void 0:t.mode)==="ccd"}`
    Force true on Linux so all plugin operations (getPlugins, uploadPlugin,
    deletePlugin, setPluginEnabled) use host-local CCD paths instead of
    account-scoped Cowork paths. On Linux there's no VM, so the CCD path
    is always correct.
+   Note: Function name changes between versions (Hb, Gw, etc.).
 
 Usage: python3 fix_marketplace_linux.py <path_to_index.js>
 """
@@ -62,12 +63,13 @@ def patch_marketplace_linux(filepath):
     #   2 = parameter name (used in Hb() call)
     #   3 = host runner variable (gz)
     #   4 = VM runner variable (mz)
-    pattern_a = rb'(const \w+=)(\w+)(=>Hb\(\2\)\?)(\w+):(\w+)'
+    pattern_a = rb'(const \w+=)(\w+)(=>(\w+)\(\2\)\?)(\w+):(\w+)'
 
     def replacement_a(m):
+        gate_fn = m.group(4)  # The gate function name (Hb, Gw, etc.)
         return (m.group(1) + m.group(2) +
-                b'=>process.platform==="linux"||Hb(' + m.group(2) + b')?' +
-                m.group(4) + b':' + m.group(5))
+                b'=>process.platform==="linux"||' + gate_fn + b'(' + m.group(2) + b')?' +
+                m.group(5) + b':' + m.group(6))
 
     content, count_a = re.subn(pattern_a, replacement_a, content)
     if count_a >= 1:
@@ -116,11 +118,12 @@ def patch_marketplace_linux(filepath):
     #
     # Capture groups:
     #   1 = parameter name (e.g. "t")
-    pattern_c = rb'function Hb\((\w+)\)\{return\((\1)==null\?void 0:\2\.mode\)==="ccd"\}'
+    pattern_c = rb'function (\w+)\((\w+)\)\{return\((\2)==null\?void 0:\3\.mode\)==="ccd"\}'
 
     def replacement_c(m):
-        param = m.group(1)
-        return (b'function Hb(' + param + b'){return process.platform==="linux"||(' +
+        fn_name = m.group(1)
+        param = m.group(2)
+        return (b'function ' + fn_name + b'(' + param + b'){return process.platform==="linux"||(' +
                 param + b'==null?void 0:' + param + b'.mode)==="ccd"}')
 
     content, count_c = re.subn(pattern_c, replacement_c, content)

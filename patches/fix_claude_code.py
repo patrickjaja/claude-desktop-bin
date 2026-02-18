@@ -82,7 +82,7 @@ def patch_claude_code(filepath):
     # Patch 3: getStatus() - Return Ready if system binary exists on Linux
     # IMPORTANT: Check Linux BEFORE calling getHostTarget() for safety
     # Use regex to capture the enum name (Yo, tc, etc.) dynamically
-    status_pattern = rb'async getStatus\(\)\{if\(await this\.getLocalBinaryPath\(\)\)return (\w+)\.Ready;const (\w+)=this\.getHostTarget\(\);if\(this\.preparingPromise\)return \1\.Updating;if\(await this\.binaryExistsForTarget\(\2,this\.requiredVersion\)\)'
+    status_pattern = rb'async getStatus\(\)\{if\(await this\.getLocalBinaryPath\(\)\)return ([\w$]+)\.Ready;const (\w+)=this\.getHostTarget\(\);if\(this\.preparingPromise\)return \1\.Updating;if\(await this\.binaryExistsForTarget\(\2,this\.requiredVersion\)\)'
 
     def status_replacement(m):
         enum_name = m.group(1)  # Capture the enum name (ps, etc.)

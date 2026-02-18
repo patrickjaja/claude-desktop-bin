@@ -2,6 +2,23 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-02-18
+
+### Changed
+- **Update to Claude Desktop v1.1.3363** (from v1.1.3189, 174 builds ahead)
+
+### Fixed
+- **fix_claude_code.py** — `getStatus()` regex now uses `[\w$]+` instead of `\w+` for the status enum name, fixing match failure when minifier produces `$`-prefixed identifiers (e.g. `$s`)
+- **fix_marketplace_linux.py** — CCD gate function name and runner selector now use flexible `\w+` patterns instead of hardcoded `Hb`/`oAt` (function renamed to `Gw` in v1.1.3363)
+
+### Added
+- **update-prompt.md** — Reusable prompts for future version updates (build & fix, diff & discover)
+
+### Notes
+- Diff analysis shows only minified variable renames between v1.1.3189 and v1.1.3363
+- One new feature flag `4160352601` (VM heartbeat auto-restart) — no Linux patch needed
+- Key renames: `la()` → `Xi()` (feature flags), `Hb` → `Gw` (CCD gate), `Cs` → `$s` (status enum), `tt` → `rt` (path module)
+
 ## 2026-02-17
 
 ### Changed
