@@ -84,28 +84,29 @@ systemctl --user enable --now claude-cowork
 
 The package applies several patches to make Claude Desktop work on Linux. Each patch is isolated in `patches/` for easy maintenance:
 
-| Patch | Purpose |
-|-------|---------|
-| `claude-native.js` | Linux-compatible native module (replaces Windows-only `@anthropic/claude-native`) |
-| `enable_local_agent_mode.py` | Enables Local Agent Mode (chillingSlothFeat) on Linux for git worktrees and agent sessions |
-| `fix_claude_code.py` | Enables Claude Code CLI integration by detecting system-installed claude binary |
-| `fix_locale_paths.py` | Redirects locale file paths to Linux install location |
-| `fix_node_host.py` | Fixes MCP server node host path for Linux (uses `app.getAppPath()`) |
-| `fix_startup_settings.py` | Skips startup settings on Linux to avoid validation errors |
-| `fix_native_frame.py` | Uses native window frames on Linux/XFCE while preserving Quick Entry transparency |
-| `fix_quick_entry_position.py` | Spawns Quick Entry window on the monitor where the cursor is located |
-| `fix_title_bar.py` | Renders internal title bar on Linux (disables platform-gated early returns) |
-| `fix_tray_dbus.py` | Prevents DBus race conditions with mutex guard and cleanup delay |
-| `fix_tray_icon_theme.py` | Uses theme-aware tray icon selection (light/dark) on Linux |
-| `fix_tray_path.py` | Redirects tray icon path to package directory on Linux |
-| `fix_cowork_linux.py` | Enables Cowork on Linux: VM client loader, Unix socket path, bundle config, claude binary resolution |
-| `fix_cowork_error_message.py` | Replaces Windows VM errors with Linux-friendly guidance for claude-cowork-service |
-| `fix_cross_device_rename.py` | Fixes EXDEV errors when moving VM bundles across filesystems (tmpfs to ext4) |
-| `fix_vm_session_handlers.py` | Global uncaught exception handler for VM session safety |
-| `fix_app_quit.py` | Fixes app not quitting after cleanup on Linux (uses `app.exit(0)` instead of `app.quit()`) |
-| `fix_utility_process_kill.py` | Uses SIGKILL as fallback when UtilityProcess doesn't exit gracefully |
+| Patch | Purpose | Break risk | Debug pattern |
+|-------|---------|------------|---------------|
+| `claude-native.js` | Linux-compatible native module (replaces Windows-only `@anthropic/claude-native`) | LOW | Static file, no regex |
+| `enable_local_agent_mode.py` | Enables Local Agent Mode (chillingSlothFeat) on Linux for git worktrees and agent sessions | HIGH | `rg -o 'function \w+\(\)\{return process\.platform.*status' index.js` |
+| `fix_app_quit.py` | Fixes app not quitting after cleanup on Linux (uses `app.exit(0)` instead of `app.quit()`) | LOW | Uses `app.quit()` literal |
+| `fix_claude_code.py` | Enables Claude Code CLI integration by detecting system-installed claude binary | MED | `rg -o 'async getStatus\(\)\{.{0,200}' index.js` |
+| `fix_cowork_error_message.py` | Replaces Windows VM errors with Linux-friendly guidance for claude-cowork-service | LOW | Uses string literals |
+| `fix_cowork_linux.py` | Enables Cowork on Linux: VM client loader, Unix socket path, bundle config, claude binary resolution | HIGH | `rg -o '.{0,50}vmClient.{0,50}' index.js` |
+| `fix_cross_device_rename.py` | Fixes EXDEV errors when moving VM bundles across filesystems (tmpfs to ext4) | LOW | Uses `.rename(` literal |
+| `fix_disable_autoupdate.py` | Disables auto-updater on Linux (no Windows installer available) | MED | `rg -o '.{0,40}isInstalled.{0,40}' index.js` |
+| `fix_locale_paths.py` | Redirects locale file paths to Linux install location | LOW | Uses `process.resourcesPath` literal |
+| `fix_marketplace_linux.py` | Forces host CLI runner for marketplace operations on Linux (Browse Plugins, Manage) | HIGH | `rg -o 'function \w+\(\w+\)\{return\(\w+==null.*mode.*ccd' index.js` |
+| `fix_native_frame.py` | Uses native window frames on Linux/XFCE while preserving Quick Entry transparency | MED | `rg -o 'titleBarStyle.{0,30}' index.js` |
+| `fix_node_host.py` | Fixes MCP server node host path for Linux (uses `app.getAppPath()`) | LOW | `rg -o 'nodeHostPath.{0,50}' index.js` |
+| `fix_quick_entry_position.py` | Spawns Quick Entry window on the monitor where the cursor is located | MED | `rg -o 'getPrimaryDisplay.{0,50}' index.js` |
+| `fix_startup_settings.py` | Skips startup settings on Linux to avoid validation errors | LOW | `rg -o 'isStartupOnLoginEnabled.{0,50}' index.js` |
+| `fix_tray_dbus.py` | Prevents DBus race conditions with mutex guard and cleanup delay | HIGH | `rg -o 'menuBarEnabled.*function' index.js` |
+| `fix_tray_icon_theme.py` | Uses theme-aware tray icon selection (light/dark) on Linux | LOW | `rg -o 'nativeTheme.{0,50}tray' index.js` |
+| `fix_tray_path.py` | Redirects tray icon path to package directory on Linux | MED | `rg -o 'function \w+\(\)\{return \w+\.app\.isPackaged' index.js` |
+| `fix_utility_process_kill.py` | Uses SIGKILL as fallback when UtilityProcess doesn't exit gracefully | LOW | Uses `.kill(` literal |
+| `fix_vm_session_handlers.py` | Global uncaught exception handler for VM session safety | LOW | `rg -o 'uncaughtException.{0,50}' index.js` |
 
-When Claude Desktop updates break a patch, only the specific patch file needs updating.
+When Claude Desktop updates break a patch, only the specific patch file needs updating. The **debug pattern** column shows the `rg` command to find the relevant code in the new version's `index.js`.
 
 ## Automation
 This repository automatically:

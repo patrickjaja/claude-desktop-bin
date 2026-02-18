@@ -103,16 +103,6 @@ Minified names change every release. The pattern is always the same — just the
 
 ---
 
-## Patch Failure Quick Reference
+## Patch Reference
 
-| Patch | Risk | What breaks | How to find new pattern |
-|-------|------|-------------|------------------------|
-| `enable_local_agent_mode.py` | HIGH | Feature function renames | `rg -o 'function \w+\(\)\{return process\.platform.*status' index.js` |
-| `fix_cowork_linux.py` | HIGH | VM client/socket vars | `rg -o '.{0,50}vmClient.{0,50}' index.js` |
-| `fix_marketplace_linux.py` | HIGH | Gate function rename | `rg -o 'function \w+\(\w+\)\{return\(\w+==null.*mode.*ccd' index.js` |
-| `fix_tray_dbus.py` | HIGH | Tray variable discovery | `rg -o 'menuBarEnabled.*function' index.js` |
-| `fix_claude_code.py` | MED | Enum name with `$` | `rg -o 'async getStatus\(\)\{.{0,200}' index.js` |
-| `fix_quick_entry_position.py` | MED | Position function rename | `rg -o 'getPrimaryDisplay.{0,50}' index.js` |
-| `fix_tray_path.py` | MED | Resources path function | `rg -o 'function \w+\(\)\{return \w+\.app\.isPackaged' index.js` |
-| `fix_locale_paths.py` | LOW | Rarely changes | Uses `process.resourcesPath` literal |
-| `fix_cross_device_rename.py` | LOW | Rarely changes | Uses `.rename(` literal |
+See the **[Patches table in README.md](README.md#patches)** for the full list of all patches including break risk and debug `rg` patterns for finding new code when a patch fails.
