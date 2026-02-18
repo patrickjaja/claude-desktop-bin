@@ -39,6 +39,8 @@ chmod +x Claude_Desktop-*-x86_64.AppImage
 ./Claude_Desktop-*-x86_64.AppImage
 ```
 
+> **Note:** AppImage does not receive automatic updates. Download the latest release manually to update.
+
 ### From Source
 ```bash
 git clone https://github.com/patrickjaja/claude-desktop-bin.git
@@ -46,10 +48,13 @@ cd claude-desktop-bin
 ./scripts/build-local.sh --install
 ```
 
+> **Note:** Source builds do not receive automatic updates. Pull and rebuild to update.
+
 ## Features
 - Native Linux support (Arch, Debian/Ubuntu, AppImage)
 - **Claude Code CLI integration** - Auto-detects system-installed Claude Code
 - **Local Agent Mode** - Git worktrees and agent sessions
+- **Cowork support** - Agentic workspace feature enabled on Linux (requires [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service))
 - **MCP server support** - Model Context Protocol servers work on Linux
 - Global hotkey support (Ctrl+Alt+Space) with multi-monitor awareness
 - Automated daily version checks
