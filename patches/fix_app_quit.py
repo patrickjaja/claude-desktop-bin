@@ -33,9 +33,10 @@ def main():
 
     # Original pattern: clearTimeout(n)}XX&&YY.app.quit()}
     # Variables change between versions (e.g., S_&&he → TS&&ce)
+    # Note: [\w$]+ is used because minified JS names can contain $ (e.g., f$, u$)
     # The XX&&YY.app.quit() doesn't work after preventDefault() on Linux
     # Replace with setImmediate + app.exit(0) for reliable exit
-    pattern = rb'(clearTimeout\(\w+\)\})(\w+)&&(\w+)(\.app\.quit\(\))'
+    pattern = rb'(clearTimeout\([\w$]+\)\})([\w$]+)&&([\w$]+)(\.app\.quit\(\))'
 
     def replacement(m):
         flag_var = m.group(2).decode('utf-8')

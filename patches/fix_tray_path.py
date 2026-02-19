@@ -39,7 +39,8 @@ def patch_tray_path(filepath):
     # Pattern 1: Generic function pattern with variable electron/process module names
     # Pattern: function FUNCNAME(){return ELECTRON.app.isPackaged?PROCESS.resourcesPath:...}
     # Variable names change between versions (ce->de, pn->gn, etc.)
-    pattern1 = rb'(function \w+\(\)\{return )(\w+)(\.app\.isPackaged\?)(\w+)(\.resourcesPath)(:[^}]+\})'
+    # Note: [\w$]+ is used because minified JS names can contain $ (e.g., f$t)
+    pattern1 = rb'(function [\w$]+\(\)\{return )([\w$]+)(\.app\.isPackaged\?)([\w$]+)(\.resourcesPath)(:[^}]+\})'
 
     def replacement1_func(m):
         prefix = m.group(1)
@@ -59,7 +60,7 @@ def patch_tray_path(filepath):
 
     # Pattern 2: Alternative pattern with process.resourcesPath directly (no variable)
     if patches_applied == 0:
-        pattern2 = rb'(function \w+\(\)\{return )(\w+)(\.app\.isPackaged\?)process\.resourcesPath(:[^}]+\})'
+        pattern2 = rb'(function [\w$]+\(\)\{return )([\w$]+)(\.app\.isPackaged\?)process\.resourcesPath(:[^}]+\})'
 
         def replacement2_func(m):
             prefix = m.group(1)

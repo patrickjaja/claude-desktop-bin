@@ -36,18 +36,21 @@ def patch_claude_code(filepath):
     # Patch 1: getHostPlatform() - Add Linux support
     # This is the root cause - it throws "Unsupported platform" for Linux
     # Use flexible regex to capture the arch variable name dynamically
-    platform_pattern = rb'(getHostPlatform\(\)\{const (\w+)=process\.arch;if\(process\.platform==="darwin"\)return \2==="arm64"\?"darwin-arm64":"darwin-x64";if\(process\.platform==="win32"\)return"win32-x64";)(throw new Error\()'
+    # The win32 block may be hardcoded ("win32-x64") or conditional (arch==="arm64"?...)
+    platform_pattern = rb'(getHostPlatform\(\)\{const (\w+)=process\.arch;if\(process\.platform==="darwin"\)return \2==="arm64"\?"darwin-arm64":"darwin-x64";if\(process\.platform==="win32"\)return)(.+?)(;throw new Error\()'
 
     def platform_replacement(m):
         arch_var = m.group(2)
+        win32_return = m.group(3)
         linux_check = (b'if(process.platform==="linux")return ' + arch_var +
                        b'==="arm64"?"linux-arm64":"linux-x64";')
-        return m.group(1) + linux_check + m.group(3)
+        return m.group(1) + win32_return + b';' + linux_check + b'throw new Error('
 
     content, count1 = re.subn(platform_pattern, platform_replacement, content)
     if count1 >= 1:
         print(f"  [OK] getHostPlatform(): {count1} match(es)")
-    elif b'if(process.platform==="linux")return' in content and b'getHostPlatform()' in content:
+    elif b'getHostPlatform(){' in content and b'if(process.platform==="linux")return' in content and b'"linux-x64"' in content:
+        # More specific "already patched" check — require linux-x64 near getHostPlatform
         print(f"  [OK] getHostPlatform(): already patched")
     else:
         print(f"  [FAIL] getHostPlatform(): 0 matches, expected >= 1")
@@ -57,14 +60,16 @@ def patch_claude_code(filepath):
     # IMPORTANT: Check Linux BEFORE calling getHostTarget() for safety
     # Match only the function signature and inject Linux check right after {
     # Negative lookahead ensures idempotency (won't re-patch if already applied)
-    # Checks /usr/bin, ~/.local/bin, and /usr/local/bin in order.
+    # Checks known paths first, then falls back to `which claude` for dynamic
+    # resolution (handles npm global, nvm, etc.).
     binary_pattern = rb'(async getBinaryPathIfReady\(\)\{)(?!if\(process\.platform==="linux"\))'
 
     linux_binary_check = (b'if(process.platform==="linux"){try{const fs=require("fs");'
                           b'for(const p of["/usr/bin/claude",'
                           b'(process.env.HOME||"")+"/.local/bin/claude",'
                           b'"/usr/local/bin/claude"])'
-                          b'if(fs.existsSync(p))return p}'
+                          b'if(fs.existsSync(p))return p;'
+                          b'return require("child_process").execSync("which claude",{encoding:"utf-8"}).trim()}'
                           b'catch(err){}}')
 
     def binary_replacement(m):

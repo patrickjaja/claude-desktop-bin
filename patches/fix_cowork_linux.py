@@ -166,9 +166,12 @@ def patch_cowork_linux(filepath):
     # The Local Agent Mode session manager hardcodes the macOS path:
     #   pathToClaudeCodeExecutable:"/usr/local/bin/claude"
     #
-    # On Linux, claude may be at /usr/bin/claude, ~/.local/bin/claude, etc.
-    # Replace with a dynamic IIFE that checks known locations on Linux,
-    # falling back to bare "claude" for PATH resolution.
+    # On Linux, claude may be at /usr/bin/claude, ~/.local/bin/claude, or
+    # any user-specific location (e.g. ~/.npm-global/bin/claude).
+    # Replace with a dynamic IIFE that checks known locations first, then
+    # falls back to `which claude` to resolve via PATH dynamically.
+    # This ensures the Go daemon receives an absolute path even when claude
+    # is installed in a non-standard location.
     #
     # Also fix the error detection pattern that checks for "/usr/local/bin/claude"
     # in error messages — extend it to also match the Linux paths.
@@ -182,6 +185,8 @@ def patch_cowork_linux(filepath):
         b'(process.env.HOME||"")+"/.local/bin/claude",'
         b'"/usr/local/bin/claude"])'
         b'if(fs.existsSync(p))return p;'
+        b'try{return require("child_process").execSync("which claude",{encoding:"utf-8"}).trim()}'
+        b'catch(e){}'
         b'return"claude"})()'
     )
 
