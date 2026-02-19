@@ -95,6 +95,7 @@ def patch_claude_code(filepath):
         return (b'async getStatus(){if(process.platform==="linux"){try{const fs=require("fs");'
                 b'for(const p of["/usr/bin/claude",(process.env.HOME||"")+"/.local/bin/claude","/usr/local/bin/claude"])'
                 b'if(fs.existsSync(p))return ' + enum_name + b'.Ready;'
+                b'try{require("child_process").execSync("which claude",{encoding:"utf-8"});return ' + enum_name + b'.Ready}catch(e2){}'
                 b'return ' + enum_name + b'.NotInstalled}catch(err){return ' + enum_name +
                 b'.NotInstalled}}if(await this.getLocalBinaryPath())return ' + enum_name + b'.Ready;const ' +
                 var_name + b'=this.getHostTarget();if(this.preparingPromise)return ' + enum_name +
