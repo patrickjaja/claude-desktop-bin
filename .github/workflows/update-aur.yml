@@ -386,9 +386,10 @@ jobs:
               apt-get install -y xvfb libgtk-3-0 libnss3 libasound2 libgbm1 libnotify4
 
               # Extract AppImage (FUSE not available in Docker)
-              chmod +x /dist/Claude_Desktop-*-x86_64.AppImage
+              cp /dist/Claude_Desktop-*-x86_64.AppImage /tmp/
+              chmod +x /tmp/Claude_Desktop-*-x86_64.AppImage
               cd /tmp
-              /dist/Claude_Desktop-*-x86_64.AppImage --appimage-extract
+              /tmp/Claude_Desktop-*-x86_64.AppImage --appimage-extract
 
               # Find the electron binary and app.asar inside extracted AppImage
               bash /scripts/smoke-test.sh \
