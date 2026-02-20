@@ -183,6 +183,15 @@ cd "$WORK_DIR/app"
 asar pack app.asar.contents app.asar
 rm -rf app.asar.contents
 
+# Copy locales (must be in place before smoke test — app loads them on startup)
+log_info "Copying locales..."
+mkdir -p "$WORK_DIR/app/locales"
+cp "$WORK_DIR/extract/lib/net45/resources/"*.json "$WORK_DIR/app/locales/" 2>/dev/null || true
+
+# Copy tray icons
+log_info "Copying tray icons..."
+cp "$WORK_DIR/extract/lib/net45/resources/TrayIconTemplate"*.png "$WORK_DIR/app/locales/" 2>/dev/null || true
+
 # Run Electron smoke test if dependencies are available
 if command -v electron &>/dev/null && command -v xvfb-run &>/dev/null; then
     log_info "Running Electron smoke test..."
@@ -193,15 +202,6 @@ if command -v electron &>/dev/null && command -v xvfb-run &>/dev/null; then
 else
     log_warn "Skipping smoke test (install electron and xorg-server-xvfb to enable)"
 fi
-
-# Copy locales
-log_info "Copying locales..."
-mkdir -p "$WORK_DIR/app/locales"
-cp "$WORK_DIR/extract/lib/net45/resources/"*.json "$WORK_DIR/app/locales/" 2>/dev/null || true
-
-# Copy tray icons
-log_info "Copying tray icons..."
-cp "$WORK_DIR/extract/lib/net45/resources/TrayIconTemplate"*.png "$WORK_DIR/app/locales/" 2>/dev/null || true
 
 # Create tarball structure
 log_info "Creating tarball structure..."
