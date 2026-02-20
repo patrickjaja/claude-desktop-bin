@@ -6,11 +6,9 @@ Patch Claude Desktop to fix tray icon path on Linux.
 
 On Linux, process.resourcesPath points to the Electron resources directory
 (e.g., /usr/lib/electron/resources/) but our tray icons are installed to
-/usr/lib/claude-desktop-bin/locales/. This patch redirects the tray icon
-path lookup to use our package's directory.
-
-The wTe() function is used to get the resources path for tray icons.
-We patch it to return our locales directory on Linux.
+a locales/ directory alongside app.asar. This patch redirects the tray icon
+path lookup to use a runtime expression that works for any install method
+(Arch package, Debian package, AppImage).
 
 Usage: python3 fix_tray_path.py <path_to_index.js>
 """
@@ -46,12 +44,9 @@ def patch_tray_path(filepath):
         prefix = m.group(1)
         electron_var = m.group(2)
         middle = m.group(3)
-        process_var = m.group(4)
-        suffix = m.group(5) + m.group(6)
-        # Insert Linux check: (process.platform==="linux"?"/usr/lib/claude-desktop-bin/locales":process.resourcesPath)
+        # Use runtime expression that resolves correctly for any install location
         return (prefix + electron_var + middle +
-                b'(' + process_var + b'.platform==="linux"?"/usr/lib/claude-desktop-bin/locales":' +
-                process_var + b'.resourcesPath)' + m.group(6))
+                b'(require("path").dirname(require("electron").app.getAppPath())+"/locales")' + m.group(6))
 
     content, count1 = re.subn(pattern1, replacement1_func, content)
     if count1 > 0:
@@ -67,8 +62,9 @@ def patch_tray_path(filepath):
             electron_var = m.group(2)
             middle = m.group(3)
             suffix = m.group(4)
+            # Use runtime expression that resolves correctly for any install location
             return (prefix + electron_var + middle +
-                    b'(process.platform==="linux"?"/usr/lib/claude-desktop-bin/locales":process.resourcesPath)' + suffix)
+                    b'(require("path").dirname(require("electron").app.getAppPath())+"/locales")' + suffix)
 
         content, count2 = re.subn(pattern2, replacement2_func, content)
         if count2 > 0:

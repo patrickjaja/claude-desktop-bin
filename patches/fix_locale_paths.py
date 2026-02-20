@@ -5,7 +5,9 @@
 Patch Claude Desktop locale file paths for Linux.
 
 The official Claude Desktop expects locale files in Electron's resourcesPath,
-but on Linux with system Electron, we need to redirect to our install location.
+but on Linux we need to redirect to our install location. Uses a runtime
+expression based on app.getAppPath() so it works for any install method
+(Arch package, Debian package, AppImage).
 
 Usage: python3 fix_locale_paths.py <path_to_index.js>
 """
@@ -31,9 +33,10 @@ def patch_locale_paths(filepath):
     original_content = content
     failed = False
 
-    # Replace process.resourcesPath with our locale path
+    # Replace process.resourcesPath with a runtime expression that resolves
+    # correctly for any install location (Arch, Debian, AppImage)
     old_resource_path = b'process.resourcesPath'
-    new_resource_path = b'"/usr/lib/claude-desktop-bin/locales"'
+    new_resource_path = b'(require("path").dirname(require("electron").app.getAppPath())+"/locales")'
 
     count1 = content.count(old_resource_path)
     if count1 >= 1:
@@ -45,7 +48,7 @@ def patch_locale_paths(filepath):
 
     # Also replace any hardcoded electron paths (optional - may not exist)
     pattern = rb'/usr/lib/electron\d+/resources'
-    replacement = b'/usr/lib/claude-desktop-bin/locales'
+    replacement = b'(require("path").dirname(require("electron").app.getAppPath())+"/locales")'
     content, count2 = re.subn(pattern, replacement, content)
     if count2 > 0:
         print(f"  [OK] hardcoded electron paths: {count2} match(es)")

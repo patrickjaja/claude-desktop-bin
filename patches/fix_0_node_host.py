@@ -4,11 +4,14 @@
 """
 Patch Claude Desktop to fix MCP node host path on Linux.
 
-The fix_locale_paths.py patch replaces process.resourcesPath with our locale path,
-but this breaks the MCP node host path construction. This patch fixes it by
-using app.getAppPath() which correctly points to the app.asar location.
+The original code uses process.resourcesPath for the packaged nodeHost.js path,
+but this doesn't work on Linux. This patch replaces the ternary with
+app.getAppPath() unconditionally, which correctly points to app.asar.
 
-Usage: python3 fix_node_host.py <path_to_index.js>
+This patch is named fix_0_node_host.py so it runs BEFORE fix_locale_paths.py
+(patches run in alphabetical order) and can match the original process.resourcesPath.
+
+Usage: python3 fix_0_node_host.py <path_to_index.js>
 """
 
 import sys
@@ -19,7 +22,7 @@ import re
 def patch_node_host(filepath):
     """Patch the MCP node host path to use app.getAppPath()."""
 
-    print(f"=== Patch: fix_node_host ===")
+    print(f"=== Patch: fix_0_node_host ===")
     print(f"  Target: {filepath}")
 
     if not os.path.exists(filepath):
@@ -31,11 +34,11 @@ def patch_node_host(filepath):
 
     original_content = content
 
-    # Pattern matches the nodeHostPath assignment after fix_locale_paths.py has run
+    # Pattern matches the ORIGINAL nodeHostPath assignment (before any other patches)
     # It captures:
     #   Group 1: electron module variable (de, ce, etc.)
     #   Group 2: path module variable ($e, etc.) - note [\w$]+ to match $
-    pattern = rb'this\.nodeHostPath=([\w$]+)\.app\.isPackaged\?([\w$]+)\.join\("/usr/lib/claude-desktop-bin/locales","app\.asar","\.vite","build","mcp-runtime","nodeHost\.js"\):\2\.join\(\1\.app\.getAppPath\(\),"\.vite","build","mcp-runtime","nodeHost\.js"\)'
+    pattern = rb'this\.nodeHostPath=([\w$]+)\.app\.isPackaged\?([\w$]+)\.join\(process\.resourcesPath,"app\.asar","\.vite","build","mcp-runtime","nodeHost\.js"\):\2\.join\(\1\.app\.getAppPath\(\),"\.vite","build","mcp-runtime","nodeHost\.js"\)'
 
     def replacement(m):
         electron_var = m.group(1)
@@ -49,7 +52,7 @@ def patch_node_host(filepath):
         print(f"  [OK] nodeHostPath: {count} match(es)")
     else:
         print(f"  [FAIL] nodeHostPath: 0 matches, expected 1")
-        print(f"  This patch must run AFTER fix_locale_paths.py")
+        print(f"  This patch must run BEFORE fix_locale_paths.py (on original code)")
         return False
 
     # Write back if changed

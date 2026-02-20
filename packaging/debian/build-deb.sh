@@ -4,11 +4,21 @@
 #
 # Usage: ./build-deb.sh <tarball_path> <output_dir>
 #
-# Requirements: dpkg-deb, fakeroot (optional but recommended)
+# Requirements: dpkg-deb, wget, unzip, fakeroot (optional but recommended)
 #
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Electron version to bundle (can be overridden via environment variable)
+# If not set, fetches latest stable from GitHub
+if [ -z "$ELECTRON_VERSION" ]; then
+    ELECTRON_VERSION=$(curl -s https://api.github.com/repos/electron/electron/releases/latest | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/')
+    if [ -z "$ELECTRON_VERSION" ]; then
+        echo "Failed to fetch latest Electron version, using fallback"
+        ELECTRON_VERSION="33.2.1"
+    fi
+fi
 
 # Colors
 RED='\033[0;31m'
@@ -59,6 +69,12 @@ log_info "Extracting Claude Desktop tarball..."
 mkdir -p "$WORK_DIR/tarball"
 tar -xzf "$TARBALL_PATH" -C "$WORK_DIR/tarball"
 
+# Download Electron
+log_info "Downloading Electron v${ELECTRON_VERSION}..."
+ELECTRON_ZIP="$WORK_DIR/electron.zip"
+wget -q -O "$ELECTRON_ZIP" \
+    "https://github.com/electron/electron/releases/download/v${ELECTRON_VERSION}/electron-v${ELECTRON_VERSION}-linux-x64.zip"
+
 # Create directory structure
 log_info "Creating package structure..."
 mkdir -p "$DEB_ROOT/DEBIAN"
@@ -67,14 +83,19 @@ mkdir -p "$DEB_ROOT/usr/bin"
 mkdir -p "$DEB_ROOT/usr/share/applications"
 mkdir -p "$DEB_ROOT/usr/share/icons/hicolor/256x256/apps"
 
-# Copy application files
+# Extract Electron
+log_info "Extracting Electron..."
+unzip -q "$ELECTRON_ZIP" -d "$DEB_ROOT/usr/lib/claude-desktop"
+
+# Copy application files into Electron's resources directory
 log_info "Installing application files..."
-cp -r "$WORK_DIR/tarball/app/"* "$DEB_ROOT/usr/lib/claude-desktop/"
+cp -r "$WORK_DIR/tarball/app/"* "$DEB_ROOT/usr/lib/claude-desktop/resources/"
 
 # Install launcher script
 cat > "$DEB_ROOT/usr/bin/claude-desktop" << 'EOF'
 #!/bin/bash
-exec electron /usr/lib/claude-desktop/app.asar "$@"
+export ELECTRON_OZONE_PLATFORM_HINT="${ELECTRON_OZONE_PLATFORM_HINT:-auto}"
+exec /usr/lib/claude-desktop/electron /usr/lib/claude-desktop/resources/app.asar "$@"
 EOF
 chmod +x "$DEB_ROOT/usr/bin/claude-desktop"
 
@@ -110,7 +131,7 @@ Section: utils
 Priority: optional
 Architecture: amd64
 Installed-Size: ${INSTALLED_SIZE}
-Depends: electron | electron-bin | electron33
+Depends: libgtk-3-0, libnotify4, libnss3, libxss1, libxtst6, libatspi2.0-0, libdrm2, libgbm1, libasound2
 Recommends: libnotify-bin
 Maintainer: Claude Desktop Linux Community <claude-desktop-linux@users.noreply.github.com>
 Homepage: https://claude.ai
