@@ -12,9 +12,9 @@ Four-part patch:
 2. chillingSlothLocal: No Linux gate needed — naturally returns
    {status:"supported"} on Linux (only gates Windows ARM64).
 3. mC() merger patch: Override features at the async merger layer.
-   Enables quietPenguin/louderPenguin (Code tab, bypasses QL gate) and
-   chillingSlothFeat/chillingSlothLocal/yukonSilver/yukonSilverGems (Cowork)
-   with {status:"supported"}.
+   Enables quietPenguin/louderPenguin (Code tab, bypasses QL gate),
+   chillingSlothFeat/chillingSlothLocal/yukonSilver/yukonSilverGems (Cowork),
+   and ccdPlugins (Plugin UI) with {status:"supported"}.
 4. Preferences defaults patch: Change louderPenguinEnabled and
    quietPenguinEnabled defaults from false to true so the renderer
    (claude.ai web content) enables the Code tab UI.
@@ -111,17 +111,18 @@ def patch_local_agent_mode(filepath):
     # - quietPenguin/louderPenguin → "supported" (Code tab, bypasses QL gate)
     # - chillingSlothFeat/chillingSlothLocal → "supported" (Cowork tab, needs daemon)
     # - yukonSilver/yukonSilverGems → "supported" (VM features, needs daemon)
+    # - ccdPlugins → "supported" (Plugin UI, defensive override for future gating)
     #
     # The async merger spreads ...dg() and then overrides some features with async versions.
     # The last property changes between versions. We match any feature:await pattern before })
     # Before: louderPenguin:await fwt()})  [v1.1.2685]
     # After:  louderPenguin:await fwt(),quietPenguin:{status:"supported"},...})
     pattern3 = rb'(const \w+=async\(\)=>\(\{\.\.\.\w+\(\),[^}]+)(await \w+\(\))\}\)'
-    replacement3 = rb'\1\2,quietPenguin:{status:"supported"},louderPenguin:{status:"supported"},chillingSlothFeat:{status:"supported"},chillingSlothLocal:{status:"supported"},yukonSilver:{status:"supported"},yukonSilverGems:{status:"supported"}})'
+    replacement3 = rb'\1\2,quietPenguin:{status:"supported"},louderPenguin:{status:"supported"},chillingSlothFeat:{status:"supported"},chillingSlothLocal:{status:"supported"},yukonSilver:{status:"supported"},yukonSilverGems:{status:"supported"},ccdPlugins:{status:"supported"}})'
 
     content, count3 = re.subn(pattern3, replacement3, content)
     if count3 >= 1:
-        print(f"  [OK] mC() feature merger: 6 features overridden ({count3} match)")
+        print(f"  [OK] mC() feature merger: 7 features overridden ({count3} match)")
     else:
         print(f"  [FAIL] mC() feature merger: 0 matches, expected 1")
         failed = True

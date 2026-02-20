@@ -31,6 +31,7 @@ Copy-paste this into Claude Code when a new version is available:
 >    - Verify syntax: `node --check /tmp/test_index.js`
 > 4. Rebuild: `./scripts/build-local.sh`
 > 5. Verify all 19 patches pass and JS syntax is valid
+> 5b. Run the Feature Flag Audit (Prompt 3) to check for new/changed flags
 > 6. Install: `sudo pacman -U build/claude-desktop-bin-*-x86_64.pkg.tar.zst`
 > 7. Commit the changes
 
@@ -84,6 +85,31 @@ Copy-paste this into Claude Code to analyze what changed between two versions:
 > - **Rename only** — minified variable name changed, no action needed
 > - **New feature** — new functionality, may need a Linux patch
 > - **Structural change** — code logic changed, existing patches may break
+
+---
+
+## Prompt 3: Feature Flag Audit
+
+Run this on EVERY version update to catch new/changed feature flags:
+
+> **Audit feature flags for Claude Desktop `<NEW_VERSION>`.**
+>
+> 1. Extract Oh()/Kf() static registry — find all feature names:
+>    ```bash
+>    rg -o 'ccdPlugins:\w+' /tmp/claude-new/app/.vite/build/index.js  # anchor on known flag
+>    # Then extract the full function with surrounding context
+>    ```
+> 2. Compare feature list with `CLAUDE_FEATURE_FLAGS.md` — flag any NEW features
+> 3. Check for gate changes:
+>    - Features that moved into/out of QL() wrapping
+>    - Platform checks added/removed
+>    - New async overrides in mC()/ET()
+> 4. Check if `enable_local_agent_mode.py` Patch 3 (mC override) needs new flags
+> 5. Verify the feature schema (`Uqe`) includes all flags we override
+> 6. Update `CLAUDE_FEATURE_FLAGS.md` and patches if needed
+>
+> **Why:** Feature flags control which UI elements appear (Code tab, Cowork tab,
+> plugin buttons, etc.). Missing a new flag means features silently disappear.
 
 ---
 
