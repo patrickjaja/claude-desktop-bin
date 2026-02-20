@@ -67,9 +67,9 @@ while [ $ELAPSED -lt $TIMEOUT_SECONDS ]; do
 done
 
 # Check stderr for JS runtime errors
-if grep -qE "(TypeError|ReferenceError|SyntaxError|Cannot read properties)" "$STDERR_LOG"; then
+if grep -qE "(TypeError|ReferenceError|SyntaxError|Cannot read properties|ENOENT)" "$STDERR_LOG"; then
     echo -e "${RED}[FAIL]${NC} Runtime JS errors detected:"
-    grep -E "(TypeError|ReferenceError|SyntaxError|Cannot read properties)" "$STDERR_LOG"
+    grep -E "(TypeError|ReferenceError|SyntaxError|Cannot read properties|ENOENT)" "$STDERR_LOG"
     kill "$APP_PID" 2>/dev/null; wait "$APP_PID" 2>/dev/null || true
     exit 1
 fi

@@ -37,7 +37,7 @@ def patch_quick_entry_position(filepath):
     # Patch 1: In position function - the fallback position generator
     # Pattern matches: function FUNCNAME(){const t=ELECTRON.screen.getPrimaryDisplay()
     # Function names change between versions (pTe, lPe, etc.), electron var changes (ce, de, etc.)
-    pattern1 = rb'(function \w+\(\)\{const t=)(\w+)(\.screen\.)getPrimaryDisplay\(\)'
+    pattern1 = rb'(function [\w$]+\(\)\{const t=)(\w+)(\.screen\.)getPrimaryDisplay\(\)'
 
     def replacement1_func(m):
         electron_var = m.group(2).decode('utf-8')

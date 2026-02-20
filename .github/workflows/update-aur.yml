@@ -355,6 +355,47 @@ jobs:
           echo "Debian package built: $DEB_FILE"
           echo "SHA256: $DEB_SHA256"
 
+      - name: Test Debian Package
+        if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
+        run: |
+          docker run --rm \
+            -v "$(pwd)/dist:/dist:ro" \
+            -v "$(pwd)/scripts:/scripts:ro" \
+            ubuntu:22.04 \
+            bash -c "
+              set -e
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update
+              apt-get install -y xvfb /dist/claude-desktop-bin_*_amd64.deb
+              bash /scripts/smoke-test.sh \
+                /usr/lib/claude-desktop/resources/app.asar \
+                /usr/lib/claude-desktop/electron
+            "
+
+      - name: Test AppImage
+        if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
+        run: |
+          docker run --rm \
+            -v "$(pwd)/dist:/dist:ro" \
+            -v "$(pwd)/scripts:/scripts:ro" \
+            ubuntu:22.04 \
+            bash -c "
+              set -e
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update
+              apt-get install -y xvfb libgtk-3-0 libnss3 libasound2 libgbm1 libnotify4
+
+              # Extract AppImage (FUSE not available in Docker)
+              chmod +x /dist/Claude_Desktop-*-x86_64.AppImage
+              cd /tmp
+              /dist/Claude_Desktop-*-x86_64.AppImage --appimage-extract
+
+              # Find the electron binary and app.asar inside extracted AppImage
+              bash /scripts/smoke-test.sh \
+                /tmp/squashfs-root/usr/lib/claude-desktop/resources/app.asar \
+                /tmp/squashfs-root/usr/lib/claude-desktop/claude-desktop
+            "
+
       - name: Create GitHub Release
         if: steps.check.outputs.needs_update == 'true' || github.event.inputs.force_rebuild == 'true'
         uses: softprops/action-gh-release@v1
