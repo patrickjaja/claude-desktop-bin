@@ -449,12 +449,18 @@ jobs:
           # Compute SRI hash from the local tarball
           HASH=$(nix hash file --type sha256 --sri "$TARBALL")
 
-          # Update package.nix with correct version and hash.
-          # Use file:// URL to the local tarball since the GitHub release
-          # hasn't been created yet at this point in the pipeline.
+          # Update version and hash in package.nix
           sed -i -E "s|version = \"[^\"]+\"|version = \"$VERSION\"|" packaging/nix/package.nix
           sed -i -E "s|hash = \"sha256-[^\"]+\"|hash = \"$HASH\"|" packaging/nix/package.nix
-          sed -i "s|url = \"https://.*\"|url = \"file://$TARBALL\"|" packaging/nix/package.nix
+
+          # Replace fetchurl with a Nix path literal pointing to the local tarball.
+          # The GitHub release hasn't been created yet, so fetchurl can't download it.
+          # With --impure, Nix copies the path into the store during evaluation.
+          awk -v tarball="$TARBALL" '
+            /src = fetchurl \{/ { print "  src = " tarball ";"; skip=1; next }
+            skip && /\};/ { skip=0; next }
+            !skip' packaging/nix/package.nix > /tmp/package-ci.nix
+          mv /tmp/package-ci.nix packaging/nix/package.nix
 
           # Build (allow unfree since Claude Desktop is proprietary)
           NIXPKGS_ALLOW_UNFREE=1 nix build .#claude-desktop --no-link --print-build-logs --impure
