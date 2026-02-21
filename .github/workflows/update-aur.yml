@@ -453,8 +453,8 @@ jobs:
           sed -i -E "s|version = \"[^\"]+\"|version = \"$VERSION\"|" packaging/nix/package.nix
           sed -i -E "s|hash = \"sha256-[^\"]+\"|hash = \"$HASH\"|" packaging/nix/package.nix
 
-          # Build using local tarball as override
-          nix build .#claude-desktop --no-link --print-build-logs
+          # Build (allow unfree since Claude Desktop is proprietary)
+          NIXPKGS_ALLOW_UNFREE=1 nix build .#claude-desktop --no-link --print-build-logs --impure
 
       - name: Create GitHub Release
         if: steps.check.outputs.needs_update == 'true' || github.event.inputs.force_rebuild == 'true'

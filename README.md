@@ -11,6 +11,7 @@ Unofficial Linux packages for Claude Desktop AI assistant with automated updates
 ```bash
 yay -S claude-desktop-bin
 ```
+Updates arrive through your AUR helper (e.g. `yay -Syu`).
 
 ### Debian / Ubuntu (APT Repository)
 ```bash
@@ -38,6 +39,8 @@ wget https://github.com/patrickjaja/claude-desktop-bin/releases/latest/download/
 sudo dnf install ./claude-desktop-bin-*-1.x86_64.rpm
 ```
 
+> **Note:** No automatic updates. Download the latest `.rpm` from [GitHub Releases](https://github.com/patrickjaja/claude-desktop-bin/releases) to update.
+
 ### NixOS / Nix
 ```bash
 # Try without installing
@@ -61,6 +64,8 @@ nix profile install github:patrickjaja/claude-desktop-bin
 }
 ```
 </details>
+
+> **Note:** Update by running `nix flake update` to pull the latest version. `nix run` always fetches the latest.
 
 ### AppImage (Any Distro)
 ```bash
