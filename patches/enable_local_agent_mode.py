@@ -117,7 +117,7 @@ def patch_local_agent_mode(filepath):
     # The last property changes between versions. We match any feature:await pattern before })
     # Before: louderPenguin:await fwt()})  [v1.1.2685]
     # After:  louderPenguin:await fwt(),quietPenguin:{status:"supported"},...})
-    pattern3 = rb'(const \w+=async\(\)=>\(\{\.\.\.\w+\(\),[^}]+)(await \w+\(\))\}\)'
+    pattern3 = rb'(const \w+=async\(\)=>\(\{\.\.\.[\w$]+\(\),[^}]+)(await [\w$]+\(\))\}\)'
     replacement3 = rb'\1\2,quietPenguin:{status:"supported"},louderPenguin:{status:"supported"},chillingSlothFeat:{status:"supported"},chillingSlothLocal:{status:"supported"},yukonSilver:{status:"supported"},yukonSilverGems:{status:"supported"},ccdPlugins:{status:"supported"}})'
 
     content, count3 = re.subn(pattern3, replacement3, content)
@@ -177,7 +177,8 @@ def patch_local_agent_mode(filepath):
     # The User-Agent string contains "Linux" which the server uses for platform
     # detection. Replace "X11; Linux ..." → "Macintosh; Intel Mac OS X 10_15_7" in the UA.
     # Pattern: let l=o;s.set("user-agent",l)  (the existing no-op UA passthrough)
-    ua_pattern2 = rb'(let )(\w+)(=)(\w+)(;)(s\.set\("user-agent",)\2(\))'
+    # The variable before .set() changes between versions (s, a, etc.)
+    ua_pattern2 = rb'(let )(\w+)(=)(\w+)(;)(\w+\.set\("user-agent",)\2(\))'
 
     def ua_replacement2(m):
         var = m.group(2)   # l

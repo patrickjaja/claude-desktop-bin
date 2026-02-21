@@ -198,11 +198,15 @@ def patch_cowork_linux(filepath):
         print(f"  [WARN] Claude Code path: pattern not found")
 
     # Also extend the error detection to recognize Linux paths
-    error_detect_old = b't.includes("/usr/local/bin/claude")'
-    error_detect_new = b'(t.includes("/usr/local/bin/claude")||t.includes("/usr/bin/claude")||t.includes("/.local/bin/claude"))'
+    # Use regex to match any variable name before .includes
+    error_detect_pattern = rb'(\w+)(\.includes\("/usr/local/bin/claude"\))'
 
-    if error_detect_old in content:
-        content = content.replace(error_detect_old, error_detect_new, 1)
+    def error_detect_replacement(m):
+        var = m.group(1)
+        return b'(' + var + b'.includes("/usr/local/bin/claude")||' + var + b'.includes("/usr/bin/claude")||' + var + b'.includes("/.local/bin/claude"))'
+
+    content, error_count = re.subn(error_detect_pattern, error_detect_replacement, content, count=1)
+    if error_count >= 1:
         print(f"  [OK] Error detection: extended for Linux paths")
         patches_applied += 1
     else:

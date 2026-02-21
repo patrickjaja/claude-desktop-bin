@@ -2,6 +2,26 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-02-21
+
+### Changed
+- **Update to Claude Desktop v1.1.3918** (from v1.1.3770)
+
+### Fixed
+- **enable_local_agent_mode.py** — Use `[\w$]+` instead of `\w+` for async merger function names (`$Pt` contains `$`); also make User-Agent spoof pattern variable-agnostic (`\w+\.set` instead of hardcoded `s\.set`)
+- **fix_cowork_linux.py** — Use regex instead of literal match for error detection pattern; variable name changed from `t` to `e` in v1.1.3918
+
+### Added
+- **fix_mcp_reconnect.py** — New patch: fix MCP server reconnection error ("Already connected to a transport") by calling `close()` before `connect()` in the `connect-to-mcp-server` IPC handler
+
+### Documentation
+- **CLAUDE_FEATURE_FLAGS.md** — Updated for v1.1.3918: function renames (Oh→Fd, mC→mP, QL→o_e), `chillingSlothEnterprise` moved to static layer, `mP` simplified to only override `louderPenguin`, `ccdPlugins` inlined, added version history table
+
+### Notes
+- Key renames: Oh()→Fd(), mC()→mP, QL()→o_e(), all individual feature functions renamed
+- `chillingSlothLocal` now unconditionally returns supported (no more win32/arm64 gate)
+- `louderPenguin` removed from Fd() entirely, only exists in mP async merger
+
 ## 2026-02-20
 
 ### Changed
