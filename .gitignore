@@ -40,6 +40,9 @@ extract
 /window-shared.css
 __pycache__/
 
+# Nix build output
+result
+
 # Debug notes
 /latest.md
 /validate_and_fix_claude-setup-x64.md

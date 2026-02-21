@@ -397,6 +397,65 @@ jobs:
                 /tmp/squashfs-root/usr/lib/claude-desktop/claude-desktop
             "
 
+      - name: Build RPM Package
+        if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
+        id: rpm
+        run: |
+          echo "=== Building RPM Package ==="
+          VERSION="${{ steps.version.outputs.version }}"
+          TARBALL="claude-desktop-${VERSION}-linux.tar.gz"
+
+          docker run --rm \
+            -v "$(pwd):/build:ro" \
+            -v "$(pwd)/dist:/output" \
+            fedora:40 \
+            bash -c "
+              set -euo pipefail
+              dnf install -y rpm-build wget unzip
+              bash /build/packaging/rpm/build-rpm.sh /build/$TARBALL /output
+            "
+
+          RPM_FILE=$(ls dist/claude-desktop-bin-*.rpm)
+          RPM_SHA256=$(sha256sum "$RPM_FILE" | cut -d' ' -f1)
+          echo "rpm_sha256=${RPM_SHA256}" >> $GITHUB_OUTPUT
+
+          echo "RPM built: $RPM_FILE"
+          echo "SHA256: $RPM_SHA256"
+
+      - name: Test RPM Package
+        if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
+        run: |
+          docker run --rm \
+            -v "$(pwd)/dist:/dist:ro" \
+            -v "$(pwd)/scripts:/scripts:ro" \
+            fedora:40 \
+            bash -c "
+              set -e
+              dnf install -y xorg-x11-server-Xvfb /dist/claude-desktop-bin-*.rpm
+              bash /scripts/smoke-test.sh \
+                /usr/lib/claude-desktop/resources/app.asar \
+                /usr/lib/claude-desktop/electron
+            "
+
+      - name: Test Nix Build
+        if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
+        uses: cachix/install-nix-action@v27
+      - name: Build with Nix
+        if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          TARBALL="$(pwd)/claude-desktop-${VERSION}-linux.tar.gz"
+
+          # Compute SRI hash from the local tarball
+          HASH=$(nix hash file --type sha256 --sri "$TARBALL")
+
+          # Update package.nix with correct version and hash
+          sed -i -E "s|version = \"[^\"]+\"|version = \"$VERSION\"|" packaging/nix/package.nix
+          sed -i -E "s|hash = \"sha256-[^\"]+\"|hash = \"$HASH\"|" packaging/nix/package.nix
+
+          # Build using local tarball as override
+          nix build .#claude-desktop --no-link --print-build-logs
+
       - name: Create GitHub Release
         if: steps.check.outputs.needs_update == 'true' || github.event.inputs.force_rebuild == 'true'
         uses: softprops/action-gh-release@v1
@@ -407,6 +466,7 @@ jobs:
             claude-desktop-${{ steps.version.outputs.version }}-linux.tar.gz
             dist/Claude_Desktop-${{ steps.version.outputs.version }}-x86_64.AppImage
             dist/claude-desktop-bin_${{ steps.version.outputs.version }}_amd64.deb
+            dist/claude-desktop-bin-${{ steps.version.outputs.version }}-1.x86_64.rpm
           body: |
             ## ${{ steps.pkgrel.outputs.release_name }}
 
@@ -430,6 +490,16 @@ jobs:
             sudo apt install ./claude-desktop-bin_${{ steps.version.outputs.version }}_amd64.deb
             ```
 
+            **Fedora/RHEL (manual .rpm)**
+            ```bash
+            sudo dnf install ./claude-desktop-bin-${{ steps.version.outputs.version }}-1.x86_64.rpm
+            ```
+
+            **NixOS / Nix**
+            ```bash
+            nix run github:patrickjaja/claude-desktop-bin
+            ```
+
             **AppImage (Any Distro)**
             ```bash
             chmod +x Claude_Desktop-${{ steps.version.outputs.version }}-x86_64.AppImage
@@ -442,6 +512,7 @@ jobs:
             | Tarball | `${{ steps.build.outputs.tarball_sha256 }}` |
             | AppImage | `${{ steps.appimage.outputs.appimage_sha256 }}` |
             | Debian | `${{ steps.deb.outputs.deb_sha256 }}` |
+            | RPM | `${{ steps.rpm.outputs.rpm_sha256 }}` |
 
             ### Changes since last release
             ${{ steps.git_changelog.outputs.content }}

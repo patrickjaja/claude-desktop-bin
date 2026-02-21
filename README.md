@@ -31,6 +31,37 @@ sudo dpkg -i claude-desktop-bin_*_amd64.deb
 ```
 </details>
 
+### Fedora / RHEL (.rpm)
+```bash
+# Download from GitHub Releases
+wget https://github.com/patrickjaja/claude-desktop-bin/releases/latest/download/claude-desktop-bin-1.1.3918-1.x86_64.rpm
+sudo dnf install ./claude-desktop-bin-*-1.x86_64.rpm
+```
+
+### NixOS / Nix
+```bash
+# Try without installing
+nix run github:patrickjaja/claude-desktop-bin
+
+# Or add to flake.nix
+nix profile install github:patrickjaja/claude-desktop-bin
+```
+
+<details>
+<summary>NixOS flake configuration</summary>
+
+```nix
+{
+  inputs.claude-desktop.url = "github:patrickjaja/claude-desktop-bin";
+
+  # In your system config:
+  environment.systemPackages = [
+    inputs.claude-desktop.packages.x86_64-linux.default
+  ];
+}
+```
+</details>
+
 ### AppImage (Any Distro)
 ```bash
 # Download from GitHub Releases
@@ -51,7 +82,7 @@ cd claude-desktop-bin
 > **Note:** Source builds do not receive automatic updates. Pull and rebuild to update.
 
 ## Features
-- Native Linux support (Arch, Debian/Ubuntu, AppImage)
+- Native Linux support (Arch, Debian/Ubuntu, Fedora/RHEL, NixOS, AppImage)
 - **Claude Code CLI integration** - Auto-detects system-installed Claude Code
 - **Local Agent Mode** - Git worktrees and agent sessions
 - **Cowork support** - Agentic workspace feature enabled on Linux (requires [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service))
@@ -151,7 +182,7 @@ If upstream Claude Desktop changes break a patch:
 - `.github/workflows/` - GitHub Actions for automation
 - `scripts/` - Build and validation scripts
 - `patches/` - Linux compatibility patches
-- `packaging/` - Debian and AppImage build scripts
+- `packaging/` - Debian, RPM, AppImage, and Nix build scripts
 - `PKGBUILD.template` - AUR package template
 
 ## Wayland: Global Shortcut Not Working
