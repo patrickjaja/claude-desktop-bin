@@ -6,10 +6,10 @@ Installed-Size: 311052
 Depends: libgtk-3-0, libnotify4, libnss3, libxss1, libxtst6, libatspi2.0-0, libdrm2, libgbm1, libasound2
 Recommends: libnotify-bin
 Filename: amd64/claude-desktop-bin_1.1.4010_amd64.deb
-Size: 90147484
-MD5sum: cfb024021d501d28abd6434918df8e85
-SHA1: caa33390c568f2a352f5bd670aa0d6c10747c87f
-SHA256: e5e0a323109008a4033f1c00a31cc7095d5c2105f88410159750d2017ecee932
+Size: 90147490
+MD5sum: a3429f68f1ecf5e3b8948968fa826b36
+SHA1: b09afecb00d8d0da6141640fd9fbbda273225424
+SHA256: a1ecc61aaff4f54cb62033bee31ef3c675e080db6083792c87c064d86cae0494
 Section: utils
 Priority: optional
 Homepage: https://claude.ai
