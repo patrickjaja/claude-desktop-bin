@@ -3,7 +3,7 @@
 
 Name:           claude-desktop-bin
 Version:        %{pkg_version}
-Release:        1%{?dist}
+Release:        1
 Summary:        Claude AI Desktop Application for Linux
 
 License:        Proprietary
