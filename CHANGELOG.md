@@ -2,6 +2,26 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-02-24
+
+### Changed
+- **Update to Claude Desktop v1.1.4088** (from v1.1.3918)
+
+### Fixed
+- **fix_disable_autoupdate.py** — Use `[\w$]+` instead of `\w+` for Electron module variable (`$e` contains `$`)
+- **fix_marketplace_linux.py** — Use `[\w$]+` for all variable patterns; gate function renamed `Hb`→`$S`, managers `gz`→`CK`/`$K`
+- **fix_quick_entry_position.py** — Use `[\w$]+` for Electron module variable; make fallback display patch optional (lazy-init pattern removed upstream)
+- **fix_tray_icon_theme.py** — Use `[\w$]+` for Electron module variable (`$e`)
+- **fix_mcp_reconnect.py** — Detect upstream close-before-connect fix and skip gracefully (upstream added `t.transport&&await t.close()`)
+
+### Added
+- **update-prompt.md** — New "Step 0: Clean Slate" section for removing stale artifacts before version updates
+
+### Notes
+- Key renames: Electron module `Pe`→`$e`, CCD gate `Hb`→`$S`, marketplace managers `gz`/`mz`→`CK`/`$K`
+- MCP reconnect fix is now upstream — patch detects and skips
+- Common fix: `$` in minified JS identifiers requires `[\w$]+` in regex patterns
+
 ## 2026-02-21
 
 ### Changed

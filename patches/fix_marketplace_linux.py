@@ -50,46 +50,38 @@ def patch_marketplace_linux(filepath):
     original_content = content
     patches_applied = 0
 
-    # Patch A: oAt() IPC bridge runner selector
+    # Patch A: IPC bridge runner selector
     #
-    # Original: const e=r=>Hb(r)?gz:mz
-    # Patched:  const e=r=>process.platform==="linux"||Hb(r)?gz:mz
+    # Original: const e=r=>$S(r)?CK:$K
+    # Patched:  const e=r=>process.platform==="linux"||$S(r)?CK:$K
     #
-    # On Linux, the || short-circuits to true → always selects gz (host runner).
-    # On other platforms, falls through to Hb(r) which checks CCD mode.
+    # On Linux, the || short-circuits to true → always selects CK (host runner).
+    # On other platforms, falls through to $S(r) which checks CCD mode.
     #
-    # Capture groups:
-    #   1 = "const " + variable name + "="
-    #   2 = parameter name (used in Hb() call)
-    #   3 = host runner variable (gz)
-    #   4 = VM runner variable (mz)
-    pattern_a = rb'(const \w+=)(\w+)(=>(\w+)\(\2\)\?)(\w+):(\w+)'
+    # Variable names may contain $ (valid JS identifier), so use [\w$]+.
+    pattern_a = rb'(const [\w$]+=)([\w$]+)(=>([\w$]+)\(\2\)\?)([\w$]+):([\w$]+)'
 
     def replacement_a(m):
-        gate_fn = m.group(4)  # The gate function name (Hb, Gw, etc.)
+        gate_fn = m.group(4)  # The gate function name ($S, Hb, Gw, etc.)
         return (m.group(1) + m.group(2) +
                 b'=>process.platform==="linux"||' + gate_fn + b'(' + m.group(2) + b')?' +
                 m.group(5) + b':' + m.group(6))
 
     content, count_a = re.subn(pattern_a, replacement_a, content)
     if count_a >= 1:
-        print(f"  [OK] oAt() runner selector: force host runner on Linux ({count_a} match)")
+        print(f"  [OK] runner selector: force host runner on Linux ({count_a} match)")
         patches_applied += 1
     else:
-        print(f"  [FAIL] oAt() runner selector: 0 matches")
+        print(f"  [FAIL] runner selector: 0 matches")
 
     # Patch B: search_plugins tool handler
     #
-    # Original: r.sessionType==="ccd"?gz:mz
-    # Patched:  (process.platform==="linux"||r.sessionType==="ccd")?gz:mz
+    # Original: r.sessionType==="ccd"?CK:$K
+    # Patched:  (process.platform==="linux"||r.sessionType==="ccd")?CK:$K
     #
     # Same logic as Patch A but in the search_plugins handler.
-    #
-    # Capture groups:
-    #   1 = session variable (r)
-    #   2 = host runner variable (gz)
-    #   3 = VM runner variable (mz)
-    pattern_b = rb'(\w+)(\.sessionType==="ccd"\?)(\w+):(\w+)'
+    # Variable names may contain $ (valid JS identifier), so use [\w$]+.
+    pattern_b = rb'([\w$]+)(\.sessionType==="ccd"\?)([\w$]+):([\w$]+)'
 
     def replacement_b(m):
         return (b'(process.platform==="linux"||' + m.group(1) +
@@ -103,22 +95,18 @@ def patch_marketplace_linux(filepath):
     else:
         print(f"  [FAIL] search_plugins handler: 0 matches")
 
-    # Patch C: Hb() — force CCD mode on Linux
+    # Patch C: CCD/Cowork gate — force CCD mode on Linux
     #
-    # Hb() is the CCD/Cowork gate called throughout the plugin system.
-    # When Hb() returns true, operations use host-local CCD paths (bq(), gz, oyt()).
-    # When false, they use account-scoped Cowork paths (XA(), mz).
+    # $S() (formerly Hb()) is the CCD/Cowork gate called throughout the plugin system.
+    # When it returns true, operations use host-local CCD paths.
+    # When false, they use account-scoped Cowork paths.
     # On Linux there's no VM, so all operations should use the CCD path.
     #
-    # Original: function Hb(t){return(t==null?void 0:t.mode)==="ccd"}
-    # Patched:  function Hb(t){return process.platform==="linux"||(t==null?void 0:t.mode)==="ccd"}
+    # Original: function $S(t){return(t==null?void 0:t.mode)==="ccd"}
+    # Patched:  function $S(t){return process.platform==="linux"||(t==null?void 0:t.mode)==="ccd"}
     #
-    # This fixes 5 call sites at once: oAt() runner selector, getPlugins,
-    # uploadPlugin, deletePlugin, and setPluginEnabled.
-    #
-    # Capture groups:
-    #   1 = parameter name (e.g. "t")
-    pattern_c = rb'function (\w+)\((\w+)\)\{return\((\2)==null\?void 0:\3\.mode\)==="ccd"\}'
+    # Function name may contain $ (valid JS identifier), so use [\w$]+.
+    pattern_c = rb'function ([\w$]+)\(([\w$]+)\)\{return\((\2)==null\?void 0:\3\.mode\)==="ccd"\}'
 
     def replacement_c(m):
         fn_name = m.group(1)
@@ -128,10 +116,10 @@ def patch_marketplace_linux(filepath):
 
     content, count_c = re.subn(pattern_c, replacement_c, content)
     if count_c >= 1:
-        print(f"  [OK] Hb() CCD/Cowork gate: force CCD mode on Linux ({count_c} match)")
+        print(f"  [OK] CCD/Cowork gate: force CCD mode on Linux ({count_c} match)")
         patches_applied += 1
     else:
-        print(f"  [FAIL] Hb() CCD/Cowork gate: 0 matches")
+        print(f"  [FAIL] CCD/Cowork gate: 0 matches")
 
     # Check results
     if patches_applied == 0:

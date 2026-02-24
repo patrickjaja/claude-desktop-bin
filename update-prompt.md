@@ -11,6 +11,30 @@ https://downloads.claude.ai/releases/win32/x64/<VERSION>/Claude-<HASH>.exe
 
 ---
 
+## Step 0: Clean Slate (Run First)
+
+Before any version update, remove stale artifacts so the build downloads fresh:
+
+> **Prepare for a clean Claude Desktop update.**
+>
+> 1. Remove old build artifacts and exe:
+>    ```bash
+>    rm -rf build/ extract/
+>    rm -f Claude-Setup-x64.exe
+>    ```
+> 2. Remove leftover dev binaries from project root:
+>    ```bash
+>    rm -f chrome-native-host.exe cowork-svc.exe smol-bin.vhdx
+>    ```
+> 3. Verify clean state:
+>    ```bash
+>    git status
+>    ```
+>
+> Then proceed to **Prompt 1** — the build script will auto-download the latest exe.
+
+---
+
 ## Prompt 1: Build & Fix Patches
 
 Copy-paste this into Claude Code when a new version is available:

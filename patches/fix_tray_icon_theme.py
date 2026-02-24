@@ -45,12 +45,13 @@ def patch_tray_icon_theme(filepath):
     # - e = icon filename variable
 
     # Match the pattern with flexible variable names
-    pattern = rb'([\w$]+)\?(\w+)=(\w+)\.nativeTheme\.shouldUseDarkColors\?"Tray-Win32-Dark\.ico":"Tray-Win32\.ico":\2="TrayIconTemplate\.png"'
+    # Variable names may contain $ (valid JS identifier), so use [\w$]+
+    pattern = rb'([\w$]+)\?([\w$]+)=([\w$]+)\.nativeTheme\.shouldUseDarkColors\?"Tray-Win32-Dark\.ico":"Tray-Win32\.ico":\2="TrayIconTemplate\.png"'
 
     def replacement(m):
-        is_win_var = m.group(1)  # Si
+        is_win_var = m.group(1)  # Ln
         icon_var = m.group(2)     # e
-        electron_var = m.group(3) # de
+        electron_var = m.group(3) # $e
         # On Windows: use .ico files with theme check
         # On Linux: always use light icon (Dark.png) since trays are universally dark
         return (is_win_var + b'?' + icon_var + b'=' + electron_var +

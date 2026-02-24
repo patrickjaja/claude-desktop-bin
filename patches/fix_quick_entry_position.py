@@ -34,10 +34,11 @@ def patch_quick_entry_position(filepath):
     original_content = content
     failed = False
 
-    # Patch 1: In position function - the fallback position generator
+    # Patch 1: In position function - the Quick Entry centering function
     # Pattern matches: function FUNCNAME(){const t=ELECTRON.screen.getPrimaryDisplay()
-    # Function names change between versions (pTe, lPe, etc.), electron var changes (ce, de, etc.)
-    pattern1 = rb'(function [\w$]+\(\)\{const t=)(\w+)(\.screen\.)getPrimaryDisplay\(\)'
+    # Function names change between versions (pTe, lPe, kFt, etc.)
+    # Electron var may contain $ (e.g. $e), so use [\w$]+
+    pattern1 = rb'(function [\w$]+\(\)\{const [\w$]+=)([\w$]+)(\.screen\.)getPrimaryDisplay\(\)'
 
     def replacement1_func(m):
         electron_var = m.group(2).decode('utf-8')
@@ -51,10 +52,10 @@ def patch_quick_entry_position(filepath):
         print(f"  [FAIL] position function: 0 matches, expected >= 1")
         failed = True
 
-    # Patch 2: In fallback display lookup
-    # Pattern matches: VAR||(VAR=ELECTRON.screen.getPrimaryDisplay())
-    # Variable name changes between versions (r, n, etc.), so use backreference
-    pattern2 = rb'(\w)\|\|\(\1=(\w+)\.screen\.getPrimaryDisplay\(\)\)'
+    # Patch 2 (optional): Fallback display lookup
+    # Pattern: VAR||(VAR=ELECTRON.screen.getPrimaryDisplay())
+    # This lazy-init pattern was removed in newer versions, so it's optional.
+    pattern2 = rb'([\w$])\|\|\(\1=([\w$]+)\.screen\.getPrimaryDisplay\(\)\)'
 
     def replacement2_func(m):
         var_name = m.group(1).decode('utf-8')
@@ -65,12 +66,7 @@ def patch_quick_entry_position(filepath):
     if count2 > 0:
         print(f"  [OK] fallback display: {count2} match(es)")
     else:
-        print(f"  [FAIL] fallback display: 0 matches, expected >= 1")
-        failed = True
-
-    # Patch 3: Disabled - this optional enhancement caused syntax errors
-    # The pattern only matched part of a function, leaving dangling code
-    print(f"  [INFO] dTe() override: skipped (disabled)")
+        print(f"  [INFO] fallback display: 0 matches (pattern removed in this version, optional)")
 
     # Check results
     if failed:

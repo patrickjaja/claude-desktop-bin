@@ -39,7 +39,7 @@ def patch_disable_autoupdate(filepath):
     original_content = content
     failed = False
 
-    # Patch: Make the isInstalled function (s$e) return false on Linux
+    # Patch: Make the isInstalled function return false on Linux
     #
     # Original pattern (minified variable names change between versions):
     #   function XXX(){if(process.platform!=="win32")return YY.app.isPackaged;...
@@ -47,9 +47,9 @@ def patch_disable_autoupdate(filepath):
     # We insert a Linux early-return before the existing platform check:
     #   function XXX(){if(process.platform==="linux")return!1;if(process.platform!=="win32")return YY.app.isPackaged;...
     #
-    # The function name (s$e etc.) contains $ which is valid in JS identifiers.
-    # We use a flexible pattern to match any function name.
-    pattern = rb'(function \w+\$\w+\(\)\{)(if\(process\.platform!=="win32"\)return \w+\.app\.isPackaged)'
+    # Function name and electron var may contain $ (valid JS identifier char).
+    # Use [\w$]+ to match any JS identifier.
+    pattern = rb'(function [\w$]+\(\)\{)(if\(process\.platform!=="win32"\)return [\w$]+\.app\.isPackaged)'
 
     replacement = rb'\1if(process.platform==="linux")return!1;\2'
 
@@ -57,14 +57,8 @@ def patch_disable_autoupdate(filepath):
     if count >= 1:
         print(f"  [OK] isInstalled Linux gate: {count} match(es)")
     else:
-        # Try alternative pattern without $ in function name (in case it changes)
-        pattern_alt = rb'(function \w+\(\)\{)(if\(process\.platform!=="win32"\)return \w+\.app\.isPackaged)'
-        content, count = re.subn(pattern_alt, replacement, content)
-        if count >= 1:
-            print(f"  [OK] isInstalled Linux gate (alt pattern): {count} match(es)")
-        else:
-            print(f"  [FAIL] isInstalled function: 0 matches")
-            failed = True
+        print(f"  [FAIL] isInstalled function: 0 matches")
+        failed = True
 
     if failed:
         print("  [FAIL] Required patterns did not match")
