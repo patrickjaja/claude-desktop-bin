@@ -80,22 +80,36 @@ def patch_local_agent_mode(filepath):
         return False
 
     # Patch 1b: Bypass yukonSilver (NH) platform gate on Linux
-    # NH() gates yukonSilver on darwin/win32 only. On Linux it returns
-    # {status:"unsupported",reason:"Unsupported platform: linux"} which leaks "linux"
-    # to the renderer and may prevent Cowork from appearing. We inject an early return
-    # for Linux so the TypeScript VM client can talk to the cowork-svc-linux daemon.
-    nh_pattern = rb'(function \w+\(\)\{)(const (\w+)=process\.platform;if\(\3!=="darwin"&&\3!=="win32"\)return\{status:"unsupported",reason:`Unsupported platform: \$\{\3\}`\})'
+    # NH()/WOt() gates yukonSilver on darwin/win32 only. On Linux it returns
+    # {status:"unsupported"} which prevents Cowork from appearing.
+    # We inject an early return for Linux so the TypeScript VM client
+    # can talk to the cowork-svc-linux daemon.
+    #
+    # Two format variants exist across versions:
+    #   Old (≤v1.1.4088): reason:`Unsupported platform: ${t}` (template literal)
+    #   New (≥v1.1.4173): reason:Ue.formatMessage({defaultMessage:"Cowork is not
+    #     currently supported on {platform}"},{platform:ak()}),
+    #     unsupportedCode:"unsupported_platform"
+    # The new formatMessage call lacks an 'id' field, causing a [@formatjs/intl]
+    # console error on Linux. The early return prevents both the error and the
+    # unsupported status.
+    nh_pattern_old = rb'(function \w+\(\)\{)(const (\w+)=process\.platform;if\(\3!=="darwin"&&\3!=="win32"\)return\{status:"unsupported",reason:`Unsupported platform: \$\{\3\}`\})'
+    nh_pattern_new = rb'(function \w+\(\)\{)(const (\w+)=process\.platform;if\(\3!=="darwin"&&\3!=="win32"\)return\{status:"unsupported",reason:\w+\.formatMessage\(\{defaultMessage:"Cowork is not currently supported on \{platform\}"\},\{platform:\w+\(\)\}\),unsupportedCode:"unsupported_platform"\};)'
 
     def nh_replacement(m):
         return m.group(1) + b'if(process.platform==="linux")return{status:"supported"};' + m.group(2)
 
-    content, count1b = re.subn(nh_pattern, nh_replacement, content, count=1)
+    content, count1b = re.subn(nh_pattern_old, nh_replacement, content, count=1)
     if count1b >= 1:
         print(f"  [OK] yukonSilver (NH): Linux early return injected ({count1b} match)")
     elif b'if(process.platform==="linux")return{status:"supported"};const' in content:
         print(f"  [OK] yukonSilver (NH): already patched")
     else:
-        print(f"  [WARN] yukonSilver (NH): 0 matches")
+        content, count1b = re.subn(nh_pattern_new, nh_replacement, content, count=1)
+        if count1b >= 1:
+            print(f"  [OK] yukonSilver (NH): Linux early return injected (formatMessage variant, {count1b} match)")
+        else:
+            print(f"  [WARN] yukonSilver (NH): 0 matches")
 
     # Patch 2: chillingSlothLocal — no Linux gate needed
     # This function only gates Windows ARM64, returning {status:"supported"} on Linux

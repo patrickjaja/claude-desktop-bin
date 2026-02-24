@@ -13,9 +13,11 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 - **fix_quick_entry_position.py** — Use `[\w$]+` for Electron module variable; make fallback display patch optional (lazy-init pattern removed upstream)
 - **fix_tray_icon_theme.py** — Use `[\w$]+` for Electron module variable (`$e`)
 - **fix_mcp_reconnect.py** — Detect upstream close-before-connect fix and skip gracefully (upstream added `t.transport&&await t.close()`)
+- **enable_local_agent_mode.py** — Add second regex variant for the yukonSilver (NH/WOt) platform gate to support v1.1.4173+ `formatMessage` pattern alongside the old template literal pattern
 
 ### Added
 - **update-prompt.md** — New "Step 0: Clean Slate" section for removing stale artifacts before version updates
+- **CLAUDE.md** — Added log files section documenting runtime logs at `~/.config/Claude/logs/`
 
 ### Notes
 - Key renames: Electron module `Pe`→`$e`, CCD gate `Hb`→`$S`, marketplace managers `gz`/`mz`→`CK`/`$K`

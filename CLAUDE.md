@@ -147,6 +147,29 @@ scripts/
 
 See [CLAUDE_FEATURE_FLAGS.md](CLAUDE_FEATURE_FLAGS.md) for full documentation of the 12 feature flags, the 3-layer override architecture (Oh → mC → IPC), and how `enable_local_agent_mode.py` bypasses the QL() production gate.
 
+## Log Files
+
+Runtime logs are at `~/.config/Claude/logs/`:
+
+| Log File | Description |
+|----------|-------------|
+| `main.log` | Main Electron process log (~6MB) |
+| `claude.ai-web.log` | BrowserView web content log (~1.6MB) |
+| `cowork_vm_node.log` | Cowork VM/session log (~638KB) |
+| `mcp.log` | MCP server communication log (~3.5MB) |
+| `mcp-server-*.log` | Per-MCP-server logs (e.g., ClickUp) |
+
+```bash
+# Tail main process log
+tail -f ~/.config/Claude/logs/main.log
+
+# Search for errors across all logs
+rg -i 'error|exception|fatal' ~/.config/Claude/logs/
+
+# Check crash reports
+ls -la ~/.config/Claude/crash*
+```
+
 ## CI Pipeline
 
 GitHub Actions workflow:
