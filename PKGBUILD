@@ -3,8 +3,8 @@
 # AUR Package Repository: https://github.com/patrickjaja/claude-desktop-bin
 
 pkgname=claude-desktop-bin
-pkgver=1.1.4010
-pkgrel=2
+pkgver=1.1.4173
+pkgrel=1
 pkgdesc="Claude Desktop - Linux (unofficial, from official binary)"
 arch=('x86_64')
 url="https://claude.ai"
@@ -14,8 +14,8 @@ optdepends=('claude-code: Claude Code CLI for agentic coding features (npm i -g 
             'claude-cowork-service: Enables Cowork VM features on Linux (experimental)')
 provides=('claude-desktop')
 conflicts=('claude-desktop')
-source_x86_64=("claude-desktop-${pkgver}-${pkgrel}-linux.tar.gz::https://github.com/patrickjaja/claude-desktop-bin/releases/download/v1.1.4010-2/claude-desktop-1.1.4010-linux.tar.gz")
-sha256sums_x86_64=('c1484359d48c46e7ed90ae3b1a6bf92efa56a6568e8622dccc3036f99d9ef27e')
+source_x86_64=("claude-desktop-${pkgver}-${pkgrel}-linux.tar.gz::https://github.com/patrickjaja/claude-desktop-bin/releases/download/v1.1.4173/claude-desktop-1.1.4173-linux.tar.gz")
+sha256sums_x86_64=('907a9726105f4d76f97f89c2a924d9d58ea1368a2ac7bbd480906fdeddf92785')
 options=('!strip')
 
 package() {
