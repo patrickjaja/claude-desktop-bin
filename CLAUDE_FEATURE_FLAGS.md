@@ -1,14 +1,14 @@
 # Claude Desktop Feature Flag Architecture
 
-Reference documentation for the feature flag system in Claude Desktop's Electron app. This documents v1.1.3918 internals to aid patch maintenance.
+Reference documentation for the feature flag system in Claude Desktop's Electron app. This documents v1.1.4328 internals to aid patch maintenance.
 
 ## Overview
 
 13 feature flags are controlled by a 3-layer system:
 
-1. **`Fd()` (static)** - Calls individual feature functions, builds base object (12 features)
-2. **`mP` (async merger)** - Spreads `Fd()`, adds `louderPenguin` as async override
-3. **IPC handler** - Calls `mP`, validates against schema, sends to renderer
+1. **`nh()` (static)** - Calls individual feature functions, builds base object (12 features)
+2. **`rO` (async merger)** - Spreads `nh()`, adds `louderPenguin` as async override
+3. **IPC handler** - Calls `rO`, validates against schema, sends to renderer
 
 Feature name strings (`chillingSlothFeat`, `louderPenguin`, etc.) are runtime IPC identifiers, **not minified** - they are stable pattern anchors.
 
@@ -16,31 +16,31 @@ Feature name strings (`chillingSlothFeat`, `louderPenguin`, etc.) are runtime IP
 
 | # | Feature | Function | Gate | Purpose |
 |---|---------|----------|------|---------|
-| 1 | `nativeQuickEntry` | `vPt()` | `platform !== "darwin"` | Native Quick Entry (macOS only) |
-| 2 | `quickEntryDictation` | `_Pt()` | `platform !== "darwin"` | Quick Entry dictation |
-| 3 | `customQuickEntryDictationShortcut` | direct value `nU` | None | Custom dictation shortcut value |
-| 4 | `plushRaccoon` | `o_e(() => nU)` | **o_e() production gate** | Custom dictation shortcut (dev-gated) |
-| 5 | `quietPenguin` | `o_e(xPt)` | **o_e()** + darwin check in `xPt()` | Code-related feature (dev-gated) |
-| 6 | `louderPenguin` | `await $Pt()` in mP() only | **async override** in mP(); platform gate (darwin/win32) + server flag | **Code tab** |
-| 7 | `chillingSlothFeat` | `wPt()` | `platform !== "darwin"` | Local Agent Mode |
-| 8 | `chillingSlothEnterprise` | `bPt()` | Org config check | Enterprise disable for Claude Code |
-| 9 | `chillingSlothLocal` | `SPt()` | **None** (always supported) | Local sessions |
-| 10 | `yukonSilver` | `YNe()` | Platform/arch gate + org config | Secure VM |
-| 11 | `yukonSilverGems` | `kPt()` | Depends on `yukonSilver` | VM extensions |
-| 12 | `desktopTopBar` | `CPt()` | **None** (always supported) | Desktop top bar |
-| 13 | `ccdPlugins` | `nU` (constant) | **None** (always supported) | CCD Plugins UI (Add plugins, Browse plugins) |
+| 1 | `nativeQuickEntry` | `CMt()` | `platform !== "darwin"` | Native Quick Entry (macOS only) |
+| 2 | `quickEntryDictation` | `$Mt()` | `platform !== "darwin"` | Quick Entry dictation |
+| 3 | `customQuickEntryDictationShortcut` | direct value `J5` | None | Custom dictation shortcut value |
+| 4 | `plushRaccoon` | `Ebe(() => J5)` | **Ebe() production gate** | Custom dictation shortcut (dev-gated) |
+| 5 | `quietPenguin` | `Ebe(MMt)` | **Ebe()** + darwin check in `MMt()` | Code-related feature (dev-gated) |
+| 6 | `louderPenguin` | `await FMt()` in rO only | **async override** in rO; platform gate (darwin/win32) + server flag | **Code tab** |
+| 7 | `chillingSlothFeat` | `TMt()` | `platform !== "darwin"` | Local Agent Mode |
+| 8 | `chillingSlothEnterprise` | `kMt()` | Org config check | Enterprise disable for Claude Code |
+| 9 | `chillingSlothLocal` | `IMt()` | **None** (always supported) | Local sessions |
+| 10 | `yukonSilver` | `NDe()` | Platform/arch gate + org config | Secure VM |
+| 11 | `yukonSilverGems` | `BMt()` | Depends on `yukonSilver` | VM extensions |
+| 12 | `desktopTopBar` | `LMt()` | **None** (always supported) | Desktop top bar |
+| 13 | `ccdPlugins` | `J5` (constant) | **None** (always supported) | CCD Plugins UI (Add plugins, Browse plugins) |
 
 ## The o_e() Production Gate
 
 ```javascript
-function o_e(t){return Ae.app.isPackaged?{status:"unavailable"}:t()}
+function Ebe(t){return Ae.app.isPackaged?{status:"unavailable"}:t()}
 ```
 
-In production builds (`app.isPackaged === true`), o_e() returns `{status:"unavailable"}` **without calling** the wrapped function. Only in development builds does it call `t()`.
+In production builds (`app.isPackaged === true`), Ebe() returns `{status:"unavailable"}` **without calling** the wrapped function. Only in development builds does it call `t()`.
 
-**Features gated by o_e():** `plushRaccoon`, `quietPenguin`
+**Features gated by Ebe():** `plushRaccoon`, `quietPenguin`
 
-Note: `louderPenguin` is no longer in Fd() at all (was QL()-gated in earlier versions). It exists only in mP as `await $Pt()`, which has its own platform gate (darwin/win32 only) + server feature flag check.
+Note: `louderPenguin` is no longer in nh() at all (was QL()-gated in earlier versions). It exists only in rO as `await FMt()`, which has its own platform gate (darwin/win32 only) + server feature flag check.
 
 This is why patching the inner functions (`xPt()`) alone is insufficient - o_e() never calls them in packaged builds.
 
@@ -49,36 +49,36 @@ This is why patching the inner functions (`xPt()`) alone is insufficient - o_e()
 ### Layer 1: Fd() - Static Registry
 
 ```javascript
-function Fd(){
+function nh(){
   return{
-    nativeQuickEntry:vPt(),
-    quickEntryDictation:_Pt(),
-    customQuickEntryDictationShortcut:nU,
-    plushRaccoon:o_e(()=>nU),
-    quietPenguin:o_e(xPt),          // o_e blocks in production
-    chillingSlothFeat:wPt(),
-    chillingSlothEnterprise:bPt(),   // moved here from async layer in v1.1.3918
-    chillingSlothLocal:SPt(),
-    yukonSilver:YNe(),
-    yukonSilverGems:kPt(),
-    desktopTopBar:CPt(),
-    ccdPlugins:nU                    // inlined (was ...Kf() spread in v1.1.3770)
+    nativeQuickEntry:CMt(),
+    quickEntryDictation:$Mt(),
+    customQuickEntryDictationShortcut:J5,
+    plushRaccoon:Ebe(()=>J5),
+    quietPenguin:Ebe(MMt),          // Ebe blocks in production
+    chillingSlothFeat:TMt(),
+    chillingSlothEnterprise:kMt(),   // moved here from async layer in v1.1.3918
+    chillingSlothLocal:IMt(),
+    yukonSilver:NDe(),
+    yukonSilverGems:BMt(),
+    desktopTopBar:LMt(),
+    ccdPlugins:J5                    // inlined (was ...Kf() spread in v1.1.3770)
   }
 }
 ```
 
-Returns 12 features synchronously. `nU` is a constant `{status:"supported"}`. Features wrapped by `o_e()` are always `{status:"unavailable"}` in packaged builds.
+Returns 12 features synchronously. `J5` is a constant `{status:"supported"}`. Features wrapped by `Ebe()` are always `{status:"unavailable"}` in packaged builds.
 
 ### Layer 2: mP - Async Merger
 
 ```javascript
-const mP=async()=>({
-  ...Fd(),
-  louderPenguin:await $Pt()          // only async override remaining
+const rO=async()=>({
+  ...nh(),
+  louderPenguin:await FMt()          // only async override remaining
 })
 ```
 
-Spreads `Fd()` then adds `louderPenguin` as the sole async override. `$Pt()` checks `process.platform!=="darwin"&&process.platform!=="win32"` (returns unavailable on Linux) then checks server feature flag `ms("4116586025")`.
+Spreads `nh()` then adds `louderPenguin` as the sole async override. `FMt()` checks `process.platform!=="darwin"&&process.platform!=="win32"` (returns unavailable on Linux) then checks server feature flag `qi("4116586025")`.
 
 **v1.1.3770 → v1.1.3918 changes:**
 - `chillingSlothEnterprise` moved from async-only (mC) to static (Fd)
@@ -86,7 +86,12 @@ Spreads `Fd()` then adds `louderPenguin` as the sole async override. `$Pt()` che
 - `louderPenguin` removed from Fd entirely (only exists in mP)
 - `ccdPlugins` inlined as `nU` (was `...Kf()` spread)
 
-**Because spread applies earlier properties first, later properties win.** This is how our Linux patch works - we append overrides after the last async property so they take precedence over o_e()-blocked values from `...Fd()`.
+**v1.1.4173 → v1.1.4328 changes:**
+- No structural changes; all 13 features identical
+- `formatMessage` calls now include `id` field (i18n improvement)
+- Function renames only: Fd→nh, mP→rO, o_e→Ebe
+
+**Because spread applies earlier properties first, later properties win.** This is how our Linux patch works - we append overrides after the last async property so they take precedence over Ebe()-blocked values from `...nh()`.
 
 ### Org-Level Settings
 
@@ -97,26 +102,26 @@ Feature flags can also be affected by organization-level admin settings:
 
 ### Layer 3: IPC Handler
 
-Calls `mP`, validates the result against a Zod schema (`XHe`), and sends it to the renderer process via IPC. The renderer uses these flags to conditionally render UI elements (e.g., Chat|Code toggle).
+Calls `rO`, validates the result against a Zod schema, and sends it to the renderer process via IPC. The renderer uses these flags to conditionally render UI elements (e.g., Chat|Code toggle).
 
 ## What We Patch on Linux
 
 ### enable_local_agent_mode.py
 
-**Patch 1 - Individual functions:** Remove `process.platform!=="darwin"` gate from `xPt()` (quietPenguin inner) and `wPt()` (chillingSlothFeat). Also inject Linux early-return in `YNe()` (yukonSilver) to bypass its platform gate.
+**Patch 1 - Individual functions:** Remove `process.platform!=="darwin"` gate from `MMt()` (quietPenguin inner) and `TMt()` (chillingSlothFeat). Also inject Linux early-return in `NDe()` (yukonSilver) to bypass its platform gate.
 
-**Patch 3 - mP merger override:** Append to the `mP` return object:
+**Patch 3 - rO merger override:** Append to the `rO` return object:
 ```javascript
 ,quietPenguin:{status:"supported"},louderPenguin:{status:"supported"},chillingSlothFeat:{status:"supported"},chillingSlothLocal:{status:"supported"},yukonSilver:{status:"supported"},yukonSilverGems:{status:"supported"},ccdPlugins:{status:"supported"}
 ```
 
-This bypasses the o_e() gate by overriding at the merger level. The spread order ensures our values win:
+This bypasses the Ebe() gate by overriding at the merger level. The spread order ensures our values win:
 ```
-...Fd()           -> quietPenguin: {status:"unavailable"}  (from o_e)
+...nh()           -> quietPenguin: {status:"unavailable"}  (from Ebe)
 ...our overrides  -> quietPenguin: {status:"supported"}    (wins)
 ```
 
-Note: `chillingSlothLocal` and `ccdPlugins` overrides are defensive — both are already `{status:"supported"}` in v1.1.3918, but the overrides protect against future gating.
+Note: `chillingSlothLocal` and `ccdPlugins` overrides are defensive — both are already `{status:"supported"}` in v1.1.4328, but the overrides protect against future gating.
 
 ### Cowork on Linux (experimental)
 
@@ -125,7 +130,7 @@ As of v1.1.2685, Cowork uses a decoupled architecture with a TypeScript VM clien
 - **`fix_cowork_linux.py`** patches the VM client loader to include Linux (not just `win32`)
 - The Named Pipe path is replaced with a Unix domain socket on Linux
 - **`claude-cowork-service`** (separate Go daemon) provides the QEMU/KVM backend via vsock
-- `chillingSlothFeat`, `chillingSlothLocal`, `yukonSilver`, `yukonSilverGems`, and `ccdPlugins` are all overridden to `{status:"supported"}` in the mP merger
+- `chillingSlothFeat`, `chillingSlothLocal`, `yukonSilver`, `yukonSilverGems`, and `ccdPlugins` are all overridden to `{status:"supported"}` in the rO merger
 
 Without the daemon running, Cowork will show connection errors naturally in the UI.
 
@@ -160,8 +165,8 @@ Feature name strings are stable across versions because they're IPC identifiers 
 
 ### When updating for new versions
 
-1. Check if `mP` structure changed (new features added, order changed)
-2. Check if o_e()-wrapped features changed
+1. Check if `rO` structure changed (new features added, order changed)
+2. Check if Ebe()-wrapped features changed
 3. Verify feature name strings haven't been renamed (unlikely - they're IPC contracts)
 4. Test with `./scripts/validate-patches.sh`
 
@@ -171,3 +176,4 @@ Feature name strings are stable across versions because they're IPC identifiers 
 |---------|----------------|--------------|---------------|-----------------|
 | v1.1.3770 | `Oh()` | `mC()` | `QL()` | louderPenguin async override added, ccdPlugins via Kf() spread |
 | v1.1.3918 | `Fd()` | `mP` | `o_e()` | chillingSlothEnterprise moved to static, mP simplified to louderPenguin only, ccdPlugins inlined, chillingSlothLocal unconditional |
+| v1.1.4328 | `nh()` | `rO` | `Ebe()` | No structural changes; formatMessage calls now include `id` field; function renames only |

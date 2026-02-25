@@ -88,13 +88,12 @@ def patch_local_agent_mode(filepath):
     # Two format variants exist across versions:
     #   Old (≤v1.1.4088): reason:`Unsupported platform: ${t}` (template literal)
     #   New (≥v1.1.4173): reason:Ue.formatMessage({defaultMessage:"Cowork is not
-    #     currently supported on {platform}"},{platform:ak()}),
+    #     currently supported on {platform}",id:"YXG53SzpKR"},{platform:ak()}),
     #     unsupportedCode:"unsupported_platform"
-    # The new formatMessage call lacks an 'id' field, causing a [@formatjs/intl]
-    # console error on Linux. The early return prevents both the error and the
-    # unsupported status.
+    #   The formatMessage 'id' field was added in v1.1.4328; the regex uses an
+    #   optional group (?:,id:"[^"]*")? to handle both variants.
     nh_pattern_old = rb'(function \w+\(\)\{)(const (\w+)=process\.platform;if\(\3!=="darwin"&&\3!=="win32"\)return\{status:"unsupported",reason:`Unsupported platform: \$\{\3\}`\})'
-    nh_pattern_new = rb'(function \w+\(\)\{)(const (\w+)=process\.platform;if\(\3!=="darwin"&&\3!=="win32"\)return\{status:"unsupported",reason:\w+\.formatMessage\(\{defaultMessage:"Cowork is not currently supported on \{platform\}"\},\{platform:\w+\(\)\}\),unsupportedCode:"unsupported_platform"\};)'
+    nh_pattern_new = rb'(function \w+\(\)\{)(const (\w+)=process\.platform;if\(\3!=="darwin"&&\3!=="win32"\)return\{status:"unsupported",reason:\w+\.formatMessage\(\{defaultMessage:"Cowork is not currently supported on \{platform\}"(?:,id:"[^"]*")?\},\{platform:\w+\(\)\}\),unsupportedCode:"unsupported_platform"\};)'
 
     def nh_replacement(m):
         return m.group(1) + b'if(process.platform==="linux")return{status:"supported"};' + m.group(2)
@@ -212,7 +211,7 @@ def patch_local_agent_mode(filepath):
     # The renderer calls getSystemInfo() and checks platform. We report "win32"
     # on Linux so the renderer shows Ctrl/Alt keyboard shortcuts (not macOS ⌘/⌥).
     # Server-facing spoofs (HTTP headers) remain "darwin" for Cowork compatibility.
-    sysinfo_pattern = rb'(platform:)process\.platform(,arch:process\.arch,total_memory:\w+\.\w+\(\))'
+    sysinfo_pattern = rb'(platform:)process\.platform(,arch:process\.arch,total_memory:[\w$]+\.totalmem\(\))'
 
     sysinfo_replacement = rb'\1(process.platform==="linux"?"win32":process.platform)\2'
 
