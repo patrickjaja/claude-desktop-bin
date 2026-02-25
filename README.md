@@ -208,6 +208,7 @@ Exec=claude-desktop --ozone-platform=x11 %u
 
 ## See Also
 
+- [claude-desktop-debian](https://github.com/aaddrick/claude-desktop-debian) — Another project bringing Claude Desktop to Linux, with a different approach and its own solution. We are not partnered or affiliated in any way — these are two independent projects tackling the same goal differently. Linux is about choices, and having alternatives is always a good thing. Feel free to use or contribute to whichever project suits your needs, or both!
 - [tweakcc](https://github.com/Piebald-AI/tweakcc) — A great CLI tool for customizing Claude Code (system prompts, themes, UI). Same patching-JS-to-make-it-yours energy. Thanks to the Piebald team for their work.
 
 ## Notes
