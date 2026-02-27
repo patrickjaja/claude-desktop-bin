@@ -2,6 +2,11 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-02-27
+
+### Changed
+- **PKGBUILD.template** — Set `url` to GitHub packaging repo instead of claude.ai per AUR guidelines
+
 ## 2026-02-25
 
 ### Changed
