@@ -2,11 +2,17 @@
 # @patch-target: app.asar.contents/.vite/build/index.js
 # @patch-type: python
 """
-Patch Claude Desktop to fix MCP node host path on Linux.
+Patch Claude Desktop to fix paths that use process.resourcesPath + "app.asar" on Linux.
 
-The original code uses process.resourcesPath for the packaged nodeHost.js path,
-but this doesn't work on Linux. This patch replaces the ternary with
-app.getAppPath() unconditionally, which correctly points to app.asar.
+Two fixes applied here (both must run BEFORE fix_locale_paths.py's global replace):
+
+1. nodeHostPath — The MCP node host path uses process.resourcesPath in the packaged
+   branch of a ternary. We replace the entire ternary with app.getAppPath().
+
+2. shellPathWorker — The shell path worker function joins process.resourcesPath
+   with "app.asar" to locate shellPathWorker.js. After fix_locale_paths.py runs,
+   process.resourcesPath gets redirected to the locales directory, breaking this path.
+   We replace process.resourcesPath,"app.asar" with app.getAppPath().
 
 This patch is named fix_0_node_host.py so it runs BEFORE fix_locale_paths.py
 (patches run in alphabetical order) and can match the original process.resourcesPath.
@@ -54,6 +60,20 @@ def patch_node_host(filepath):
         print(f"  [FAIL] nodeHostPath: 0 matches, expected 1")
         print(f"  This patch must run BEFORE fix_locale_paths.py (on original code)")
         return False
+
+    # Shell Path Worker fix — same issue as nodeHost
+    # Original: function QSt(){return Ae.join(process.resourcesPath,"app.asar",".vite","build","shell-path-worker","shellPathWorker.js")}
+    # Fix: replace process.resourcesPath,"app.asar" with app.getAppPath()
+    shell_pattern = rb'(function [\w$]+\(\)\{return )([\w$]+)(\.join\()process\.resourcesPath,"app\.asar",("\.vite","build","shell-path-worker","shellPathWorker\.js"\))'
+
+    def shell_replacement(m):
+        return m.group(1) + m.group(2) + m.group(3) + b'require("electron").app.getAppPath(),' + m.group(4)
+
+    content, shell_count = re.subn(shell_pattern, shell_replacement, content)
+    if shell_count > 0:
+        print(f"  [OK] shellPathWorker: {shell_count} match(es)")
+    else:
+        print(f"  [WARN] shellPathWorker: 0 matches (pattern may have changed)")
 
     # Write back if changed
     if content != original_content:
