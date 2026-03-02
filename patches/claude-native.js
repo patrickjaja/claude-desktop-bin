@@ -1,4 +1,4 @@
-// @patch-target: app.asar.contents/node_modules/claude-native/index.js
+// @patch-target: app.asar.unpacked/node_modules/@ant/claude-native/index.js
 // @patch-type: replace
 /**
  * Linux-compatible native module for Claude Desktop.

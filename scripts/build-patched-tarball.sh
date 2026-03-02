@@ -183,6 +183,9 @@ cd "$WORK_DIR/app"
 asar pack app.asar.contents app.asar
 rm -rf app.asar.contents
 
+# Remove Windows native binary (replaced by JS stubs in claude-native.js patch)
+rm -f "$WORK_DIR/app/app.asar.unpacked/node_modules/@ant/claude-native/claude-native-binding.node"
+
 # Copy locales (must be in place before smoke test — app loads them on startup)
 log_info "Copying locales..."
 mkdir -p "$WORK_DIR/app/locales"
