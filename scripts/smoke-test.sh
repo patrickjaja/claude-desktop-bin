@@ -46,6 +46,27 @@ echo "  app.asar: $APP_ASAR"
 echo "  electron: $(command -v "$ELECTRON_BIN")"
 echo "  timeout:  ${TIMEOUT_SECONDS}s"
 
+# Verify chrome-sandbox permissions (SUID root required for sandbox to work)
+ELECTRON_DIR="$(dirname "$(command -v "$ELECTRON_BIN")")"
+SANDBOX_BIN="$ELECTRON_DIR/chrome-sandbox"
+if [ -f "$SANDBOX_BIN" ]; then
+    SANDBOX_PERMS=$(stat -c '%a' "$SANDBOX_BIN" 2>/dev/null || stat -f '%Lp' "$SANDBOX_BIN" 2>/dev/null)
+    SANDBOX_OWNER=$(stat -c '%U' "$SANDBOX_BIN" 2>/dev/null || stat -f '%Su' "$SANDBOX_BIN" 2>/dev/null)
+    if [ "$SANDBOX_PERMS" != "4755" ]; then
+        echo -e "${RED}[FAIL]${NC} chrome-sandbox has mode $SANDBOX_PERMS (expected 4755)"
+        echo "  Fix: chmod 4755 $SANDBOX_BIN"
+        exit 1
+    fi
+    if [ "$SANDBOX_OWNER" != "root" ]; then
+        echo -e "${RED}[FAIL]${NC} chrome-sandbox owned by $SANDBOX_OWNER (expected root)"
+        echo "  Fix: chown root:root $SANDBOX_BIN"
+        exit 1
+    fi
+    echo -e "${GREEN}[OK]${NC} chrome-sandbox permissions correct (4755, root)"
+else
+    echo -e "${YELLOW}[SKIP]${NC} chrome-sandbox not found at $SANDBOX_BIN (system electron?)"
+fi
+
 # Start the app in a virtual framebuffer
 xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
     "$ELECTRON_BIN" "$APP_ASAR" --no-sandbox 2>"$STDERR_LOG" &
