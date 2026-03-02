@@ -344,8 +344,9 @@ jobs:
           # Install dependencies
           sudo apt-get install -y dpkg fakeroot
 
-          # Run Debian build script
-          bash packaging/debian/build-deb.sh "$TARBALL" ./dist
+          # Run Debian build script (pass pkgrel as Debian revision)
+          PKGREL="${{ steps.pkgrel.outputs.pkgrel }}"
+          bash packaging/debian/build-deb.sh "$TARBALL" ./dist "$PKGREL"
 
           # Get output info
           DEB_FILE=$(ls dist/*.deb)
@@ -413,7 +414,7 @@ jobs:
             bash -c "
               set -euo pipefail
               dnf install -y rpm-build wget unzip
-              bash /build/packaging/rpm/build-rpm.sh /build/$TARBALL /output
+              bash /build/packaging/rpm/build-rpm.sh /build/$TARBALL /output ${{ steps.pkgrel.outputs.pkgrel }}
             "
 
           RPM_FILE=$(ls dist/claude-desktop-bin-*.rpm)
@@ -475,8 +476,8 @@ jobs:
           files: |
             claude-desktop-${{ steps.version.outputs.version }}-linux.tar.gz
             dist/Claude_Desktop-${{ steps.version.outputs.version }}-x86_64.AppImage
-            dist/claude-desktop-bin_${{ steps.version.outputs.version }}_amd64.deb
-            dist/claude-desktop-bin-${{ steps.version.outputs.version }}-1.x86_64.rpm
+            dist/claude-desktop-bin_${{ steps.version.outputs.version }}-${{ steps.pkgrel.outputs.pkgrel }}_amd64.deb
+            dist/claude-desktop-bin-${{ steps.version.outputs.version }}-${{ steps.pkgrel.outputs.pkgrel }}.x86_64.rpm
           body: |
             ## ${{ steps.pkgrel.outputs.release_name }}
 
@@ -497,7 +498,7 @@ jobs:
 
             **Debian/Ubuntu (manual .deb)**
             ```bash
-            sudo apt install ./claude-desktop-bin_${{ steps.version.outputs.version }}_amd64.deb
+            sudo apt install ./claude-desktop-bin_${{ steps.version.outputs.version }}-${{ steps.pkgrel.outputs.pkgrel }}_amd64.deb
             ```
 
             **Fedora/RHEL (manual .rpm)**
@@ -541,7 +542,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          DEB_FILE="$(pwd)/dist/claude-desktop-bin_${VERSION}_amd64.deb"
+          PKGREL="${{ steps.pkgrel.outputs.pkgrel }}"
+          DEB_FILE="$(pwd)/dist/claude-desktop-bin_${VERSION}-${PKGREL}_amd64.deb"
 
           if [ ! -f "$DEB_FILE" ]; then
             echo "::warning::No .deb file found at $DEB_FILE — skipping APT repo deploy"
@@ -669,7 +671,8 @@ jobs:
           VERSION="${{ steps.version.outputs.version }}"
 
           # Update version numbers in README
-          sed -i -E "s/claude-desktop-bin_[0-9]+\.[0-9]+\.[0-9]+_amd64\.deb/claude-desktop-bin_${VERSION}_amd64.deb/g" README.md
+          PKGREL="${{ steps.pkgrel.outputs.pkgrel }}"
+          sed -i -E "s/claude-desktop-bin_[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+)?_amd64\.deb/claude-desktop-bin_${VERSION}-${PKGREL}_amd64.deb/g" README.md
           sed -i -E "s/Claude_Desktop-[0-9]+\.[0-9]+\.[0-9]+-x86_64\.AppImage/Claude_Desktop-${VERSION}-x86_64.AppImage/g" README.md
 
           # Commit and push if changed

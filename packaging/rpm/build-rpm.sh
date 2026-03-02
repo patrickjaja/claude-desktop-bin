@@ -32,9 +32,10 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 # Parse arguments
 TARBALL_PATH="$1"
 OUTPUT_DIR="$2"
+PKGREL="${3:-1}"
 
 if [ -z "$TARBALL_PATH" ] || [ -z "$OUTPUT_DIR" ]; then
-    echo "Usage: $0 <tarball_path> <output_dir>"
+    echo "Usage: $0 <tarball_path> <output_dir> [pkgrel]"
     echo ""
     echo "Arguments:"
     echo "  tarball_path  Path to claude-desktop-VERSION-linux.tar.gz"
@@ -83,6 +84,7 @@ mkdir -p "$OUTPUT_DIR"
 rpmbuild -bb \
     --define "_topdir $RPM_BUILD" \
     --define "pkg_version $VERSION" \
+    --define "pkg_release $PKGREL" \
     --define "electron_version $ELECTRON_VERSION" \
     "$RPM_BUILD/SPECS/claude-desktop-bin.spec"
 

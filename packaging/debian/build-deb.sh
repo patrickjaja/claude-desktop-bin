@@ -33,16 +33,18 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 # Parse arguments
 TARBALL_PATH="$1"
 OUTPUT_DIR="$2"
+PKGREL="${3:-1}"
 
 if [ -z "$TARBALL_PATH" ] || [ -z "$OUTPUT_DIR" ]; then
-    echo "Usage: $0 <tarball_path> <output_dir>"
+    echo "Usage: $0 <tarball_path> <output_dir> [pkgrel]"
     echo ""
     echo "Arguments:"
     echo "  tarball_path  Path to claude-desktop-VERSION-linux.tar.gz"
     echo "  output_dir    Directory to write .deb package"
+    echo "  pkgrel        Package release number (default: 1)"
     echo ""
     echo "Output:"
-    echo "  <output_dir>/claude-desktop-bin_<version>_amd64.deb"
+    echo "  <output_dir>/claude-desktop-bin_<version>-<pkgrel>_amd64.deb"
     exit 1
 fi
 
@@ -53,11 +55,12 @@ fi
 
 # Extract version from tarball filename
 VERSION=$(basename "$TARBALL_PATH" | sed -E 's/claude-desktop-([0-9]+\.[0-9]+\.[0-9]+)-linux\.tar\.gz/\1/')
-log_info "Building Debian package for version: $VERSION"
+DEB_VERSION="${VERSION}-${PKGREL}"
+log_info "Building Debian package for version: $DEB_VERSION"
 
 # Create work directory
 WORK_DIR=$(mktemp -d)
-DEB_ROOT="$WORK_DIR/claude-desktop-bin_${VERSION}_amd64"
+DEB_ROOT="$WORK_DIR/claude-desktop-bin_${DEB_VERSION}_amd64"
 
 cleanup() {
     rm -rf "$WORK_DIR"
@@ -132,7 +135,7 @@ INSTALLED_SIZE=$(du -sk "$DEB_ROOT" | cut -f1)
 log_info "Creating control file..."
 cat > "$DEB_ROOT/DEBIAN/control" << EOF
 Package: claude-desktop-bin
-Version: ${VERSION}
+Version: ${DEB_VERSION}
 Section: utils
 Priority: optional
 Architecture: amd64
@@ -195,7 +198,7 @@ chmod +x "$DEB_ROOT/DEBIAN/postrm"
 # Build the package
 log_info "Building .deb package..."
 mkdir -p "$OUTPUT_DIR"
-DEB_PATH="$OUTPUT_DIR/claude-desktop-bin_${VERSION}_amd64.deb"
+DEB_PATH="$OUTPUT_DIR/claude-desktop-bin_${DEB_VERSION}_amd64.deb"
 
 if command -v fakeroot &> /dev/null; then
     fakeroot dpkg-deb --build "$DEB_ROOT" "$DEB_PATH"
@@ -207,13 +210,13 @@ fi
 SHA256=$(sha256sum "$DEB_PATH" | cut -d' ' -f1)
 
 log_info "Debian package built successfully!"
-echo "  Version:  $VERSION"
+echo "  Version:  $DEB_VERSION"
 echo "  Path:     $DEB_PATH"
 echo "  SHA256:   $SHA256"
 
 # Write build info
 cat > "$OUTPUT_DIR/deb-info.txt" << EOF
-VERSION=$VERSION
+VERSION=$DEB_VERSION
 DEB=$DEB_PATH
 SHA256=$SHA256
 EOF
