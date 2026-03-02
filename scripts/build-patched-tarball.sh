@@ -192,6 +192,13 @@ cp "$WORK_DIR/extract/lib/net45/resources/"*.json "$WORK_DIR/app/locales/" 2>/de
 log_info "Copying tray icons..."
 cp "$WORK_DIR/extract/lib/net45/resources/TrayIconTemplate"*.png "$WORK_DIR/app/locales/" 2>/dev/null || true
 
+# Copy claude-ssh binaries (needed for SSH remote environment feature)
+if [ -d "$WORK_DIR/extract/lib/net45/resources/claude-ssh" ]; then
+    log_info "Copying claude-ssh binaries..."
+    cp -r "$WORK_DIR/extract/lib/net45/resources/claude-ssh" "$WORK_DIR/app/locales/"
+    chmod +x "$WORK_DIR/app/locales/claude-ssh/claude-ssh-"* 2>/dev/null || true
+fi
+
 # Run Electron smoke test if dependencies are available
 if command -v electron &>/dev/null && command -v xvfb-run &>/dev/null; then
     log_info "Running Electron smoke test..."
