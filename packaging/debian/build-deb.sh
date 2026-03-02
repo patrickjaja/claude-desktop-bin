@@ -139,6 +139,7 @@ Architecture: amd64
 Installed-Size: ${INSTALLED_SIZE}
 Depends: libgtk-3-0, libnotify4, libnss3, libxss1, libxtst6, libatspi2.0-0, libdrm2, libgbm1, libasound2
 Recommends: libnotify-bin
+Suggests: nodejs, npm
 Maintainer: Claude Desktop Linux Community <claude-desktop-linux@users.noreply.github.com>
 Homepage: https://claude.ai
 Description: Claude AI Desktop Application
@@ -164,6 +165,14 @@ if command -v update-icon-caches &> /dev/null; then
 fi
 if command -v update-desktop-database &> /dev/null; then
     update-desktop-database /usr/share/applications || true
+fi
+
+# Show optional dependency hints
+if [ "$1" = "configure" ]; then
+    echo ""
+    echo "Optional dependencies for claude-desktop-bin:"
+    echo "  claude-code: Claude Code CLI for agentic coding features (npm i -g @anthropic-ai/claude-code)"
+    echo ""
 fi
 EOF
 chmod +x "$DEB_ROOT/DEBIAN/postinst"
