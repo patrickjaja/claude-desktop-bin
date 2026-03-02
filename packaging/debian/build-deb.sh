@@ -87,6 +87,12 @@ mkdir -p "$DEB_ROOT/usr/share/icons/hicolor/256x256/apps"
 log_info "Extracting Electron..."
 unzip -q "$ELECTRON_ZIP" -d "$DEB_ROOT/usr/lib/claude-desktop"
 
+# Set SUID permission on chrome-sandbox (required by Chromium's sandbox)
+if [ -f "$DEB_ROOT/usr/lib/claude-desktop/chrome-sandbox" ]; then
+    chmod 4755 "$DEB_ROOT/usr/lib/claude-desktop/chrome-sandbox"
+    log_info "Set SUID permission on chrome-sandbox"
+fi
+
 # Copy application files into Electron's resources directory
 log_info "Installing application files..."
 cp -r "$WORK_DIR/tarball/app/"* "$DEB_ROOT/usr/lib/claude-desktop/resources/"
@@ -144,10 +150,15 @@ Description: Claude AI Desktop Application
  Note: This is an unofficial Linux port. Requires an Anthropic account.
 EOF
 
-# Create postinst script for icon cache update
+# Create postinst script for sandbox permissions and icon cache update
 cat > "$DEB_ROOT/DEBIAN/postinst" << 'EOF'
 #!/bin/bash
 set -e
+# Ensure chrome-sandbox has SUID root (required by Chromium's setuid sandbox)
+if [ -f /usr/lib/claude-desktop/chrome-sandbox ]; then
+    chown root:root /usr/lib/claude-desktop/chrome-sandbox
+    chmod 4755 /usr/lib/claude-desktop/chrome-sandbox
+fi
 if command -v update-icon-caches &> /dev/null; then
     update-icon-caches /usr/share/icons/hicolor || true
 fi

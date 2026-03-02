@@ -80,6 +80,11 @@ if [ -f tarball/icons/claude-desktop.png ]; then
 fi
 
 %post
+# Ensure chrome-sandbox has SUID root (required by Chromium's setuid sandbox)
+if [ -f /usr/lib/claude-desktop/chrome-sandbox ]; then
+    chown root:root /usr/lib/claude-desktop/chrome-sandbox
+    chmod 4755 /usr/lib/claude-desktop/chrome-sandbox
+fi
 if command -v update-desktop-database &>/dev/null; then
     update-desktop-database /usr/share/applications || true
 fi
@@ -96,6 +101,7 @@ if command -v gtk-update-icon-cache &>/dev/null; then
 fi
 
 %files
+%attr(4755,root,root) /usr/lib/claude-desktop/chrome-sandbox
 /usr/lib/claude-desktop/
 /usr/bin/claude-desktop
 /usr/share/applications/claude-desktop.desktop

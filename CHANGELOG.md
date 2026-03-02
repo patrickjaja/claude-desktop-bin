@@ -2,6 +2,12 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-03-02
+
+### Fixed
+- **packaging/debian/build-deb.sh** — Set SUID permission (4755) on `chrome-sandbox` after Electron extraction and in `postinst` script to fix startup crash on Ubuntu/Debian
+- **packaging/rpm/claude-desktop-bin.spec** — Set SUID permission on `chrome-sandbox` in `%post` and `%files` sections to fix startup crash on RPM-based distros
+
 ## 2026-02-27
 
 ### Changed
