@@ -392,7 +392,8 @@ jobs:
               /tmp/Claude_Desktop-*-x86_64.AppImage --appimage-extract
 
               # Find the electron binary and app.asar inside extracted AppImage
-              bash /scripts/smoke-test.sh \
+              # Skip sandbox check — SUID bit can't survive AppImage extraction
+              SKIP_SANDBOX_CHECK=1 bash /scripts/smoke-test.sh \
                 /tmp/squashfs-root/usr/lib/claude-desktop/resources/app.asar \
                 /tmp/squashfs-root/usr/lib/claude-desktop/claude-desktop
             "

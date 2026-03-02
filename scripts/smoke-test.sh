@@ -47,9 +47,12 @@ echo "  electron: $(command -v "$ELECTRON_BIN")"
 echo "  timeout:  ${TIMEOUT_SECONDS}s"
 
 # Verify chrome-sandbox permissions (SUID root required for sandbox to work)
+# Skip with SKIP_SANDBOX_CHECK=1 (e.g. for extracted AppImages where SUID can't be preserved)
 ELECTRON_DIR="$(dirname "$(command -v "$ELECTRON_BIN")")"
 SANDBOX_BIN="$ELECTRON_DIR/chrome-sandbox"
-if [ -f "$SANDBOX_BIN" ]; then
+if [ "${SKIP_SANDBOX_CHECK:-0}" = "1" ]; then
+    echo -e "${YELLOW}[SKIP]${NC} chrome-sandbox permission check (SKIP_SANDBOX_CHECK=1)"
+elif [ -f "$SANDBOX_BIN" ]; then
     SANDBOX_PERMS=$(stat -c '%a' "$SANDBOX_BIN" 2>/dev/null || stat -f '%Lp' "$SANDBOX_BIN" 2>/dev/null)
     SANDBOX_OWNER=$(stat -c '%U' "$SANDBOX_BIN" 2>/dev/null || stat -f '%Su' "$SANDBOX_BIN" 2>/dev/null)
     if [ "$SANDBOX_PERMS" != "4755" ]; then
