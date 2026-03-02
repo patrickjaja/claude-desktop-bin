@@ -178,3 +178,7 @@ GitHub Actions workflow:
 3. If validation passes, pushes to AUR
 
 When CI fails, download the exe locally and debug using the workflow above.
+
+
+# Ubuntu VM
+vboxmanage startvm "Ubuntu"

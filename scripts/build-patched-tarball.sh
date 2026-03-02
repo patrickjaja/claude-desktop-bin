@@ -177,14 +177,15 @@ if [ "$SYNTAX_FAILED" = true ]; then
 fi
 log_info "JavaScript syntax validation passed"
 
+# Remove Windows native binary (replaced by JS stubs in claude-native.js patch)
+rm -f "$WORK_DIR/app/app.asar.contents/node_modules/@ant/claude-native/claude-native-binding.node"
+rm -f "$WORK_DIR/app/app.asar.unpacked/node_modules/@ant/claude-native/claude-native-binding.node"
+
 # Repack app.asar
 log_info "Repacking app.asar..."
 cd "$WORK_DIR/app"
 asar pack app.asar.contents app.asar
 rm -rf app.asar.contents
-
-# Remove Windows native binary (replaced by JS stubs in claude-native.js patch)
-rm -f "$WORK_DIR/app/app.asar.unpacked/node_modules/@ant/claude-native/claude-native-binding.node"
 
 # Copy locales (must be in place before smoke test — app loads them on startup)
 log_info "Copying locales..."
