@@ -91,7 +91,7 @@ cd claude-desktop-bin
 - **Claude Code CLI integration** - Auto-detects system-installed Claude Code (requires [claude-code](https://code.claude.com/docs/en/setup))
 - **Local Agent Mode** - Git worktrees and agent sessions
 - **Cowork support** - Agentic workspace feature enabled on Linux (requires [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service))
-- **Computer Use** - Desktop automation (screenshot, click, type, scroll) via xdotool and scrot (X11; optional deps)
+- **Computer Use** - Desktop automation (screenshot, click, type, scroll) via [xdotool](https://github.com/jordansissel/xdotool) and [scrot](https://github.com/resurrecting-open-source-projects/scrot) (X11; optional deps)
 - **MCP server support** - Model Context Protocol servers work on Linux
 - Global hotkey support (Ctrl+Alt+Space) with multi-monitor awareness
 - Automated daily version checks
