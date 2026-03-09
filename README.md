@@ -134,6 +134,23 @@ yay -S claude-cowork-service
 systemctl --user enable --now claude-cowork
 ```
 
+## Computer Use (X11)
+
+On macOS, Computer Use is provided by the native `@ant/claude-swift` binary. On Linux, we replace it with a Node.js MCP server (`computer-use-server.js`) that uses [xdotool](https://github.com/jordansissel/xdotool) for mouse/keyboard and [scrot](https://github.com/resurrecting-open-source-projects/scrot) for screenshots.
+
+```bash
+# Install optional dependencies
+sudo pacman -S xdotool scrot   # Arch
+sudo apt install xdotool scrot  # Debian/Ubuntu
+sudo dnf install xdotool scrot  # Fedora
+```
+
+**Multi-monitor handling:** Screen size is reported as the largest connected monitor (via `xrandr`), not the combined virtual screen. Screenshots capture only the monitor where the cursor is located. Images are saved as JPEG (quality 40) to stay under the 1MB API limit.
+
+**Supported actions:** screenshot, left_click, right_click, double_click, triple_click, middle_click, type, key, scroll, left_click_drag, hover, wait, zoom, cursor_position
+
+> **Note:** Wayland is not yet supported. Computer Use requires X11.
+
 ## Patches
 
 The package applies several patches to make Claude Desktop work on Linux. Each patch is isolated in `patches/` for easy maintenance:
