@@ -88,7 +88,7 @@ cd claude-desktop-bin
 
 ## Features
 - Native Linux support (Arch, Debian/Ubuntu, Fedora/RHEL, NixOS, AppImage)
-- **Claude Code CLI integration** - Auto-detects system-installed Claude Code
+- **Claude Code CLI integration** - Auto-detects system-installed Claude Code (requires [claude-code](https://code.claude.com/docs/en/setup))
 - **Local Agent Mode** - Git worktrees and agent sessions
 - **Cowork support** - Agentic workspace feature enabled on Linux (requires [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service))
 - **Computer Use** - Desktop automation (screenshot, click, type, scroll) via xdotool and scrot (X11; optional deps)
