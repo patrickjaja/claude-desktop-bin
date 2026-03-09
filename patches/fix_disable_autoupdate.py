@@ -43,13 +43,15 @@ def patch_disable_autoupdate(filepath):
     #
     # Original pattern (minified variable names change between versions):
     #   function XXX(){if(process.platform!=="win32")return YY.app.isPackaged;...
+    # Newer versions may have an extra forceInstalled check before the platform check:
+    #   function XXX(){if(ZZ.forceInstalled)return!0;if(process.platform!=="win32")return YY.app.isPackaged;...
     #
-    # We insert a Linux early-return before the existing platform check:
-    #   function XXX(){if(process.platform==="linux")return!1;if(process.platform!=="win32")return YY.app.isPackaged;...
+    # We insert a Linux early-return at the start of the function body:
+    #   function XXX(){if(process.platform==="linux")return!1;...
     #
     # Function name and electron var may contain $ (valid JS identifier char).
     # Use [\w$]+ to match any JS identifier.
-    pattern = rb'(function [\w$]+\(\)\{)(if\(process\.platform!=="win32"\)return [\w$]+\.app\.isPackaged)'
+    pattern = rb'(function [\w$]+\(\)\{)((?:if\([\w$]+\.forceInstalled\)return!0;)?if\(process\.platform!=="win32"\)return [\w$]+\.app\.isPackaged)'
 
     replacement = rb'\1if(process.platform==="linux")return!1;\2'
 

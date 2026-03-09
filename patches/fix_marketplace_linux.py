@@ -72,7 +72,7 @@ def patch_marketplace_linux(filepath):
         print(f"  [OK] runner selector: force host runner on Linux ({count_a} match)")
         patches_applied += 1
     else:
-        print(f"  [FAIL] runner selector: 0 matches")
+        print(f"  [INFO] runner selector: 0 matches (pattern removed in newer versions)")
 
     # Patch B: search_plugins tool handler
     #
@@ -93,7 +93,7 @@ def patch_marketplace_linux(filepath):
         print(f"  [OK] search_plugins handler: force host runner on Linux ({count_b} match)")
         patches_applied += 1
     else:
-        print(f"  [FAIL] search_plugins handler: 0 matches")
+        print(f"  [INFO] search_plugins handler: 0 matches (pattern removed in newer versions)")
 
     # Patch C: CCD/Cowork gate — force CCD mode on Linux
     #

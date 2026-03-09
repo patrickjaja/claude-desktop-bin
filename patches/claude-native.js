@@ -75,5 +75,20 @@ module.exports = {
     createTray,
     getTray: () => tray,
     KeyboardKey,
-    AuthRequest
+    AuthRequest,
+    // Windows registry stubs
+    readRegistryValues: () => [],
+    writeRegistryValue: () => {},
+    readRegistryDword: () => 0,
+    getCurrentPackageFamilyName: () => null,
+    // Windows HCS/VM stubs
+    getHcsStatus: () => ({ available: false, missingServices: ["not-windows"] }),
+    enableWindowsOptionalFeature: async () => ({ success: false, restartNeeded: false }),
+    // Windows window management stubs
+    getWindowAbove: () => null,
+    // Office automation stubs
+    closeOfficeDocument: () => {},
+    isProcessRunning: () => false,
+    // macOS Core Foundation stubs
+    readCfPrefValue: () => null,
 };
