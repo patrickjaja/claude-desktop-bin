@@ -20,6 +20,24 @@ const os = require('os');
 // ── Screen info ──────────────────────────────────────────────────────────────
 
 function getScreenSize() {
+  // Use xrandr to get the primary/largest connected monitor, not the combined virtual screen.
+  // xdpyinfo returns the combined dimensions across all monitors which the API can't handle.
+  try {
+    const out = execSync('xrandr --current 2>/dev/null', { encoding: 'utf-8' });
+    const monitors = [];
+    for (const line of out.split('\n')) {
+      const m = line.match(/(\d+)x(\d+)\+\d+\+\d+/);
+      if (m && line.includes(' connected')) {
+        monitors.push({ width: parseInt(m[1]), height: parseInt(m[2]) });
+      }
+    }
+    if (monitors.length > 0) {
+      // Pick the largest monitor by pixel count
+      monitors.sort((a, b) => (b.width * b.height) - (a.width * a.height));
+      return monitors[0];
+    }
+  } catch {}
+  // Fallback to xdpyinfo (single-monitor systems)
   try {
     const out = execSync('xdpyinfo 2>/dev/null | grep dimensions', { encoding: 'utf-8' });
     const m = out.match(/(\d+)x(\d+)/);
@@ -32,26 +50,46 @@ const SCREEN = getScreenSize();
 
 // ── Tool implementations ─────────────────────────────────────────────────────
 
-function screenshot() {
-  const tmp = path.join(os.tmpdir(), `claude-cu-${Date.now()}.png`);
+function readAndCleanup(filepath, mimeType) {
+  const buf = fs.readFileSync(filepath);
+  try { fs.unlinkSync(filepath); } catch {}
+  return { type: 'image', data: buf.toString('base64'), mimeType };
+}
+
+function getActiveMonitorGeometry() {
+  // Find which monitor the mouse cursor is on, return its geometry for scrot -a
   try {
-    execSync(`scrot -o "${tmp}"`, { timeout: 10000 });
-    const buf = fs.readFileSync(tmp);
-    fs.unlinkSync(tmp);
-    return {
-      type: 'image',
-      source: { type: 'base64', media_type: 'image/png', data: buf.toString('base64') }
-    };
+    const loc = execSync('xdotool getmouselocation --shell', { encoding: 'utf-8' });
+    const mx = parseInt(loc.match(/X=(\d+)/)?.[1] || '0');
+    const my = parseInt(loc.match(/Y=(\d+)/)?.[1] || '0');
+    const xr = execSync('xrandr --current', { encoding: 'utf-8' });
+    for (const line of xr.split('\n')) {
+      if (!line.includes(' connected')) continue;
+      const m = line.match(/(\d+)x(\d+)\+(\d+)\+(\d+)/);
+      if (!m) continue;
+      const [, w, h, x, y] = m.map(Number);
+      if (mx >= x && mx < x + w && my >= y && my < y + h) {
+        return { w, h, x, y };
+      }
+    }
+  } catch {}
+  return null;
+}
+
+function screenshot() {
+  const tmp = path.join(os.tmpdir(), `claude-cu-${Date.now()}.jpg`);
+  try {
+    // Capture only the monitor where the cursor is (avoids 8960px-wide multi-monitor captures)
+    const geom = getActiveMonitorGeometry();
+    const region = geom ? `-a ${geom.x},${geom.y},${geom.w},${geom.h}` : '';
+    execSync(`scrot ${region} -q 40 -o "${tmp}"`, { timeout: 10000 });
+    return readAndCleanup(tmp, 'image/jpeg');
   } catch (e) {
-    // Fallback to import (ImageMagick)
+    // Fallback to import (ImageMagick) as PNG
+    const tmpPng = path.join(os.tmpdir(), `claude-cu-${Date.now()}.png`);
     try {
-      execSync(`import -window root "${tmp}"`, { timeout: 10000 });
-      const buf = fs.readFileSync(tmp);
-      fs.unlinkSync(tmp);
-      return {
-        type: 'image',
-        source: { type: 'base64', media_type: 'image/png', data: buf.toString('base64') }
-      };
+      execSync(`import -window root "${tmpPng}"`, { timeout: 10000 });
+      return readAndCleanup(tmpPng, 'image/png');
     } catch (e2) {
       return { type: 'text', text: `Screenshot failed: ${e2.message}` };
     }
@@ -70,7 +108,7 @@ function zoom(coordinate, size) {
     fs.unlinkSync(tmp);
     return {
       type: 'image',
-      source: { type: 'base64', media_type: 'image/png', data: buf.toString('base64') }
+      data: buf.toString('base64'), mimeType: 'image/png'
     };
   } catch (e) {
     return { type: 'text', text: `Zoom failed: ${e.message}` };

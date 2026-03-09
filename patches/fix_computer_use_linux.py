@@ -45,39 +45,64 @@ def patch_computer_use_linux(filepath):
     print(f"  [OK] Found register function: {br_name}")
 
     # Build injection JS — register computer-use MCP server on Linux
-    # This spawns computer-use-server.js as a child process and wraps it
-    # in the {read, write, close} interface that createProxyServers expects.
+    #
+    # The BR() factory must return an object with connect(transport), close(),
+    # and a transport property. When connect() is called with a MessagePort
+    # transport, we spawn the child process and bridge messages between the
+    # transport and the stdio-based MCP server.
+    # The proxy object mimics PNe (MCP Protocol base class):
+    # - connect(transport): called by k6t with a qMe (MessagePort) transport
+    #   Sets transport.onmessage to forward app→child, reads child stdout→transport.send()
+    #   Does NOT call transport.start() — the caller (PNe.connect flow) handles that
+    # - close(): kills child process and closes transport
+    # - transport: getter for the current transport
     inject_js = (
         'if(process.platform==="linux"){'
         'const _cuPath=require("path").join('
         'require("electron").app.getAppPath(),"computer-use-server.js");'
         'if(require("fs").existsSync(_cuPath)){'
         + br_name + '("computer-use","cu-"+Date.now(),()=>{'
+        'const _proxy={_transport:null,_proc:null,_buf:"",'
+        'get transport(){return this._transport},'
+        'async connect(tr){'
+        'if(this._transport)await this.close();'
+        'this._transport=tr;'
         'const _cp=require("child_process");'
-        'const _proc=_cp.spawn(process.execPath,["--no-sandbox",_cuPath],'
+        'this._proc=_cp.spawn(process.execPath,[_cuPath],'
         '{stdio:["pipe","pipe","pipe"],'
         'env:{...process.env,ELECTRON_RUN_AS_NODE:"1"}});'
-        '_proc.stderr.on("data",d=>console.log("[computer-use]",d.toString().trim()));'
-        '_proc.on("exit",(c)=>console.log("[computer-use] exited",c));'
-        'let _buf="";'
-        'return{read:cb=>{_proc.stdout.on("data",chunk=>{'
-        '_buf+=chunk.toString();'
+        'this._proc.stderr.on("data",d=>console.log("[computer-use]",d.toString().trim()));'
+        'this._proc.on("exit",(c)=>console.log("[computer-use] exited",c));'
+        'this._proc.stdout.on("data",chunk=>{'
+        'this._buf+=chunk.toString();'
         'let idx;'
-        'while((idx=_buf.indexOf("\\r\\n\\r\\n"))!==-1){'
-        'const hdr=_buf.substring(0,idx);'
+        'while((idx=this._buf.indexOf("\\r\\n\\r\\n"))!==-1){'
+        'const hdr=this._buf.substring(0,idx);'
         'const cm=hdr.match(/Content-Length:\\s*(\\d+)/i);'
-        'if(!cm){_buf=_buf.substring(idx+4);continue}'
+        'if(!cm){this._buf=this._buf.substring(idx+4);continue}'
         'const clen=parseInt(cm[1]);'
         'const bstart=idx+4;'
-        'if(_buf.length<bstart+clen)break;'
-        'const body=_buf.substring(bstart,bstart+clen);'
-        '_buf=_buf.substring(bstart+clen);'
-        'try{cb(JSON.parse(body))}catch(e){}'
+        'if(this._buf.length<bstart+clen)break;'
+        'const body=this._buf.substring(bstart,bstart+clen);'
+        'this._buf=this._buf.substring(bstart+clen);'
+        'try{tr.send(JSON.parse(body))}catch(e){}'
         '}'
-        '})},write:msg=>{'
+        '});'
+        'const _origOnclose=tr.onclose;'
+        'tr.onclose=()=>{_origOnclose&&_origOnclose();'
+        'if(this._proc){this._proc.kill();this._proc=null}};'
+        'tr.onmessage=msg=>{'
+        'if(!this._proc)return;'
         'const s=JSON.stringify(msg);'
-        '_proc.stdin.write("Content-Length: "+Buffer.byteLength(s)+"\\r\\n\\r\\n"+s)'
-        '},close:()=>_proc.kill()}'
+        'this._proc.stdin.write("Content-Length: "+Buffer.byteLength(s)+"\\r\\n\\r\\n"+s)};'
+        'await tr.start()'
+        '},'
+        'async close(){'
+        'if(this._proc){this._proc.kill();this._proc=null}'
+        'if(this._transport){const t=this._transport;this._transport=null;'
+        'try{await t.close()}catch(e){}}'
+        '}'
+        '};return _proxy'
         '})'
         '}}'
     )
