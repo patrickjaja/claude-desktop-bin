@@ -91,6 +91,7 @@ cd claude-desktop-bin
 - **Claude Code CLI integration** - Auto-detects system-installed Claude Code
 - **Local Agent Mode** - Git worktrees and agent sessions
 - **Cowork support** - Agentic workspace feature enabled on Linux (requires [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service))
+- **Computer Use** - Desktop automation (screenshot, click, type, scroll) via xdotool and scrot (X11; optional deps)
 - **MCP server support** - Model Context Protocol servers work on Linux
 - Global hotkey support (Ctrl+Alt+Space) with multi-monitor awareness
 - Automated daily version checks
@@ -142,6 +143,9 @@ The package applies several patches to make Claude Desktop work on Linux. Each p
 | `claude-native.js` | Linux-compatible native module (replaces Windows-only `@anthropic/claude-native`) | LOW | Static file, no regex |
 | `enable_local_agent_mode.py` | Enables Local Agent Mode (chillingSlothFeat) on Linux for git worktrees and agent sessions | HIGH | `rg -o 'function \w+\(\)\{return process\.platform.*status' index.js` |
 | `fix_app_quit.py` | Fixes app not quitting after cleanup on Linux (uses `app.exit(0)` instead of `app.quit()`) | LOW | Uses `app.quit()` literal |
+| `computer-use-server.js` | Linux Computer Use MCP server using xdotool/scrot (X11) | LOW | Static file, no regex |
+| `fix_computer_use_linux.py` | Registers computer-use-server.js as internal MCP server via BR() | MED | `rg -o 'registerInternalMcpServer\|function \w+(\w+,\w+,\w+).*return.*\[' index.js` |
+| `fix_computer_use_tcc.py` | Stubs macOS TCC permission checks on Linux | LOW | `rg -o 'ComputerUseTcc' index.js` |
 | `fix_claude_code.py` | Enables Claude Code CLI integration by detecting system-installed claude binary | MED | `rg -o 'async getStatus\(\)\{.{0,200}' index.js` |
 | `fix_cowork_error_message.py` | Replaces Windows VM errors with Linux-friendly guidance for claude-cowork-service | LOW | Uses string literals |
 | `fix_cowork_linux.py` | Enables Cowork on Linux: VM client loader, Unix socket path, bundle config, claude binary resolution | HIGH | `rg -o '.{0,50}vmClient.{0,50}' index.js` |
