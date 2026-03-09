@@ -681,6 +681,7 @@ jobs:
           git add README.md
           git diff --staged --quiet || {
             git commit -m "Update README install commands to v${VERSION}"
+            git pull --rebase origin master
             git push origin master
           }
 
