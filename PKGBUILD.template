@@ -11,7 +11,9 @@ url="https://github.com/patrickjaja/claude-desktop-bin"
 license=('custom:Claude')
 depends=('electron' 'nodejs')
 optdepends=('claude-code: Claude Code CLI for agentic coding features (npm i -g @anthropic-ai/claude-code)'
-            'claude-cowork-service: Enables Cowork VM features on Linux (experimental)')
+            'claude-cowork-service: Enables Cowork VM features on Linux (experimental)'
+            'xdotool: Computer Use desktop automation - mouse/keyboard control (X11)'
+            'scrot: Computer Use screenshots (X11, fallback: imagemagick)')
 provides=('claude-desktop')
 conflicts=('claude-desktop')
 source_x86_64=("claude-desktop-${pkgver}-${pkgrel}-linux.tar.gz::{{DOWNLOAD_URL}}")

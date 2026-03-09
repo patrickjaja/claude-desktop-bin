@@ -23,6 +23,10 @@ Requires:       mesa-libgbm
 Requires:       alsa-lib
 Requires:       libnotify
 
+# Optional: Computer Use desktop automation (X11)
+Suggests:       xdotool
+Suggests:       scrot
+
 %description
 Claude is an AI assistant created by Anthropic to be helpful,
 harmless, and honest. This desktop application provides native
