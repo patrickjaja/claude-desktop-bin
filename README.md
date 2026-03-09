@@ -207,6 +207,38 @@ To make it persistent, edit `~/.local/share/applications/claude-desktop.desktop`
 Exec=claude-desktop --ozone-platform=x11 %u
 ```
 
+## Debugging
+
+Launch Claude Desktop with DevTools auto-opened:
+```bash
+CLAUDE_DEV_TOOLS=detach claude-desktop
+```
+
+This opens a detached Chromium DevTools window where you can:
+- **Console** — view JavaScript errors and logs
+- **Network** — inspect API requests (check EventStream on `/completion` requests for streaming errors)
+- **Application** — inspect local storage, cookies, session data
+
+To also capture Electron main process logs to a file:
+```bash
+CLAUDE_DEV_TOOLS=detach ELECTRON_ENABLE_LOGGING=1 claude-desktop 2>&1 | tee /tmp/claude-debug.log
+```
+
+Runtime logs are written to `~/.config/Claude/logs/`:
+| Log File | Description |
+|----------|-------------|
+| `main.log` | Main Electron process |
+| `claude.ai-web.log` | BrowserView web content |
+| `mcp.log` | MCP server communication |
+
+```bash
+# Tail logs in real-time
+tail -f ~/.config/Claude/logs/main.log
+
+# Search for errors across all logs
+grep -ri 'error\|exception\|fatal' ~/.config/Claude/logs/
+```
+
 ## Tips
 - Press **Alt** to toggle the app menu bar (Electron default)
 
