@@ -2,6 +2,22 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-03-11
+
+### Changed
+- **Update to Claude Desktop v1.1.6041** (from v1.1.5749)
+
+### Fixed
+- **fix_computer_use_tcc.py** — Dynamically extract eipc UUID from source files instead of hardcoding it. The UUID changed from `a876702f-...` to `dbb8b28b-...` between versions, causing `No handler registered for ComputerUseTcc.getState` errors. Now searches index.js (fallback: mainView.js) for the UUID at patch time, making the patch resilient to future UUID rotations.
+
+### Notes
+- 22/22 patches pass (fix_mcp_reconnect.py: upstream fix, no patch needed)
+- No new platform gates requiring patches — all critical darwin/win32 checks already handled
+- Upstream now ships Linux CCD binaries (linux-x64, linux-arm64, musl variants) and Linux VM rootfs images in manifest
+- New IPC handler groups: CoworkScheduledTasks, CoworkSpaces, CoworkMemory, LocalSessions SSH/Teleport, expanded Extensions
+- New `sshcrypto.node` native addon for SSH support (not yet needed for core functionality)
+- `louderPenguin` (Office Addin) remains darwin+win32 only — no action needed for Linux
+
 ## 2026-03-09
 
 ### Changed

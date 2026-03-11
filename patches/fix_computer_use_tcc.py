@@ -25,22 +25,29 @@ import os
 import re
 
 
-# The IPC channel prefix used by Claude Desktop's eipc system
-EIPC_PREFIX = "$eipc_message$_a876702f-0c44-4ff1-bcb7-d4021217fb7b_$_claude.web_$_ComputerUseTcc_$_"
+def build_stub_handlers_js(eipc_prefix):
+    """Build the stub handler JS code with the given eipc prefix."""
+    return (
+        'if(process.platform==="linux"){'
+        'const _ipc=require("electron").ipcMain;'
+        f'const _P="{eipc_prefix}";'
+        '_ipc.handle(_P+"getState",()=>({accessibility:"not_applicable",screenRecording:"not_applicable"}));'
+        '_ipc.handle(_P+"requestAccessibility",()=>{});'
+        '_ipc.handle(_P+"requestScreenRecording",()=>{});'
+        '_ipc.handle(_P+"openSystemSettings",()=>{});'
+        '_ipc.handle(_P+"getCurrentSessionGrants",()=>[]);'
+        '_ipc.handle(_P+"revokeGrant",()=>{});'
+        '}'
+    )
 
-# JavaScript code to register stub handlers
-STUB_HANDLERS_JS = r"""
-if(process.platform==="linux"){
-const _ipc=require("electron").ipcMain;
-const _P="%PREFIX%";
-_ipc.handle(_P+"getState",()=>({accessibility:"not_applicable",screenRecording:"not_applicable"}));
-_ipc.handle(_P+"requestAccessibility",()=>{});
-_ipc.handle(_P+"requestScreenRecording",()=>{});
-_ipc.handle(_P+"openSystemSettings",()=>{});
-_ipc.handle(_P+"getCurrentSessionGrants",()=>[]);
-_ipc.handle(_P+"revokeGrant",()=>{});
-}
-""".strip().replace("%PREFIX%", EIPC_PREFIX).replace("\n", "")
+
+def extract_eipc_uuid(content):
+    """Extract the eipc UUID from the file content dynamically."""
+    # Look for $eipc_message$_<UUID> pattern
+    m = re.search(rb'\$eipc_message\$_([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})', content)
+    if m:
+        return m.group(1).decode('utf-8')
+    return None
 
 
 def patch_computer_use_tcc(filepath):
@@ -58,11 +65,28 @@ def patch_computer_use_tcc(filepath):
 
     original_content = content
 
+    # Dynamically extract the eipc UUID from the file
+    uuid = extract_eipc_uuid(content)
+    if not uuid:
+        # Fallback: check mainView.js in the same directory
+        mainview = os.path.join(os.path.dirname(filepath), 'mainView.js')
+        if os.path.exists(mainview):
+            with open(mainview, 'rb') as f:
+                uuid = extract_eipc_uuid(f.read())
+    if not uuid:
+        print(f"  [FAIL] Could not extract eipc UUID from source files")
+        return False
+
+    eipc_prefix = f"$eipc_message$_{uuid}_$_claude.web_$_ComputerUseTcc_$_"
+    print(f"  [OK] Extracted eipc UUID: {uuid}")
+
+    stub_js = build_stub_handlers_js(eipc_prefix)
+
     # Inject after app.on("ready", async () => { ...first check...
     # We look for the app.on("ready" handler and inject right after the opening
     pattern = rb'(app\.on\("ready",async\(\)=>\{)'
 
-    replacement = rb'\1' + STUB_HANDLERS_JS.encode('utf-8')
+    replacement = rb'\1' + stub_js.encode('utf-8')
 
     content, count = re.subn(pattern, replacement, content, count=1)
     if count >= 1:
