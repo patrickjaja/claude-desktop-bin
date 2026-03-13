@@ -681,11 +681,11 @@ jobs:
           git add README.md
           git diff --staged --quiet || {
             git commit -m "Update README install commands to v${VERSION}"
-            # Stash untracked/modified files from earlier build steps (PKGBUILD, nix, etc.)
-            # so git pull --rebase doesn't refuse to run
-            git stash --include-untracked
+            # Discard dirty tracked files from earlier build steps (flake.lock, package.nix, etc.)
+            # The README commit is already saved; we just need a clean worktree for rebase
+            git checkout -- .
+            git clean -fd --exclude=aur-repo
             git pull --rebase origin master
-            git stash pop || true
             git push origin master
           }
 
