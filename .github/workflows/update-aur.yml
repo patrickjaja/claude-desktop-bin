@@ -681,10 +681,11 @@ jobs:
           git add README.md
           git diff --staged --quiet || {
             git commit -m "Update README install commands to v${VERSION}"
-            # Discard dirty tracked files from earlier build steps (flake.lock, package.nix, etc.)
-            # The README commit is already saved; we just need a clean worktree for rebase
-            git checkout -- .
-            git clean -fd --exclude=aur-repo
+            # Earlier steps (Nix build) modify tracked files (package.nix, flake.lock).
+            # git reset --hard resets BOTH index and working tree to HEAD, unlike
+            # git checkout which only resets the working tree to match the index.
+            git reset --hard HEAD
+            git clean -fdx --exclude=aur-repo
             git pull --rebase origin master
             git push origin master
           }
