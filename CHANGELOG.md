@@ -2,6 +2,11 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-03-14
+
+### Added
+- **fix_dock_bounce.py** — Disable `dockBounceEnabled` on Linux to prevent taskbar flashing. On KDE Plasma 6 with Wayland, `BrowserWindow.flashFrame()` triggers the demands-attention state on every focus change. The patch wraps the feature flag check with a `process.platform!=="linux"` guard. Fixes [#10](https://github.com/patrickjaja/claude-desktop-bin/issues/10).
+
 ## 2026-03-11
 
 ### Changed
