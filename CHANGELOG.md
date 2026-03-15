@@ -2,10 +2,13 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
-## 2026-03-14
+## 2026-03-15
 
-### Added
-- **fix_dock_bounce.py** — Disable `dockBounceEnabled` on Linux to prevent taskbar flashing. On KDE Plasma 6 with Wayland, `BrowserWindow.flashFrame()` triggers the demands-attention state on every focus change. The patch wraps the feature flag check with a `process.platform!=="linux"` guard. Fixes [#10](https://github.com/patrickjaja/claude-desktop-bin/issues/10).
+### Fixed
+- **fix_dock_bounce.py** — Complete rewrite to actually fix taskbar flashing on Wayland ([#10](https://github.com/patrickjaja/claude-desktop-bin/issues/10)). The previous patch was a no-op because `dockBounceEnabled` defaults to `false` — `flashFrame()` was never being called. The real causes are `app.focus({steal:true})` (Electron docs: "may result in a flashing app icon on Wayland") and `BrowserWindow.focus()` on non-focused windows triggering `xdg_activation_v1` requests that KWin translates to demands-attention. The new patch:
+  - Injects early monkey-patches: no-op `flashFrame`, strip `steal` from `app.focus()`, guard `BrowserWindow.focus()` to skip when window is invisible
+  - Removes inline `app.focus({steal:!0})` calls
+  - Early-returns from `requestUserAttention()` on Linux
 
 ## 2026-03-11
 

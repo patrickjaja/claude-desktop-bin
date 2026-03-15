@@ -2,16 +2,22 @@
 # @patch-target: app.asar.contents/.vite/build/index.js
 # @patch-type: python
 """
-Disable dockBounceEnabled on Linux to prevent taskbar flashing.
+Suppress taskbar flashing (demands-attention) on Linux/Wayland.
 
-On KDE Plasma 6 with Wayland, Chromium's xdg_activation_v1 handling causes
-the taskbar to flash (demands-attention state) on every focus change. The
-requestUserAttention() method calls BrowserWindow.flashFrame() when
-dockBounceEnabled is true, which makes the problem worse. This patch
-disables the feature flag check on Linux so flashFrame is never called.
+On KDE Plasma 6 (and other Wayland compositors), Claude Desktop causes the
+taskbar entry to flash orange on every focus change. This is NOT caused by
+flashFrame() (dockBounceEnabled defaults to false). The real causes are:
 
-The desktop notification itself is unaffected — only the taskbar flash
-is suppressed.
+1. app.focus({steal:true}) — Electron docs explicitly state this "requests
+   focus, which may result in a flashing app icon" on Wayland
+2. BrowserWindow.focus()/show() on non-focused windows — generates
+   xdg_activation_v1 requests that KWin translates to demands-attention
+
+This patch injects early monkey-patches that:
+- No-op flashFrame() on Linux (belt-and-suspenders)
+- Strip {steal:true} from app.focus() to prevent Wayland activation requests
+- Guard BrowserWindow.focus() to skip when the app doesn't own focus
+- No-op requestUserAttention() on Linux entirely
 
 See: https://github.com/patrickjaja/claude-desktop-bin/issues/10
 
@@ -23,8 +29,23 @@ import os
 import re
 
 
+# Early monkey-patch block injected at the top of index.js.
+# This runs before any BrowserWindow is created, ensuring all
+# subsequent calls go through our guards.
+LINUX_WAYLAND_GUARD = rb""";(function(){
+if(process.platform==="linux"){
+var _e=require("electron");
+_e.BrowserWindow.prototype.flashFrame=function(){};
+var _appFocus=_e.app.focus.bind(_e.app);
+_e.app.focus=function(o){if(o)delete o.steal;return _appFocus(o)};
+var _bwFocus=_e.BrowserWindow.prototype.focus;
+_e.BrowserWindow.prototype.focus=function(){if(this.isDestroyed())return;try{if(!this.isFocused()&&!this.isVisible())return}catch(e){}return _bwFocus.call(this)};
+}
+})();"""
+
+
 def patch_dock_bounce(filepath):
-    """Disable dockBounceEnabled on Linux."""
+    """Suppress taskbar demands-attention on Linux."""
 
     print(f"=== Patch: fix_dock_bounce ===")
     print(f"  Target: {filepath}")
@@ -37,37 +58,69 @@ def patch_dock_bounce(filepath):
         content = f.read()
 
     original_content = content
+    applied = []
 
-    # Patch: wrap dockBounceEnabled check with a Linux platform guard
-    # Original: Zr("dockBounceEnabled") (where Zr is minified feature flag getter)
-    # Patched:  (process.platform!=="linux"&&Zr("dockBounceEnabled"))
-
-    # Check if already patched first
-    if b'process.platform!=="linux"&&' in content and b'"dockBounceEnabled"' in content:
-        print(f"  [INFO] dockBounceEnabled already patched")
+    # --- 1. Inject early monkey-patch block ---
+    marker = b'_e.BrowserWindow.prototype.flashFrame=function(){}'
+    if marker in content:
+        print(f"  [INFO] Early monkey-patch already injected")
+        applied.append("early-guard(skip)")
     else:
-        pattern = rb'(\w+)\("dockBounceEnabled"\)'
-
-        def replacement(m):
-            fn = m.group(1)
-            return b'(process.platform!=="linux"&&' + fn + b'("dockBounceEnabled"))'
-
-        content, count = re.subn(pattern, replacement, content)
-
-        if count > 0:
-            print(f"  [OK] dockBounceEnabled Linux guard: {count} match(es)")
+        # Inject right after "use strict"; at the top of the file
+        if content.startswith(b'"use strict";'):
+            content = b'"use strict";' + LINUX_WAYLAND_GUARD + content[len(b'"use strict";'):]
+            print(f"  [OK] Early monkey-patch injected after \"use strict\"")
+            applied.append("early-guard")
         else:
-            print(f"  [FAIL] dockBounceEnabled pattern not found")
-            return False
+            # Fallback: prepend
+            content = LINUX_WAYLAND_GUARD + content
+            print(f"  [OK] Early monkey-patch prepended")
+            applied.append("early-guard(prepend)")
 
-    # Write back if changed
+    # --- 2. Inline: strip steal from app.focus({steal:!0}) ---
+    # Pattern: xe.app.focus({steal:!0})  or  xe.app.focus({steal:true})
+    # Replace with: xe.app.focus({})
+    steal_pattern = rb'(\w+\.app\.focus)\(\{steal:!?[01t]\w*\}\)'
+
+    def steal_replacement(m):
+        return m.group(1) + b'({})'
+
+    content, steal_count = re.subn(steal_pattern, steal_replacement, content)
+    if steal_count > 0:
+        print(f"  [OK] Removed app.focus({{steal}}) calls: {steal_count} match(es)")
+        applied.append(f"steal-focus({steal_count})")
+    else:
+        print(f"  [INFO] No app.focus({{steal}}) calls found (may not exist in this version)")
+
+    # --- 3. No-op requestUserAttention on Linux ---
+    # Pattern: requestUserAttention(){...flashFrame...}
+    # We wrap the body with a platform guard
+    rua_pattern = rb'(requestUserAttention\(\)\{)(var \w+;this\.isAppFocusedAndVisible\(\)\|\|)'
+    rua_replacement = rb'\1if(process.platform==="linux")return;\2'
+
+    if b'requestUserAttention(){if(process.platform==="linux")return;' in content:
+        print(f"  [INFO] requestUserAttention already guarded")
+        applied.append("rua-guard(skip)")
+    else:
+        content, rua_count = re.subn(rua_pattern, rua_replacement, content)
+        if rua_count > 0:
+            print(f"  [OK] requestUserAttention Linux guard: {rua_count} match(es)")
+            applied.append(f"rua-guard({rua_count})")
+        else:
+            print(f"  [WARN] requestUserAttention pattern not matched (non-critical)")
+
+    # --- Summary ---
+    if not applied:
+        print(f"  [FAIL] No patches could be applied")
+        return False
+
     if content != original_content:
         with open(filepath, 'wb') as f:
             f.write(content)
-        print("  [PASS] Dock bounce disabled on Linux")
+        print(f"  [PASS] Applied: {', '.join(applied)}")
         return True
     else:
-        print("  [PASS] No changes needed (already patched)")
+        print(f"  [PASS] No changes needed (already patched)")
         return True
 
 
