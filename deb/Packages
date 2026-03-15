@@ -1,16 +1,16 @@
 Package: claude-desktop-bin
-Version: 1.1.6679-3
+Version: 1.1.6679-4
 Architecture: amd64
 Maintainer: Claude Desktop Linux Community <claude-desktop-linux@users.noreply.github.com>
 Installed-Size: 342132
 Depends: libgtk-3-0, libnotify4, libnss3, libxss1, libxtst6, libatspi2.0-0, libdrm2, libgbm1, libasound2
 Recommends: libnotify-bin
 Suggests: nodejs, npm
-Filename: amd64/claude-desktop-bin_1.1.6679-3_amd64.deb
-Size: 99314582
-MD5sum: eb750e7c9f0520eb9241a38cd8c0edee
-SHA1: 55a5101dd287caaddc71060d899fe2bd8d40397f
-SHA256: 5a43d306c5c45792daf936c3f70cdafb60625deef5493574c9b4fa405f4dbdd2
+Filename: amd64/claude-desktop-bin_1.1.6679-4_amd64.deb
+Size: 99313620
+MD5sum: 86addd5f8307548f4eb9ccdcbdcc1944
+SHA1: 8fa4d78f128753dc0d6101492548cc29e6f86543
+SHA256: 80048518b5ab42ed7d512fc583dc64fa37fa565dadb4aee0d64bbd92d1c110ef
 Section: utils
 Priority: optional
 Homepage: https://claude.ai
