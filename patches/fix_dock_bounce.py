@@ -5,22 +5,16 @@
 Suppress taskbar flashing (demands-attention) on Linux/Wayland.
 
 On KDE Plasma 6 (and other Wayland compositors), Claude Desktop causes the
-taskbar entry to flash orange on every focus change. The root causes are:
+taskbar entry to flash orange on every focus change. Monkey-patching Electron
+JS APIs alone is NOT enough — the activation requests come from Chromium's
+internal Wayland backend (xdg_activation_v1 surface activation during
+compositor frame submission).
 
-1. app.focus({steal:true}) — Electron docs: "may result in a flashing app
-   icon" on Wayland
-2. BrowserWindow.focus()/show() on non-focused windows — generates
-   xdg_activation_v1 requests that KWin translates to demands-attention
-3. backgroundThrottling:false on the BrowserView — the renderer keeps
-   compositing frames in the background, generating activation requests
-
-This patch:
-- No-ops flashFrame(), app.focus() on Linux entirely
-- Guards BrowserWindow.focus() to only work when already focused (WM handles
-  activation on Linux — clicking taskbar icon works through WM, not JS)
-- Guards BrowserWindow.show() to skip when window is already visible
-- Enables backgroundThrottling on Linux to stop background compositor activity
-- No-ops requestUserAttention() on Linux
+This patch uses a two-layer approach:
+Layer 1 (prevent): Monkey-patch Electron APIs to stop JS-level activation
+Layer 2 (cure):    Actively CLEAR demands-attention state on every blur event
+                   using the real flashFrame(false), with retries to catch
+                   delayed Chromium-internal activations
 
 See: https://github.com/patrickjaja/claude-desktop-bin/issues/10
 
@@ -33,21 +27,34 @@ import re
 
 
 # Early monkey-patch block injected at the top of index.js.
-# This runs before any BrowserWindow is created, ensuring all
-# subsequent calls go through our guards.
 #
-# On Linux (especially Wayland), we suppress ALL focus-stealing and
-# activation-requesting behavior. The window manager owns focus management;
-# the app should never try to grab focus or request attention.
+# Layer 1: Prevent JS-level activation requests
+# - flashFrame(true) → intercepted, only allow flashFrame(false) through
+# - app.focus() → no-op
+# - BrowserWindow.focus() → only when already focused
+# - BrowserWindow.show() → skip when already visible
+#
+# Layer 2: Active clearing of demands-attention state
+# - On every window blur, repeatedly call the REAL flashFrame(false)
+#   to clear any demands-attention state set by Chromium internals
+# - Multiple retries (50ms, 100ms, 250ms, 500ms, 1s) to catch delayed
+#   activation from compositor frame submission
 LINUX_WAYLAND_GUARD = rb""";(function(){
 if(process.platform==="linux"){
 var _e=require("electron");
-_e.BrowserWindow.prototype.flashFrame=function(){};
+var _origFlash=_e.BrowserWindow.prototype.flashFrame;
+_e.BrowserWindow.prototype.flashFrame=function(f){if(!f&&!this.isDestroyed())return _origFlash.call(this,false)};
 _e.app.focus=function(){};
 var _bwFocus=_e.BrowserWindow.prototype.focus;
 _e.BrowserWindow.prototype.focus=function(){if(!this.isDestroyed()&&this.isFocused())return _bwFocus.call(this)};
 var _bwShow=_e.BrowserWindow.prototype.show;
 _e.BrowserWindow.prototype.show=function(){if(!this.isDestroyed()&&!this.isVisible())return _bwShow.call(this)};
+_e.app.whenReady().then(function(){
+var _t=null;
+function _clear(){_e.BrowserWindow.getAllWindows().forEach(function(w){if(!w.isDestroyed())_origFlash.call(w,false)})}
+_e.app.on("browser-window-blur",function(){_clear();if(_t)clearInterval(_t);_t=setInterval(_clear,200)});
+_e.app.on("browser-window-focus",function(){if(_t){clearInterval(_t);_t=null}});
+});
 }
 })();"""
 
@@ -69,18 +76,22 @@ def patch_dock_bounce(filepath):
     applied = []
 
     # --- 1. Inject early monkey-patch block ---
-    marker = b'_e.app.focus=function(){}'
+    marker = b'_e.app.on("browser-window-blur"'
     if marker in content:
         print(f"  [INFO] Early monkey-patch already injected")
         applied.append("early-guard(skip)")
     else:
-        # Remove old version of the guard if present (from previous patch)
-        old_marker = b'_e.BrowserWindow.prototype.flashFrame=function(){}'
-        if old_marker in content and marker not in content:
-            # Strip old guard block and inject new one
-            old_guard_pattern = rb';?\(function\(\)\{\s*if\(process\.platform==="linux"\)\{.*?\}\s*\}\)\(\);'
-            content = re.sub(old_guard_pattern, b'', content, count=1, flags=re.DOTALL)
-            print(f"  [OK] Removed old monkey-patch block")
+        # Remove any old version of the guard if present
+        old_markers = [
+            b'_e.app.focus=function(){}',
+            b'_e.BrowserWindow.prototype.flashFrame=function(){}',
+        ]
+        for old_m in old_markers:
+            if old_m in content and marker not in content:
+                old_guard_pattern = rb';?\(function\(\)\{\s*if\(process\.platform==="linux"\)\{.*?\}\s*\}\)\(\);'
+                content = re.sub(old_guard_pattern, b'', content, count=1, flags=re.DOTALL)
+                print(f"  [OK] Removed old monkey-patch block")
+                break
 
         # Inject right after "use strict"; at the top of the file
         if content.startswith(b'"use strict";'):
@@ -88,14 +99,11 @@ def patch_dock_bounce(filepath):
             print(f"  [OK] Early monkey-patch injected after \"use strict\"")
             applied.append("early-guard")
         else:
-            # Fallback: prepend
             content = LINUX_WAYLAND_GUARD + content
             print(f"  [OK] Early monkey-patch prepended")
             applied.append("early-guard(prepend)")
 
     # --- 2. Inline: strip steal from app.focus({steal:!0}) ---
-    # Even though app.focus is now a no-op, remove steal inline too
-    # for clarity and in case someone reads the code
     steal_pattern = rb'(\w+\.app\.focus)\(\{steal:!?[01t]\w*\}\)'
 
     def steal_replacement(m):
@@ -124,11 +132,6 @@ def patch_dock_bounce(filepath):
             print(f"  [WARN] requestUserAttention pattern not matched (non-critical)")
 
     # --- 4. Enable backgroundThrottling on Linux for mainView ---
-    # Original: backgroundThrottling:!1 (false — renderer never throttles)
-    # On Linux, this causes the renderer to keep compositing frames while
-    # backgrounded, generating xdg_activation_v1 requests on Wayland.
-    # Change to: backgroundThrottling:process.platform!=="linux"
-    # (true on Linux = throttle when backgrounded, false on others = unchanged)
     bg_pattern = rb'(enableBlinkFeatures:void 0,backgroundThrottling):(!1)'
     bg_replacement = rb'\1:process.platform!=="linux"?!1:!0'
 
