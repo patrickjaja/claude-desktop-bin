@@ -2,16 +2,20 @@
 # @patch-target: app.asar.contents/.vite/build/index.js
 # @patch-type: python
 """
-Suppress taskbar flashing (demands-attention) on Linux/Wayland.
+Suppress taskbar flashing (demands-attention) on Linux/Wayland+X11.
 
-On KDE Plasma 6 (and other Wayland compositors), Claude Desktop causes the
-taskbar entry to flash orange on every focus change. Monkey-patching Electron
-JS APIs alone is NOT enough — the activation requests come from Chromium's
-internal Wayland backend (xdg_activation_v1 surface activation during
-compositor frame submission).
+On KDE Plasma 6 (and other Linux DEs), Claude Desktop causes the taskbar
+entry to flash orange and auto-hidden panels to pop up. This happens because
+Electron's BrowserWindow.show(), BrowserWindow.focus(), and WebContents.focus()
+internally trigger gtk_window_present() / XSetInputFocus() /
+xdg_activation_v1, which set _NET_WM_STATE_DEMANDS_ATTENTION when the
+compositor's focus-stealing prevention blocks the request.
 
 This patch uses a two-layer approach:
 Layer 1 (prevent): Monkey-patch Electron APIs to stop JS-level activation
+  - flashFrame(true), app.focus(), BrowserWindow.focus(), BrowserWindow.show(),
+    BrowserWindow.moveTop(), AND WebContents.focus() (the key missing piece
+    that bypasses BrowserWindow.prototype overrides)
 Layer 2 (cure):    Actively CLEAR demands-attention state on every blur event
                    using the real flashFrame(false), with retries to catch
                    delayed Chromium-internal activations
@@ -29,33 +33,99 @@ import re
 # Early monkey-patch block injected at the top of index.js.
 #
 # Layer 1: Prevent JS-level activation requests
-# - flashFrame(true) → intercepted, only allow flashFrame(false) through
-# - app.focus() → no-op
-# - BrowserWindow.focus() → only when already focused
-# - BrowserWindow.show() → skip when already visible
+# - flashFrame(true) -> intercepted, only allow flashFrame(false) through
+# - app.focus() -> no-op
+# - BrowserWindow.focus() -> only when already focused
+# - BrowserWindow.show() -> use showInactive() when app not focused
+# - BrowserWindow.moveTop() -> block when not focused
+# - WebContents.focus() -> block when parent window not focused (KEY FIX:
+#   webContents.focus() bypasses BrowserWindow.prototype and directly calls
+#   RenderWidgetHostViewAura::Focus() which triggers gtk_window_present()
+#   or XSetInputFocus(), causing _NET_WM_STATE_DEMANDS_ATTENTION on KDE)
 #
 # Layer 2: Active clearing of demands-attention state
 # - On every window blur, repeatedly call the REAL flashFrame(false)
 #   to clear any demands-attention state set by Chromium internals
-# - Multiple retries (50ms, 100ms, 250ms, 500ms, 1s) to catch delayed
-#   activation from compositor frame submission
-LINUX_WAYLAND_GUARD = rb""";(function(){
-if(process.platform==="linux"){
+# - 500ms interval to catch delayed activation from compositor frame submission
+LINUX_WAYLAND_GUARD = b""";(function(){
+if(process.platform!=="linux")return;
 var _e=require("electron");
+
+/* 1. flashFrame: only allow flashFrame(false) to clear attention */
 var _origFlash=_e.BrowserWindow.prototype.flashFrame;
-_e.BrowserWindow.prototype.flashFrame=function(f){if(!f&&!this.isDestroyed())return _origFlash.call(this,false)};
+_e.BrowserWindow.prototype.flashFrame=function(f){
+if(!f&&!this.isDestroyed())return _origFlash.call(this,false);
+};
+
+/* 2. app.focus: complete no-op (prevents app-level activation request) */
 _e.app.focus=function(){};
+
+/* 3. BrowserWindow.focus: only call through if window already focused */
 var _bwFocus=_e.BrowserWindow.prototype.focus;
-_e.BrowserWindow.prototype.focus=function(){if(!this.isDestroyed()&&this.isFocused())return _bwFocus.call(this)};
+_e.BrowserWindow.prototype.focus=function(){
+if(!this.isDestroyed()&&this.isFocused())return _bwFocus.call(this);
+};
+
+/* 4. BrowserWindow.show: use showInactive when app not focused.
+   showInactive() maps the window without calling gtk_window_present(),
+   so KDE will not set _NET_WM_STATE_DEMANDS_ATTENTION */
 var _bwShow=_e.BrowserWindow.prototype.show;
-_e.BrowserWindow.prototype.show=function(){if(!this.isDestroyed()&&!this.isVisible())return _bwShow.call(this)};
+var _bwShowInactive=_e.BrowserWindow.prototype.showInactive;
+_e.BrowserWindow.prototype.show=function(){
+if(this.isDestroyed())return;
+if(!this.isVisible()){
+var _appFocused=_e.BrowserWindow.getAllWindows().some(function(w){
+return!w.isDestroyed()&&w.isFocused();
+});
+if(_appFocused)return _bwShow.call(this);
+return _bwShowInactive.call(this);
+}
+};
+
+/* 5. BrowserWindow.moveTop: block when not focused */
+var _bwMoveTop=_e.BrowserWindow.prototype.moveTop;
+if(_bwMoveTop){
+_e.BrowserWindow.prototype.moveTop=function(){
+if(!this.isDestroyed()&&this.isFocused())return _bwMoveTop.call(this);
+};
+}
+
+/* 6. WebContents.focus: block when parent window not focused.
+   This is the KEY fix -- webContents.focus() internally calls
+   RenderWidgetHostViewAura::Focus() which can trigger gtk_window_present()
+   or XSetInputFocus(), causing _NET_WM_STATE_DEMANDS_ATTENTION on KDE */
+_e.app.on("web-contents-created",function(_ev,wc){
+var _wcFocus=wc.focus.bind(wc);
+wc.focus=function(){
+if(wc.isDestroyed())return;
+var w=_e.BrowserWindow.fromWebContents(wc);
+if(w&&!w.isDestroyed()&&w.isFocused())return _wcFocus();
+if(!w){
+var wins=_e.BrowserWindow.getAllWindows();
+for(var i=0;i<wins.length;i++){
+if(!wins[i].isDestroyed()&&wins[i].isFocused())return _wcFocus();
+}
+}
+};
+});
+
+/* 7. Periodic flash-frame clearing when any window is blurred */
 _e.app.whenReady().then(function(){
 var _t=null;
-function _clear(){_e.BrowserWindow.getAllWindows().forEach(function(w){if(!w.isDestroyed())_origFlash.call(w,false)})}
-_e.app.on("browser-window-blur",function(){_clear();if(_t)clearInterval(_t);_t=setInterval(_clear,200)});
-_e.app.on("browser-window-focus",function(){if(_t){clearInterval(_t);_t=null}});
+function _clear(){
+_e.BrowserWindow.getAllWindows().forEach(function(w){
+if(!w.isDestroyed())try{_origFlash.call(w,false)}catch(_){}
 });
 }
+_e.app.on("browser-window-blur",function(){
+_clear();
+if(_t)clearInterval(_t);
+_t=setInterval(_clear,500);
+});
+_e.app.on("browser-window-focus",function(){
+if(_t){clearInterval(_t);_t=null;}
+});
+});
 })();"""
 
 

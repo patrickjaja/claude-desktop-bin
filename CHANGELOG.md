@@ -5,9 +5,9 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 ## 2026-03-15
 
 ### Fixed
-- **fix_dock_bounce.py** — Two-layer fix for taskbar flashing on Wayland ([#10](https://github.com/patrickjaja/claude-desktop-bin/issues/10)). JS-level monkey-patches alone don't work because `xdg_activation_v1` requests come from Chromium's internal Wayland backend (C++ level). New approach:
-  - **Layer 1 (prevent):** No-op `flashFrame(true)`/`app.focus()`, guard `BrowserWindow.focus()`/`show()`, enable `backgroundThrottling` on Linux, early-return `requestUserAttention()`
-  - **Layer 2 (cure):** On every window blur, actively call the real `flashFrame(false)` on a 200ms interval to continuously clear demands-attention state set by Chromium internals. Stops on focus.
+- **fix_dock_bounce.py** — Comprehensive fix for taskbar attention-stealing on KDE Plasma and other Linux DEs ([#10](https://github.com/patrickjaja/claude-desktop-bin/issues/10)). Previous approach only patched `BrowserWindow.prototype` methods but missed `WebContents.focus()` which bypasses those overrides entirely and triggers `gtk_window_present()`/`XSetInputFocus()` at the C++ level, causing `_NET_WM_STATE_DEMANDS_ATTENTION`. New approach:
+  - **Layer 1 (prevent):** No-op `flashFrame(true)`/`app.focus()`, guard `BrowserWindow.focus()`/`moveTop()`, use `showInactive()` instead of `show()` when app not focused, enable `backgroundThrottling` on Linux, early-return `requestUserAttention()`, **intercept `WebContents.focus()` via `web-contents-created` event** (the key fix — only allow when parent window is focused)
+  - **Layer 2 (cure):** On every window blur, actively call the real `flashFrame(false)` on a 500ms interval to continuously clear demands-attention state set by Chromium internals. Stops on focus.
 
 ## 2026-03-11
 
