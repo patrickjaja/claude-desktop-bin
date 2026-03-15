@@ -5,10 +5,13 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 ## 2026-03-15
 
 ### Fixed
-- **fix_dock_bounce.py** — Complete rewrite to actually fix taskbar flashing on Wayland ([#10](https://github.com/patrickjaja/claude-desktop-bin/issues/10)). The previous patch was a no-op because `dockBounceEnabled` defaults to `false` — `flashFrame()` was never being called. The real causes are `app.focus({steal:true})` (Electron docs: "may result in a flashing app icon on Wayland") and `BrowserWindow.focus()` on non-focused windows triggering `xdg_activation_v1` requests that KWin translates to demands-attention. The new patch:
-  - Injects early monkey-patches: no-op `flashFrame`, strip `steal` from `app.focus()`, guard `BrowserWindow.focus()` to skip when window is invisible
-  - Removes inline `app.focus({steal:!0})` calls
-  - Early-returns from `requestUserAttention()` on Linux
+- **fix_dock_bounce.py** — Comprehensive fix for taskbar flashing on Wayland ([#10](https://github.com/patrickjaja/claude-desktop-bin/issues/10)). Suppresses ALL focus-stealing and activation-requesting behavior on Linux:
+  - No-op `flashFrame()` and `app.focus()` entirely on Linux
+  - Guard `BrowserWindow.focus()` — only passes through when window is already focused (WM handles activation)
+  - Guard `BrowserWindow.show()` — skips when window is already visible (prevents re-activation)
+  - Enable `backgroundThrottling` on Linux — stops the renderer from compositing frames in background, which triggers `xdg_activation_v1` requests on Wayland
+  - Early-return from `requestUserAttention()` on Linux
+  - Remove inline `app.focus({steal:!0})` calls
 
 ## 2026-03-11
 
