@@ -2,6 +2,26 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-03-17
+
+### Changed
+- **Update to Claude Desktop v1.1.7053** (from v1.1.3189)
+
+### Added
+- **fix_cowork_spaces.py** — New patch: registers 17 stub IPC handlers for the CoworkSpaces eipc service on Linux. The renderer calls `getAllSpaces`, `createSpace`, `getAutoMemoryDir`, etc. via eipc but no handler is registered in the main process on Linux (native backend doesn't load). Stubs return empty arrays/null to prevent `No handler registered` errors at startup.
+
+### Fixed
+- **enable_local_agent_mode.py** — Fix mC() merger pattern: `\w+` → `[\w$]+` for the async merger variable name (was `$M` in this version, `$` not matched by `\w`)
+
+### Notes
+- 24/24 patches pass (fix_mcp_reconnect.py: upstream fix, no patch needed)
+- New feature flag `floatingAtoll` added upstream (always `{status:"unavailable"}` — disabled for all platforms, no Linux patch needed)
+- New settings: `chicagoEnabled`, `keepAwakeEnabled`, `coworkScheduledTasksEnabled`, `ccdScheduledTasksEnabled`, `sidebarMode`, `bypassPermissionsModeEnabled`, `autoPermissionsModeEnabled`
+- New developer flags: `isPhoenixRisingAgainEnabled` (new updater), `isDxtEnabled`/`isDxtDirectoryEnabled` (browser extensions), `isMidnightOwlEnabled`
+- eipc UUID changed to `316b9ec7-48bb-494d-b1a8-82f8448548fb` (dynamically extracted by fix_computer_use_tcc.py)
+- Function renames: Kh/$M/Qwe/K9 (was nh/rO/Ebe/J5)
+- `fix_marketplace_linux.py` Patches A & B return 0 matches (patterns refactored upstream); Patch C (CCD gate) still active
+
 ## 2026-03-15
 
 ### Fixed
