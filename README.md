@@ -136,6 +136,18 @@ yay -S claude-cowork-service
 systemctl --user enable --now claude-cowork
 ```
 
+## CoworkSpaces
+
+CoworkSpaces organizes folders, projects, and links into named Spaces for Cowork sessions. On macOS/Windows this is handled by the native backend (`@ant/claude-swift`). On Linux, `fix_cowork_spaces.py` provides a full file-based implementation:
+
+- Stores spaces in `~/.config/Claude/spaces.json`
+- Full CRUD: create, update, delete spaces with folders, projects, and links
+- File operations: list folder contents, read files, open with system handler
+- Auto-memory directories per space (`~/.config/Claude/spaces/<id>/memory/`)
+- Integrates with the SpaceManager singleton so `resolveSpaceContext` works for sessions
+
+The Spaces UI is rendered by the claude.ai web frontend (loaded in the BrowserView).
+
 ## Computer Use (X11)
 
 On macOS, Computer Use is provided by the native `@ant/claude-swift` binary. On Linux, we replace it with a Node.js MCP server (`computer-use-server.js`) that uses [xdotool](https://github.com/jordansissel/xdotool) for mouse/keyboard and [scrot](https://github.com/resurrecting-open-source-projects/scrot) for screenshots.
