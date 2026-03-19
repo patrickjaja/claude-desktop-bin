@@ -2,6 +2,39 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-03-19
+
+### Changed
+- **Update to Claude Desktop v1.1.7464** (from v1.1.7053)
+
+### Added
+- **fix_dispatch_linux.py** — New patch: enables Dispatch (remote task orchestration from mobile) on Linux. Four sub-patches:
+  - A: Forces sessions-bridge init gate ON (GrowthBook flag `3572572142` — `let f=!1` → `let f=!0`)
+  - B: Bypasses remote session control check (GrowthBook flag `2216414644` — `!Jr(...)` → `!1`)
+  - C: Adds Linux to `HI()` platform label (`"Unsupported Platform"` → `"Linux"`)
+  - D: Includes Linux in `Xqe` telemetry gate so dispatch analytics are not silently dropped
+- **fix_window_bounds.py** — New patch: fixes three window management issues on Linux:
+  - Child view bounds fix: hooks maximize/unmaximize/fullscreen/moved events to manually set child view bounds (fixes blank white area on KWin corner-snap)
+  - Ready-to-show size jiggle: +1px resize then restore after 50ms to force Chromium layout recalculation on first load
+  - Quick Entry blur before hide: adds `blur()` before `hide()` for proper focus transfer
+- **scripts/claude-desktop-launcher.sh** — New launcher script replacing the bare `exec electron` one-liner:
+  - Wayland/X11 detection (defaults to XWayland for global hotkey support, `CLAUDE_USE_WAYLAND=1` for native Wayland)
+  - Auto-detects Niri compositor (forces native Wayland — no XWayland)
+  - Electron args: `--disable-features=CustomTitlebar`, `--ozone-platform`, `--enable-wayland-ime`, etc.
+  - Environment: `ELECTRON_FORCE_IS_PACKAGED=true`, `ELECTRON_USE_SYSTEM_TITLE_BAR=1`
+  - SingletonLock cleanup (removes stale lock files from crashed sessions)
+  - Cowork socket cleanup (removes stale `cowork-vm-service.sock`)
+  - `CLAUDE_MENU_BAR` support (auto/visible/hidden)
+
+### Notes
+- 27/27 patches pass (fix_mcp_reconnect.py: upstream fix, no patch needed)
+- Feature flag architecture unchanged from v1.1.7053 — same 14 flags, same 3-layer override
+- New upstream features in v1.1.7464: SSH remote CCD sessions, Scheduled Tasks (cron), Teleport to Cloud, Git/PR integration, DXT extensions, Keep-Awake
+- New sidebar mode: `"epitaxy"` (purpose unknown)
+- CoworkSpaces stubs remain sufficient — Spaces is real on macOS/Windows but Dispatch works without it
+- Function renames: rp/zM/$Se/oq (was Kh/$M/Qwe/K9)
+- eipc UUID: `fcf195bd-4d6c-4446-98e4-314753dfa766` (dynamically extracted)
+
 ## 2026-03-17
 
 ### Changed

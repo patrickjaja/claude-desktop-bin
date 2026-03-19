@@ -10,8 +10,6 @@ The tray icon setup can be called multiple times concurrently, causing DBus
 2. Adds a mutex guard to prevent concurrent calls
 3. Adds a delay after Tray.destroy() to allow DBus cleanup
 
-Based on: https://github.com/aaddrick/claude-desktop-debian/blob/main/build.sh
-
 Usage: python3 fix_tray_dbus.py <path_to_index.js>
 """
 

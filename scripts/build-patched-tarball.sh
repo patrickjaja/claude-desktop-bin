@@ -217,10 +217,14 @@ fi
 # Create tarball structure
 log_info "Creating tarball structure..."
 TARBALL_DIR="$WORK_DIR/tarball"
-mkdir -p "$TARBALL_DIR/app" "$TARBALL_DIR/icons"
+mkdir -p "$TARBALL_DIR/app" "$TARBALL_DIR/icons" "$TARBALL_DIR/launcher"
 
 # Copy patched app
 cp -r "$WORK_DIR/app"/* "$TARBALL_DIR/app/"
+
+# Copy launcher script
+cp "$SCRIPT_DIR/claude-desktop-launcher.sh" "$TARBALL_DIR/launcher/claude-desktop"
+chmod +x "$TARBALL_DIR/launcher/claude-desktop"
 
 # Extract icon
 if [ -f "$WORK_DIR/extract/setupIcon.ico" ]; then
@@ -236,7 +240,7 @@ fi
 TARBALL_FILE="$OUTPUT_DIR/claude-desktop-${VERSION}-linux.tar.gz"
 log_info "Creating tarball: $TARBALL_FILE"
 cd "$TARBALL_DIR"
-tar -czvf "$TARBALL_FILE" app/ icons/
+tar -czvf "$TARBALL_FILE" app/ icons/ launcher/
 
 # Calculate SHA256
 SHA256=$(sha256sum "$TARBALL_FILE" | cut -d' ' -f1)

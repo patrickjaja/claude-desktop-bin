@@ -91,8 +91,10 @@ cd claude-desktop-bin
 - **Claude Code CLI integration** - Auto-detects system-installed Claude Code (requires [claude-code](https://code.claude.com/docs/en/setup))
 - **Local Agent Mode** - Git worktrees and agent sessions
 - **Cowork support** - Agentic workspace feature enabled on Linux (requires [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service))
+- **Dispatch** - Send tasks from your phone to your desktop Claude via Anthropic's environments bridge API (requires Cowork)
 - **Computer Use** - Desktop automation (screenshot, click, type, scroll) via [xdotool](https://github.com/jordansissel/xdotool) and [scrot](https://github.com/resurrecting-open-source-projects/scrot) (X11; optional deps)
 - **MCP server support** - Model Context Protocol servers work on Linux
+- **Wayland support** - Launcher auto-detects display server; defaults to XWayland (for global hotkeys), native Wayland via `CLAUDE_USE_WAYLAND=1`
 - Global hotkey support (Ctrl+Alt+Space) with multi-monitor awareness
 - Automated daily version checks
 
@@ -133,6 +135,18 @@ curl -fsSL https://raw.githubusercontent.com/patrickjaja/claude-cowork-service/m
 yay -S claude-cowork-service
 systemctl --user enable --now claude-cowork
 ```
+
+## CoworkSpaces
+
+CoworkSpaces organizes folders, projects, and links into named Spaces for Cowork sessions. On macOS/Windows this is handled by the native backend (`@ant/claude-swift`). On Linux, `fix_cowork_spaces.py` provides a full file-based implementation:
+
+- Stores spaces in `~/.config/Claude/spaces.json`
+- Full CRUD: create, update, delete spaces with folders, projects, and links
+- File operations: list folder contents, read files, open with system handler
+- Auto-memory directories per space (`~/.config/Claude/spaces/<id>/memory/`)
+- Integrates with the SpaceManager singleton so `resolveSpaceContext` works for sessions
+
+The Spaces UI is rendered by the claude.ai web frontend (loaded in the BrowserView).
 
 ## Computer Use (X11)
 
@@ -180,6 +194,8 @@ The package applies several patches to make Claude Desktop work on Linux. Each p
 | `fix_tray_icon_theme.py` | Uses theme-aware tray icon selection (light/dark) on Linux | LOW | `rg -o 'nativeTheme.{0,50}tray' index.js` |
 | `fix_tray_path.py` | Redirects tray icon path to package directory on Linux | MED | `rg -o 'function \w+\(\)\{return \w+\.app\.isPackaged' index.js` |
 | `fix_utility_process_kill.py` | Uses SIGKILL as fallback when UtilityProcess doesn't exit gracefully | LOW | Uses `.kill(` literal |
+| `fix_dispatch_linux.py` | Enables Dispatch (remote task orchestration from mobile) — forces bridge init, bypasses remote control gate, adds Linux platform label | MED | `rg -o 'sessions-bridge.*init' index.js` |
+| `fix_window_bounds.py` | Fixes child view bounds on maximize/KWin snap, ready-to-show layout jiggle, Quick Entry blur-before-hide | LOW | Injected IIFE, no regex on app code |
 | `fix_vm_session_handlers.py` | Global uncaught exception handler for VM session safety | LOW | `rg -o 'uncaughtException.{0,50}' index.js` |
 
 When Claude Desktop updates break a patch, only the specific patch file needs updating. The **debug pattern** column shows the `rg` command to find the relevant code in the new version's `index.js`.
@@ -263,7 +279,6 @@ grep -ri 'error\|exception\|fatal' ~/.config/Claude/logs/
 
 ## See Also
 
-- [claude-desktop-debian](https://github.com/aaddrick/claude-desktop-debian) — Another project bringing Claude Desktop to Linux, with a different approach and its own solution. We are not partnered or affiliated in any way — these are two independent projects tackling the same goal differently. Linux is about choices, and having alternatives is always a good thing. Feel free to use or contribute to whichever project suits your needs, or both!
 - [tweakcc](https://github.com/Piebald-AI/tweakcc) — A great CLI tool for customizing Claude Code (system prompts, themes, UI). Same patching-JS-to-make-it-yours energy. Thanks to the Piebald team for their work.
 
 ## Notes
