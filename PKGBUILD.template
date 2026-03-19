@@ -27,13 +27,8 @@ package() {
     install -dm755 "$pkgdir/usr/lib/$pkgname"
     cp -r app/* "$pkgdir/usr/lib/$pkgname/"
 
-    # Install launcher script
-    install -dm755 "$pkgdir/usr/bin"
-    cat > "$pkgdir/usr/bin/claude-desktop" << 'EOF'
-#!/bin/bash
-exec electron /usr/lib/claude-desktop-bin/app.asar "$@"
-EOF
-    chmod +x "$pkgdir/usr/bin/claude-desktop"
+    # Install launcher script (Wayland/X11 detection, env setup, lock cleanup)
+    install -Dm755 "$srcdir/launcher/claude-desktop" "$pkgdir/usr/bin/claude-desktop"
 
     # Install desktop entry
     install -dm755 "$pkgdir/usr/share/applications"
