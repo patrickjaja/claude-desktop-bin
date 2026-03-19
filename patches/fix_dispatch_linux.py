@@ -195,33 +195,32 @@ def patch_dispatch_linux(filepath):
     # Pattern uses \w+ for all minified names. The unique anchor is the
     # Cl[t] lookup + nullish coalescing chain.
 
-    jr_already_all = b'return!0;const'
-    jr_already_single = b'if(t==="3558849738")return!0;'
-    if jr_already_all in content:
-        print(f"  [OK] Jr() force-enable ALL flags: already patched (skipped)")
+    jr_already = b'if(t==="3558849738")return!0;'
+    if jr_already in content:
+        print(f"  [OK] Jr() dispatch flag override: already patched (skipped)")
         patches_applied += 1
     else:
         # Match: function Jr(t){const e=Cl[t];return(e==null?void 0:e.on)??!1}
         jr_pattern = rb'(function )(\w+)(\()(\w+)(\)\{)(const \w+=\w+\[\4\];return\(\w+==null\?void 0:\w+\.on\)\?\?!1\})'
 
+        # Remove stale blanket override if present from previous builds
+        blanket_marker = rb'(return!0;)(const \w+=\w+\[\w+\];return)'
+        content = re.sub(blanket_marker, rb'\2', content)
+
         def jr_replacement(m):
-            # Force ALL GrowthBook flags to return true
+            param = m.group(4)
             return (
                 m.group(1) + m.group(2) + m.group(3) + m.group(4) + m.group(5) +
-                b'return!0;' +
+                b'if(' + param + b'==="3558849738")return!0;' +
                 m.group(6)
             )
 
-        # Remove previous single-flag override if present
-        if jr_already_single in content:
-            content = content.replace(jr_already_single, b'')
-
         content, count_e = re.subn(jr_pattern, jr_replacement, content)
         if count_e >= 1:
-            print(f"  [OK] Jr() force-enable ALL flags: injected ({count_e} match)")
+            print(f"  [OK] Jr() dispatch flag override: injected ({count_e} match)")
             patches_applied += 1
         else:
-            print(f"  [FAIL] Jr() flag override: pattern not found")
+            print(f"  [FAIL] Jr() dispatch flag override: pattern not found")
 
     # ── Results ──────────────────────────────────────────────────────────
 
