@@ -7,7 +7,7 @@ Enable Dispatch (remote task orchestration) on Linux.
 Dispatch lets users send tasks from mobile to desktop. It's blocked on Linux
 by two GrowthBook server-side feature flags and two platform checks.
 
-Four-part patch:
+Five-part patch:
 A. Force sessions-bridge init gate ON.
    The code uses `let f=!1` and a GrowthBook callback for flag "3572572142"
    (yukon_silver_cuttlefish_desktop) to set f=true. On Linux the flag never
@@ -26,6 +26,12 @@ D. Include Linux in the Xqe telemetry gate.
    `Xqe = Hr || Pn` (darwin || win32) gates the $t() telemetry reporter.
    Without Linux, dispatch telemetry events silently drop. We extend the
    check to include Linux.
+
+E. Override Jr() to force-enable dispatch agent name flag.
+   Flag "3558849738" controls Lv() which determines if the Dispatch agent
+   name feature is active. When false, sessionsBridgeStatusStore reports
+   agentNameEnabled:false and the web frontend hides the Dispatch tab.
+   We inject a check at the top of Jr() to return true for this flag ID.
 
 Usage: python3 fix_dispatch_linux.py <path_to_index.js>
 """
@@ -175,6 +181,43 @@ def patch_dispatch_linux(filepath):
             patches_applied += 1
         else:
             print(f"  [WARN] Telemetry gate: pattern not found")
+
+    # ── Patch E: Override Jr() for dispatch agent name flag ──────────────
+    #
+    # Jr() is the GrowthBook flag reader:
+    #   function Jr(t){const e=Cl[t];return(e==null?void 0:e.on)??!1}
+    #
+    # Flag "3558849738" controls Lv() → agentNameEnabled in the bridge
+    # status store. When false, the web frontend hides Dispatch entirely.
+    # We inject `if(t==="3558849738")return!0;` at the top of Jr() so it
+    # returns true for this flag regardless of the server response.
+    #
+    # Pattern uses \w+ for all minified names. The unique anchor is the
+    # Cl[t] lookup + nullish coalescing chain.
+
+    jr_already = b'if(t==="3558849738")return!0;'
+    if jr_already in content:
+        print(f"  [OK] Jr() dispatch flag override: already patched (skipped)")
+        patches_applied += 1
+    else:
+        # Match: function Jr(t){const e=Cl[t];return(e==null?void 0:e.on)??!1}
+        # The function name Jr is minified and may change, but the body is unique.
+        jr_pattern = rb'(function )(\w+)(\()(\w+)(\)\{)(const \w+=\w+\[\4\];return\(\w+==null\?void 0:\w+\.on\)\?\?!1\})'
+
+        def jr_replacement(m):
+            param = m.group(4)  # the parameter name (t)
+            return (
+                m.group(1) + m.group(2) + m.group(3) + m.group(4) + m.group(5) +
+                b'if(' + param + b'==="3558849738")return!0;' +
+                m.group(6)
+            )
+
+        content, count_e = re.subn(jr_pattern, jr_replacement, content)
+        if count_e >= 1:
+            print(f"  [OK] Jr() dispatch flag override: injected ({count_e} match)")
+            patches_applied += 1
+        else:
+            print(f"  [FAIL] Jr() dispatch flag override: pattern not found")
 
     # ── Results ──────────────────────────────────────────────────────────
 

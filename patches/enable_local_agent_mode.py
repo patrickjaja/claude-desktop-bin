@@ -264,6 +264,44 @@ def patch_local_agent_mode(filepath):
     else:
         print(f"  [WARN] mainView.js not found at {mainview_path}")
 
+    # Patch 8: Spoof navigator.platform and navigator.userAgent in renderer main world
+    # The preload context is isolated (contextIsolation:true), so navigator overrides
+    # there don't reach the page. We use two Electron APIs in index.js:
+    # a) app.userAgentFallback — sets navigator.userAgent for all web content
+    # b) webContents.executeJavaScript on dom-ready — overrides navigator.platform
+    #    in the page's main world (not the preload isolated context).
+    #
+    # We inject this right after "use strict"; in index.js.
+    navigator_marker = b'__nav_spoof_applied'
+    if navigator_marker in content:
+        print(f"  [OK] navigator spoof: already applied")
+    else:
+        nav_spoof_js = (
+            b'if(process.platform==="linux"){'
+            # Set userAgentFallback to a macOS-like string (affects navigator.userAgent + HTTP headers)
+            b'const __nav_spoof_applied=!0;'
+            b'const __oUA=require("electron").app.userAgentFallback||"";'
+            b'require("electron").app.userAgentFallback='
+            b'__oUA.replace(/Linux/g,"Macintosh").replace(/x86_64/g,"Intel Mac OS X 10_15_7").replace(/X11;\\s*/g,"");'
+            # Inject navigator.platform override into every new web content's main world
+            b'require("electron").app.on("web-contents-created",(ev,wc)=>{'
+            b'wc.on("dom-ready",()=>{'
+            b'wc.executeJavaScript('
+            b'"try{Object.defineProperty(navigator,\\"platform\\",{get:()=>\\"MacIntel\\",configurable:!0})}catch(e){}"'
+            b').catch(()=>{})'
+            b'})'
+            b'})'
+            b'}'
+        )
+        strict_prefix = b'"use strict";'
+        if content.startswith(strict_prefix):
+            content = strict_prefix + nav_spoof_js + content[len(strict_prefix):]
+            with open(filepath, 'wb') as f:
+                f.write(content)
+            print(f"  [OK] navigator spoof: injected in index.js (userAgent + platform)")
+        else:
+            print(f"  [WARN] navigator spoof: could not find 'use strict' prefix")
+
     return True
 
 
