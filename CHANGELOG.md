@@ -26,9 +26,6 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
   - Cowork socket cleanup (removes stale `cowork-vm-service.sock`)
   - `CLAUDE_MENU_BAR` support (auto/visible/hidden)
 
-### Fixed
-- **Navigator spoof changed from Mac to Windows** — `navigator.platform` now returns `"Win32"` instead of `"MacIntel"` and `userAgentFallback` spoofs as Windows, so the frontend shows Ctrl/Alt shortcuts instead of ⌘/⌥. Server-facing HTTP headers still send "darwin" for Cowork feature gating.
-
 ### Notes
 - 27/27 patches pass (fix_mcp_reconnect.py: upstream fix, no patch needed)
 - Feature flag architecture unchanged from v1.1.7053 — same 14 flags, same 3-layer override
