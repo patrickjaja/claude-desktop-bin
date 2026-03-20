@@ -184,7 +184,8 @@ def patch_local_agent_mode(filepath):
     if count5 >= 1:
         print(f"  [OK] HTTP header platform spoof: {count5} match(es)")
     else:
-        print(f"  [WARN] HTTP header platform spoof: 0 matches")
+        print(f"  [FAIL] HTTP header platform spoof: 0 matches")
+        return False
 
     # Patch 5b: Spoof User-Agent header to claim macOS
     # The User-Agent string contains "Linux" which the server uses for platform
@@ -205,7 +206,8 @@ def patch_local_agent_mode(filepath):
     if count5b >= 1:
         print(f"  [OK] User-Agent header spoof: {count5b} match(es)")
     else:
-        print(f"  [WARN] User-Agent header spoof: 0 matches")
+        print(f"  [FAIL] User-Agent header spoof: 0 matches")
+        return False
 
     # Patch 6: Spoof platform in getSystemInfo IPC response
     # The renderer calls getSystemInfo() and checks platform. We report "win32"
@@ -219,7 +221,8 @@ def patch_local_agent_mode(filepath):
     if count6 >= 1:
         print(f"  [OK] getSystemInfo platform spoof: {count6} match(es)")
     else:
-        print(f"  [WARN] getSystemInfo platform spoof: 0 matches")
+        print(f"  [FAIL] getSystemInfo platform spoof: 0 matches")
+        return False
 
     # Write back if changed
     if content != original_content:
@@ -255,7 +258,8 @@ def patch_local_agent_mode(filepath):
         elif b'.platform="win32"' in mv_content or b'.platform="darwin"' in mv_content:
             print(f"  [OK] mainView.js: window.process.platform spoof already applied")
         else:
-            print(f"  [WARN] mainView.js: window.process.platform spoof: 0 matches")
+            print(f"  [FAIL] mainView.js: window.process.platform spoof: 0 matches")
+            return False
 
         if mv_content != mv_original:
             with open(mainview_path, 'wb') as f:

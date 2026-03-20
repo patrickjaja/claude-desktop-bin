@@ -297,11 +297,13 @@ def build_spaces_service_js(eipc_prefix, singleton_var):
         'return null;'
         '}'
 
-        # createSpaceFolder
-        'createSpaceFolder(spaceId,folderName){'
-        'const s=this._find(spaceId);'
-        'if(!s||!s.ccdFolderPath)return null;'
-        'const dir=_path.join(s.ccdFolderPath,folderName);'
+        # createSpaceFolder — takes (parentPath, folderName), NOT spaceId
+        'createSpaceFolder(parentPath,folderName){'
+        'if(!folderName||!folderName.trim())return null;'
+        'const name=folderName.trim();'
+        'let dir=_path.join(parentPath,name);'
+        'let n=0;'
+        'while(_fs.existsSync(dir)){n++;dir=_path.join(parentPath,name+" ("+n+")");}'
         'try{_fs.mkdirSync(dir,{recursive:true});return dir;}catch(e){return null;}'
         '}'
 
@@ -345,7 +347,7 @@ def build_spaces_service_js(eipc_prefix, singleton_var):
         '_ipc.handle(_P+"listFolderContents",(ev,id,p)=>_svc.listFolderContents(id,p));'
         '_ipc.handle(_P+"readFileContents",(ev,id,p)=>_svc.readFileContents(id,p));'
         '_ipc.handle(_P+"openFile",(ev,id,p)=>_svc.openFile(id,p));'
-        '_ipc.handle(_P+"createSpaceFolder",(ev,id,n)=>_svc.createSpaceFolder(id,n));'
+        '_ipc.handle(_P+"createSpaceFolder",(ev,parentPath,name)=>_svc.createSpaceFolder(parentPath,name));'
         '_ipc.handle(_P+"copyFilesToSpaceFolder",(ev,id,f)=>_svc.copyFilesToSpaceFolder(id,f));'
 
         # Set the service on the SpaceManager singleton so resolveSpaceContext works

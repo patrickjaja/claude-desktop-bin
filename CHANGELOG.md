@@ -2,6 +2,32 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-03-20
+
+### Changed
+- **CLAUDE_FEATURE_FLAGS.md** — Comprehensive update for v1.1.7714: new `yukonSilverGemsCache` feature (15 total), complete GrowthBook flag catalog (34 boolean + 9 object/value + 3 listener flags), function renames (fp/cN/r1e/xq), version history table updated
+
+### Added
+- **fix_quick_entry_position.py** — Two new sub-patches for v1.1.7714:
+  - Patch 3: Override position-save/restore (`T7t()`) to always use cursor's display (short-circuits saved position check)
+  - Patch 4: Fix show/setPosition ordering and auto-focus on Linux/X11 — `setPosition` before `show()` to prevent WM smart-placement race, `focus()` + `webContents.focus()` after show for input auto-focus
+- **CLAUDE_BUILT_IN_MCP.md** — New documentation: built-in MCP server reference
+- **docs/** — Screenshots directory
+
+### Fixed
+- **fix_dispatch_linux.py** — Fix sessions-bridge logger variable pattern: hardcoded `T` → `\w+` wildcard (logger renamed `T`→`C` in v1.1.7714)
+- **fix_cowork_spaces.py** — Fix `createSpaceFolder` API: takes `(parentPath, folderName)` not `(spaceId, folderName)`; adds duplicate folder name dedup with numeric suffix
+- **enable_local_agent_mode.py** — Promote platform spoof patches from WARN to FAIL (patches 5, 5b, 6, 7 are now required — if they don't match, the build should fail)
+- **fix_utility_process_kill.py** — Promote from WARN/pass to FAIL (exit 1 on 0 matches so CI catches pattern changes)
+
+### Removed
+- **computer-use-server.js** — Linux Computer Use MCP server removed (upstream removed `computer-use-server.js` from app root in v1.1.7714; `existsSync` guard fails at runtime, server never registers)
+- **fix_computer_use_linux.py** — Computer Use registration patch removed (no server file to register)
+- **PKGBUILD** — Removed `xdotool` and `scrot` optional dependencies (no longer needed without Computer Use)
+
+### Improved
+- **scripts/build-local.sh** — Auto-download latest exe with version comparison: queries version API first, skips download if local exe matches latest, saves downloaded exe for future builds
+
 ## 2026-03-19
 
 ### Changed
@@ -34,7 +60,7 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 - Feature flag architecture unchanged from v1.1.7053 — same 14 flags, same 3-layer override
 - New upstream features in v1.1.7464: SSH remote CCD sessions, Scheduled Tasks (cron), Teleport to Cloud, Git/PR integration, DXT extensions, Keep-Awake
 - New sidebar mode: `"epitaxy"` (purpose unknown)
-- CoworkSpaces stubs remain sufficient — Spaces is real on macOS/Windows but Dispatch works without it
+- CoworkSpaces fully implemented on Linux — file-based `_SpacesService` with JSON persistence, 17 CRUD/file methods, push events, and SpaceManager singleton integration. Spaces UI is rendered by the claude.ai web frontend (server-side gated by Anthropic, not desktop feature flags). Dispatch works independently of Spaces (spaceId is optional in session creation)
 - Function renames: rp/zM/$Se/oq (was Kh/$M/Qwe/K9)
 - eipc UUID: `fcf195bd-4d6c-4446-98e4-314753dfa766` (dynamically extracted)
 
@@ -44,7 +70,7 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 - **Update to Claude Desktop v1.1.7053** (from v1.1.3189)
 
 ### Added
-- **fix_cowork_spaces.py** — New patch: registers 17 stub IPC handlers for the CoworkSpaces eipc service on Linux. The renderer calls `getAllSpaces`, `createSpace`, `getAutoMemoryDir`, etc. via eipc but no handler is registered in the main process on Linux (native backend doesn't load). Stubs return empty arrays/null to prevent `No handler registered` errors at startup.
+- **fix_cowork_spaces.py** — New patch: injects a full file-based CoworkSpaces service on Linux. The renderer calls `getAllSpaces`, `createSpace`, `getAutoMemoryDir`, etc. via eipc but no handler is registered in the main process on Linux (native backend doesn't load). The `_SpacesService` class provides JSON persistence (`~/.config/Claude/spaces.json`), full CRUD for spaces/folders/projects/links, file operations with security validation, push event notifications, and SpaceManager singleton integration so `resolveSpaceContext` works.
 
 ### Fixed
 - **enable_local_agent_mode.py** — Fix mC() merger pattern: `\w+` → `[\w$]+` for the async merger variable name (was `$M` in this version, `$` not matched by `\w`)

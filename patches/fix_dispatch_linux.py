@@ -76,13 +76,13 @@ def patch_dispatch_linux(filepath):
     # (\2) to ensure the same variable appears in both the declaration and
     # the if-check.
 
-    gate_pattern = rb'(let )(\w+)(=)(!1)(;const \w+=async\(\)=>\{if\(!\2\)\{T\.info\("\[sessions-bridge\] init skipped)'
+    gate_pattern = rb'(let )(\w+)(=)(!1)(;const \w+=async\(\)=>\{if\(!\2\)\{\w+\.info\("\[sessions-bridge\] init skipped)'
 
     def gate_replacement(m):
         return m.group(1) + m.group(2) + m.group(3) + b'!0' + m.group(5)
 
     # Check if already patched (f=!0 instead of f=!1)
-    gate_already = rb'let \w+=!0;const \w+=async\(\)=>\{if\(!\w+\)\{T\.info\("\[sessions-bridge\] init skipped'
+    gate_already = rb'let \w+=!0;const \w+=async\(\)=>\{if\(!\w+\)\{\w+\.info\("\[sessions-bridge\] init skipped'
     if re.search(gate_already, content):
         print(f"  [OK] Sessions-bridge gate: already patched (skipped)")
         patches_applied += 1

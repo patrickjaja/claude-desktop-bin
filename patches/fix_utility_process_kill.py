@@ -44,7 +44,7 @@ def main():
     new_content, count = re.subn(pattern, replacement, content)
 
     if count == 0:
-        print("  [WARN] UtilityProcess kill pattern: 0 matches (may need pattern update)")
+        print("  [FAIL] UtilityProcess kill pattern: 0 matches (may need pattern update)")
         # Debug: show what we're looking for
         if b'Killing utiltiy proccess again' in content:
             print("  [INFO] Found 'Killing utiltiy proccess again' string in file")
@@ -52,8 +52,7 @@ def main():
             ctx = re.search(rb'.{50}Killing utiltiy proccess again.{20}', content)
             if ctx:
                 print(f"  [DEBUG] Context: {ctx.group(0)}")
-        print("  [PASS] No changes needed (pattern may have changed)")
-        sys.exit(0)  # Don't fail build, just warn
+        sys.exit(1)  # Fail build so CI catches pattern changes
 
     print(f"  [OK] UtilityProcess SIGKILL fix: {count} match(es)")
 

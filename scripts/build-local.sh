@@ -69,25 +69,44 @@ log_info "Setting up build directory..."
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
 
-# Check for existing exe in project directory first
+# Always download latest exe (ensures patches match the current version)
 EXE_FILE="$BUILD_DIR/Claude-Setup-x64.exe"
 LOCAL_EXE="$PROJECT_DIR/Claude-Setup-x64.exe"
 
-if [ -f "$LOCAL_EXE" ]; then
-    log_info "Using existing exe: $LOCAL_EXE"
-    cp "$LOCAL_EXE" "$EXE_FILE"
-else
-    # Query version API for latest version and hash
-    log_info "Querying Claude Desktop version API..."
-    LATEST_JSON=$(wget -q -O - "https://downloads.claude.ai/releases/win32/x64/.latest")
-    if [ -z "$LATEST_JSON" ]; then
-        log_error "Failed to query version API"
-        exit 1
-    fi
-    LATEST_VERSION=$(echo "$LATEST_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['version'])")
-    LATEST_HASH=$(echo "$LATEST_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['hash'])")
-    DOWNLOAD_URL="https://downloads.claude.ai/releases/win32/x64/${LATEST_VERSION}/Claude-${LATEST_HASH}.exe"
+# Query version API for latest version and hash
+log_info "Querying Claude Desktop version API..."
+LATEST_JSON=$(wget -q -O - "https://downloads.claude.ai/releases/win32/x64/.latest")
+if [ -z "$LATEST_JSON" ]; then
+    log_error "Failed to query version API"
+    exit 1
+fi
+LATEST_VERSION=$(echo "$LATEST_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['version'])")
+LATEST_HASH=$(echo "$LATEST_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['hash'])")
+DOWNLOAD_URL="https://downloads.claude.ai/releases/win32/x64/${LATEST_VERSION}/Claude-${LATEST_HASH}.exe"
 
+# Check if local exe is already the latest version
+if [ -f "$LOCAL_EXE" ]; then
+    LOCAL_VERSION=$("$SCRIPT_DIR/extract-version.sh" "$LOCAL_EXE" 2>/dev/null || echo "unknown")
+    if [ "$LOCAL_VERSION" = "$LATEST_VERSION" ]; then
+        log_info "Local exe is already latest (v$LATEST_VERSION), reusing"
+        cp "$LOCAL_EXE" "$EXE_FILE"
+    else
+        log_info "Local exe is v$LOCAL_VERSION, latest is v$LATEST_VERSION — downloading update"
+        wget -O "$EXE_FILE" \
+            -U "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
+            "$DOWNLOAD_URL" 2>&1
+
+        if [ ! -f "$EXE_FILE" ] || [ ! -s "$EXE_FILE" ]; then
+            log_error "Download failed."
+            log_info "You can manually download from: https://claude.ai/download"
+            log_info "Then place the exe in $PROJECT_DIR/Claude-Setup-x64.exe and re-run"
+            exit 1
+        fi
+        # Update local copy for future builds
+        cp "$EXE_FILE" "$LOCAL_EXE"
+        log_info "Download complete, local exe updated"
+    fi
+else
     log_info "Downloading Claude Desktop for Windows..."
     log_info "Latest version: $LATEST_VERSION"
     log_info "Download URL: $DOWNLOAD_URL"
@@ -102,7 +121,8 @@ else
         log_info "Then place the exe in $PROJECT_DIR/Claude-Setup-x64.exe and re-run"
         exit 1
     fi
-
+    # Save local copy for future builds
+    cp "$EXE_FILE" "$LOCAL_EXE"
     log_info "Download complete"
 fi
 

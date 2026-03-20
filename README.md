@@ -92,7 +92,6 @@ cd claude-desktop-bin
 - **Local Agent Mode** - Git worktrees and agent sessions
 - **Cowork support** - Agentic workspace feature enabled on Linux (requires [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service))
 - **Dispatch** - Send tasks from your phone to your desktop Claude via Anthropic's environments bridge API (requires Cowork)
-- **Computer Use** - Desktop automation (screenshot, click, type, scroll) via [xdotool](https://github.com/jordansissel/xdotool) and [scrot](https://github.com/resurrecting-open-source-projects/scrot) (X11; optional deps)
 - **MCP server support** - Model Context Protocol servers work on Linux
 - **Wayland support** - Launcher auto-detects display server; defaults to XWayland (for global hotkeys), native Wayland via `CLAUDE_USE_WAYLAND=1`
 - Global hotkey support (Ctrl+Alt+Space) with multi-monitor awareness
@@ -148,23 +147,6 @@ CoworkSpaces organizes folders, projects, and links into named Spaces for Cowork
 
 The Spaces UI is rendered by the claude.ai web frontend (loaded in the BrowserView).
 
-## Computer Use (X11)
-
-On macOS, Computer Use is provided by the native `@ant/claude-swift` binary. On Linux, we replace it with a Node.js MCP server (`computer-use-server.js`) that uses [xdotool](https://github.com/jordansissel/xdotool) for mouse/keyboard and [scrot](https://github.com/resurrecting-open-source-projects/scrot) for screenshots.
-
-```bash
-# Install optional dependencies
-sudo pacman -S xdotool scrot   # Arch
-sudo apt install xdotool scrot  # Debian/Ubuntu
-sudo dnf install xdotool scrot  # Fedora
-```
-
-**Multi-monitor handling:** Screen size is reported as the largest connected monitor (via `xrandr`), not the combined virtual screen. Screenshots capture only the monitor where the cursor is located. Images are saved as JPEG (quality 40) to stay under the 1MB API limit.
-
-**Supported actions:** screenshot, left_click, right_click, double_click, triple_click, middle_click, type, key, scroll, left_click_drag, hover, wait, zoom, cursor_position
-
-> **Note:** Wayland is not yet supported. Computer Use requires X11.
-
 ## Patches
 
 The package applies several patches to make Claude Desktop work on Linux. Each patch is isolated in `patches/` for easy maintenance:
@@ -174,9 +156,7 @@ The package applies several patches to make Claude Desktop work on Linux. Each p
 | `claude-native.js` | Linux-compatible native module (replaces Windows-only `@anthropic/claude-native`) | LOW | Static file, no regex |
 | `enable_local_agent_mode.py` | Enables Local Agent Mode (chillingSlothFeat) on Linux for git worktrees and agent sessions | HIGH | `rg -o 'function \w+\(\)\{return process\.platform.*status' index.js` |
 | `fix_app_quit.py` | Fixes app not quitting after cleanup on Linux (uses `app.exit(0)` instead of `app.quit()`) | LOW | Uses `app.quit()` literal |
-| `computer-use-server.js` | Linux Computer Use MCP server using xdotool/scrot (X11) | LOW | Static file, no regex |
-| `fix_computer_use_linux.py` | Registers computer-use-server.js as internal MCP server via BR() | MED | `rg -o 'registerInternalMcpServer\|function \w+(\w+,\w+,\w+).*return.*\[' index.js` |
-| `fix_computer_use_tcc.py` | Stubs macOS TCC permission checks on Linux | LOW | `rg -o 'ComputerUseTcc' index.js` |
+| `fix_computer_use_tcc.py` | Registers no-op IPC handlers for macOS TCC (Transparency, Consent, and Control) permission checks — the claude.ai web frontend calls `ComputerUseTcc.getState` on all platforms; without this stub, repeated errors are logged | LOW | Uses eipc UUID extraction |
 | `fix_claude_code.py` | Enables Claude Code CLI integration by detecting system-installed claude binary | MED | `rg -o 'async getStatus\(\)\{.{0,200}' index.js` |
 | `fix_cowork_error_message.py` | Replaces Windows VM errors with Linux-friendly guidance for claude-cowork-service | LOW | Uses string literals |
 | `fix_cowork_spaces.py` | Stubs CoworkSpaces eipc handlers on Linux (getAllSpaces, createSpace, etc.) | LOW | `rg -o 'CoworkSpaces' index.js` |
