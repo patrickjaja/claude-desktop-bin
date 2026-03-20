@@ -275,3 +275,15 @@ grep -ri 'error\|exception\|fatal' ~/.config/Claude/logs/
 - Unofficial package, not supported by Anthropic
 - Issues: https://github.com/patrickjaja/claude-desktop-bin/issues
 - Based on: https://github.com/k3d3/claude-desktop-linux-flake
+
+## Legal Notice
+
+> This is an **unofficial community project** for educational and research purposes.
+> Claude Desktop is proprietary software owned by **Anthropic PBC**.
+>
+> This repository contains only build scripts and patches — not the Claude Desktop
+> application itself. The upstream binary is downloaded directly from Anthropic
+> during the build process.
+>
+> This project is not affiliated with, endorsed by, or sponsored by Anthropic.
+> "Claude" is a trademark of Anthropic PBC.
