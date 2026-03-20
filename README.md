@@ -93,8 +93,7 @@ cd claude-desktop-bin
 - **Cowork support** - Agentic workspace feature enabled on Linux (requires [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service))
 - **Dispatch** - Send tasks from your phone to your desktop Claude via Anthropic's environments bridge API (requires Cowork)
 - **MCP server support** - Model Context Protocol servers work on Linux
-- **Wayland support** - Launcher auto-detects display server; defaults to XWayland (for global hotkeys), native Wayland via `CLAUDE_USE_WAYLAND=1`
-- Global hotkey support (Ctrl+Alt+Space) with multi-monitor awareness
+- **Multi-monitor Quick Entry** - Global hotkey (Ctrl+Alt+Space) opens on the monitor where your cursor is ([Wayland notes](#wayland))
 - Automated daily version checks
 
 ## Claude Chat
