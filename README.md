@@ -271,11 +271,6 @@ grep -ri 'error\|exception\|fatal' ~/.config/Claude/logs/
 
 - [tweakcc](https://github.com/Piebald-AI/tweakcc) — A great CLI tool for customizing Claude Code (system prompts, themes, UI). Same patching-JS-to-make-it-yours energy. Thanks to the Piebald team for their work.
 
-## Notes
-- Unofficial package, not supported by Anthropic
-- Issues: https://github.com/patrickjaja/claude-desktop-bin/issues
-- Based on: https://github.com/k3d3/claude-desktop-linux-flake
-
 ## Legal Notice
 
 > This is an **unofficial community project** for educational and research purposes.
