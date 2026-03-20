@@ -22,6 +22,7 @@ Requires:       libdrm
 Requires:       mesa-libgbm
 Requires:       alsa-lib
 Requires:       libnotify
+Suggests:       xdotool
 
 %description
 Claude is an AI assistant created by Anthropic to be helpful,

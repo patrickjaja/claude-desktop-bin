@@ -6,9 +6,13 @@ Patch Claude Desktop Quick Entry to spawn on the monitor where the cursor is,
 and to auto-focus the input field on Linux.
 
 Patches:
-1. Replace getPrimaryDisplay() with getDisplayNearestPoint(getCursorScreenPoint())
-2. (Optional) Fallback display lookup
-3. Override position-save/restore to always use cursor's display
+1. Replace getPrimaryDisplay() with getDisplayNearestPoint() using real cursor
+   position. On Linux, Electron's getCursorScreenPoint() returns STALE coordinates
+   (only updates when cursor passes over an Electron window), so we use xdotool
+   to query X11 for the actual cursor position, with getCursorScreenPoint() as
+   fallback for Wayland/macOS/Windows or if xdotool is unavailable.
+2. (Optional) Fallback display lookup — same xdotool-based cursor fix.
+3. Override position-save/restore to always use cursor's display.
 4. On Linux: show() + setBounds() retries to counter WM smart-placement,
    plus webContents.focus() and executeJavaScript to focus #prompt-input
    (which only auto-focuses on initial page load, not on re-show).
@@ -37,6 +41,36 @@ def patch_quick_entry_position(filepath):
     original_content = content
     failed = False
 
+    # Helper: generate an IIFE that gets the REAL cursor position on Linux.
+    # Electron's getCursorScreenPoint() on Linux/X11 returns STALE coordinates —
+    # it only updates when the cursor passes over an Electron-owned window.
+    # Fallback chain: xdotool (X11/XWayland) → hyprctl (Hyprland) → Electron API.
+    def _cursor_iife(electron_var):
+        """Return JS IIFE string that resolves to {x, y} cursor position."""
+        return (
+            f'(()=>{{'
+            f'if(process.platform==="linux"){{'
+            f'const cp=require("child_process");'
+            # Try xdotool first (works on X11 and XWayland)
+            f'try{{'
+            f'const r=cp.execFileSync("xdotool",["getmouselocation","--shell"],'
+            f'{{timeout:200,encoding:"utf-8"}});'
+            f'const x=parseInt(r.match(/X=(\\d+)/)?.[1]);'
+            f'const y=parseInt(r.match(/Y=(\\d+)/)?.[1]);'
+            f'if(!isNaN(x)&&!isNaN(y))return{{x,y}}'
+            f'}}catch(e){{}}'
+            # Try hyprctl for Hyprland on Wayland
+            f'try{{'
+            f'const r=cp.execFileSync("hyprctl",["cursorpos"],'
+            f'{{timeout:200,encoding:"utf-8"}});'
+            f'const m=r.match(/(\\d+),\\s*(\\d+)/);'
+            f'if(m)return{{x:parseInt(m[1]),y:parseInt(m[2])}}'
+            f'}}catch(e){{}}'
+            f'}}'
+            f'return {electron_var}.screen.getCursorScreenPoint()'
+            f'}})()'
+        )
+
     # Patch 1: In position function - the Quick Entry centering function
     # Pattern matches: function FUNCNAME(){const t=ELECTRON.screen.getPrimaryDisplay()
     # Function names change between versions (pTe, lPe, kFt, etc.)
@@ -45,8 +79,9 @@ def patch_quick_entry_position(filepath):
 
     def replacement1_func(m):
         electron_var = m.group(2).decode('utf-8')
+        cursor = _cursor_iife(electron_var)
         return (m.group(1) + m.group(2) + m.group(3) +
-                f'getDisplayNearestPoint({electron_var}.screen.getCursorScreenPoint())'.encode('utf-8'))
+                f'getDisplayNearestPoint({cursor})'.encode('utf-8'))
 
     content, count1 = re.subn(pattern1, replacement1_func, content)
     if count1 > 0:
@@ -63,7 +98,8 @@ def patch_quick_entry_position(filepath):
     def replacement2_func(m):
         var_name = m.group(1).decode('utf-8')
         electron_var = m.group(2).decode('utf-8')
-        return f'{var_name}||({var_name}={electron_var}.screen.getDisplayNearestPoint({electron_var}.screen.getCursorScreenPoint()))'.encode('utf-8')
+        cursor = _cursor_iife(electron_var)
+        return f'{var_name}||({var_name}={electron_var}.screen.getDisplayNearestPoint({cursor}))'.encode('utf-8')
 
     content, count2 = re.subn(pattern2, replacement2_func, content)
     if count2 > 0:
