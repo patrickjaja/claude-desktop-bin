@@ -153,7 +153,7 @@ Themes override CSS variables in **all windows** (main chat, Quick Entry, Find-i
 
 **Quick start:**
 ```bash
-echo '{"activeTheme": "nord"}' > ~/.config/Claude/claude-desktop-bin.json
+echo '{"activeTheme": "sweet"}' > ~/.config/Claude/claude-desktop-bin.json
 # Restart Claude Desktop
 ```
 
