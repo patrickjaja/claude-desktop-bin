@@ -161,7 +161,7 @@ echo '{"activeTheme": "sweet"}' > ~/.config/Claude/claude-desktop-bin.json
 
 | Sweet | Nord | Catppuccin Mocha |
 |-------|------|------------------|
-| Purple/pink warm tones | Arctic blue-grey ([nordtheme.com](https://nordtheme.com)) | Warm pastels ([catppuccin.com](https://catppuccin.com)) |
+| Purple/pink warm tones ([github.com/EliverLara/Sweet](https://github.com/EliverLara/Sweet)) | Arctic blue-grey ([nordtheme.com](https://nordtheme.com)) | Warm pastels ([catppuccin.com](https://catppuccin.com)) |
 
 See **[themes/README.md](themes/README.md)** for the full theming guide: CSS variable reference, how to extract app HTML/CSS for inspection, custom theme creation, and screenshots.
 
