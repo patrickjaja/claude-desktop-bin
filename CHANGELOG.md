@@ -36,7 +36,7 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 ### Removed
 - **computer-use-server.js** — Linux Computer Use MCP server removed (upstream removed `computer-use-server.js` from app root in v1.1.7714; `existsSync` guard fails at runtime, server never registers)
 - **fix_computer_use_linux.py** — Computer Use registration patch removed (no server file to register)
-- **PKGBUILD** — Removed `xdotool` and `scrot` optional dependencies (no longer needed without Computer Use)
+- **PKGBUILD** — Removed `scrot` optional dependency (Computer Use removed); added `hyprland` (hyprctl cursor fallback) and `socat` (cowork socket health check)
 
 ### Improved
 - **scripts/build-local.sh** — Auto-download latest exe with version comparison: queries version API first, skips download if local exe matches latest, saves downloaded exe for future builds

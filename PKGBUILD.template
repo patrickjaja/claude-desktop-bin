@@ -13,7 +13,8 @@ depends=('electron' 'nodejs')
 optdepends=('claude-code: Claude Code CLI for agentic coding features (npm i -g @anthropic-ai/claude-code)'
             'claude-cowork-service: Enables Cowork VM features on Linux (experimental)'
             'xdotool: Accurate multi-monitor Quick Entry positioning (X11/XWayland) - highly recommended'
-            'scrot: Computer Use screenshots (X11, fallback: imagemagick)')
+            'hyprland: Quick Entry cursor positioning on Hyprland Wayland (hyprctl)'
+            'socat: Cowork socket health check in launcher (fallback: age-based check)')
 provides=('claude-desktop')
 conflicts=('claude-desktop')
 source_x86_64=("claude-desktop-${pkgver}-${pkgrel}-linux.tar.gz::{{DOWNLOAD_URL}}")
