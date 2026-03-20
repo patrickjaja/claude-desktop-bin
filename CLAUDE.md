@@ -4,6 +4,41 @@
 
 This is an AUR package that repackages Claude Desktop (Windows) for Arch Linux. It applies JavaScript patches to make the Electron app work on Linux.
 
+**Key constraint:** The upstream binary (`Claude-Setup-x64.exe`) is managed remotely by Anthropic and changes without notice. Every minified variable name, function signature, and feature flag can change between releases. This makes the project inherently fragile — patches and documentation must be re-validated on each upstream update.
+
+## Version-Sensitive Artifacts
+
+These files embed assumptions about upstream internals and **must be challenged on every release**:
+
+| File | What's fragile | Update workflow |
+|------|---------------|-----------------|
+| `patches/*.py` | Regex patterns matching minified JS | Build fails → fix patterns → `node --check` |
+| `CLAUDE_FEATURE_FLAGS.md` | Flag names, function names (fp/cN/r1e/xq), GrowthBook IDs, architecture details | Run Feature Flag Audit (Prompt 3 in update-prompt.md) |
+| `README.md` | Patch table (break risk, debug `rg` patterns), feature descriptions | Review after patches are fixed |
+| `CLAUDE_BUILT_IN_MCP.md` | Built-in MCP server names, registration patterns | Check `registerInternalMcpServer` calls in new JS |
+| `CHANGELOG.md` | Version-specific notes | Add new entry for each release |
+
+**Rule of thumb:** If a doc references a specific minified name (like `fp()`, `cN`, `Vr()`), it will be wrong after the next upstream release. Use `\w+` wildcards in patches; in docs, always note the version the names apply to.
+
+## Update Workflow
+
+When a new Claude Desktop version drops, follow [update-prompt.md](update-prompt.md) — it has copy-paste prompts for:
+
+1. **Prompt 1:** Build & fix patches (download exe, run build, fix failures)
+2. **Prompt 2:** Diff & discover new changes (compare old vs new JS bundles)
+3. **Prompt 3:** Feature flag audit (catch new/changed flags)
+
+Quick start:
+```bash
+# Clean slate
+rm -rf build/ extract/ Claude-Setup-x64.exe
+
+# Build (auto-downloads latest exe, applies patches, packages)
+./scripts/build-local.sh --install
+```
+
+See also: [validate_and_fix_claude-setup-x64.md](validate_and_fix_claude-setup-x64.md) for step-by-step patch debugging, and [UPDATE-PROMT-CC-INPUT-MANUAL.md](UPDATE-PROMT-CC-INPUT-MANUAL.md) for the one-liner to kick off the process.
+
 ## Debugging Patch Failures
 
 When patches fail after a new Claude Desktop release, follow this workflow:
@@ -121,31 +156,56 @@ Changes:
 Tested variable name changes: [list changes like ce→de, pn→gn]
 EOF
 )"
-git push github master
+git push
 ```
 
 ## File Structure
 
 ```
-patches/
-  claude-native.js          # Linux-compatible native module (replaces Windows binary)
-  fix_claude_code.py        # Claude Code CLI integration
-  fix_locale_paths.py       # Locale file path fixes
-  fix_native_frame.py       # Native window frame handling
-  fix_quick_entry_position.py  # Multi-monitor Quick Entry positioning
-  fix_tray_dbus.py          # Tray menu DBus race condition fix
-  fix_tray_path.py          # Tray icon path redirection
+patches/                              # Python/JS patches applied to the extracted app
+  claude-native.js                    # Linux-compatible native module (replaces Windows .node binary)
+  enable_local_agent_mode.py          # Feature flag overrides + platform spoofs (HIGH break risk)
+  fix_0_node_host.py                  # Node host binary path fix
+  fix_app_quit.py                     # App quit cleanup (app.exit instead of app.quit)
+  fix_claude_code.py                  # Claude Code CLI integration
+  fix_computer_use_tcc.py             # Stubs macOS TCC permission check IPC handlers
+  fix_cowork_error_message.py         # Linux-friendly Cowork VM error messages
+  fix_cowork_linux.py                 # Cowork VM client loader (include Linux)
+  fix_cowork_spaces.py                # CoworkSpaces file-based service (JSON persistence)
+  fix_cross_device_rename.py          # Cross-device rename fix (tmp→config)
+  fix_disable_autoupdate.py           # Disable Windows auto-updater on Linux
+  fix_dispatch_linux.py               # Dispatch remote task orchestration on Linux
+  fix_dock_bounce.py                  # Prevent taskbar attention-stealing on Linux DEs
+  fix_locale_paths.py                 # Locale file path fixes
+  fix_marketplace_linux.py            # Marketplace/extensions Linux compatibility
+  fix_mcp_reconnect.py               # MCP reconnection fix (may be upstream-fixed)
+  fix_native_frame.py                 # Native window frame handling
+  fix_quick_entry_position.py         # Multi-monitor Quick Entry + focus fix
+  fix_startup_settings.py             # Startup settings Linux compatibility
+  fix_tray_dbus.py                    # Tray menu DBus race condition fix
+  fix_tray_icon_theme.py              # Tray icon theme detection
+  fix_tray_path.py                    # Tray icon path redirection
+  fix_utility_process_kill.py         # UtilityProcess SIGKILL fix
+  fix_vm_session_handlers.py          # VM session IPC handler stubs
+  fix_window_bounds.py                # Window bounds fix (maximize/snap/fullscreen)
 
 scripts/
-  build-local.sh            # Local build and install
-  extract-version.sh        # Extract version from exe
-  generate-pkgbuild.sh      # Generate PKGBUILD from template
-  validate-patches.sh       # Validate patches against extracted app
+  build-local.sh                      # Local build and install (auto-downloads latest exe)
+  build-patched-tarball.sh            # Build patched tarball for distribution
+  claude-desktop-launcher.sh          # Launcher script (Wayland/X11 detection, env setup)
+  extract-version.sh                  # Extract version from exe
+  generate-pkgbuild.sh               # Generate PKGBUILD from template
+  smoke-test.sh                       # Post-install smoke test
+  validate-patches.sh                 # Validate patches against extracted app
+
+docs/                                 # Screenshots (chat, code, cowork, global UI)
 ```
 
 ## Feature Flag System
 
-See [CLAUDE_FEATURE_FLAGS.md](CLAUDE_FEATURE_FLAGS.md) for full documentation of the 12 feature flags, the 3-layer override architecture (Oh → mC → IPC), and how `enable_local_agent_mode.py` bypasses the QL() production gate.
+See [CLAUDE_FEATURE_FLAGS.md](CLAUDE_FEATURE_FLAGS.md) for the full reference: feature flag catalog, 3-layer override architecture (static registry → async merger → IPC), GrowthBook flag IDs, and how `enable_local_agent_mode.py` bypasses the production gate.
+
+**Note:** Function names in CLAUDE_FEATURE_FLAGS.md are version-specific (they change every release). The version history table at the bottom tracks the renames across versions.
 
 ## Log Files
 
