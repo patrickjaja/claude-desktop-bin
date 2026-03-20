@@ -5,8 +5,8 @@
 Custom CSS theme injection for Claude Desktop on Linux.
 
 Reads a JSON config file (~/.config/Claude/claude-desktop-bin.json) at startup
-and injects CSS variable overrides into the claude.ai BrowserView using
-Electron's stable webContents.insertCSS() API.
+and injects CSS variable overrides into ALL windows (main chat, Quick Entry,
+Find-in-Page, About) using Electron's stable webContents.insertCSS() API.
 
 Config format:
   {
@@ -19,9 +19,19 @@ Config format:
     }
   }
 
-Ships 6 built-in themes: sweet, nord, catppuccin-mocha, catppuccin-frappe, catppuccin-latte, catppuccin-macchiato.
+Ships 6 built-in themes: sweet, nord, catppuccin-mocha, catppuccin-frappe,
+catppuccin-latte, catppuccin-macchiato.
+
+Theming architecture:
+  - CSS variables are the primary mechanism. Tailwind compiles to
+    hsl(var(--bg-000)) etc., so overriding variables themes all utility classes.
+  - Legacy --claude-* hex variables control renderer windows (title bar,
+    Quick Entry, Find-in-Page, About).
+  - Quick Entry has hardcoded rgba() gradients that need explicit overrides.
+  - Prose/typography uses hardcoded hex colors that need --tw-prose-* overrides.
+
 Overrides apply with !important regardless of Light/Dark/Auto mode.
-Only affects claude.ai pages (not Quick Entry or other windows).
+Themes ALL windows: main chat (claude.ai), Quick Entry, Find-in-Page, About.
 Requires restart to apply changes (no file watcher).
 
 Break risk: VERY LOW — No regex on minified app code. Uses only the
@@ -60,22 +70,22 @@ var __cdb_builtins={
 "--claude-text-100":"#fff5ff","--claude-text-200":"#ffb4f0","--claude-text-400":"#b496b4","--claude-text-500":"#8c6e8c","--claude-description-text":"#ff8ce6"
 },
 "nord":{
-"--bg-000":"220 16% 22%","--bg-100":"220 17% 18%","--bg-200":"219 17% 16%","--bg-300":"218 16% 14%","--bg-400":"220 16% 10%","--bg-500":"220 16% 8%",
-"--text-000":"218 27% 94%","--text-100":"218 27% 94%","--text-200":"219 28% 88%","--text-300":"219 28% 88%","--text-400":"221 11% 60%","--text-500":"221 11% 60%",
+"--bg-000":"220 16% 22%","--bg-100":"222 16% 18%","--bg-200":"220 17% 14%","--bg-300":"220 16% 12%","--bg-400":"220 16% 8%","--bg-500":"220 16% 6%",
+"--text-000":"218 27% 94%","--text-100":"218 27% 94%","--text-200":"219 28% 88%","--text-300":"219 28% 88%","--text-400":"220 10% 55%","--text-500":"220 10% 55%",
 "--accent-brand":"179 25% 65%","--accent-main-000":"193 43% 67%","--accent-main-100":"179 25% 65%","--accent-main-200":"210 34% 63%","--accent-main-900":"213 32% 30%",
 "--accent-secondary-000":"210 34% 63%","--accent-secondary-100":"213 32% 52%","--accent-secondary-200":"213 32% 45%","--accent-secondary-900":"213 32% 22%",
 "--accent-pro-000":"193 43% 67%","--accent-pro-100":"193 43% 52%","--accent-pro-200":"193 43% 40%","--accent-pro-900":"193 43% 20%",
-"--border-100":"220 16% 32%","--border-200":"220 16% 32%","--border-300":"220 16% 36%","--border-400":"220 16% 36%",
-"--danger-000":"354 42% 56%","--danger-100":"354 43% 52%","--danger-200":"354 43% 45%","--danger-900":"354 43% 22%",
-"--warning-000":"40 71% 73%","--warning-100":"14 51% 63%","--warning-200":"14 50% 53%","--warning-900":"14 50% 28%",
+"--border-100":"220 16% 28%","--border-200":"220 16% 28%","--border-300":"220 16% 32%","--border-400":"220 16% 36%",
+"--danger-000":"354 42% 56%","--danger-100":"354 43% 50%","--danger-200":"354 43% 42%","--danger-900":"354 43% 20%",
+"--warning-000":"40 71% 73%","--warning-100":"14 51% 63%","--warning-200":"14 50% 50%","--warning-900":"14 50% 25%",
 "--success-000":"92 28% 65%","--success-100":"92 28% 55%","--success-200":"92 28% 42%","--success-900":"92 28% 20%",
 "--oncolor-100":"0 0% 100%","--oncolor-200":"218 27% 94%","--oncolor-300":"219 28% 88%",
 "--accent-000":"193 43% 72%","--accent-100":"193 43% 67%","--accent-200":"210 34% 63%","--accent-900":"213 32% 20%",
 "--brand-000":"179 25% 55%","--brand-100":"179 25% 65%","--brand-200":"179 25% 65%","--brand-900":"220 16% 8%",
-"--pictogram-100":"218 27% 94%","--pictogram-200":"219 28% 88%","--pictogram-300":"221 11% 60%","--pictogram-400":"220 16% 36%",
+"--pictogram-100":"218 27% 94%","--pictogram-200":"219 28% 88%","--pictogram-300":"220 10% 55%","--pictogram-400":"220 16% 32%",
 "--white":"0 0% 100%","--black":"0 0% 0%","--kraft":"14 51% 63%","--book-cloth":"179 25% 55%","--manilla":"40 71% 73%",
 "--clay":"179 25% 65%","--claude-accent-clay":"#8FBCBB","--claude-foreground-color":"#D8DEE9","--claude-background-color":"#2E3440","--claude-secondary-color":"#8E95A4",
-"--claude-border":"#4C566A40","--claude-border-300":"#4C566A40","--claude-border-300-more":"#4C566A94",
+"--claude-border":"#4C566A30","--claude-border-300":"#4C566A40","--claude-border-300-more":"#4C566A80",
 "--claude-text-100":"#ECEFF4","--claude-text-200":"#D8DEE9","--claude-text-400":"#8E95A4","--claude-text-500":"#8E95A4","--claude-description-text":"#B9BFCB"
 },
 "catppuccin-mocha":{
@@ -171,35 +181,30 @@ var __cdb_rules=[];
 for(var k in __cdb_vars){
 if(k.indexOf("--")===0)__cdb_rules.push(k+":"+__cdb_vars[k]+" !important");
 }
+__cdb_rules.push("--always-black:0 0% 0% !important");
+__cdb_rules.push("--always-white:0 0% 100% !important");
 if(__cdb_rules.length){
 __cdb_css=":root,.dark,.darkTheme,[data-theme],html{"+__cdb_rules.join(";")+"}";
-__cdb_css+="html,body{background:hsl(var(--bg-000))!important;color:hsl(var(--text-000))!important}"
+__cdb_css+=""
++"html,body{color:var(--claude-foreground-color)!important}"
 +"#root,[id=root]{background:hsl(var(--bg-000))!important}"
 +".bg-white{background-color:hsl(var(--bg-000))!important}"
-+".bg-bg-000{background-color:hsl(var(--bg-000))!important}"
-+".bg-bg-100{background-color:hsl(var(--bg-100))!important}"
-+".bg-bg-200{background-color:hsl(var(--bg-200))!important}"
-+".bg-bg-300{background-color:hsl(var(--bg-300))!important}"
-+".bg-bg-400{background-color:hsl(var(--bg-400))!important}"
-+".bg-bg-500{background-color:hsl(var(--bg-500))!important}"
-+".text-text-000,.text-text-100{color:hsl(var(--text-000))!important}"
-+".text-text-200,.text-text-300{color:hsl(var(--text-200))!important}"
-+".text-text-400,.text-text-500{color:hsl(var(--text-400))!important}"
 +".text-black{color:hsl(var(--text-000))!important}"
-+".border-border-100{border-color:hsl(var(--border-100))!important}"
-+".border-border-200{border-color:hsl(var(--border-200))!important}"
-+".border-border-300{border-color:hsl(var(--border-300))!important}"
-+".border-border-400{border-color:hsl(var(--border-400))!important}"
-+".bg-accent-main-100{background-color:hsl(var(--accent-main-100))!important}"
-+".bg-accent-main-200{background-color:hsl(var(--accent-main-200))!important}"
-+".text-oncolor-100{color:hsl(var(--oncolor-100))!important}"
-+".text-oncolor-200{color:hsl(var(--oncolor-200))!important}"
++".container{background:linear-gradient(to bottom,hsl(var(--bg-100)),hsl(var(--bg-000)))!important}"
++".container:before{border-color:hsl(var(--border-300)/0.3)!important}"
++".input-box textarea{color:var(--claude-foreground-color)!important}"
++".input-box textarea::placeholder{color:var(--claude-text-500)!important}"
++".secondary{color:var(--claude-secondary-color)!important}"
++".prose{--tw-prose-body:hsl(var(--text-200))!important;--tw-prose-headings:hsl(var(--text-000))!important;--tw-prose-lead:hsl(var(--text-300))!important;--tw-prose-links:hsl(var(--accent-main-100))!important;--tw-prose-bold:hsl(var(--text-000))!important;--tw-prose-counters:hsl(var(--text-400))!important;--tw-prose-bullets:hsl(var(--text-400))!important;--tw-prose-hr:hsl(var(--border-200))!important;--tw-prose-quotes:hsl(var(--text-200))!important;--tw-prose-quote-borders:hsl(var(--border-200))!important;--tw-prose-captions:hsl(var(--text-400))!important;--tw-prose-kbd:hsl(var(--text-000))!important;--tw-prose-code:hsl(var(--text-000))!important;--tw-prose-pre-code:hsl(var(--text-100))!important;--tw-prose-pre-bg:hsl(var(--bg-300))!important;--tw-prose-th-borders:hsl(var(--border-300))!important;--tw-prose-td-borders:hsl(var(--border-200))!important;--tw-prose-invert-body:hsl(var(--text-200))!important;--tw-prose-invert-headings:hsl(var(--text-000))!important;--tw-prose-invert-lead:hsl(var(--text-300))!important;--tw-prose-invert-links:hsl(var(--accent-main-100))!important;--tw-prose-invert-bold:hsl(var(--text-000))!important;--tw-prose-invert-counters:hsl(var(--text-400))!important;--tw-prose-invert-bullets:hsl(var(--text-400))!important;--tw-prose-invert-hr:hsl(var(--border-200))!important;--tw-prose-invert-quotes:hsl(var(--text-200))!important;--tw-prose-invert-quote-borders:hsl(var(--border-200))!important;--tw-prose-invert-captions:hsl(var(--text-400))!important;--tw-prose-invert-kbd:hsl(var(--text-000))!important;--tw-prose-invert-code:hsl(var(--text-000))!important;--tw-prose-invert-pre-code:hsl(var(--text-100))!important;--tw-prose-invert-pre-bg:hsl(var(--bg-300))!important;--tw-prose-invert-th-borders:hsl(var(--border-300))!important;--tw-prose-invert-td-borders:hsl(var(--border-200))!important}"
 +"input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]),textarea,[contenteditable=true],.ProseMirror{background:transparent!important;color:hsl(var(--text-000))!important;border-color:hsl(var(--border-200))!important}"
 +"::placeholder{color:hsl(var(--text-400))!important}"
 +"[role=dialog],[role=menu],[role=listbox],[role=tooltip]{background:hsl(var(--bg-100))!important;color:hsl(var(--text-000))!important;border-color:hsl(var(--border-200))!important}"
 +"hr{border-color:hsl(var(--border-200))!important}"
 +"*{scrollbar-color:hsl(var(--border-300)/0.5) transparent}"
-+"::selection{background:hsl(var(--accent-main-100)/0.3)!important}";
++"::selection{background:hsl(var(--accent-main-100)/0.3)!important}"
++"[type=checkbox]:checked{background-color:hsl(var(--accent-main-100))!important;border-color:hsl(var(--accent-main-100))!important}"
++"svg{color:inherit}"
++".nc-drag{color:hsl(var(--text-000))!important}";
 }
 console.log("[CustomThemes] Loaded "+__cdb_src+" theme '"+__cdb_name+"' with "+__cdb_rules.length+" CSS vars + element overrides");
 }catch(e){
@@ -210,8 +215,10 @@ if(!__cdb_css)return;
 _app.on("web-contents-created",function(_ev,wc){
 wc.on("dom-ready",function(){
 try{
-var url=wc.getURL();
-if(url&&url.indexOf("claude.ai")!==-1){wc.insertCSS(__cdb_css);console.log("[CustomThemes] Injected CSS into "+url)}
+var url=wc.getURL()||"";
+if(url.indexOf("devtools://")===0)return;
+wc.insertCSS(__cdb_css);
+console.log("[CustomThemes] Injected CSS into "+url);
 }catch(e){console.log("[CustomThemes] insertCSS error: "+e.message)}
 });
 });
