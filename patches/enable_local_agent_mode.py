@@ -271,6 +271,10 @@ def patch_local_agent_mode(filepath):
     # b) webContents.executeJavaScript on dom-ready — overrides navigator.platform
     #    in the page's main world (not the preload isolated context).
     #
+    # We spoof as Windows (not Mac) so the frontend shows Ctrl/Alt shortcuts
+    # instead of ⌘/⌥. Server-facing HTTP headers (patches 5, 5b) still send
+    # "darwin" for Cowork feature gating.
+    #
     # We inject this right after "use strict"; in index.js.
     navigator_marker = b'__nav_spoof_applied'
     if navigator_marker in content:
@@ -278,16 +282,17 @@ def patch_local_agent_mode(filepath):
     else:
         nav_spoof_js = (
             b'if(process.platform==="linux"){'
-            # Set userAgentFallback to a macOS-like string (affects navigator.userAgent + HTTP headers)
+            # Set userAgentFallback to a Windows-like string (affects navigator.userAgent)
+            # Server-facing UA is overridden separately in patch 5b's onBeforeSendHeaders.
             b'const __nav_spoof_applied=!0;'
             b'const __oUA=require("electron").app.userAgentFallback||"";'
             b'require("electron").app.userAgentFallback='
-            b'__oUA.replace(/Linux/g,"Macintosh").replace(/x86_64/g,"Intel Mac OS X 10_15_7").replace(/X11;\\s*/g,"");'
+            b'__oUA.replace(/X11; Linux [^)]+/g,"Windows NT 10.0; Win64; x64");'
             # Inject navigator.platform override into every new web content's main world
             b'require("electron").app.on("web-contents-created",(ev,wc)=>{'
             b'wc.on("dom-ready",()=>{'
             b'wc.executeJavaScript('
-            b'"try{Object.defineProperty(navigator,\\"platform\\",{get:()=>\\"MacIntel\\",configurable:!0})}catch(e){}"'
+            b'"try{Object.defineProperty(navigator,\\"platform\\",{get:()=>\\"Win32\\",configurable:!0})}catch(e){}"'
             b').catch(()=>{})'
             b'})'
             b'})'
