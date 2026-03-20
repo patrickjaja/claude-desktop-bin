@@ -10,7 +10,13 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 ### Added
 - **fix_quick_entry_position.py** — Two new sub-patches for v1.1.7714:
   - Patch 3: Override position-save/restore (`T7t()`) to always use cursor's display (short-circuits saved position check)
-  - Patch 4: Fix show/setPosition ordering and auto-focus on Linux/X11 — `setPosition` before `show()` to prevent WM smart-placement race, `focus()` + `webContents.focus()` after show for input auto-focus
+  - Patch 4: Fix show/positioning + focus on Linux — pure Electron APIs, no external dependencies
+
+### Fixed
+- **fix_quick_entry_position.py (Patch 4)** — Complete rewrite of Linux Quick Entry positioning and focus:
+  - **Positioning**: `setBounds()` before + after `show()` with retries at 50/150ms to counter X11 WM smart-placement. Works on X11, XWayland, and best-effort on native Wayland.
+  - **Focus**: Three-layer focus chain — `focus()` (OS window) → `webContents.focus()` (renderer) → `executeJavaScript` to focus `#prompt-input` DOM element (only auto-focuses on initial page load, not on hide/show cycle).
+  - Previously the Quick Entry would always open on Claude Desktop's monitor after interacting with the app, making it unusable in multi-monitor setups.
 - **CLAUDE_BUILT_IN_MCP.md** — New documentation: built-in MCP server reference
 - **docs/** — Screenshots directory
 

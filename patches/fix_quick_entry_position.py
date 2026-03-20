@@ -9,8 +9,9 @@ Patches:
 1. Replace getPrimaryDisplay() with getDisplayNearestPoint(getCursorScreenPoint())
 2. (Optional) Fallback display lookup
 3. Override position-save/restore to always use cursor's display
-4. On Linux/X11: setPosition BEFORE show() to prevent WM smart-placement race,
-   and add focus() + webContents.focus() after show() for auto-focus
+4. On Linux: show() + setBounds() retries to counter WM smart-placement,
+   plus webContents.focus() and executeJavaScript to focus #prompt-input
+   (which only auto-focuses on initial page load, not on re-show).
 
 Usage: python3 fix_quick_entry_position.py <path_to_index.js>
 """
@@ -89,24 +90,54 @@ def patch_quick_entry_position(filepath):
     else:
         print(f"  [INFO] position restore override: 0 matches (older version without saved position)")
 
-    # Patch 4: Fix show/setPosition ordering and add focus on Linux
+    # Patch 4: Fix show/positioning + focus on Linux — pure Electron APIs
     # On macOS, type:"panel" auto-focuses and the WM respects position hints.
-    # On Linux/X11, ai.show() triggers WM smart-placement (near focused window)
-    # which overrides our position. Also, without type:"panel", no auto-focus.
-    # Fix: setPosition before show (hint), show, focus, then setTimeout to
-    # re-apply position AFTER the WM finishes its async placement, and focus
-    # the webContents so the input field is ready for typing.
+    # On Linux/X11, show() triggers WM smart-placement which can override
+    # our position. We counter this with setBounds() retries.
+    # On Linux/Wayland, setPosition is not supported — setBounds is best-effort.
+    #
+    # The input field (#prompt-input) only auto-focuses on initial page load.
+    # On re-show (hide/show cycle), we must explicitly focus it via
+    # executeJavaScript since webContents.focus() only focuses the renderer
+    # process, not the DOM input element.
+    #
+    # Strategy:
+    # 1. Pre-position with setBounds() while hidden
+    # 2. show() for proper window activation and focus
+    # 3. Immediate setBounds() to counter WM placement
+    # 4. setBounds() retries at 50/150ms as safety net
+    # 5. webContents.focus() + executeJavaScript to focus #prompt-input
+    #
     # Pattern: ai.show()}return ai.setPosition(Math.round(VAR.x),Math.round(VAR.y)),!0}
     pattern4 = rb'ai\.show\(\)\}return ai\.setPosition\(Math\.round\(([\w$]+)\.x\),Math\.round\(\1\.y\)\),!0\}'
 
     def replacement4_func(m):
         v = m.group(1).decode('utf-8')
         return (
-            f'ai.setPosition(Math.round({v}.x),Math.round({v}.y)),'
-            f'ai.show(),'
-            f'ai.focus(),'
-            f'setTimeout(()=>{{ai.isDestroyed()||(ai.setPosition(Math.round({v}.x),Math.round({v}.y)),ai.webContents.focus())}},50)'
-            f'}}return!0}}'
+            f'(()=>{{'
+            f'const _b={{x:Math.round({v}.x),y:Math.round({v}.y),'
+            f'width:ai.getBounds().width,height:ai.getBounds().height}};'
+            f'const _r=()=>{{ai.isDestroyed()||ai.setBounds(_b)}};'
+            # Pre-position, show, immediate re-position
+            f'ai.setBounds(_b);'
+            f'ai.show();'
+            f'_r();'
+            # Focus: window (OS-level) → webContents (renderer) → DOM input
+            f'ai.focus();'
+            f'ai.webContents.focus();'
+            f'ai.webContents.executeJavaScript('
+            f'\'document.getElementById("prompt-input")?.focus()\''
+            f').catch(()=>{{}});'
+            # Safety retries — counter async WM placement + re-assert focus
+            f'setTimeout(()=>{{if(!ai.isDestroyed()){{'
+            f'_r();ai.focus();ai.webContents.focus();'
+            f'ai.webContents.executeJavaScript('
+            f'\'document.getElementById("prompt-input")?.focus()\''
+            f').catch(()=>{{}})'
+            f'}}}},50);'
+            f'setTimeout(_r,150)'
+            f'}})()}}'
+            f'return!0}}'
         ).encode('utf-8')
 
     content, count4 = re.subn(pattern4, replacement4_func, content)
