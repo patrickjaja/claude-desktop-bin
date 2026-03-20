@@ -91,4 +91,6 @@ module.exports = {
     isProcessRunning: () => false,
     // macOS Core Foundation stubs
     readCfPrefValue: () => null,
+    // File association stubs (used by FileSystem.whichApplication)
+    getAppInfoForFile: () => null,
 };
