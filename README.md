@@ -149,53 +149,21 @@ The Spaces UI is rendered by the claude.ai web frontend (loaded in the BrowserVi
 
 ## Custom Themes (Experimental)
 
-> **Note:** Theming is experimental. The CSS variable overrides cover the main backgrounds, text, borders, and accents, but not all UI elements are fully themed yet — some components (dropdowns, tooltips, code blocks, nested panels) may still show default colors. Contributions welcome.
-
-Apply custom color themes to the Claude Desktop chat UI. Themes override CSS variables in the claude.ai BrowserView using Electron's `insertCSS()` API.
+Themes override CSS variables in **all windows** (main chat, Quick Entry, Find-in-Page, About) via Electron's `insertCSS()` API. Set Claude Desktop to **dark mode** for best results with dark themes.
 
 **Quick start:**
 ```bash
-# Create config file
 echo '{"activeTheme": "nord"}' > ~/.config/Claude/claude-desktop-bin.json
-
 # Restart Claude Desktop
 ```
 
-**Built-in themes** (bundled in the patch, no extra config needed):
+**Built-in themes:** `sweet`, `nord`, `catppuccin-mocha`, `catppuccin-frappe`, `catppuccin-latte`, `catppuccin-macchiato`
 
-| Theme | Aesthetic |
-|-------|-----------|
-| `sweet` | Purple/pink warm tones — deep purple backgrounds, pink accents, lavender text |
-| `nord` | Arctic blue-grey ([nordtheme.com](https://nordtheme.com)) — polar night backgrounds, frost accents, snow text |
-| `catppuccin-mocha` | Warm pastels ([catppuccin.com](https://catppuccin.com)) — dark base, pastel accents, warm text |
-| `catppuccin-frappe` | Mid-tone pastels — muted blue-grey base, soft purple accents |
-| `catppuccin-latte` | Light theme — warm off-white base, vivid purple accents |
-| `catppuccin-macchiato` | Dark pastels — deeper blue base, lavender accents |
+| Sweet | Nord | Catppuccin Mocha |
+|-------|------|------------------|
+| Purple/pink warm tones | Arctic blue-grey ([nordtheme.com](https://nordtheme.com)) | Warm pastels ([catppuccin.com](https://catppuccin.com)) |
 
-The `themes/` directory contains example JSON configs and screenshots for each theme.
-
-**Custom theme:**
-```json
-{
-  "activeTheme": "my-theme",
-  "themes": {
-    "my-theme": {
-      "--bg-000": "220 17% 20%",
-      "--bg-100": "220 17% 18%",
-      "--text-000": "219 28% 88%",
-      "--text-500": "219 28% 94%",
-      "--accent-brand": "193 43% 67%",
-      "--border-100": "220 17% 36%",
-      "--claude-background-color": "#2E3440",
-      "--claude-foreground-color": "#D8DEE9"
-    }
-  }
-}
-```
-
-Semantic tokens use Tailwind-style HSL components without `hsl()` wrapper (e.g., `"220 17% 20%"`). Legacy `--claude-*` variables use hex values. See `themes/css-documentation.html` for the full variable catalog (432+ custom properties).
-
-To discover variables, open DevTools (`CLAUDE_DEV_TOOLS=detach claude-desktop`) and inspect `:root` in the Elements panel.
+See **[themes/README.md](themes/README.md)** for the full theming guide: CSS variable reference, how to extract app HTML/CSS for inspection, custom theme creation, and screenshots.
 
 ## Patches
 
