@@ -1,0 +1,95 @@
+{
+  "activeTheme": "catppuccin-macchiato",
+  "themes": {
+    "catppuccin-macchiato": {
+      "--bg-000": "232 23% 18%",
+      "--bg-100": "233 23% 15%",
+      "--bg-200": "236 23% 12%",
+      "--bg-300": "230 19% 26%",
+      "--bg-400": "231 16% 34%",
+      "--bg-500": "230 14% 41%",
+
+      "--text-000": "227 68% 88%",
+      "--text-100": "227 68% 88%",
+      "--text-200": "228 39% 80%",
+      "--text-300": "228 39% 80%",
+      "--text-400": "227 27% 72%",
+      "--text-500": "227 27% 72%",
+
+      "--accent-brand": "267 83% 80%",
+      "--accent-main-000": "267 83% 80%",
+      "--accent-main-100": "316 74% 85%",
+      "--accent-main-200": "234 82% 85%",
+      "--accent-main-900": "267 83% 40%",
+
+      "--accent-secondary-000": "220 83% 75%",
+      "--accent-secondary-100": "199 66% 69%",
+      "--accent-secondary-200": "189 59% 73%",
+      "--accent-secondary-900": "220 83% 35%",
+
+      "--accent-pro-000": "234 82% 85%",
+      "--accent-pro-100": "220 83% 65%",
+      "--accent-pro-200": "220 83% 50%",
+      "--accent-pro-900": "220 83% 25%",
+
+      "--border-100": "231 16% 34%",
+      "--border-200": "231 16% 34%",
+      "--border-300": "230 14% 41%",
+      "--border-400": "228 20% 65%",
+
+      "--danger-000": "351 74% 73%",
+      "--danger-100": "355 71% 77%",
+      "--danger-200": "351 74% 58%",
+      "--danger-900": "351 74% 30%",
+
+      "--warning-000": "40 70% 78%",
+      "--warning-100": "21 86% 73%",
+      "--warning-200": "21 86% 58%",
+      "--warning-900": "21 86% 30%",
+
+      "--success-000": "105 48% 72%",
+      "--success-100": "171 47% 69%",
+      "--success-200": "105 48% 52%",
+      "--success-900": "105 48% 28%",
+
+      "--oncolor-100": "0 0% 100%",
+      "--oncolor-200": "227 68% 92%",
+      "--oncolor-300": "227 68% 88%",
+
+      "--white": "0 0% 100%",
+      "--black": "0 0% 0%",
+      "--clay": "267 83% 80%",
+      "--kraft": "21 86% 73%",
+      "--book-cloth": "267 83% 68%",
+      "--manilla": "40 70% 78%",
+
+      "--accent-000": "267 83% 85%",
+      "--accent-100": "267 83% 80%",
+      "--accent-200": "234 82% 85%",
+      "--accent-900": "267 83% 30%",
+
+      "--brand-000": "267 83% 68%",
+      "--brand-100": "267 83% 80%",
+      "--brand-200": "267 83% 80%",
+      "--brand-900": "236 23% 8%",
+
+      "--pictogram-100": "227 68% 88%",
+      "--pictogram-200": "228 39% 80%",
+      "--pictogram-300": "227 27% 72%",
+      "--pictogram-400": "231 16% 34%",
+
+      "--claude-accent-clay": "#c6a0f6",
+      "--claude-foreground-color": "#cad3f5",
+      "--claude-background-color": "#24273a",
+      "--claude-secondary-color": "#a5adcb",
+      "--claude-border": "#494d6440",
+      "--claude-border-300": "#494d6440",
+      "--claude-border-300-more": "#494d6494",
+      "--claude-text-100": "#cad3f5",
+      "--claude-text-200": "#b8c0e0",
+      "--claude-text-400": "#a5adcb",
+      "--claude-text-500": "#939ab7",
+      "--claude-description-text": "#b8c0e0"
+    }
+  }
+}

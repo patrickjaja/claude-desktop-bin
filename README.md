@@ -93,6 +93,7 @@ cd claude-desktop-bin
 - **Cowork support** - Agentic workspace feature enabled on Linux (requires [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service))
 - **Dispatch** - Send tasks from your phone to your desktop Claude via Anthropic's environments bridge API (requires Cowork)
 - **MCP server support** - Model Context Protocol servers work on Linux
+- **Custom Themes (Experimental)** - 6 built-in color themes (Nord, Catppuccin Mocha/Frappe/Latte/Macchiato, Sweet) or create your own via JSON config — not all UI elements are fully themed yet
 - **Multi-monitor Quick Entry** - Global hotkey (Ctrl+Alt+Space) opens on the monitor where your cursor is ([Wayland notes](#wayland))
 - Automated daily version checks
 
@@ -146,6 +147,56 @@ CoworkSpaces organizes folders, projects, and links into named Spaces for Cowork
 
 The Spaces UI is rendered by the claude.ai web frontend (loaded in the BrowserView).
 
+## Custom Themes (Experimental)
+
+> **Note:** Theming is experimental. The CSS variable overrides cover the main backgrounds, text, borders, and accents, but not all UI elements are fully themed yet — some components (dropdowns, tooltips, code blocks, nested panels) may still show default colors. Contributions welcome.
+
+Apply custom color themes to the Claude Desktop chat UI. Themes override CSS variables in the claude.ai BrowserView using Electron's `insertCSS()` API.
+
+**Quick start:**
+```bash
+# Create config file
+echo '{"activeTheme": "nord"}' > ~/.config/Claude/claude-desktop-bin.json
+
+# Restart Claude Desktop
+```
+
+**Built-in themes** (bundled in the patch, no extra config needed):
+
+| Theme | Aesthetic |
+|-------|-----------|
+| `sweet` | Purple/pink warm tones — deep purple backgrounds, pink accents, lavender text |
+| `nord` | Arctic blue-grey ([nordtheme.com](https://nordtheme.com)) — polar night backgrounds, frost accents, snow text |
+| `catppuccin-mocha` | Warm pastels ([catppuccin.com](https://catppuccin.com)) — dark base, pastel accents, warm text |
+| `catppuccin-frappe` | Mid-tone pastels — muted blue-grey base, soft purple accents |
+| `catppuccin-latte` | Light theme — warm off-white base, vivid purple accents |
+| `catppuccin-macchiato` | Dark pastels — deeper blue base, lavender accents |
+
+The `themes/` directory contains example JSON configs and screenshots for each theme.
+
+**Custom theme:**
+```json
+{
+  "activeTheme": "my-theme",
+  "themes": {
+    "my-theme": {
+      "--bg-000": "220 17% 20%",
+      "--bg-100": "220 17% 18%",
+      "--text-000": "219 28% 88%",
+      "--text-500": "219 28% 94%",
+      "--accent-brand": "193 43% 67%",
+      "--border-100": "220 17% 36%",
+      "--claude-background-color": "#2E3440",
+      "--claude-foreground-color": "#D8DEE9"
+    }
+  }
+}
+```
+
+Semantic tokens use Tailwind-style HSL components without `hsl()` wrapper (e.g., `"220 17% 20%"`). Legacy `--claude-*` variables use hex values. See `themes/css-documentation.html` for the full variable catalog (432+ custom properties).
+
+To discover variables, open DevTools (`CLAUDE_DEV_TOOLS=detach claude-desktop`) and inspect `:root` in the Elements panel.
+
 ## Patches
 
 The package applies several patches to make Claude Desktop work on Linux. Each patch is isolated in `patches/` for easy maintenance:
@@ -176,6 +227,7 @@ The package applies several patches to make Claude Desktop work on Linux. Each p
 | `fix_dispatch_linux.py` | Enables Dispatch (remote task orchestration from mobile) — forces bridge init, bypasses remote control gate, adds Linux platform label | MED | `rg -o 'sessions-bridge.*init' index.js` |
 | `fix_window_bounds.py` | Fixes child view bounds on maximize/KWin snap, ready-to-show layout jiggle, Quick Entry blur-before-hide | LOW | Injected IIFE, no regex on app code |
 | `fix_vm_session_handlers.py` | Global uncaught exception handler for VM session safety | LOW | `rg -o 'uncaughtException.{0,50}' index.js` |
+| `add_feature_custom_themes.py` | Custom CSS theme injection via `insertCSS()` — 6 built-in themes (sweet, nord, catppuccin-*) | VERY LOW | Prepended IIFE, no regex on app code |
 
 When Claude Desktop updates break a patch, only the specific patch file needs updating. The **debug pattern** column shows the `rg` command to find the relevant code in the new version's `index.js`.
 

@@ -1,0 +1,206 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  * {
+    margin: 0;
+  }
+
+  img,
+  picture,
+  video,
+  canvas,
+  svg {
+    display: block;
+    max-width: 100%;
+  }
+
+  input,
+  button,
+  textarea,
+  select {
+    font: inherit;
+  }
+
+  p,
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    overflow-wrap: break-word;
+  }
+
+  * {
+    --claude-accent-clay: #d97757;
+  }
+
+  /* Values taken from claude.ai on 2025-10-17T02:46:12.721Z */
+  :root {
+    --accent-brand: 15 63.1% 59.6%;
+    --brand-000: 15 54.2% 51.2%;
+    --brand-100: 15 54.2% 51.2%;
+    --brand-200: 15 63.1% 59.6%;
+    --brand-900: 0 0% 0%;
+    --accent-pro-000: 251 34.2% 33.3%;
+    --accent-pro-100: 251 40% 45.1%;
+    --accent-pro-200: 251 61% 72.2%;
+    --accent-pro-900: 253 33.3% 91.8%;
+    --accent-000: 210 73.7% 40.2%;
+    --accent-100: 210 70.9% 51.6%;
+    --accent-200: 210 70.9% 51.6%;
+    --accent-900: 211 72% 90%;
+    --bg-000: 0 0% 100%;
+    --bg-100: 48 33.3% 97.1%;
+    --bg-200: 53 28.6% 94.5%;
+    --bg-300: 48 25% 92.2%;
+    --bg-400: 50 20.7% 88.6%;
+    --bg-500: 50 20.7% 88.6%;
+    --border-100: 30 3.3% 11.8%;
+    --border-200: 30 3.3% 11.8%;
+    --border-300: 30 3.3% 11.8%;
+    --border-400: 30 3.3% 11.8%;
+    --danger-000: 0 58.6% 34.1%;
+    --danger-100: 0 56.2% 45.4%;
+    --danger-200: 0 56.2% 45.4%;
+    --danger-900: 0 50% 95%;
+    --oncolor-100: 0 0% 100%;
+    --oncolor-200: 60 6.7% 97.1%;
+    --oncolor-300: 60 6.7% 97.1%;
+    --success-000: 125 100% 18%;
+    --success-100: 103 72.3% 26.9%;
+    --success-200: 103 72.3% 26.9%;
+    --success-900: 86 45.1% 90%;
+    --text-000: 60 2.6% 7.6%;
+    --text-100: 60 2.6% 7.6%;
+    --text-200: 60 2.5% 23.3%;
+    --text-300: 60 2.5% 23.3%;
+    --text-400: 51 3.1% 43.7%;
+    --text-500: 51 3.1% 43.7%;
+  }
+
+  .darkTheme {
+    --accent-brand: 15 63.1% 59.6%;
+    --brand-000: 15 54.2% 51.2%;
+    --brand-100: 15 63.1% 59.6%;
+    --brand-200: 15 63.1% 59.6%;
+    --brand-900: 0 0% 0%;
+    --accent-pro-000: 251 84.6% 74.5%;
+    --accent-pro-100: 251 40.2% 54.1%;
+    --accent-pro-200: 251 40% 45.1%;
+    --accent-pro-900: 250 25.3% 19.4%;
+    --accent-000: 210 65.5% 67.1%;
+    --accent-100: 210 70.9% 51.6%;
+    --accent-200: 210 70.9% 51.6%;
+    --accent-900: 210 55.9% 24.6%;
+    --bg-000: 60 2.1% 18.4%;
+    --bg-100: 60 2.7% 14.5%;
+    --bg-200: 30 3.3% 11.8%;
+    --bg-300: 60 2.6% 7.6%;
+    --bg-400: 0 0% 0%;
+    --bg-500: 0 0% 0%;
+    --border-100: 51 16.5% 84.5%;
+    --border-200: 51 16.5% 84.5%;
+    --border-300: 51 16.5% 84.5%;
+    --border-400: 51 16.5% 84.5%;
+    --danger-000: 0 98.4% 75.1%;
+    --danger-100: 0 67% 59.6%;
+    --danger-200: 0 67% 59.6%;
+    --danger-900: 0 46.5% 27.8%;
+    --oncolor-100: 0 0% 100%;
+    --oncolor-200: 60 6.7% 97.1%;
+    --oncolor-300: 60 6.7% 97.1%;
+    --success-000: 97 59.1% 46.1%;
+    --success-100: 97 75% 32.9%;
+    --success-200: 97 75% 32.9%;
+    --success-900: 127 100% 13.9%;
+    --text-000: 48 33.3% 97.1%;
+    --text-100: 48 33.3% 97.1%;
+    --text-200: 50 9% 73.7%;
+    --text-300: 50 9% 73.7%;
+    --text-400: 48 4.8% 59.2%;
+    --text-500: 48 4.8% 59.2%;
+  }
+
+  :root {
+    --white: 0 0% 100%;
+    --black: 0 0% 0%;
+    --kraft: 25 49.7% 66.5%;
+    --book-cloth: 15 52.3% 58%;
+    --manilla: 40 54% 82.9%;
+    --clay: 15 63.1% 59.6%;
+  }
+
+  /* NB: Legacy color variables - claude-* needs to be synced with
+   * updateTitleOverlayColors */
+  :root {
+    --claude-foreground-color: black;
+    --claude-background-color: #faf9f5;
+    --claude-secondary-color: #737163;
+    --claude-border: #706b5740;
+    --claude-border-300: #706b5740;
+    --claude-border-300-more: #706b57a6;
+
+    --claude-text-100: #29261b;
+    --claude-text-200: #3d3929;
+    --claude-text-400: #656358;
+    --claude-description-text: #535146;
+  }
+
+  .darkTheme {
+    --claude-foreground-color: white;
+    --claude-background-color: #262624;
+    --claude-secondary-color: #a6a39a;
+    --claude-border: #eaddd81a;
+    --claude-border-300: #6c6a6040;
+    --claude-border-300-more: #6c6a6094;
+    --claude-text-100: #f5f4ef;
+    --claude-text-200: #e5e5e2;
+    --claude-text-400: #b8b5a9;
+    --claude-text-500: #a6a39b;
+    --claude-description-text: #ceccc5;
+  }
+
+  .secondary {
+    font-size: 12px;
+    line-height: 1.15;
+    color: var(--claude-secondary-color);
+    margin: 8px;
+  }
+
+  html,
+  body {
+    color: var(--claude-foreground-color);
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    background-color: var(--claude-background-color);
+  }
+
+  .nc-no-drag {
+    -webkit-app-region: no-drag;
+  }
+  .nc-drag {
+    -webkit-app-region: drag;
+  }
+
+  .system-font {
+    font-family:
+      -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen",
+      "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
+      sans-serif;
+  }
+}

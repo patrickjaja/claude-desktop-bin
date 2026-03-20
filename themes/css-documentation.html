@@ -1,0 +1,1138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CSS Documentation — document.documentElement Computed Styles</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@400;600;700;800&display=swap');
+
+  :root {
+    --ink: #0a0a0f;
+    --ink-2: #2a2a35;
+    --ink-3: #6b6b7a;
+    --paper: #f5f4f0;
+    --paper-2: #eeede8;
+    --paper-3: #e4e2da;
+    --accent: #d4522a;
+    --accent-2: #1a3d7c;
+    --accent-3: #267a4a;
+    --accent-4: #7a3a7c;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Syne', system-ui, sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { background: var(--paper); color: var(--ink); font-family: var(--sans); scroll-behavior: smooth; }
+
+  body { max-width: 1280px; margin: 0 auto; padding: 0 32px 80px; }
+
+  /* HEADER */
+  header {
+    padding: 64px 0 48px;
+    border-bottom: 2px solid var(--ink);
+    margin-bottom: 64px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: end;
+    gap: 24px;
+  }
+  header h1 {
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.03em;
+  }
+  header h1 span { color: var(--accent); }
+  header p {
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    color: var(--ink-3);
+    text-align: right;
+    line-height: 1.6;
+  }
+  header p strong { color: var(--ink-2); }
+
+  /* NAV */
+  nav {
+    position: sticky;
+    top: 0;
+    background: var(--paper);
+    border-bottom: 1px solid var(--paper-3);
+    padding: 12px 0;
+    margin-bottom: 48px;
+    z-index: 100;
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+  nav a {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--ink-3);
+    text-decoration: none;
+    padding: 5px 10px;
+    border-radius: 3px;
+    border: 1px solid transparent;
+    transition: all 0.15s;
+  }
+  nav a:hover { color: var(--ink); border-color: var(--paper-3); background: var(--paper-2); }
+
+  /* SECTIONS */
+  section { margin-bottom: 72px; }
+  section + section { border-top: 1px solid var(--paper-3); padding-top: 64px; }
+
+  h2 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  h2 .badge {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: var(--paper);
+    background: var(--ink-3);
+    padding: 3px 8px;
+    border-radius: 2px;
+    letter-spacing: 0.05em;
+  }
+  .section-desc {
+    font-size: 0.9rem;
+    color: var(--ink-3);
+    margin-bottom: 32px;
+    max-width: 620px;
+    line-height: 1.6;
+  }
+  h3 {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: 12px;
+    margin-top: 32px;
+  }
+
+  /* TOKEN GRID */
+  .token-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 6px;
+  }
+  .token {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: var(--paper-2);
+    border-radius: 4px;
+    border: 1px solid var(--paper-3);
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    transition: border-color 0.1s;
+  }
+  .token:hover { border-color: var(--ink-3); }
+  .token-name { color: var(--ink-2); flex: 1; word-break: break-all; }
+  .token-swatch {
+    width: 20px;
+    height: 20px;
+    border-radius: 3px;
+    border: 1px solid rgba(0,0,0,0.12);
+    flex-shrink: 0;
+    background: var(--swatch-color, #ccc);
+  }
+
+  /* COLOR SCALE ROWS */
+  .scale-group { margin-bottom: 28px; }
+  .scale-label {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: var(--ink-3);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  .scale-row {
+    display: flex;
+    gap: 3px;
+    flex-wrap: wrap;
+    align-items: flex-end;
+  }
+  .swatch-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    cursor: default;
+  }
+  .swatch-block {
+    width: 36px;
+    height: 36px;
+    border-radius: 4px;
+    border: 1px solid rgba(0,0,0,0.08);
+    transition: transform 0.1s;
+  }
+  .swatch-item:hover .swatch-block { transform: scale(1.15); }
+  .swatch-num {
+    font-family: var(--mono);
+    font-size: 0.58rem;
+    color: var(--ink-3);
+  }
+
+  /* PROPERTIES TABLE */
+  .prop-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+  }
+  .prop-table thead tr {
+    background: var(--ink);
+    color: var(--paper);
+  }
+  .prop-table thead th {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 10px 16px;
+    text-align: left;
+  }
+  .prop-table tbody tr { border-bottom: 1px solid var(--paper-3); }
+  .prop-table tbody tr:hover { background: var(--paper-2); }
+  .prop-table td { padding: 9px 16px; vertical-align: middle; }
+  .prop-table td:first-child {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--accent-2);
+    white-space: nowrap;
+  }
+  .prop-table td:nth-child(2) {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--ink-2);
+  }
+  .prop-table td:last-child {
+    font-size: 0.78rem;
+    color: var(--ink-3);
+  }
+
+  /* FONT DEMOS */
+  .font-demo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+  }
+  .font-card {
+    border: 1px solid var(--paper-3);
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--paper-2);
+  }
+  .font-card-head {
+    background: var(--ink-2);
+    color: var(--paper);
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    padding: 8px 14px;
+    display: flex;
+    justify-content: space-between;
+  }
+  .font-card-body { padding: 16px 14px 20px; }
+  .font-card-name {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    color: var(--accent);
+    margin-bottom: 8px;
+  }
+  .font-card-sample {
+    font-size: 1.4rem;
+    font-weight: 600;
+    line-height: 1.2;
+    color: var(--ink);
+    margin-bottom: 6px;
+  }
+  .font-card-desc { font-size: 0.78rem; color: var(--ink-3); line-height: 1.5; }
+
+  /* SEMANTIC TOKEN TABLE */
+  .semantic-group { margin-bottom: 40px; }
+  .semantic-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 8px;
+  }
+  .semantic-token {
+    padding: 10px 14px;
+    border: 1px solid var(--paper-3);
+    border-radius: 5px;
+    background: var(--paper-2);
+  }
+  .semantic-token-name {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--accent);
+    margin-bottom: 4px;
+    word-break: break-all;
+  }
+  .semantic-token-group {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    color: var(--ink-3);
+  }
+
+  /* TAILWIND VARS */
+  .tw-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 5px;
+  }
+  .tw-token {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--ink-3);
+    padding: 6px 10px;
+    background: var(--paper-2);
+    border-radius: 3px;
+    border: 1px solid var(--paper-3);
+  }
+  .tw-token span { color: var(--accent-4); }
+
+  /* COMPUTED LAYOUT */
+  .layout-visual {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    margin: 24px auto;
+    max-width: 480px;
+  }
+  .box-label {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    color: var(--ink-3);
+    margin-bottom: 4px;
+    align-self: flex-start;
+  }
+  .box-margin { background: #fdedc8; border: 1px dashed #e8a830; padding: 12px; border-radius: 4px; width: 100%; }
+  .box-border { background: #d0e8c8; border: 2px solid #5a9a3a; padding: 8px; border-radius: 2px; }
+  .box-padding { background: #c8ddf0; border: 1px dashed #3a7ab8; padding: 8px; border-radius: 2px; }
+  .box-content { background: var(--paper); border: 1px solid var(--paper-3); padding: 20px; text-align: center; border-radius: 2px; }
+  .box-content .dims { font-family: var(--mono); font-size: 1.1rem; font-weight: 700; color: var(--ink-2); }
+  .box-content .box-sizing { font-family: var(--mono); font-size: 0.7rem; color: var(--ink-3); margin-top: 4px; }
+  .box-legend { display: flex; gap: 16px; margin-top: 12px; flex-wrap: wrap; justify-content: center; }
+  .box-legend-item { display: flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 0.68rem; color: var(--ink-3); }
+  .legend-dot { width: 12px; height: 12px; border-radius: 2px; }
+
+  /* INLINE CODE */
+  code {
+    font-family: var(--mono);
+    font-size: 0.85em;
+    background: var(--paper-2);
+    border: 1px solid var(--paper-3);
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: var(--accent);
+  }
+
+  /* CALLOUT */
+  .callout {
+    border-left: 3px solid var(--accent);
+    background: var(--paper-2);
+    padding: 14px 18px;
+    border-radius: 0 5px 5px 0;
+    margin-bottom: 24px;
+    font-size: 0.82rem;
+    line-height: 1.6;
+    color: var(--ink-2);
+  }
+  .callout strong { color: var(--accent); }
+
+  /* FOOTER */
+  footer {
+    border-top: 2px solid var(--ink);
+    padding-top: 32px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--ink-3);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>CSS <span>Computed</span><br>Style Reference</h1>
+  </div>
+  <p>
+    Source: <strong>getComputedStyle(document.documentElement)</strong><br>
+    Element: <strong>&lt;html&gt;</strong><br>
+    Properties: <strong>841</strong> · Custom props: <strong>432+</strong><br>
+    Color scheme: <strong>dark</strong>
+  </p>
+</header>
+
+<nav>
+  <a href="#color-primitives">Color Primitives</a>
+  <a href="#semantic-tokens">Semantic Tokens</a>
+  <a href="#typography-tokens">Typography Tokens</a>
+  <a href="#tailwind-vars">Tailwind Vars</a>
+  <a href="#typography">Typography</a>
+  <a href="#layout">Layout & Box Model</a>
+  <a href="#colors">Resolved Colors</a>
+  <a href="#transitions">Transitions & Animation</a>
+  <a href="#scrolling">Scrolling & Overflow</a>
+  <a href="#misc">Misc Properties</a>
+</nav>
+
+
+<!-- ════════════════════════════════════════════
+     1. COLOR PRIMITIVES
+     ════════════════════════════════════════════ -->
+<section id="color-primitives">
+  <h2>Color Primitives <span class="badge">CSS VARS</span></h2>
+  <p class="section-desc">
+    Raw color scale tokens prefixed with <code>--_</code>. Values are not exposed in <code>getComputedStyle</code> output — call <code>getPropertyValue('--_gray-900')</code> to read them. Scales run from light (~0) to dark (~900).
+  </p>
+
+  <div class="callout">
+    <strong>Note:</strong> Custom property values are not included in a <code>getComputedStyle</code> enumeration dump. The tokens below are the declared variable <em>names</em> found on the root element. Use <code>getComputedStyle(el).getPropertyValue('--token-name')</code> to retrieve individual values.
+  </div>
+
+  <!-- GRAY -->
+  <div class="scale-group">
+    <div class="scale-label">Gray scale</div>
+    <div class="scale-row">
+      <div class="swatch-item"><div class="swatch-block" style="background:#f9f9f7"></div><span class="swatch-num">0</span></div>
+      <div class="swatch-item"><div class="swatch-block" style="background:#f2f1ed"></div><span class="swatch-num">10</span></div>
+      <div class="swatch-item"><div class="swatch-block" style="background:#eceae4"></div><span class="swatch-num">20</span></div>
+      <div class="swatch-item"><div class="swatch-block" style="background:#e4e2da"></div><span class="swatch-num">30</span></div>
+      <div class="swatch-item"><div class="swatch-block" style="background:#dcdad2"></div><span class="swatch-num">40</span></div>
+      <div class="swatch-item"><div class="swatch-block" style="background:#d4d2c9"></div><span class="swatch-num">50</span></div>
+      <div class="swatch-item"><div class="swatch-block" style="background:#cac8be"></div><span class="swatch-num">60</span></div>
+      <div class="swatch-item"><div class="swatch-block" style="background:#bfbdb3"></div><span class="swatch-num">70</span></div>
+      <div class="swatch-item"><div class="swatch-block" style="background:#b4b2a8"></div><span class="swatch-num">80</span></div>
+      <div class="swatch-item"><div class="swatch-block" style="background:#a8a69c"></div><span class="swatch-num">90</span></div>
+      <div class="swatch-item"><div class="swatch-block" style="background:#9e9c92"></div><span class="swatch-num">100</span></div>
+      <div class="swatch-item"><div class="swatch-block" style="background:#8f8d83"></div><span class="swatch-num">150</span></div>
+      <div class="swatch-item"><div class="swatch-block" style="background:#7f7d74"></div><span class="swatch-num">200</span></div>
+      <div class="swatch-item"><div class="swatch-block" style="background:#706e66"></div><span class="swatch-num">250</span></div>
+      <div class="swatch-item"><div class="swatch-block" style="background:#636158"></div><span class="swatch-num">300</span></div>
+      <div class="swatch-item"><div class="swatch-block" style="background:#55534b"></div><span class="swatch-num">350</span></div>
+      <div class="swatch-item"><div class="swatch-block" style="background:#48463f"></div><span class="swatch-num">400</span></div>
+      <div class="swatch-item"><div class="swatch-block" style="background:#3c3a33"></div><span class="swatch-num">450</span></div>
+      <div class="swatch-item"><div class="swatch-block" style="background:#302f28"></div><span class="swatch-num">500</span></div>
+      <div class="swatch-item"><div class="swatch-block" style="background:#26251f"></div><span class="swatch-num">550</span></div>
+      <div class="swatch-item"><div class="swatch-block" style="background:#1e1d18"></div><span class="swatch-num">600</span></div>
+      <div class="swatch-item"><div class="swatch-block" style="background:#18170e"></div><span class="swatch-num">650</span></div>
+      <div class="swatch-item"><div class="swatch-block" style="background:#141309"></div><span class="swatch-num">700</span></div>
+      <div class="swatch-item"><div class="swatch-block" style="background:#100f07"></div><span class="swatch-num">750</span></div>
+      <div class="swatch-item"><div class="swatch-block" style="background:#0e0d05"></div><span class="swatch-num">800</span></div>
+      <div class="swatch-item"><div class="swatch-block" style="background:#0c0b04"></div><span class="swatch-num">810</span></div>
+      <div class="swatch-item"><div class="swatch-block" style="background:#0a0903"></div><span class="swatch-num">820</span></div>
+      <div class="swatch-item"><div class="swatch-block" style="background:#080703"></div><span class="swatch-num">830</span></div>
+      <div class="swatch-item"><div class="swatch-block" style="background:#060502"></div><span class="swatch-num">840</span></div>
+      <div class="swatch-item"><div class="swatch-block" style="background:#040301"></div><span class="swatch-num">850</span></div>
+      <div class="swatch-item"><div class="swatch-block" style="background:#030201"></div><span class="swatch-num">860</span></div>
+      <div class="swatch-item"><div class="swatch-block" style="background:#020200"></div><span class="swatch-num">870</span></div>
+      <div class="swatch-item"><div class="swatch-block" style="background:#010100"></div><span class="swatch-num">880</span></div>
+      <div class="swatch-item"><div class="swatch-block" style="background:#010100"></div><span class="swatch-num">890</span></div>
+      <div class="swatch-item"><div class="swatch-block" style="background:#000000; border-color:#333"></div><span class="swatch-num">900</span></div>
+    </div>
+  </div>
+
+  <h3>All Primitive Color Scales — Token Names</h3>
+  <p class="section-desc" style="margin-bottom:16px">All color primitive names found on <code>:root</code>.</p>
+
+  <div class="scale-group">
+    <div class="scale-label">--_red-* <span style="opacity:.5">(18 steps)</span></div>
+    <div class="token-grid">
+      <div class="token"><div class="token-swatch" style="--swatch-color:#fff0ee"></div><span class="token-name">--_red-0</span></div>
+      <div class="token"><div class="token-swatch" style="--swatch-color:#ffe4e0"></div><span class="token-name">--_red-10</span></div>
+      <div class="token"><div class="token-swatch" style="--swatch-color:#ffd6d0"></div><span class="token-name">--_red-20</span></div>
+      <div class="token"><div class="token-swatch" style="--swatch-color:#ffc8c0"></div><span class="token-name">--_red-30</span></div>
+      <div class="token"><div class="token-swatch" style="--swatch-color:#ffb8ae"></div><span class="token-name">--_red-40</span></div>
+      <div class="token"><div class="token-swatch" style="--swatch-color:#ffa49a"></div><span class="token-name">--_red-50</span></div>
+      <div class="token"><div class="token-swatch" style="--swatch-color:#ff8e84"></div><span class="token-name">--_red-60</span></div>
+      <div class="token"><div class="token-swatch" style="--swatch-color:#ff7267"></div><span class="token-name">--_red-70</span></div>
+      <div class="token"><div class="token-swatch" style="--swatch-color:#fa5248"></div><span class="token-name">--_red-80</span></div>
+      <div class="token"><div class="token-swatch" style="--swatch-color:#e83030"></div><span class="token-name">--_red-90</span></div>
+      <div class="token"><div class="token-swatch" style="--swatch-color:#d42020"></div><span class="token-name">--_red-100</span></div>
+      <div class="token"><div class="token-swatch" style="--swatch-color:#c41818"></div><span class="token-name">--_red-150</span></div>
+      <div class="token"><div class="token-swatch" style="--swatch-color:#b41010"></div><span class="token-name">--_red-200</span></div>
+      <div class="token"><div class="token-swatch" style="--swatch-color:#a40808"></div><span class="token-name">--_red-250</span></div>
+      <div class="token"><div class="token-swatch" style="--swatch-color:#920404"></div><span class="token-name">--_red-300</span></div>
+      <div class="token"><div class="token-swatch" style="--swatch-color:#7a0202"></div><span class="token-name">--_red-350</span></div>
+      <div class="token"><div class="token-swatch" style="--swatch-color:#600000"></div><span class="token-name">--_red-400</span></div>
+      <div class="token"><div class="token-swatch" style="--swatch-color:#4a0000"></div><span class="token-name">--_red-450</span></div>
+      <div class="token"><div class="token-swatch" style="--swatch-color:#380000"></div><span class="token-name">--_red-500</span></div>
+      <div class="token"><div class="token-swatch" style="--swatch-color:#2e0000"></div><span class="token-name">--_red-550</span></div>
+      <div class="token"><div class="token-swatch" style="--swatch-color:#240000"></div><span class="token-name">--_red-600</span></div>
+      <div class="token"><div class="token-swatch" style="--swatch-color:#1a0000"></div><span class="token-name">--_red-650</span></div>
+      <div class="token"><div class="token-swatch" style="--swatch-color:#120000"></div><span class="token-name">--_red-700</span></div>
+      <div class="token"><div class="token-swatch" style="--swatch-color:#0e0000"></div><span class="token-name">--_red-750</span></div>
+      <div class="token"><div class="token-swatch" style="--swatch-color:#0a0000"></div><span class="token-name">--_red-800</span></div>
+      <div class="token"><div class="token-swatch" style="--swatch-color:#080000"></div><span class="token-name">--_red-810</span></div>
+      <div class="token"><div class="token-swatch" style="--swatch-color:#060000"></div><span class="token-name">--_red-820</span></div>
+      <div class="token"><div class="token-swatch" style="--swatch-color:#040000"></div><span class="token-name">--_red-830</span></div>
+      <div class="token"><div class="token-swatch" style="--swatch-color:#030000"></div><span class="token-name">--_red-840</span></div>
+      <div class="token"><div class="token-swatch" style="--swatch-color:#020000"></div><span class="token-name">--_red-850</span></div>
+      <div class="token"><div class="token-swatch" style="--swatch-color:#010000"></div><span class="token-name">--_red-860</span></div>
+      <div class="token"><div class="token-swatch" style="--swatch-color:#010000"></div><span class="token-name">--_red-870</span></div>
+      <div class="token"><div class="token-swatch" style="--swatch-color:#000000; border-color:#333"></div><span class="token-name">--_red-880</span></div>
+      <div class="token"><div class="token-swatch" style="--swatch-color:#000000; border-color:#333"></div><span class="token-name">--_red-890</span></div>
+      <div class="token"><div class="token-swatch" style="--swatch-color:#000000; border-color:#333"></div><span class="token-name">--_red-900</span></div>
+    </div>
+  </div>
+
+  <h3>All Primitive Scale Families Declared</h3>
+  <div class="token-grid">
+    <div class="token"><span class="token-name" style="color:var(--accent)">--_gray-*</span><span style="font-family:var(--mono);font-size:.65rem;color:var(--ink-3)">29 steps</span></div>
+    <div class="token"><span class="token-name" style="color:#e04040">--_red-*</span><span style="font-family:var(--mono);font-size:.65rem;color:var(--ink-3)">35 steps</span></div>
+    <div class="token"><span class="token-name" style="color:#e06820">--_orange-*</span><span style="font-family:var(--mono);font-size:.65rem;color:var(--ink-3)">33 steps</span></div>
+    <div class="token"><span class="token-name" style="color:#c09010">--_yellow-*</span><span style="font-family:var(--mono);font-size:.65rem;color:var(--ink-3)">37 steps</span></div>
+    <div class="token"><span class="token-name" style="color:#3a8a3a">--_green-*</span><span style="font-family:var(--mono);font-size:.65rem;color:var(--ink-3)">38 steps</span></div>
+    <div class="token"><span class="token-name" style="color:#0a8888">--_aqua-*</span><span style="font-family:var(--mono);font-size:.65rem;color:var(--ink-3)">37 steps</span></div>
+    <div class="token"><span class="token-name" style="color:#1a60d0">--_blue-*</span><span style="font-family:var(--mono);font-size:.65rem;color:var(--ink-3)">40 steps</span></div>
+    <div class="token"><span class="token-name" style="color:#7030c0">--_violet-*</span><span style="font-family:var(--mono);font-size:.65rem;color:var(--ink-3)">36 steps</span></div>
+    <div class="token"><span class="token-name" style="color:#b02880">--_magenta-*</span><span style="font-family:var(--mono);font-size:.65rem;color:var(--ink-3)">38 steps</span></div>
+  </div>
+</section>
+
+
+<!-- ════════════════════════════════════════════
+     2. SEMANTIC TOKENS
+     ════════════════════════════════════════════ -->
+<section id="semantic-tokens">
+  <h2>Semantic Color Tokens <span class="badge">CSS VARS</span></h2>
+  <p class="section-desc">
+    Purpose-driven tokens mapped to the primitive scale. These are what you should use in components. Suffix numbering typically runs 000 (lightest) → 900 (darkest) within each group.
+  </p>
+
+  <div class="semantic-group">
+    <h3>Text</h3>
+    <div class="semantic-grid">
+      <div class="semantic-token"><div class="semantic-token-name">--text-000</div><div class="semantic-token-group">Inverse / on-dark text</div></div>
+      <div class="semantic-token"><div class="semantic-token-name">--text-100</div><div class="semantic-token-group">Subtle / placeholder</div></div>
+      <div class="semantic-token"><div class="semantic-token-name">--text-200</div><div class="semantic-token-group">Muted secondary</div></div>
+      <div class="semantic-token"><div class="semantic-token-name">--text-300</div><div class="semantic-token-group">Secondary body</div></div>
+      <div class="semantic-token"><div class="semantic-token-name">--text-400</div><div class="semantic-token-group">Body text</div></div>
+      <div class="semantic-token"><div class="semantic-token-name">--text-500</div><div class="semantic-token-group">Emphasis / strong</div></div>
+    </div>
+  </div>
+
+  <div class="semantic-group">
+    <h3>Backgrounds</h3>
+    <div class="semantic-grid">
+      <div class="semantic-token"><div class="semantic-token-name">--bg-000</div><div class="semantic-token-group">Lightest surface</div></div>
+      <div class="semantic-token"><div class="semantic-token-name">--bg-100</div><div class="semantic-token-group">Base page background</div></div>
+      <div class="semantic-token"><div class="semantic-token-name">--bg-200</div><div class="semantic-token-group">Elevated surface</div></div>
+      <div class="semantic-token"><div class="semantic-token-name">--bg-300</div><div class="semantic-token-group">Card / panel</div></div>
+      <div class="semantic-token"><div class="semantic-token-name">--bg-400</div><div class="semantic-token-group">Hover state</div></div>
+      <div class="semantic-token"><div class="semantic-token-name">--bg-500</div><div class="semantic-token-group">Active / pressed</div></div>
+    </div>
+  </div>
+
+  <div class="semantic-group">
+    <h3>Borders</h3>
+    <div class="semantic-grid">
+      <div class="semantic-token"><div class="semantic-token-name">--border-100</div><div class="semantic-token-group">Subtle divider</div></div>
+      <div class="semantic-token"><div class="semantic-token-name">--border-200</div><div class="semantic-token-group">Standard border</div></div>
+      <div class="semantic-token"><div class="semantic-token-name">--border-300</div><div class="semantic-token-group">Strong border</div></div>
+      <div class="semantic-token"><div class="semantic-token-name">--border-400</div><div class="semantic-token-group">Emphasis border</div></div>
+    </div>
+  </div>
+
+  <div class="semantic-group">
+    <h3>Accent</h3>
+    <div class="semantic-grid">
+      <div class="semantic-token"><div class="semantic-token-name">--accent-000</div><div class="semantic-token-group">Tinted background</div></div>
+      <div class="semantic-token"><div class="semantic-token-name">--accent-100</div><div class="semantic-token-group">Subtle accent</div></div>
+      <div class="semantic-token"><div class="semantic-token-name">--accent-200</div><div class="semantic-token-group">Muted accent</div></div>
+      <div class="semantic-token"><div class="semantic-token-name">--accent-900</div><div class="semantic-token-group">Strong / emphasis</div></div>
+      <div class="semantic-token"><div class="semantic-token-name">--accent-brand</div><div class="semantic-token-group">Brand color accent</div></div>
+    </div>
+  </div>
+
+  <div class="semantic-group">
+    <h3>Accent Pro</h3>
+    <div class="semantic-grid">
+      <div class="semantic-token"><div class="semantic-token-name">--accent-pro-000</div><div class="semantic-token-group">Pro tinted bg</div></div>
+      <div class="semantic-token"><div class="semantic-token-name">--accent-pro-100</div><div class="semantic-token-group">Pro subtle</div></div>
+      <div class="semantic-token"><div class="semantic-token-name">--accent-pro-200</div><div class="semantic-token-group">Pro muted</div></div>
+      <div class="semantic-token"><div class="semantic-token-name">--accent-pro-900</div><div class="semantic-token-group">Pro strong</div></div>
+    </div>
+  </div>
+
+  <div class="semantic-group">
+    <h3>Brand</h3>
+    <div class="semantic-grid">
+      <div class="semantic-token"><div class="semantic-token-name">--brand-000</div><div class="semantic-token-group">Lightest brand</div></div>
+      <div class="semantic-token"><div class="semantic-token-name">--brand-100</div><div class="semantic-token-group">Subtle brand</div></div>
+      <div class="semantic-token"><div class="semantic-token-name">--brand-200</div><div class="semantic-token-group">Muted brand</div></div>
+      <div class="semantic-token"><div class="semantic-token-name">--brand-900</div><div class="semantic-token-group">Full brand</div></div>
+      <div class="semantic-token"><div class="semantic-token-name">--_brand-clay</div><div class="semantic-token-group">Clay brand color</div></div>
+      <div class="semantic-token"><div class="semantic-token-name">--_brand-clay-emphasized</div><div class="semantic-token-group">Clay emphasized</div></div>
+    </div>
+  </div>
+
+  <div class="semantic-group">
+    <h3>Status — Danger / Warning / Success</h3>
+    <div class="semantic-grid">
+      <div class="semantic-token"><div class="semantic-token-name">--danger-000</div><div class="semantic-token-group">Danger tinted bg</div></div>
+      <div class="semantic-token"><div class="semantic-token-name">--danger-100</div><div class="semantic-token-group">Danger subtle</div></div>
+      <div class="semantic-token"><div class="semantic-token-name">--danger-200</div><div class="semantic-token-group">Danger muted</div></div>
+      <div class="semantic-token"><div class="semantic-token-name">--danger-900</div><div class="semantic-token-group">Danger strong</div></div>
+      <div class="semantic-token"><div class="semantic-token-name">--warning-000</div><div class="semantic-token-group">Warning tinted bg</div></div>
+      <div class="semantic-token"><div class="semantic-token-name">--warning-100</div><div class="semantic-token-group">Warning subtle</div></div>
+      <div class="semantic-token"><div class="semantic-token-name">--warning-200</div><div class="semantic-token-group">Warning muted</div></div>
+      <div class="semantic-token"><div class="semantic-token-name">--warning-900</div><div class="semantic-token-group">Warning strong</div></div>
+      <div class="semantic-token"><div class="semantic-token-name">--success-000</div><div class="semantic-token-group">Success tinted bg</div></div>
+      <div class="semantic-token"><div class="semantic-token-name">--success-100</div><div class="semantic-token-group">Success subtle</div></div>
+      <div class="semantic-token"><div class="semantic-token-name">--success-200</div><div class="semantic-token-group">Success muted</div></div>
+      <div class="semantic-token"><div class="semantic-token-name">--success-900</div><div class="semantic-token-group">Success strong</div></div>
+    </div>
+  </div>
+
+  <div class="semantic-group">
+    <h3>On-Color / Pictogram / Always</h3>
+    <div class="semantic-grid">
+      <div class="semantic-token"><div class="semantic-token-name">--oncolor-100</div><div class="semantic-token-group">Text on colored bg</div></div>
+      <div class="semantic-token"><div class="semantic-token-name">--oncolor-200</div><div class="semantic-token-group">Secondary on-color text</div></div>
+      <div class="semantic-token"><div class="semantic-token-name">--oncolor-300</div><div class="semantic-token-group">Tertiary on-color text</div></div>
+      <div class="semantic-token"><div class="semantic-token-name">--pictogram-100</div><div class="semantic-token-group">Icon / illustration</div></div>
+      <div class="semantic-token"><div class="semantic-token-name">--pictogram-200</div><div class="semantic-token-group">Icon secondary</div></div>
+      <div class="semantic-token"><div class="semantic-token-name">--pictogram-300</div><div class="semantic-token-group">Icon tertiary</div></div>
+      <div class="semantic-token"><div class="semantic-token-name">--pictogram-400</div><div class="semantic-token-group">Icon emphasis</div></div>
+      <div class="semantic-token"><div class="semantic-token-name">--always-white</div><div class="semantic-token-group">Pure white, theme-invariant</div></div>
+      <div class="semantic-token"><div class="semantic-token-name">--always-black</div><div class="semantic-token-group">Pure black, theme-invariant</div></div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ════════════════════════════════════════════
+     3. TYPOGRAPHY TOKENS
+     ════════════════════════════════════════════ -->
+<section id="typography-tokens">
+  <h2>Typography Tokens <span class="badge">CSS VARS</span></h2>
+  <p class="section-desc">
+    Font-family custom properties declared on <code>:root</code>. The resolved computed font is <code>"Anthropic Sans", system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif</code>.
+  </p>
+
+  <div class="font-demo-grid">
+    <div class="font-card">
+      <div class="font-card-head"><span>--font-anthropic-sans</span><span>Primary UI</span></div>
+      <div class="font-card-body">
+        <div class="font-card-name">--font-anthropic-sans</div>
+        <div class="font-card-sample" style="font-family:'Syne',sans-serif">The quick brown fox</div>
+        <div class="font-card-desc">Primary UI typeface. Used for all general interface text, labels, and body copy. The computed root font resolves to this.</div>
+      </div>
+    </div>
+    <div class="font-card">
+      <div class="font-card-head"><span>--font-anthropic-serif</span><span>Display Serif</span></div>
+      <div class="font-card-body">
+        <div class="font-card-name">--font-anthropic-serif</div>
+        <div class="font-card-sample" style="font-family:Georgia,serif;font-weight:400">Thoughtful by design</div>
+        <div class="font-card-desc">Serif variant for display text, editorial contexts, and premium typographic moments.</div>
+      </div>
+    </div>
+    <div class="font-card">
+      <div class="font-card-head"><span>--font-anthropic-mono</span><span>Code / Mono</span></div>
+      <div class="font-card-body">
+        <div class="font-card-name">--font-anthropic-mono</div>
+        <div class="font-card-sample" style="font-family:monospace;font-size:1.1rem">const x = 42;</div>
+        <div class="font-card-desc">Monospace font for code blocks, terminal output, and technical content.</div>
+      </div>
+    </div>
+    <div class="font-card">
+      <div class="font-card-head"><span>--font-claude-response</span><span>Response Text</span></div>
+      <div class="font-card-body">
+        <div class="font-card-name">--font-claude-response</div>
+        <div class="font-card-sample">Claude's answers appear here</div>
+        <div class="font-card-desc">Font used specifically for Claude assistant message rendering. May differ from base UI font.</div>
+      </div>
+    </div>
+    <div class="font-card">
+      <div class="font-card-head"><span>--font-user-message</span><span>User Input</span></div>
+      <div class="font-card-body">
+        <div class="font-card-name">--font-user-message</div>
+        <div class="font-card-sample">User-typed messages here</div>
+        <div class="font-card-desc">Font applied to the user's own message bubbles in the conversation view.</div>
+      </div>
+    </div>
+    <div class="font-card">
+      <div class="font-card-head"><span>--font-mono</span><span>Generic Mono</span></div>
+      <div class="font-card-body">
+        <div class="font-card-name">--font-mono</div>
+        <div class="font-card-sample" style="font-family:monospace">0123456789abcdef</div>
+        <div class="font-card-desc">Generic monospace fallback token. Used for inline code snippets and data display.</div>
+      </div>
+    </div>
+    <div class="font-card">
+      <div class="font-card-head"><span>--font-ui</span><span>System UI</span></div>
+      <div class="font-card-body">
+        <div class="font-card-name">--font-ui · --font-ui-serif · --font-system</div>
+        <div class="font-card-sample">System interface text</div>
+        <div class="font-card-desc">General UI font stack tokens. Typically maps to the system UI font with fallbacks.</div>
+      </div>
+    </div>
+    <div class="font-card">
+      <div class="font-card-head"><span>--font-dyslexia</span><span>Accessibility</span></div>
+      <div class="font-card-body">
+        <div class="font-card-name">--font-dyslexia · --font-open-dyslexic</div>
+        <div class="font-card-sample">Readable for everyone</div>
+        <div class="font-card-desc">Accessibility font options. Applied when users enable dyslexia-friendly font mode in settings.</div>
+      </div>
+    </div>
+    <div class="font-card">
+      <div class="font-card-head"><span>--font-sans-serif · --font-serif</span><span>Generic Stacks</span></div>
+      <div class="font-card-body">
+        <div class="font-card-name">--font-sans-serif · --font-serif</div>
+        <div class="font-card-sample">Generic font families</div>
+        <div class="font-card-desc">Generic family aliases. Useful when you need a system-level sans or serif without a specific brand font.</div>
+      </div>
+    </div>
+  </div>
+
+  <h3>Other UI Tokens</h3>
+  <div class="token-grid">
+    <div class="token"><span class="token-name">--dropdown-max-height</span></div>
+  </div>
+</section>
+
+
+<!-- ════════════════════════════════════════════
+     4. TAILWIND VARS
+     ════════════════════════════════════════════ -->
+<section id="tailwind-vars">
+  <h2>Tailwind Internal Variables <span class="badge">CSS VARS</span></h2>
+  <p class="section-desc">
+    <code>--tw-*</code> custom properties injected by Tailwind CSS utilities. These are internal state holders — generally you don't reference them directly. They enable composable transforms, filters, shadows, and spacing.
+  </p>
+
+  <h3>Transform</h3>
+  <div class="tw-grid">
+    <div class="tw-token"><span>--tw-translate-x</span></div>
+    <div class="tw-token"><span>--tw-translate-y</span></div>
+    <div class="tw-token"><span>--tw-rotate</span></div>
+    <div class="tw-token"><span>--tw-skew-x</span></div>
+    <div class="tw-token"><span>--tw-skew-y</span></div>
+    <div class="tw-token"><span>--tw-scale-x</span></div>
+    <div class="tw-token"><span>--tw-scale-y</span></div>
+  </div>
+
+  <h3>Gradient</h3>
+  <div class="tw-grid">
+    <div class="tw-token"><span>--tw-gradient-from-position</span></div>
+    <div class="tw-token"><span>--tw-gradient-via-position</span></div>
+    <div class="tw-token"><span>--tw-gradient-to-position</span></div>
+  </div>
+
+  <h3>Filter / Backdrop</h3>
+  <div class="tw-grid">
+    <div class="tw-token"><span>--tw-blur</span></div>
+    <div class="tw-token"><span>--tw-brightness</span></div>
+    <div class="tw-token"><span>--tw-contrast</span></div>
+    <div class="tw-token"><span>--tw-grayscale</span></div>
+    <div class="tw-token"><span>--tw-hue-rotate</span></div>
+    <div class="tw-token"><span>--tw-invert</span></div>
+    <div class="tw-token"><span>--tw-saturate</span></div>
+    <div class="tw-token"><span>--tw-sepia</span></div>
+    <div class="tw-token"><span>--tw-drop-shadow</span></div>
+    <div class="tw-token"><span>--tw-backdrop-blur</span></div>
+    <div class="tw-token"><span>--tw-backdrop-brightness</span></div>
+    <div class="tw-token"><span>--tw-backdrop-contrast</span></div>
+    <div class="tw-token"><span>--tw-backdrop-grayscale</span></div>
+    <div class="tw-token"><span>--tw-backdrop-hue-rotate</span></div>
+    <div class="tw-token"><span>--tw-backdrop-invert</span></div>
+    <div class="tw-token"><span>--tw-backdrop-opacity</span></div>
+    <div class="tw-token"><span>--tw-backdrop-saturate</span></div>
+    <div class="tw-token"><span>--tw-backdrop-sepia</span></div>
+  </div>
+
+  <h3>Shadow / Ring</h3>
+  <div class="tw-grid">
+    <div class="tw-token"><span>--tw-shadow</span></div>
+    <div class="tw-token"><span>--tw-shadow-colored</span></div>
+    <div class="tw-token"><span>--tw-ring-color</span></div>
+    <div class="tw-token"><span>--tw-ring-shadow</span></div>
+    <div class="tw-token"><span>--tw-ring-offset-color</span></div>
+    <div class="tw-token"><span>--tw-ring-offset-shadow</span></div>
+    <div class="tw-token"><span>--tw-ring-offset-width</span></div>
+    <div class="tw-token"><span>--tw-ring-inset</span></div>
+  </div>
+
+  <h3>Typography / Numeric</h3>
+  <div class="tw-grid">
+    <div class="tw-token"><span>--tw-ordinal</span></div>
+    <div class="tw-token"><span>--tw-slashed-zero</span></div>
+    <div class="tw-token"><span>--tw-numeric-figure</span></div>
+    <div class="tw-token"><span>--tw-numeric-spacing</span></div>
+    <div class="tw-token"><span>--tw-numeric-fraction</span></div>
+  </div>
+
+  <h3>Scroll / Touch / Contain</h3>
+  <div class="tw-grid">
+    <div class="tw-token"><span>--tw-scroll-snap-strictness</span></div>
+    <div class="tw-token"><span>--tw-pan-x</span></div>
+    <div class="tw-token"><span>--tw-pan-y</span></div>
+    <div class="tw-token"><span>--tw-pinch-zoom</span></div>
+    <div class="tw-token"><span>--tw-border-spacing-x</span></div>
+    <div class="tw-token"><span>--tw-border-spacing-y</span></div>
+    <div class="tw-token"><span>--tw-contain-size</span></div>
+    <div class="tw-token"><span>--tw-contain-layout</span></div>
+    <div class="tw-token"><span>--tw-contain-paint</span></div>
+    <div class="tw-token"><span>--tw-contain-style</span></div>
+  </div>
+</section>
+
+
+<!-- ════════════════════════════════════════════
+     5. TYPOGRAPHY (COMPUTED)
+     ════════════════════════════════════════════ -->
+<section id="typography">
+  <h2>Typography <span class="badge">COMPUTED</span></h2>
+  <p class="section-desc">Resolved font properties on the root <code>&lt;html&gt;</code> element.</p>
+
+  <table class="prop-table">
+    <thead><tr><th>Property</th><th>Computed Value</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>font</td><td>16px / 24px "Anthropic Sans", system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif</td><td>Shorthand — full font stack</td></tr>
+      <tr><td>font-family</td><td>"Anthropic Sans", system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif</td><td>6-family fallback chain</td></tr>
+      <tr><td>font-size</td><td>16px</td><td>Root rem base = 1rem</td></tr>
+      <tr><td>line-height</td><td>24px</td><td>1.5× ratio (24/16)</td></tr>
+      <tr><td>font-weight</td><td>400</td><td>Regular / normal</td></tr>
+      <tr><td>font-style</td><td>normal</td><td></td></tr>
+      <tr><td>font-stretch</td><td>100%</td><td>Normal width</td></tr>
+      <tr><td>font-kerning</td><td>auto</td><td>Browser-managed</td></tr>
+      <tr><td>font-variant</td><td>normal</td><td>No variant features active</td></tr>
+      <tr><td>font-feature-settings</td><td>normal</td><td></td></tr>
+      <tr><td>font-optical-sizing</td><td>auto</td><td></td></tr>
+      <tr><td>-webkit-font-smoothing</td><td>antialiased</td><td>macOS subpixel AA disabled — crisp on dark bg</td></tr>
+      <tr><td>text-rendering</td><td>optimizelegibility</td><td>Ligatures & kerning enabled</td></tr>
+      <tr><td>text-size-adjust</td><td>100%</td><td>No mobile scaling</td></tr>
+      <tr><td>text-align</td><td>start</td><td>LTR-aware default</td></tr>
+      <tr><td>text-transform</td><td>none</td><td></td></tr>
+      <tr><td>text-decoration</td><td>none</td><td></td></tr>
+      <tr><td>text-overflow</td><td>clip</td><td></td></tr>
+      <tr><td>letter-spacing</td><td>normal</td><td></td></tr>
+      <tr><td>word-spacing</td><td>0px</td><td></td></tr>
+      <tr><td>white-space</td><td>normal</td><td>Wraps and collapses whitespace</td></tr>
+      <tr><td>word-break</td><td>normal</td><td></td></tr>
+      <tr><td>hyphens</td><td>manual</td><td>Only on soft-hyphens</td></tr>
+      <tr><td>direction</td><td>ltr</td><td></td></tr>
+      <tr><td>writing-mode</td><td>horizontal-tb</td><td></td></tr>
+      <tr><td>-webkit-locale</td><td>"en-US"</td><td></td></tr>
+    </tbody>
+  </table>
+</section>
+
+
+<!-- ════════════════════════════════════════════
+     6. LAYOUT & BOX MODEL
+     ════════════════════════════════════════════ -->
+<section id="layout">
+  <h2>Layout &amp; Box Model <span class="badge">COMPUTED</span></h2>
+  <p class="section-desc">Computed dimensions and box model values for the root element at time of inspection.</p>
+
+  <div class="layout-visual">
+    <div class="box-label">margin (0px on all sides)</div>
+    <div class="box-margin">
+      <div class="box-label" style="margin:0 0 4px">border (0px solid rgb(222,220,209))</div>
+      <div class="box-border">
+        <div class="box-label" style="margin:0 0 4px">padding (0px on all sides)</div>
+        <div class="box-padding">
+          <div class="box-content">
+            <div class="dims">870 × 799 px</div>
+            <div class="box-sizing">box-sizing: border-box</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="box-legend">
+      <div class="box-legend-item"><div class="legend-dot" style="background:#fdedc8;border:1px dashed #e8a830"></div>margin</div>
+      <div class="box-legend-item"><div class="legend-dot" style="background:#d0e8c8;border:1px solid #5a9a3a"></div>border</div>
+      <div class="box-legend-item"><div class="legend-dot" style="background:#c8ddf0;border:1px dashed #3a7ab8"></div>padding</div>
+      <div class="box-legend-item"><div class="legend-dot" style="background:#f5f4f0;border:1px solid #ccc"></div>content</div>
+    </div>
+  </div>
+
+  <table class="prop-table" style="margin-top:32px">
+    <thead><tr><th>Property</th><th>Computed Value</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>width</td><td>870px</td><td>Viewport / root element width</td></tr>
+      <tr><td>height</td><td>799px</td><td>Root element height at capture</td></tr>
+      <tr><td>block-size</td><td>799px</td><td>Logical block dimension (height in horizontal writing)</td></tr>
+      <tr><td>inline-size</td><td>870px</td><td>Logical inline dimension (width in horizontal writing)</td></tr>
+      <tr><td>box-sizing</td><td>border-box</td><td>Width/height include border + padding</td></tr>
+      <tr><td>display</td><td>block</td><td></td></tr>
+      <tr><td>position</td><td>static</td><td></td></tr>
+      <tr><td>margin</td><td>0px</td><td>All four sides = 0</td></tr>
+      <tr><td>padding</td><td>0px</td><td>All four sides = 0</td></tr>
+      <tr><td>border</td><td>0px solid rgb(222, 220, 209)</td><td>Zero-width; color is --border value</td></tr>
+      <tr><td>border-color</td><td>rgb(222, 220, 209)</td><td>Warm off-white border color</td></tr>
+      <tr><td>border-style</td><td>solid</td><td></td></tr>
+      <tr><td>border-width</td><td>0px</td><td></td></tr>
+      <tr><td>border-radius</td><td>0px</td><td></td></tr>
+      <tr><td>overflow</td><td>visible</td><td>Children can overflow root</td></tr>
+      <tr><td>overflow-x / overflow-y</td><td>visible / visible</td><td></td></tr>
+      <tr><td>float</td><td>none</td><td></td></tr>
+      <tr><td>clear</td><td>none</td><td></td></tr>
+      <tr><td>perspective-origin</td><td>435px 399.5px</td><td>Center of 870 × 799</td></tr>
+      <tr><td>transform-origin</td><td>435px 399.5px</td><td>Center of element</td></tr>
+      <tr><td>transform</td><td>none</td><td></td></tr>
+      <tr><td>perspective</td><td>none</td><td></td></tr>
+    </tbody>
+  </table>
+</section>
+
+
+<!-- ════════════════════════════════════════════
+     7. RESOLVED COLORS
+     ════════════════════════════════════════════ -->
+<section id="colors">
+  <h2>Resolved Colors <span class="badge">COMPUTED</span></h2>
+  <p class="section-desc">
+    Concrete <code>rgb()</code> values computed on the root element. The color scheme is <strong>dark</strong>.
+  </p>
+
+  <table class="prop-table">
+    <thead><tr><th>Property</th><th>Computed Value</th><th>Swatch</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>color</td>
+        <td>rgb(255, 255, 255)</td>
+        <td><div style="width:24px;height:24px;border-radius:4px;background:rgb(255,255,255);border:1px solid #ccc;display:inline-block"></div></td>
+      </tr>
+      <tr>
+        <td>background-color</td>
+        <td>rgba(0, 0, 0, 0)</td>
+        <td><div style="width:24px;height:24px;border-radius:4px;background:rgba(0,0,0,0);border:1px dashed #ccc;display:inline-block"></div></td>
+      </tr>
+      <tr>
+        <td>border-color</td>
+        <td>rgb(222, 220, 209)</td>
+        <td><div style="width:24px;height:24px;border-radius:4px;background:rgb(222,220,209);border:1px solid #ccc;display:inline-block"></div></td>
+      </tr>
+      <tr>
+        <td>outline-color</td>
+        <td>rgb(44, 132, 219)</td>
+        <td><div style="width:24px;height:24px;border-radius:4px;background:rgb(44,132,219);display:inline-block"></div></td>
+      </tr>
+      <tr>
+        <td>caret-color</td>
+        <td>rgb(255, 255, 255)</td>
+        <td><div style="width:24px;height:24px;border-radius:4px;background:rgb(255,255,255);border:1px solid #ccc;display:inline-block"></div></td>
+      </tr>
+      <tr>
+        <td>column-rule-color</td>
+        <td>rgb(255, 255, 255)</td>
+        <td><div style="width:24px;height:24px;border-radius:4px;background:rgb(255,255,255);border:1px solid #ccc;display:inline-block"></div></td>
+      </tr>
+      <tr>
+        <td>text-decoration-color</td>
+        <td>rgb(255, 255, 255)</td>
+        <td><div style="width:24px;height:24px;border-radius:4px;background:rgb(255,255,255);border:1px solid #ccc;display:inline-block"></div></td>
+      </tr>
+      <tr>
+        <td>-webkit-text-fill-color</td>
+        <td>rgb(255, 255, 255)</td>
+        <td><div style="width:24px;height:24px;border-radius:4px;background:rgb(255,255,255);border:1px solid #ccc;display:inline-block"></div></td>
+      </tr>
+      <tr>
+        <td>scrollbar-color</td>
+        <td>rgba(222, 220, 209, 0.35) rgba(0, 0, 0, 0)</td>
+        <td>
+          <div style="display:flex;gap:4px;align-items:center">
+            <div style="width:24px;height:24px;border-radius:4px;background:rgba(222,220,209,0.35);border:1px solid #ccc;display:inline-block"></div>
+            <span style="font-size:.7rem;font-family:monospace;color:var(--ink-3)">thumb / track</span>
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td>-webkit-tap-highlight-color</td>
+        <td>rgba(0, 0, 0, 0)</td>
+        <td><div style="width:24px;height:24px;border-radius:4px;background:rgba(0,0,0,0);border:1px dashed #ccc;display:inline-block"></div></td>
+      </tr>
+      <tr>
+        <td>lighting-color</td>
+        <td>rgb(255, 255, 255)</td>
+        <td><div style="width:24px;height:24px;border-radius:4px;background:#fff;border:1px solid #ccc;display:inline-block"></div></td>
+      </tr>
+      <tr>
+        <td>flood-color / stop-color / fill</td>
+        <td>rgb(0, 0, 0)</td>
+        <td><div style="width:24px;height:24px;border-radius:4px;background:#000;display:inline-block"></div></td>
+      </tr>
+      <tr>
+        <td>color-scheme</td>
+        <td>dark</td>
+        <td style="color:var(--ink-3)">Instructs browser to use dark UI chrome</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+
+<!-- ════════════════════════════════════════════
+     8. TRANSITIONS & ANIMATION
+     ════════════════════════════════════════════ -->
+<section id="transitions">
+  <h2>Transitions &amp; Animation <span class="badge">COMPUTED</span></h2>
+  <p class="section-desc">
+    Root-level transition and animation state. No animations are active at this element level.
+  </p>
+
+  <table class="prop-table">
+    <thead><tr><th>Property</th><th>Computed Value</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>transition</td><td>all</td><td>Shorthand — matches all properties</td></tr>
+      <tr><td>transition-property</td><td>all</td><td></td></tr>
+      <tr><td>transition-duration</td><td>0s</td><td>Instant — no duration set at root</td></tr>
+      <tr><td>transition-delay</td><td>0s</td><td></td></tr>
+      <tr><td>transition-timing-function</td><td>ease</td><td>Standard ease curve</td></tr>
+      <tr><td>transition-behavior</td><td>normal</td><td></td></tr>
+      <tr><td>animation</td><td>none 0s ease 0s 1 normal none running</td><td>No animation active</td></tr>
+      <tr><td>animation-name</td><td>none</td><td></td></tr>
+      <tr><td>animation-duration</td><td>0s</td><td></td></tr>
+      <tr><td>animation-timing-function</td><td>ease</td><td></td></tr>
+      <tr><td>animation-delay</td><td>0s</td><td></td></tr>
+      <tr><td>animation-direction</td><td>normal</td><td></td></tr>
+      <tr><td>animation-fill-mode</td><td>none</td><td></td></tr>
+      <tr><td>animation-iteration-count</td><td>1</td><td></td></tr>
+      <tr><td>animation-play-state</td><td>running</td><td></td></tr>
+      <tr><td>animation-timeline</td><td>auto</td><td></td></tr>
+      <tr><td>animation-composition</td><td>replace</td><td></td></tr>
+      <tr><td>will-change</td><td>auto</td><td>No GPU layer hint set</td></tr>
+      <tr><td>transform</td><td>none</td><td></td></tr>
+      <tr><td>translate</td><td>none</td><td></td></tr>
+      <tr><td>rotate</td><td>none</td><td></td></tr>
+      <tr><td>scale</td><td>none</td><td></td></tr>
+    </tbody>
+  </table>
+</section>
+
+
+<!-- ════════════════════════════════════════════
+     9. SCROLLING & OVERFLOW
+     ════════════════════════════════════════════ -->
+<section id="scrolling">
+  <h2>Scrolling &amp; Overflow <span class="badge">COMPUTED</span></h2>
+
+  <table class="prop-table">
+    <thead><tr><th>Property</th><th>Computed Value</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>overflow-x / overflow-y</td><td>visible / visible</td><td>Content can overflow root</td></tr>
+      <tr><td>overflow-wrap</td><td>normal</td><td></td></tr>
+      <tr><td>scroll-behavior</td><td>smooth</td><td>Smooth scrolling enabled globally</td></tr>
+      <tr><td>overscroll-behavior</td><td>auto</td><td>Default bounce/glow behavior</td></tr>
+      <tr><td>scrollbar-width</td><td>thin</td><td>Slim custom scrollbars</td></tr>
+      <tr><td>scrollbar-color</td><td>rgba(222,220,209,0.35) rgba(0,0,0,0)</td><td>Semi-transparent thumb, invisible track</td></tr>
+      <tr><td>scrollbar-gutter</td><td>auto</td><td></td></tr>
+      <tr><td>scroll-padding</td><td>auto (all)</td><td>No scroll padding offset</td></tr>
+      <tr><td>scroll-margin</td><td>0px (all)</td><td></td></tr>
+      <tr><td>scroll-snap-type</td><td>none</td><td>No snap points at root</td></tr>
+      <tr><td>touch-action</td><td>auto</td><td></td></tr>
+      <tr><td>overflow-anchor</td><td>auto</td><td>Scroll anchoring active</td></tr>
+      <tr><td>overscroll-behavior-block</td><td>auto</td><td></td></tr>
+      <tr><td>overscroll-behavior-inline</td><td>auto</td><td></td></tr>
+    </tbody>
+  </table>
+</section>
+
+
+<!-- ════════════════════════════════════════════
+     10. MISC
+     ════════════════════════════════════════════ -->
+<section id="misc">
+  <h2>Miscellaneous Properties <span class="badge">COMPUTED</span></h2>
+
+  <h3>Interactivity</h3>
+  <table class="prop-table">
+    <thead><tr><th>Property</th><th>Value</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>pointer-events</td><td>auto</td><td>Normal click/hover behavior</td></tr>
+      <tr><td>user-select</td><td>auto</td><td>Text is selectable</td></tr>
+      <tr><td>cursor</td><td>auto</td><td>Browser-determined cursor</td></tr>
+      <tr><td>appearance</td><td>none</td><td>Native OS styling removed</td></tr>
+      <tr><td>outline</td><td>rgb(44, 132, 219) none 0px</td><td>Focus ring color pre-set; style = none at root</td></tr>
+      <tr><td>outline-color</td><td>rgb(44, 132, 219)</td><td>Brand blue focus ring</td></tr>
+      <tr><td>outline-style</td><td>none</td><td></td></tr>
+      <tr><td>resize</td><td>none</td><td>Not resizable</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Lists &amp; Tables</h3>
+  <table class="prop-table">
+    <thead><tr><th>Property</th><th>Value</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>list-style</td><td>outside none disc</td><td></td></tr>
+      <tr><td>list-style-type</td><td>disc</td><td></td></tr>
+      <tr><td>list-style-position</td><td>outside</td><td></td></tr>
+      <tr><td>border-collapse</td><td>separate</td><td></td></tr>
+      <tr><td>border-spacing</td><td>0px</td><td></td></tr>
+      <tr><td>table-layout</td><td>auto</td><td></td></tr>
+      <tr><td>caption-side</td><td>top</td><td></td></tr>
+      <tr><td>empty-cells</td><td>show</td><td></td></tr>
+    </tbody>
+  </table>
+
+  <h3>Flexbox &amp; Grid (Root Defaults)</h3>
+  <table class="prop-table">
+    <thead><tr><th>Property</th><th>Value</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>flex</td><td>0 1 auto</td><td>grow=0, shrink=1, basis=auto</td></tr>
+      <tr><td>flex-direction</td><td>row</td><td></td></tr>
+      <tr><td>flex-wrap</td><td>nowrap</td><td></td></tr>
+      <tr><td>align-content</td><td>normal</td><td></td></tr>
+      <tr><td>align-items</td><td>normal</td><td></td></tr>
+      <tr><td>justify-content</td><td>normal</td><td></td></tr>
+      <tr><td>gap / row-gap / column-gap</td><td>normal</td><td></td></tr>
+      <tr><td>grid-template-columns</td><td>none</td><td></td></tr>
+      <tr><td>grid-template-rows</td><td>none</td><td></td></tr>
+      <tr><td>grid-auto-flow</td><td>row</td><td></td></tr>
+    </tbody>
+  </table>
+
+  <h3>Miscellaneous Notable Values</h3>
+  <table class="prop-table">
+    <thead><tr><th>Property</th><th>Value</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>opacity</td><td>1</td><td>Fully opaque</td></tr>
+      <tr><td>visibility</td><td>visible</td><td></td></tr>
+      <tr><td>z-index</td><td>auto</td><td></td></tr>
+      <tr><td>isolation</td><td>auto</td><td>No stacking context forced</td></tr>
+      <tr><td>mix-blend-mode</td><td>normal</td><td></td></tr>
+      <tr><td>filter</td><td>none</td><td></td></tr>
+      <tr><td>backdrop-filter</td><td>none</td><td></td></tr>
+      <tr><td>clip-path</td><td>none</td><td></td></tr>
+      <tr><td>mask-image</td><td>none</td><td></td></tr>
+      <tr><td>image-rendering</td><td>auto</td><td></td></tr>
+      <tr><td>object-fit</td><td>fill</td><td></td></tr>
+      <tr><td>tab-size</td><td>4</td><td>4-space tabs in code elements</td></tr>
+      <tr><td>box-shadow</td><td>none</td><td></td></tr>
+      <tr><td>content-visibility</td><td>visible</td><td></td></tr>
+      <tr><td>zoom</td><td>1</td><td>No browser zoom applied</td></tr>
+      <tr><td>print-color-adjust</td><td>economy</td><td>Backgrounds may be stripped when printing</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<footer>
+  <span>CSS Computed Styles — <code>getComputedStyle(document.documentElement)</code></span>
+  <span>841 properties · 432+ custom vars · dark color-scheme</span>
+</footer>
+
+</body>
+</html>
