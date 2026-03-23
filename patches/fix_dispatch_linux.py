@@ -285,7 +285,7 @@ def patch_dispatch_linux(filepath):
     # Diagnostic writeEvent logging was here. Removed — no longer needed.
     # The writeEvent function uses its original unpatched code.
 
-    # ── Patch I: Transform plain text → SendUserMessage in forwardEvent ──
+    # ── Patch I: Transform text/files → SendUserMessage in forwardEvent ──
     #
     # The sessions API only renders dispatch responses sent via the
     # SendUserMessage tool. Claude Code CLI 2.1.x has a bug where
@@ -293,10 +293,15 @@ def patch_dispatch_linux(filepath):
     # to the model. The model falls back to plain text, which the bridge
     # forwards but the API silently drops.
     #
+    # Additionally, file sharing via mcp__cowork__present_files doesn't
+    # render on the phone — the sessions API only shows SendUserMessage
+    # blocks. We extract file paths from present_files tool_use blocks
+    # and include them as attachments in the synthetic SendUserMessage.
+    #
     # Fix: in forwardEvent(), before the message is written to the
     # transport, check if it's an assistant message with text content
-    # but no SendUserMessage/mcp__dispatch__send_message tool_use.
-    # If so, wrap the text as a synthetic SendUserMessage tool_use block.
+    # or present_files tool_use but no SendUserMessage. If so, wrap as
+    # a synthetic SendUserMessage with message + attachments.
     #
     # Injection point: after the debug log and before `const c=o.uuid`.
 
@@ -306,9 +311,11 @@ def patch_dispatch_linux(filepath):
         b'if(i==="assistant"&&o.message&&Array.isArray(o.message.content)){'
         b'const _dT=o.message.content.filter(x=>x&&x.type==="text").map(x=>x.text).join("\\n");'
         b'const _dH=o.message.content.some(x=>x&&x.type==="tool_use"&&(x.name==="SendUserMessage"||x.name==="mcp__dispatch__send_message"));'
-        b'if(_dT&&!_dH){o={...o,message:{...o.message,content:[{type:"tool_use",'
+        b'const _dA=o.message.content.filter(x=>x&&x.type==="tool_use"&&x.name==="mcp__cowork__present_files")'
+        b'.flatMap(x=>(x.input&&x.input.files||[]).map(f=>f.file_path).filter(Boolean));'
+        b'if((_dT||_dA.length)&&!_dH){o={...o,message:{...o.message,content:[{type:"tool_use",'
         b'id:"toolu_"+Math.random().toString(36).slice(2,14),'
-        b'name:"SendUserMessage",input:{message:_dT}}]}}}}'
+        b'name:"SendUserMessage",input:{message:_dT||"File attached",...(_dA.length?{attachments:_dA}:{})}}]}}}}'
         b'const c=o.uuid,l=i==="user"||i==="assistant"?i:null'
     )
 

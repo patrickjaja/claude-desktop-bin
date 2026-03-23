@@ -144,30 +144,32 @@ def patch_quick_entry_position(filepath):
     # 4. setBounds() retries at 50/150ms as safety net
     # 5. webContents.focus() + executeJavaScript to focus #prompt-input
     #
-    # Pattern: ai.show()}return ai.setPosition(Math.round(VAR.x),Math.round(VAR.y)),!0}
-    pattern4 = rb'ai\.show\(\)\}return ai\.setPosition\(Math\.round\(([\w$]+)\.x\),Math\.round\(\1\.y\)\),!0\}'
+    # Pattern: WIN.show()}return WIN.setPosition(Math.round(VAR.x),Math.round(VAR.y)),!0}
+    # Window var changes between versions (ai, Js, etc.), so capture it dynamically.
+    pattern4 = rb'([\w$]+)\.show\(\)\}return \1\.setPosition\(Math\.round\(([\w$]+)\.x\),Math\.round\(\2\.y\)\),!0\}'
 
     def replacement4_func(m):
-        v = m.group(1).decode('utf-8')
+        w = m.group(1).decode('utf-8')  # window variable (e.g., Js, ai)
+        v = m.group(2).decode('utf-8')  # position variable (e.g., t)
         return (
             f'(()=>{{'
             f'const _b={{x:Math.round({v}.x),y:Math.round({v}.y),'
-            f'width:ai.getBounds().width,height:ai.getBounds().height}};'
-            f'const _r=()=>{{ai.isDestroyed()||ai.setBounds(_b)}};'
+            f'width:{w}.getBounds().width,height:{w}.getBounds().height}};'
+            f'const _r=()=>{{{w}.isDestroyed()||{w}.setBounds(_b)}};'
             # Pre-position, show, immediate re-position
-            f'ai.setBounds(_b);'
-            f'ai.show();'
+            f'{w}.setBounds(_b);'
+            f'{w}.show();'
             f'_r();'
             # Focus: window (OS-level) → webContents (renderer) → DOM input
-            f'ai.focus();'
-            f'ai.webContents.focus();'
-            f'ai.webContents.executeJavaScript('
+            f'{w}.focus();'
+            f'{w}.webContents.focus();'
+            f'{w}.webContents.executeJavaScript('
             f'\'document.getElementById("prompt-input")?.focus()\''
             f').catch(()=>{{}});'
             # Safety retries — counter async WM placement + re-assert focus
-            f'setTimeout(()=>{{if(!ai.isDestroyed()){{'
-            f'_r();ai.focus();ai.webContents.focus();'
-            f'ai.webContents.executeJavaScript('
+            f'setTimeout(()=>{{if(!{w}.isDestroyed()){{'
+            f'_r();{w}.focus();{w}.webContents.focus();'
+            f'{w}.webContents.executeJavaScript('
             f'\'document.getElementById("prompt-input")?.focus()\''
             f').catch(()=>{{}})'
             f'}}}},50);'

@@ -38,39 +38,40 @@ def patch_process_argv(filepath):
     with open(filepath, 'rb') as f:
         content = f.read()
 
-    # Check if already patched
-    if b'Ie.argv=[]' in content or b'Ie.argv = []' in content:
+    # Check if already patched (use flexible pattern for any variable name)
+    if re.search(rb'\w+\.argv=\[\]', content):
         print(f"  [OK] process.argv: already patched (skipped)")
         return True
 
     # Pattern: after the platform spoof, before exposeInMainWorld
-    # Current: if(process.platform==="linux"){Ie.platform="win32"}
-    # We insert Ie.argv=[] right after the closing brace of the platform check.
+    # Current: if(process.platform==="linux"){<var>.platform="win32"}
+    # We insert <var>.argv=[] right after the closing brace of the platform check.
     #
-    # Match the platform spoof block (may or may not be present depending on
-    # whether enable_local_agent_mode.py ran first).
-    # Strategy: find `Ie.platform="win32"}` and append after it, OR
-    # find `Ie.version=` line and insert after `Ie.version=...;`
+    # Use \w+ wildcards for the variable name since minified names change
+    # between upstream releases (e.g., Ie -> at).
 
     # Try after platform spoof first
-    marker = b'Ie.platform="win32"}'
-    if marker in content:
-        content = content.replace(marker, marker + b'Ie.argv=[];', 1)
+    spoof_pattern = rb'(\w+)(\.platform="win32"\})'
+    match = re.search(spoof_pattern, content)
+    if match:
+        var_name = match.group(1)
+        insert = var_name + b'.argv=[];'
+        content = content[:match.end()] + insert + content[match.end():]
         with open(filepath, 'wb') as f:
             f.write(content)
-        print(f"  [OK] process.argv: added empty array (after platform spoof)")
+        print(f"  [OK] process.argv: added {var_name.decode()}.argv=[] (after platform spoof)")
         return True
 
-    # Fallback: insert after Ie.version=...;
-    # Pattern: Ie.version=<something>.appVersion;
-    version_pattern = rb'(Ie\.version=\w+\(\)\.appVersion;)'
+    # Fallback: insert after <var>.version=...appVersion;
+    version_pattern = rb'(\w+)(\.version=\w+\(\)\.appVersion;)'
     match = re.search(version_pattern, content)
     if match:
-        insert_point = match.end()
-        content = content[:insert_point] + b'Ie.argv=[];' + content[insert_point:]
+        var_name = match.group(1)
+        insert = var_name + b'.argv=[];'
+        content = content[:match.end()] + insert + content[match.end():]
         with open(filepath, 'wb') as f:
             f.write(content)
-        print(f"  [OK] process.argv: added empty array (after version)")
+        print(f"  [OK] process.argv: added {var_name.decode()}.argv=[] (after version)")
         return True
 
     print(f"  [FAIL] process.argv: could not find insertion point")
