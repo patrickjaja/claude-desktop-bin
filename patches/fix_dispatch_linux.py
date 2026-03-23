@@ -298,10 +298,16 @@ def patch_dispatch_linux(filepath):
     # blocks. We extract file paths from present_files tool_use blocks
     # and include them as attachments in the synthetic SendUserMessage.
     #
+    # IMPORTANT: Only transform messages that are "final" responses —
+    # i.e. messages with text/present_files but NO other tool_use blocks
+    # (like MCP calls). If the model is calling an MCP tool (e.g. context7)
+    # alongside text like "Looking that up now...", we must NOT transform
+    # it — the tool call needs to execute and the real answer comes later.
+    #
     # Fix: in forwardEvent(), before the message is written to the
     # transport, check if it's an assistant message with text content
-    # or present_files tool_use but no SendUserMessage. If so, wrap as
-    # a synthetic SendUserMessage with message + attachments.
+    # or present_files tool_use but no SendUserMessage AND no other
+    # pending tool calls. If so, wrap as a synthetic SendUserMessage.
     #
     # Injection point: after the debug log and before `const c=o.uuid`.
 
@@ -313,7 +319,8 @@ def patch_dispatch_linux(filepath):
         b'const _dH=o.message.content.some(x=>x&&x.type==="tool_use"&&(x.name==="SendUserMessage"||x.name==="mcp__dispatch__send_message"));'
         b'const _dA=o.message.content.filter(x=>x&&x.type==="tool_use"&&x.name==="mcp__cowork__present_files")'
         b'.flatMap(x=>(x.input&&x.input.files||[]).map(f=>f.file_path).filter(Boolean));'
-        b'if((_dT||_dA.length)&&!_dH){o={...o,message:{...o.message,content:[{type:"tool_use",'
+        b'const _dP=o.message.content.some(x=>x&&x.type==="tool_use"&&x.name!=="SendUserMessage"&&x.name!=="mcp__dispatch__send_message"&&x.name!=="mcp__cowork__present_files");'
+        b'if((_dT||_dA.length)&&!_dH&&!_dP){o={...o,message:{...o.message,content:[{type:"tool_use",'
         b'id:"toolu_"+Math.random().toString(36).slice(2,14),'
         b'name:"SendUserMessage",input:{message:_dT||"File attached",...(_dA.length?{attachments:_dA}:{})}}]}}}}'
         b'const c=o.uuid,l=i==="user"||i==="assistant"?i:null'
@@ -328,6 +335,42 @@ def patch_dispatch_linux(filepath):
         patches_applied += 1
     else:
         print(f"  [WARN] forwardEvent text→SendUserMessage: pattern not found")
+
+    # ── Patch J: Auto-wake dispatch parent when child task completes ─────
+    #
+    # When the dispatch orchestrator fires start_task, it goes idle.
+    # The child runs independently. When the child completes, the session
+    # manager queues a notification for the "cold" parent, but nothing
+    # triggers the parent to start a new turn to process it.
+    #
+    # On Windows/Mac, the sessions API likely sends a wake event.
+    # On Linux, the parent stays idle until the user sends another message.
+    #
+    # Fix: after queuing the notification, schedule a sendMessage call
+    # on the parent session. sendMessage auto-starts idle sessions,
+    # which creates the inputStream and drains pending notifications.
+    # The model then reads the child's transcript and delivers the answer.
+
+    wake_old = (
+        b'((n.pendingDispatchNotifications??(n.pendingDispatchNotifications=[])).push(s),'
+        b'B.info(`[Dispatch] Queued notification for cold parent ${n.sessionId} (child ${e.sessionId} ${r})`))'
+    )
+    wake_new = (
+        b'((n.pendingDispatchNotifications??(n.pendingDispatchNotifications=[])).push(s),'
+        b'B.info(`[Dispatch] Queued notification for cold parent ${n.sessionId} (child ${e.sessionId} ${r})`),'
+        b'setTimeout(()=>{B.info(`[Dispatch] Auto-waking cold parent ${n.sessionId}`);'
+        b'this.sendMessage(n.sessionId,s).catch(x=>B.error(`[Dispatch] Auto-wake failed for ${n.sessionId}:`,x))},500))'
+    )
+
+    if wake_new in content:
+        print(f"  [OK] dispatch auto-wake parent: already patched (skipped)")
+        patches_applied += 1
+    elif wake_old in content:
+        content = content.replace(wake_old, wake_new, 1)
+        print(f"  [OK] dispatch auto-wake parent: injected setTimeout sendMessage")
+        patches_applied += 1
+    else:
+        print(f"  [WARN] dispatch auto-wake parent: pattern not found")
 
     # ── Results ──────────────────────────────────────────────────────────
 
