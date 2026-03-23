@@ -286,6 +286,18 @@ rm -rf ~/.config/Claude/local-agent-mode-sessions/<account-uuid>/<org-uuid>/agen
 
 You can identify your UUIDs from the directory listing — there's typically one account directory containing one org directory.
 
+## Known Issues (Dispatch)
+
+These issues are caused by a regression in Claude Code CLI v2.1.79+ where the `SendUserMessage` tool is not exposed to the model. On Windows/Mac, the cowork VM bundles CLI v2.1.78 (via Agent SDK 0.2.78) where this works. On Linux, the system-installed CLI has the bug. Tracked upstream: [anthropics/claude-code#35076](https://github.com/anthropics/claude-code/issues/35076)
+
+| Issue | Status | Detail |
+|-------|--------|--------|
+| Dispatch text responses not rendering | **Workaround active** | Patch I wraps plain text as synthetic `SendUserMessage` tool_use blocks. Responses render on phone/desktop. |
+| File attachments load endlessly on phone | **Not yet fixed** | The model can't use `SendUserMessage` with `attachments`, so files aren't uploaded via the dispatch file API. Will resolve when the CLI exposes `SendUserMessage` natively. |
+| Dispatch uses more tokens than Windows/Mac | **Expected** | The bridge transform adds overhead. Native `SendUserMessage` would be more efficient. |
+
+All three issues resolve when Anthropic fixes the CLI initialization ordering so `--brief` properly exposes `SendUserMessage`. We're monitoring upstream.
+
 ## Tips
 - Press **Alt** to toggle the app menu bar (Electron default)
 
