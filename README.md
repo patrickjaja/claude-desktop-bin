@@ -90,7 +90,7 @@ cd claude-desktop-bin
 - Native Linux support (Arch, Debian/Ubuntu, Fedora/RHEL, NixOS, AppImage)
 - **Claude Code CLI integration** - Auto-detects system-installed Claude Code (requires [claude-code](https://code.claude.com/docs/en/setup))
 - **Local Agent Mode** - Git worktrees and agent sessions
-- **Cowork support** - Agentic workspace feature enabled on Linux (requires [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service))
+- **Cowork support** (not supported yet) - Agentic workspace feature enabled on Linux (requires [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service))
 - **Dispatch** - Send tasks from your phone to your desktop Claude via Anthropic's environments bridge API (requires Cowork)
 - **MCP server support** - Model Context Protocol servers work on Linux
 - **Custom Themes (Experimental)** - 6 built-in color themes (Nord, Catppuccin Mocha/Frappe/Latte/Macchiato, Sweet) or create your own via JSON config — not all UI elements are fully themed yet
