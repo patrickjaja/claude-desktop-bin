@@ -4,8 +4,11 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 
 ## 2026-03-23
 
+### Fixed
+- **fix_dispatch_linux.py — Restore Patch I (text→SendUserMessage transform)** — Claude Code CLI 2.1.x has a bug where `--brief` + `--tools SendUserMessage` does not expose the `SendUserMessage` tool to the model. The model falls back to plain text, which the sessions API silently drops (only `SendUserMessage` tool_use blocks are rendered on the phone). Patch I injects a transform in `forwardEvent()` that wraps plain text assistant messages as synthetic `SendUserMessage` tool_use blocks before writing to the transport.
+
 ### Changed
-- **fix_dispatch_linux.py — Removed Patch I (bridge-level transform)** — The synthetic SendUserMessage transform is no longer needed. With `claude-cowork-service` now passing `--mcp-config` through unchanged, Claude Desktop's session manager handles the bidirectional SDK MCP proxy over the event stream (identical to VM mode on Mac/Windows). The model now has native access to `mcp__dispatch__send_message`, `mcp__dispatch__start_task`, `mcp__cowork__present_files`, and all other SDK tools.
+- ~~fix_dispatch_linux.py — Removed Patch I~~ — Reverted: Patch I is needed as a workaround for the CLI `SendUserMessage` bug
 
 ### Added
 - **CLAUDE_BUILT_IN_MCP.md — Per-session dynamic MCP servers** — Documented 4 SDK-type MCP servers created dynamically per cowork/dispatch session: `dispatch` (6 tools), `cowork` (4 tools), `session_info` (2 tools), `workspace` (2 tools). Includes tool schemas, registration method, allowedTools/disallowedTools logic, and SDK server architecture diagram comparing Mac/Windows VM vs Linux native paths.

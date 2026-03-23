@@ -27,7 +27,7 @@ Updates are automatic via `sudo apt update && sudo apt upgrade`.
 <summary>Manual .deb install (without APT repo)</summary>
 
 ```bash
-wget https://github.com/patrickjaja/claude-desktop-bin/releases/latest/download/claude-desktop-bin_1.1.7714-1_amd64.deb
+wget https://github.com/patrickjaja/claude-desktop-bin/releases/latest/download/claude-desktop-bin_1.1.7714-5_amd64.deb
 sudo dpkg -i claude-desktop-bin_*_amd64.deb
 ```
 </details>
@@ -35,8 +35,8 @@ sudo dpkg -i claude-desktop-bin_*_amd64.deb
 ### Fedora / RHEL (.rpm)
 ```bash
 # Download from GitHub Releases
-wget https://github.com/patrickjaja/claude-desktop-bin/releases/latest/download/claude-desktop-bin-1.1.4088-1.x86_64.rpm
-sudo dnf install ./claude-desktop-bin-*-1.x86_64.rpm
+wget https://github.com/patrickjaja/claude-desktop-bin/releases/latest/download/claude-desktop-bin-1.1.7714-5.x86_64.rpm
+sudo dnf install ./claude-desktop-bin-*.x86_64.rpm
 ```
 
 > **Note:** No automatic updates. Download the latest `.rpm` from [GitHub Releases](https://github.com/patrickjaja/claude-desktop-bin/releases) to update.
@@ -91,7 +91,7 @@ cd claude-desktop-bin
 - **Claude Code CLI integration** - Auto-detects system-installed Claude Code (requires [claude-code](https://code.claude.com/docs/en/setup))
 - **Local Agent Mode** - Git worktrees and agent sessions
 - **Cowork support** - Agentic workspace feature enabled on Linux (requires [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service))
-- **Dispatch** (partially working) - Send tasks from your phone to your desktop Claude via Anthropic's environments bridge API (requires Cowork). Text responses and task orchestration work. File sharing shows download cards but mobile download is pending (upstream CLI timing bug prevents native `SendUserMessage` — see CHANGELOG)
+- **Dispatch** - Send tasks from your phone to your desktop Claude via Anthropic's environments bridge API (requires Cowork). Text responses, task orchestration, and SDK MCP tools work. Bridge-level transform wraps plain text as `SendUserMessage` (workaround for CLI 2.1.x bug where `--brief` doesn't expose the tool)
 - **MCP server support** - Model Context Protocol servers work on Linux
 - **Custom Themes (Experimental)** - 6 built-in color themes (Nord, Catppuccin Mocha/Frappe/Latte/Macchiato, Sweet) or create your own via JSON config — not all UI elements are fully themed yet
 - **Multi-monitor Quick Entry** - Global hotkey (Ctrl+Alt+Space) opens on the monitor where your cursor is ([Wayland notes](#wayland))
@@ -192,7 +192,7 @@ The package applies several patches to make Claude Desktop work on Linux. Each p
 | `fix_tray_icon_theme.py` | Uses theme-aware tray icon selection (light/dark) on Linux | LOW | `rg -o 'nativeTheme.{0,50}tray' index.js` |
 | `fix_tray_path.py` | Redirects tray icon path to package directory on Linux | MED | `rg -o 'function \w+\(\)\{return \w+\.app\.isPackaged' index.js` |
 | `fix_utility_process_kill.py` | Uses SIGKILL as fallback when UtilityProcess doesn't exit gracefully | LOW | Uses `.kill(` literal |
-| `fix_dispatch_linux.py` | Enables Dispatch (remote task orchestration from mobile) — forces bridge init, bypasses remote control gate, adds Linux platform label | MED | `rg -o 'sessions-bridge.*init' index.js` |
+| `fix_dispatch_linux.py` | Enables Dispatch (remote task orchestration from mobile) — forces bridge init, bypasses remote control gate, adds Linux platform label, transforms text→SendUserMessage | MED | `rg -o 'sessions-bridge.*init' index.js` |
 | `fix_window_bounds.py` | Fixes child view bounds on maximize/KWin snap, ready-to-show layout jiggle, Quick Entry blur-before-hide | LOW | Injected IIFE, no regex on app code |
 | `fix_vm_session_handlers.py` | Global uncaught exception handler for VM session safety | LOW | `rg -o 'uncaughtException.{0,50}' index.js` |
 | `add_feature_custom_themes.py` | Custom CSS theme injection via `insertCSS()` — 6 built-in themes (sweet, nord, catppuccin-*) | VERY LOW | Prepended IIFE, no regex on app code |

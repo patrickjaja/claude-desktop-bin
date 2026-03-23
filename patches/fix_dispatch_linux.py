@@ -285,22 +285,42 @@ def patch_dispatch_linux(filepath):
     # Diagnostic writeEvent logging was here. Removed — no longer needed.
     # The writeEvent function uses its original unpatched code.
 
-    # ── Patch I: (Removed — SDK MCP proxy handles this natively) ─────────
+    # ── Patch I: Transform plain text → SendUserMessage in forwardEvent ──
     #
-    # Previously, we transformed plain text responses and present_files
-    # tool_use blocks into synthetic SendUserMessage messages at the
-    # sessions-bridge level. This was needed because the Go daemon stripped
-    # SDK MCP servers from --mcp-config, leaving the CLI with no way to
-    # call mcp__dispatch__send_message.
+    # The sessions API only renders dispatch responses sent via the
+    # SendUserMessage tool. Claude Code CLI 2.1.x has a bug where
+    # --brief + --tools SendUserMessage doesn't expose SendUserMessage
+    # to the model. The model falls back to plain text, which the bridge
+    # forwards but the API silently drops.
     #
-    # Since 2026-03-23, cowork-svc-linux passes --mcp-config through
-    # unchanged. Claude Desktop's session manager handles the bidirectional
-    # control_request/control_response MCP proxy over the event stream,
-    # identical to VM mode on Mac/Windows. The model now has native access
-    # to mcp__dispatch__send_message, mcp__cowork__present_files, and all
-    # other SDK MCP tools.
+    # Fix: in forwardEvent(), before the message is written to the
+    # transport, check if it's an assistant message with text content
+    # but no SendUserMessage/mcp__dispatch__send_message tool_use.
+    # If so, wrap the text as a synthetic SendUserMessage tool_use block.
     #
-    # No bridge-level transform needed.
+    # Injection point: after the debug log and before `const c=o.uuid`.
+
+    fwd_old = b'msgType=${i}`);const c=o.uuid,l=i==="user"||i==="assistant"?i:null'
+    fwd_new = (
+        b'msgType=${i}`);'
+        b'if(i==="assistant"&&o.message&&Array.isArray(o.message.content)){'
+        b'const _dT=o.message.content.filter(x=>x&&x.type==="text").map(x=>x.text).join("\\n");'
+        b'const _dH=o.message.content.some(x=>x&&x.type==="tool_use"&&(x.name==="SendUserMessage"||x.name==="mcp__dispatch__send_message"));'
+        b'if(_dT&&!_dH){o={...o,message:{...o.message,content:[{type:"tool_use",'
+        b'id:"toolu_"+Math.random().toString(36).slice(2,14),'
+        b'name:"SendUserMessage",input:{message:_dT}}]}}}}'
+        b'const c=o.uuid,l=i==="user"||i==="assistant"?i:null'
+    )
+
+    if fwd_new in content:
+        print(f"  [OK] forwardEvent text→SendUserMessage: already patched (skipped)")
+        patches_applied += 1
+    elif fwd_old in content:
+        content = content.replace(fwd_old, fwd_new, 1)
+        print(f"  [OK] forwardEvent text→SendUserMessage: injected transform")
+        patches_applied += 1
+    else:
+        print(f"  [WARN] forwardEvent text→SendUserMessage: pattern not found")
 
     # ── Results ──────────────────────────────────────────────────────────
 
