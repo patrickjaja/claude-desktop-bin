@@ -195,6 +195,62 @@ rg -i 'error|exception|fatal' ~/.config/Claude/logs/
 ls -la ~/.config/Claude/crash*
 ```
 
+### Dispatch Debug Workflow
+
+When dispatch responses don't render or features fail, use this sequence:
+
+```bash
+# 1. Check bridge event flow (did the message pass through?)
+grep -a 'DISPATCH-FWD.*PASSING\|DISPATCH-TRANSFORM\|DISPATCH-WRITE' ~/.config/Claude/logs/main.log | tail -20
+
+# 2. Check for permission denials on MCP tools
+grep -a 'Permission.*denied' ~/.config/Claude/logs/main.log | tail -10
+
+# 3. Check the audit log for the dispatch session (shows model's tool calls and results)
+AUDIT=$(find ~/.config/Claude/local-agent-mode-sessions -name "audit.jsonl" -printf '%T@ %p\n' | sort -n | tail -1 | cut -d' ' -f2)
+python3 -c "
+import json
+with open('$AUDIT') as f:
+    for i, line in enumerate(f):
+        d = json.loads(line)
+        t = d.get('type','?')
+        if t == 'assistant' and d.get('message'):
+            content = d['message'].get('content', [])
+            names = [c.get('name','') for c in content if c.get('type') == 'tool_use']
+            texts = [c.get('text','')[:80] for c in content if c.get('type') == 'text']
+            print(f'[{i}] {t} tools={names} text={texts}')
+        elif t == 'user' and ('Error' in str(d) or 'Permission' in str(d)):
+            print(f'[{i}] {t} (error): {str(d)[:200]}')
+"
+
+# 4. Check cowork-service spawn args (did --tools, --disallowedTools, env pass correctly?)
+#    Run cowork-service in debug mode:
+kill $(pgrep cowork-svc); rm -f /run/user/1000/cowork-vm-service.sock
+nohup /path/to/cowork-svc-linux -debug > /tmp/cowork-debug.log 2>&1 &
+#    Then trigger a dispatch session and check:
+grep 'DISPATCH-DEBUG\|disallowedTools\|--tools\|CLAUDE_CODE_BRIEF' /tmp/cowork-debug.log
+
+# 5. Check what tools the CLI actually exposed to the model
+python3 -c "
+import json
+with open('$AUDIT') as f:
+    for i, line in enumerate(f):
+        d = json.loads(line)
+        if d.get('tools') and len(d['tools']) > 10:
+            names = [t if isinstance(t, str) else t.get('name','?') for t in d['tools']]
+            print(f'Tools ({len(names)}): {names}')
+            for target in ['SendUserMessage','present_files','send_message']:
+                found = [n for n in names if target in n]
+                print(f'  {target}: {found or \"MISSING\"}')
+            break
+"
+
+# 6. Clear stale dispatch session (model remembers past errors)
+rm -rf ~/.config/Claude/local-agent-mode-sessions/
+```
+
+**Key insight:** The audit.jsonl is the single source of truth for what the model sees and does. The main.log shows how the bridge processes the model's output. Check both when debugging.
+
 ## CI Pipeline
 
 GitHub Actions workflow:

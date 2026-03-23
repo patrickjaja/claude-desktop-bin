@@ -91,7 +91,7 @@ cd claude-desktop-bin
 - **Claude Code CLI integration** - Auto-detects system-installed Claude Code (requires [claude-code](https://code.claude.com/docs/en/setup))
 - **Local Agent Mode** - Git worktrees and agent sessions
 - **Cowork support** - Agentic workspace feature enabled on Linux (requires [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service))
-- **Dispatch** (not supported yet) - Send tasks from your phone to your desktop Claude via Anthropic's environments bridge API (requires Cowork)
+- **Dispatch** (partially working) - Send tasks from your phone to your desktop Claude via Anthropic's environments bridge API (requires Cowork). Text responses and task orchestration work. File sharing shows download cards but mobile download is pending (upstream CLI timing bug prevents native `SendUserMessage` — see CHANGELOG)
 - **MCP server support** - Model Context Protocol servers work on Linux
 - **Custom Themes (Experimental)** - 6 built-in color themes (Nord, Catppuccin Mocha/Frappe/Latte/Macchiato, Sweet) or create your own via JSON config — not all UI elements are fully themed yet
 - **Multi-monitor Quick Entry** - Global hotkey (Ctrl+Alt+Space) opens on the monitor where your cursor is ([Wayland notes](#wayland))
@@ -263,6 +263,22 @@ tail -f ~/.config/Claude/logs/main.log
 # Search for errors across all logs
 grep -ri 'error\|exception\|fatal' ~/.config/Claude/logs/
 ```
+
+### Clear Dispatch session
+
+Dispatch reuses a persistent session transcript. If the model encountered errors in previous turns (e.g. "Permission denied" for a tool, or broken responses), it remembers those failures and may refuse to retry. Clear the session to start fresh:
+
+```bash
+# Find your dispatch session directory
+ls ~/.config/Claude/local-agent-mode-sessions/
+
+# Remove the dispatch agent session (replace UUIDs with your own)
+rm -rf ~/.config/Claude/local-agent-mode-sessions/<account-uuid>/<org-uuid>/agent/local_ditto_*/
+
+# Then restart Claude Desktop
+```
+
+You can identify your UUIDs from the directory listing — there's typically one account directory containing one org directory.
 
 ## Tips
 - Press **Alt** to toggle the app menu bar (Electron default)

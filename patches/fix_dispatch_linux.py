@@ -7,7 +7,7 @@ Enable Dispatch (remote task orchestration) on Linux.
 Dispatch lets users send tasks from mobile to desktop. It's blocked on Linux
 by two GrowthBook server-side feature flags and two platform checks.
 
-Five-part patch:
+Seven-part patch:
 A. Force sessions-bridge init gate ON.
    The code uses `let f=!1` and a GrowthBook callback for flag "3572572142"
    (yukon_silver_cuttlefish_desktop) to set f=true. On Linux the flag never
@@ -32,6 +32,24 @@ E. Override Jr() to force-enable dispatch agent name flag.
    name feature is active. When false, sessionsBridgeStatusStore reports
    agentNameEnabled:false and the web frontend hides the Dispatch tab.
    We inject a check at the top of Jr() to return true for this flag ID.
+
+F. Fix sessions-bridge event filter to forward text responses.
+   The rjt() function in the sessions-bridge determines which assistant
+   messages are forwarded to the API. It only forwards messages containing
+   a SendUserMessage tool_use block, dropping plain text responses. When
+   the dispatch orchestrator replies with plain text (instead of calling
+   SendUserMessage), the response is never sent to the API and the web
+   UI shows nothing. We patch rjt() to also return true when the message
+   contains text content blocks.
+
+G. (Removed) Diagnostic forwardEvent logging — no longer needed.
+
+H. (Removed) Diagnostic writeEvent logging — no longer needed.
+
+I. Transform assistant messages into SendUserMessage tool_use blocks.
+   Handles both plain text responses AND mcp__cowork__present_files
+   tool_use blocks. Extracts text into the message field and file paths
+   into the attachments array of the synthetic SendUserMessage.
 
 Usage: python3 fix_dispatch_linux.py <path_to_index.js>
 """
@@ -221,6 +239,135 @@ def patch_dispatch_linux(filepath):
             patches_applied += 1
         else:
             print(f"  [FAIL] Jr() dispatch flag override: pattern not found")
+
+    # ── Patch F: Fix rjt() to forward text responses ────────────────────
+    #
+    # The rjt() function filters which assistant messages the sessions-bridge
+    # forwards to the API. Currently, only messages with a SendUserMessage
+    # tool_use block pass the filter. Plain text responses are dropped:
+    #
+    #   function rjt(t){
+    #     ...
+    #     if(e==="assistant"){
+    #       ...
+    #       for(const i of n){
+    #         const s=i;
+    #         if((s==null?void 0:s.type)==="tool_use"&&s.name==="SendUserMessage")return!0
+    #       }
+    #       return!1   // <-- plain text drops here
+    #     }
+    #   }
+    #
+    # We change `return!1}return` (the final false for assistant) to also
+    # check for text content blocks:
+    #   return n.some(i=>i&&i.type==="text"&&i.text)}return
+    #
+    # This ensures that when the dispatch orchestrator responds with plain
+    # text instead of SendUserMessage, the response still reaches the API
+    # and is displayed in the web UI.
+
+    rjt_old = b'if((s==null?void 0:s.type)==="tool_use"&&s.name==="SendUserMessage")return!0}return!1}'
+    rjt_new = b'if((s==null?void 0:s.type)==="tool_use"&&(s.name==="SendUserMessage"||s.name==="mcp__dispatch__send_message"||s.name==="mcp__cowork__present_files"))return!0}return n.some(function(j){return j&&j.type==="text"&&j.text})}'
+
+    if rjt_new in content:
+        print(f"  [OK] rjt() text forward: already patched (skipped)")
+        patches_applied += 1
+    elif rjt_old in content:
+        content = content.replace(rjt_old, rjt_new, 1)
+        print(f"  [OK] rjt() text forward: patched to include text content")
+        patches_applied += 1
+    else:
+        print(f"  [WARN] rjt() text forward: pattern not found")
+
+    # ── Patch G: (Removed) ──────────────────────────────────────────────
+    # Diagnostic forwardEvent logging was here. Removed — no longer needed.
+    # The forwardEvent function uses its original unpatched code.
+
+    # ── Patch H: (Removed) ──────────────────────────────────────────────
+    # Diagnostic writeEvent logging was here. Removed — no longer needed.
+    # The writeEvent function uses its original unpatched code.
+
+    # ── Patch I: Transform assistant messages into SendUserMessage ───────
+    #
+    # The Claude CLI has a timing bug: isBriefEnabled() returns false when
+    # the tool list is built (because FF$() hasn't run yet to set
+    # userMsgOptIn). So SendUserMessage is never exposed to the model,
+    # even though CLAUDE_CODE_BRIEF=1 is set and --tools includes it.
+    #
+    # The model responds with plain text, which the bridge now forwards
+    # (thanks to Patch F). But the API only renders SendUserMessage
+    # tool_use blocks — plain text assistant messages are ignored.
+    #
+    # Additionally, when the model shares files via mcp__cowork__present_files,
+    # the bridge drops those too. We extract file paths from present_files
+    # tool_use blocks and include them as attachments in the synthetic
+    # SendUserMessage.
+    #
+    # Fix: In forwardEvent, right before transport.write(o), check if the
+    # message is an assistant message without SendUserMessage. If so:
+    #   1. Extract text content blocks → combine into message
+    #   2. Extract present_files tool_use blocks → file paths → attachments
+    #   3. Build synthetic SendUserMessage with message + attachments
+    #   4. If only files (no text), use "Shared files" as the message
+
+    transform_old = b'r.transport?await r.transport.write(o):f=!0'
+    transform_new = (
+        # Async IIFE: transforms text/present_files into SendUserMessage,
+        # uploads file attachments to /api/oauth/file_upload for mobile download.
+        b'await(async function(){'
+        b'if(o.type==="assistant"&&o.message&&Array.isArray(o.message.content)){'
+        b'var _ht=o.message.content.some(function(b){return b&&b.type==="tool_use"&&b.name==="SendUserMessage"});'
+        b'if(!_ht){'
+        b'var _tp=o.message.content.filter(function(b){return b&&b.type==="text"&&b.text});'
+        b'var _att=[];'
+        b'o.message.content.forEach(function(b){'
+        b'if(b&&b.type==="tool_use"&&b.name==="mcp__cowork__present_files"&&b.input&&b.input.files){'
+        b'b.input.files.forEach(function(f){if(f.file_path)_att.push(f.file_path)})'
+        b'}'
+        b'});'
+        b'var _ct=_tp.map(function(b){return b.text}).join("\\n");'
+        b'if(_ct||_att.length>0){'
+        # Upload each attachment file to API
+        b'var _uploaded=[];'
+        b'for(var _ai=0;_ai<_att.length;_ai++){'
+        b'try{'
+        b'var _fp=_att[_ai];'
+        b'var _fd=await Be.readFile(_fp);'
+        b'var _fn=Qe.basename(_fp);'
+        b'var _bnd="----FormBoundary"+hn.randomUUID();'
+        b'var _body=Buffer.concat([Buffer.from("--"+_bnd+"\\r\\nContent-Disposition: form-data; name=\\"file\\"; filename=\\""+_fn+"\\"\\r\\nContent-Type: application/octet-stream\\r\\n\\r\\n"),_fd,Buffer.from("\\r\\n--"+_bnd+"--\\r\\n")]);'
+        b'var _tok=await m_(YE(ZE[To()]));'
+        b'if(_tok.ok){'
+        b'var _res=await ZH(Pr()+"/api/oauth/file_upload",{method:"POST",headers:{"Authorization":"Bearer "+_tok.token,"Content-Type":"multipart/form-data; boundary="+_bnd},body:_body});'
+        b'if(_res.ok){'
+        b'var _rj=await _res.json();'
+        b'if(_rj.file_uuid){_uploaded.push({file_name:_fn,file_uuid:_rj.file_uuid,file_size:_fd.length,file_type:"application/octet-stream",extracted_content:"",origin:"user_upload"});'
+        b'C.info("[DISPATCH-UPLOAD] Uploaded "+_fn+" -> "+_rj.file_uuid)}'
+        b'}else{C.warn("[DISPATCH-UPLOAD] Upload failed: "+_res.status)}'
+        b'}else{C.warn("[DISPATCH-UPLOAD] No OAuth token")}'
+        b'}catch(_ue){C.warn("[DISPATCH-UPLOAD] Error: "+_ue)}'
+        b'}'
+        # Build synthetic SendUserMessage — paths in input.attachments (string[]),
+        # file_uuid metadata in file_attachments at event level
+        b'var _inp={message:_ct||"Shared files"};'
+        b'if(_att.length>0)_inp.attachments=_att;'
+        b'o.message.content=[{type:"tool_use",id:"sbr_"+Date.now()+"_"+Math.random().toString(36).slice(2,8),name:"SendUserMessage",input:_inp}];'
+        b'if(_uploaded.length>0)o.file_attachments=_uploaded.map(function(u){return{file_uuid:u.file_uuid,file_name:u.file_name,is_image:!1}});'
+        b'C.info("[DISPATCH-TRANSFORM] Wrapped in SendUserMessage: msg="+(_ct||"").slice(0,100)+" attachments="+_att.length+" uploaded="+_uploaded.length)'
+        b'}}}'
+        b'})();'
+        b'r.transport?await r.transport.write(o):f=!0'
+    )
+
+    if transform_new in content:
+        print(f"  [OK] Text/files→SendUserMessage transform: already patched (skipped)")
+        patches_applied += 1
+    elif transform_old in content:
+        content = content.replace(transform_old, transform_new, 1)
+        print(f"  [OK] Text/files→SendUserMessage transform: injected")
+        patches_applied += 1
+    else:
+        print(f"  [WARN] Text/files→SendUserMessage transform: pattern not found")
 
     # ── Results ──────────────────────────────────────────────────────────
 
