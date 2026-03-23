@@ -294,9 +294,8 @@ These issues are caused by a regression in Claude Code CLI v2.1.79+ where the `S
 |-------|--------|--------|
 | Dispatch text responses not rendering | **Workaround active** | Patch I wraps plain text as synthetic `SendUserMessage` tool_use blocks. Responses render on phone/desktop. |
 | File attachments load endlessly on phone | **Not yet fixed** | The model can't use `SendUserMessage` with `attachments`, so files aren't uploaded via the dispatch file API. Will resolve when the CLI exposes `SendUserMessage` natively. |
-| Dispatch uses more tokens than Windows/Mac | **Expected** | The bridge transform adds overhead. Native `SendUserMessage` would be more efficient. |
 
-All three issues resolve when Anthropic fixes the CLI initialization ordering so `--brief` properly exposes `SendUserMessage`. We're monitoring upstream.
+Both issues resolve when Anthropic fixes the CLI initialization ordering so `--brief` properly exposes `SendUserMessage`. We're monitoring upstream.
 
 ## Tips
 - Press **Alt** to toggle the app menu bar (Electron default)
