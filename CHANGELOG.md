@@ -4,14 +4,16 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 
 ## 2026-03-23
 
+### Changed
+- **fix_dispatch_linux.py — Removed Patch I (bridge-level transform)** — The synthetic SendUserMessage transform is no longer needed. With `claude-cowork-service` now passing `--mcp-config` through unchanged, Claude Desktop's session manager handles the bidirectional SDK MCP proxy over the event stream (identical to VM mode on Mac/Windows). The model now has native access to `mcp__dispatch__send_message`, `mcp__dispatch__start_task`, `mcp__cowork__present_files`, and all other SDK tools.
+
 ### Added
+- **CLAUDE_BUILT_IN_MCP.md — Per-session dynamic MCP servers** — Documented 4 SDK-type MCP servers created dynamically per cowork/dispatch session: `dispatch` (6 tools), `cowork` (4 tools), `session_info` (2 tools), `workspace` (2 tools). Includes tool schemas, registration method, allowedTools/disallowedTools logic, and SDK server architecture diagram comparing Mac/Windows VM vs Linux native paths.
 - **fix_updater_state_linux.py** — New patch: add `version`/`versionNumber` empty strings to idle updater state so downstream code calling `.includes()` on `version` doesn't crash with `TypeError: Cannot read properties of undefined`
 - **fix_process_argv_renderer.py** — New patch: inject `Ie.argv=[]` into preload so SDK web bundle's `process.argv.includes("--debug")` no longer throws TypeError
-- **fix_dispatch_linux.py Patch I** — Transform plain text and `mcp__cowork__present_files` assistant messages into synthetic `SendUserMessage` tool_use blocks so the Dispatch API renders responses. Includes file upload to `/api/oauth/file_upload` for attachment support (download on mobile pending)
 
 ### Fixed
-- **Dispatch text responses now render** — Patched the sessions-bridge `rjt()` filter (Patch F) and added bridge-level message transform (Patch I) to work around a CLI timing bug where `SendUserMessage` (`BriefTool`) is never exposed on Linux due to server-side `kairosActive` gate + `FF$()` initialization order
-- **Dispatch file sharing** — Unblocked `mcp__cowork__present_files` in `rjt()` filter and added file path extraction with API upload in Patch I. File cards render; mobile download pending further API integration
+- **Dispatch text responses now render** — Patched the sessions-bridge `rjt()` filter (Patch F) to forward text content blocks and SDK MCP tool_use responses (`mcp__dispatch__send_message`, `mcp__cowork__present_files`)
 - **Navigator platform timing gap** — Changed navigator.platform spoofing from `dom-ready` only to both `did-navigate` + `dom-ready` fallback, closing the window where page scripts see real `navigator.platform` while `process.platform` is already spoofed to `"win32"`
 - **Removed diagnostic patches G/H** — forwardEvent and writeEvent logging removed from fix_dispatch_linux.py (no longer needed)
 

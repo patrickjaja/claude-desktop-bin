@@ -163,6 +163,121 @@ Registered separately via `createScheduledTasksServer()`, injected directly into
 | `create_scheduled_task` | Create a new scheduled task |
 | `update_scheduled_task` | Update an existing scheduled task |
 
+## Per-Session Dynamic MCP Servers (SDK-type)
+
+Claude Desktop creates 4 additional MCP servers **dynamically per cowork/dispatch session**. These are NOT registered via `IM()` — they are created inline in the session manager and passed to the Claude Code CLI via `sdkMcpServers` in `--mcp-config`.
+
+**Communication:** SDK-type servers use `MessagePort` bridges. On Mac/Windows, the VM SDK daemon (`nodeHost.js`) provides this bridge via vsock. On Linux native, `cowork-svc-linux` currently **strips** all SDK servers (replacing `--mcp-config` with `{"mcpServers":{}}`), because there is no MessagePort bridge implementation.
+
+### 10. Dispatch
+
+| Field | Value |
+|-------|-------|
+| Server name | `"dispatch"` (constant `Of`) |
+| Tool prefix | `mcp__dispatch__` |
+| Session type | Agent (dispatch parent) sessions only |
+| Registration | Dynamic via `f6t()` factory |
+| Linux status | **Not available** — stripped by `cowork-svc-linux` (no MCP proxy) |
+
+| Tool | Variable | Description |
+|------|----------|-------------|
+| `start_task` | `Hdt` | Start a new isolated cowork task session. Takes `{prompt, title, space_id?}` |
+| `start_code_task` | `gRe` | Start a Claude Code session on host filesystem. Takes `{cwd, prompt, title}` |
+| `send_message` | `Vdt` | Send a follow-up message to an existing session. Takes `{session_id, message}` |
+| `set_agent_name` | `Wdt` | Set the agent's display name. Gated by flag `3558849738` |
+| `list_code_workspaces` | `Gdt` | List available code workspaces. Gated by flag `3723845789` |
+| `list_projects` | `Kdt` | List available projects |
+
+**Key role:** `mcp__dispatch__send_message` is the **primary fallback** when the built-in `SendUserMessage` CLI tool isn't available (which happens due to a CLI initialization timing bug). On Mac/Windows, this SDK tool routes through the MessagePort bridge back to Desktop. On Linux, it's stripped, so Patch I in `fix_dispatch_linux.py` compensates by transforming plain text responses into synthetic `SendUserMessage` at the sessions-bridge level.
+
+### 11. Cowork
+
+| Field | Value |
+|-------|-------|
+| Server name | `"cowork"` (constant `lA`) |
+| Tool prefix | `mcp__cowork__` |
+| Session type | All cowork sessions |
+| Registration | Dynamic via `l6t()` factory |
+| Linux status | **Not available** — stripped by `cowork-svc-linux` (no MCP proxy) |
+
+| Tool | Variable | Description |
+|------|----------|-------------|
+| `present_files` | `_Re` | Present files to user with interactive cards. Takes `{files: [{file_path}]}`. Handler returns file paths as text content |
+| `request_cowork_directory` | `h0` | Request access to a host directory. Opens native folder picker (local sessions) or resolves path (remote). Denied in headless/dispatch-child without explicit `path` |
+| `allow_cowork_file_delete` | `uR` | Allow deletion of files in cowork directory. Enriches input with `_folderName` for permission UI |
+| `launch_code_session` | `bRe` | Launch a Claude Code session from within cowork |
+
+**Note:** `present_files`, `allow_cowork_file_delete`, and `launch_code_session` are added to `disallowedTools` for bridge/dispatch-child sessions (`rft` array). On Linux native, `cowork-svc-linux` removes `present_files` from `disallowedTools` as a workaround for file sharing.
+
+### 12. Session Info
+
+| Field | Value |
+|-------|-------|
+| Server name | `"session_info"` (constant `Lx`) |
+| Tool prefix | `mcp__session_info__` |
+| Session type | All except dispatch-child sessions |
+| Registration | Dynamic via `p1e()` factory |
+| Linux status | **Not available** — stripped by `cowork-svc-linux` (no MCP proxy) |
+
+| Tool | Variable | Description |
+|------|----------|-------------|
+| `list_sessions` | `qdt` | List child sessions and all sessions |
+| `read_transcript` | `zdt` | Read transcript of a session |
+
+### 13. Workspace
+
+| Field | Value |
+|-------|-------|
+| Server name | `"workspace"` (constant `J_`) |
+| Tool prefix | `mcp__workspace__` |
+| Session type | Cowork sessions |
+| Registration | Dynamic per-session |
+| Linux status | **Not available** — stripped by `cowork-svc-linux` (no MCP proxy) |
+
+| Tool | Variable | Description |
+|------|----------|-------------|
+| `bash` | `Jdt` | Run bash commands in workspace context |
+| `web_fetch` | `Xdt` | Fetch web resources |
+
+### SDK Server Architecture
+
+```
+Mac/Windows (VM):
+  Claude Desktop main process
+    ├─ creates dispatch/cowork/session_info/workspace server instances
+    ├─ passes via sdkMcpServers in --mcp-config to VM
+    ├─ VM SDK daemon (nodeHost.js) creates MessagePort bridges
+    └─ Claude Code CLI connects via MessagePort → tool calls route back to Desktop
+
+Linux native (current):
+  Claude Desktop main process
+    ├─ creates same server instances
+    ├─ passes via sdkMcpServers in --mcp-config to cowork-svc
+    ├─ cowork-svc STRIPS --mcp-config → {"mcpServers":{}}
+    └─ Claude Code CLI has NO access to SDK tools
+       → Patch I compensates at sessions-bridge level for text/file responses
+```
+
+### AllowedTools for Dispatch Sessions
+
+Claude Desktop constructs the `allowedTools` array per session type:
+
+```javascript
+// For agent (dispatch parent) sessions:
+allowedTools: [
+  /* CLI built-ins: */ "Task", "Bash", "Glob", "Grep", "Read", "Edit", "Write", ...
+  /* Always allowed: */ "mcp__cowork__present_files",
+  /* Dispatch-only: */ "SendUserMessage", "mcp__dispatch__start_task",
+                        "mcp__dispatch__send_message", "mcp__dispatch__list_projects",
+  /* Conditional: */   "mcp__dispatch__set_agent_name",       // flag 3558849738
+                        "mcp__dispatch__list_code_workspaces", // flag 3723845789
+]
+
+// disallowedTools for bridge/dispatch-child:
+disallowedTools: ["AskUserQuestion", "mcp__cowork__allow_cowork_file_delete",
+                   "mcp__cowork__present_files", "mcp__cowork__launch_code_session"]
+```
+
 ## AllowedTools Reference
 
 The `allowedTools` list also includes `"mcp__computer-use"`, but **no computer-use MCP server is registered** in v1.1.7714. The client-side code (permissions, system prompts) remains as dead code.
