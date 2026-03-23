@@ -292,13 +292,15 @@ def patch_local_agent_mode(filepath):
             b'const __oUA=require("electron").app.userAgentFallback||"";'
             b'require("electron").app.userAgentFallback='
             b'__oUA.replace(/X11; Linux [^)]+/g,"Windows NT 10.0; Win64; x64");'
-            # Inject navigator.platform override into every new web content's main world
+            # Inject navigator.platform override into every new web content's main world.
+            # We use BOTH did-navigate (earliest reliable point after navigation) AND
+            # dom-ready (fallback). This closes the timing gap where page scripts run
+            # between navigation and dom-ready and see the real navigator.platform,
+            # causing "Cannot read properties of undefined (reading 'includes')" errors.
+            b'const __navJS="try{Object.defineProperty(navigator,\\"platform\\",{get:()=>\\"Win32\\",configurable:!0})}catch(e){}";'
             b'require("electron").app.on("web-contents-created",(ev,wc)=>{'
-            b'wc.on("dom-ready",()=>{'
-            b'wc.executeJavaScript('
-            b'"try{Object.defineProperty(navigator,\\"platform\\",{get:()=>\\"Win32\\",configurable:!0})}catch(e){}"'
-            b').catch(()=>{})'
-            b'})'
+            b'wc.on("did-navigate",()=>{wc.executeJavaScript(__navJS).catch(()=>{})});'
+            b'wc.on("dom-ready",()=>{wc.executeJavaScript(__navJS).catch(()=>{})})'
             b'})'
             b'}'
         )
