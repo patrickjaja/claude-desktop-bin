@@ -9,6 +9,8 @@
 , scrot ? null
 , xclip ? null
 , wmctrl ? null
+, socat ? null
+, hyprland ? null
 }:
 
 let
@@ -59,6 +61,8 @@ stdenvNoCC.mkDerivation {
       ${lib.optionalString (scrot != null) "--prefix PATH : ${scrot}/bin"} \
       ${lib.optionalString (xclip != null) "--prefix PATH : ${xclip}/bin"} \
       ${lib.optionalString (wmctrl != null) "--prefix PATH : ${wmctrl}/bin"} \
+      ${lib.optionalString (socat != null) "--prefix PATH : ${socat}/bin"} \
+      ${lib.optionalString (hyprland != null) "--prefix PATH : ${hyprland}/bin"} \
       --add-flags "$out/lib/claude-desktop/resources/app.asar"
 
     # Install icon

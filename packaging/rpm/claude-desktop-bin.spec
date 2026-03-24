@@ -26,6 +26,8 @@ Suggests:       xdotool
 Suggests:       scrot
 Suggests:       xclip
 Suggests:       wmctrl
+Suggests:       socat
+Suggests:       hyprland
 
 %description
 Claude is an AI assistant created by Anthropic to be helpful,
