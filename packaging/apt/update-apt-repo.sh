@@ -31,16 +31,17 @@ mkdir -p "$REPO_DIR/deb/amd64"
 cp "$DEB_FILE" "$REPO_DIR/deb/amd64/"
 echo "Copied $(basename "$DEB_FILE") to deb/amd64/"
 
-# Prune old versions — keep latest 2
+# Prune old versions — keep only the latest 1 to avoid dpkg-scanpackages
+# duplicate warnings and gh-pages repo bloat (each .deb is ~95MB)
 cd "$REPO_DIR/deb/amd64"
 # shellcheck disable=SC2012
-ls -t *.deb 2>/dev/null | tail -n +3 | xargs -r rm -f
+ls -t *.deb 2>/dev/null | tail -n +2 | xargs -r rm -f
 KEPT=$(ls -1 *.deb 2>/dev/null | wc -l)
 echo "Kept $KEPT .deb file(s) after pruning"
 
 # Generate Packages index
 cd "$REPO_DIR/deb"
-dpkg-scanpackages --arch amd64 amd64/ > Packages
+dpkg-scanpackages --multiversion --arch amd64 amd64/ > Packages
 gzip -9c Packages > Packages.gz
 echo "Generated Packages index ($(wc -l < Packages) lines)"
 

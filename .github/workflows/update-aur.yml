@@ -499,7 +499,7 @@ jobs:
 
       - name: Create GitHub Release
         if: steps.check.outputs.needs_update == 'true' || github.event.inputs.force_rebuild == 'true'
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.pkgrel.outputs.tag }}
           name: ${{ steps.pkgrel.outputs.release_name }}
