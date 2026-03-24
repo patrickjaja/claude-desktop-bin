@@ -185,12 +185,13 @@ The package applies several patches to make Claude Desktop work on Linux. Each p
 | `fix_cowork_linux.py` | Enables Cowork on Linux: VM client loader, Unix socket path, bundle config, claude binary resolution | HIGH | `rg -o '.{0,50}vmClient.{0,50}' index.js` |
 | `fix_cowork_spaces.py` | Stubs CoworkSpaces eipc handlers on Linux (getAllSpaces, createSpace, etc.) | LOW | `rg -o 'CoworkSpaces' index.js` |
 | `fix_cross_device_rename.py` | Fixes EXDEV errors when moving VM bundles across filesystems (tmpfs to ext4) | LOW | Uses `.rename(` literal |
+| `fix_detected_projects_linux.py` | Enable detected projects on Linux (VSCode/Cursor/Zed path mapping) | MED | `rg -o 'detectedProjects.{0,50}' index.js` |
 | `fix_disable_autoupdate.py` | Disables auto-updater on Linux (no Windows installer available) | MED | `rg -o '.{0,40}isInstalled.{0,40}' index.js` |
 | `fix_dispatch_linux.py` | Enables Dispatch (remote task orchestration from mobile) — forces bridge init, bypasses remote control gate, adds Linux platform label, transforms text→SendUserMessage | MED | `rg -o 'sessions-bridge.*init' index.js` |
 | `fix_dock_bounce.py` | Prevents taskbar attention-stealing on KDE Plasma/Linux — intercepts `flashFrame`, `focus`, `show`, `moveTop`, and `WebContents.focus()` | LOW | Prepended IIFE, no regex on app code |
 | `fix_locale_paths.py` | Redirects locale file paths to Linux install location | LOW | Uses `process.resourcesPath` literal |
-| `fix_marketplace_linux.py` | Forces host CLI runner for marketplace operations on Linux (Browse Plugins, Manage) | HIGH | `rg -o 'function \w+\(\w+\)\{return\(\w+==null.*mode.*ccd' index.js` |
-| `fix_mcp_reconnect.py` | Fixes MCP server reconnect race (close-before-connect) — no-op if upstream already includes fix | LOW | `rg -o 'close.*connect' index.js` |
+| `fix_enterprise_config_linux.py` | Reads enterprise config from `/etc/claude-desktop/enterprise.json` on Linux (disableAutoUpdates, custom3p, DXT flags, etc.) | LOW | `rg -o 'enterprise.json' index.js` |
+| `fix_marketplace_linux.py` | Forces CCD mode for marketplace plugin operations on Linux (no VM, use host-local paths) | MED | `rg -o 'function \w+\(\w+\)\{return\(\w+==null.*mode.*ccd' index.js` |
 | `fix_native_frame.py` | Uses native window frames on Linux/XFCE while preserving Quick Entry transparency | MED | `rg -o 'titleBarStyle.{0,30}' index.js` |
 | `fix_office_addin_linux.py` | Enables Office Addin MCP server on Linux — extends `(ui\|\|as)` platform gate in isEnabled, init block, and file detection | LOW | `rg -o '.{0,30}louderPenguinEnabled.{0,30}' index.js` |
 | `fix_process_argv_renderer.py` | Injects `process.argv=[]` in renderer preload to prevent TypeError on `.includes()` calls | LOW | `rg -o '.{0,30}\.argv.{0,30}' mainView.js` |
@@ -298,6 +299,12 @@ These issues are caused by a regression in Claude Code CLI v2.1.79+ where the `S
 | File attachments load endlessly on phone | **Not yet fixed** | The model can't use `SendUserMessage` with `attachments`, so files aren't uploaded via the dispatch file API. Will resolve when the CLI exposes `SendUserMessage` natively. |
 
 Both issues resolve when Anthropic fixes the CLI initialization ordering so `--brief` properly exposes `SendUserMessage`. We're monitoring upstream.
+
+## Known Limitations
+
+| Feature | Detail |
+|---------|--------|
+| **Browser Tools (Chrome integration)** | Not available on Linux. The Chrome Extension MCP server requires a native messaging host binary (`chrome-native-host`) that Anthropic ships only for Windows/macOS (Rust, proprietary). A Linux replacement would need to implement Chrome's Native Messaging protocol. Contributions welcome. |
 
 ## Tips
 - Press **Alt** to toggle the app menu bar (Electron default)

@@ -6,19 +6,22 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 
 ### Added
 - **fix_computer_use_linux.py** — New patch: enables Computer Use on Linux with 6 sub-patches. Removes 3 upstream platform gates (`b7r()`, `ZM()`, `createDarwinExecutor`), provides a Linux executor using xdotool/scrot/xclip/wmctrl, bypasses macOS TCC permissions (`ensureOsPermissions` returns granted), and replaces the macOS permission model (`rvr()` allowlist/tier system) with direct tool dispatch. 22 tools work immediately without `request_access` — no app tier restrictions, no bundle ID matching, no permission dialogs.
+- **fix_detected_projects_linux.py** — New patch: enables Recent Projects on Linux. Maps VSCode (`~/.config/Code/`), Cursor (`~/.config/Cursor/`), and Zed (`~/.local/share/zed/`) workspace detection paths. Home directory scanner already works cross-platform.
+- **fix_enterprise_config_linux.py** — New patch: reads enterprise config from `/etc/claude-desktop/enterprise.json` on Linux. Returns `{}` if file doesn't exist (preserving current behavior).
 
 ### Changed
-- **All existing patches pass cleanly** — No patch code changes needed for v1.1.8359 (up from v1.1.8308).
-- **CLAUDE_BUILT_IN_MCP.md** — Updated to v1.1.8359. Added Computer Use as Server #14 with full Linux executor documentation, 22-tool table, 6 sub-patch table, Linux tools table, and key differences from macOS.
-- **README.md** — Added Computer Use to features section. Added `fix_computer_use_linux.py` to patches table. Updated version references to v1.1.8359.
-- **PKGBUILD.template** — Added `scrot`, `xclip`, `wmctrl` as optional dependencies for computer-use.
-- **packaging/debian/control** — Added `scrot`, `xclip`, `wmctrl` to Suggests.
-- **packaging/rpm/claude-desktop-bin.spec** — Added `scrot`, `xclip`, `wmctrl` to Suggests.
-- **packaging/nix/package.nix** — Added `scrot`, `xclip`, `wmctrl` as optional inputs with PATH prefixes.
+- **fix_marketplace_linux.py** — Simplified: removed dead Pattern A (runner selector, refactored upstream) and Pattern B (search_plugins, removed upstream). Only Pattern C (CCD gate) remains.
+- **CLAUDE_FEATURE_FLAGS.md** — Updated for v1.1.8359: new `operon` feature (#16), function renames, 4 new GrowthBook flags, 2 removed flags.
+- **CLAUDE_BUILT_IN_MCP.md** — Updated for v1.1.8359: Operon IPC system (120+ endpoints), visualize factory rename, all 14 MCP servers unchanged.
+- **README.md** — Added new patches to table, removed `fix_mcp_reconnect.py`, added Known Limitations section (Browser Tools).
+
+### Removed
+- **fix_mcp_reconnect.py** — Deleted: close-before-connect fix is now upstream (since v1.1.4088+). Patch was a no-op.
 
 ### Notes
-- **Computer Use MCP is back** — Removed in v1.1.7714 (commit 2c69b13) when upstream dropped the standalone `computer-use-server.js`. Now reintroduced as a built-in internal MCP server integrated into `index.js`. Upstream gates it to macOS-only (`@ant/claude-swift`); our patch provides a Linux-native implementation. Key architectural decision: upstream's macOS permission model (app tiers, allowlists, TCC) is bypassed entirely on Linux since xdotool can interact with any window freely.
-- **No new platform gates** — No other new `process.platform` restrictions found requiring patches.
+- **Computer Use MCP is back** — Removed in v1.1.7714 (commit 2c69b13) when upstream dropped the standalone `computer-use-server.js`. Now reintroduced as a built-in internal MCP server integrated into `index.js`. Upstream gates it to macOS-only (`@ant/claude-swift`); our patch provides a Linux-native implementation.
+- **Operon (Nest)** — Major new upstream feature (120+ IPC endpoints). Currently server-gated (flag `1306813456`), requires VM infrastructure. Not patched — waiting for Anthropic to enable.
+- **Browser Tools** — Documented as known limitation. Server registration requires `chrome-native-host` binary (Rust, proprietary, Windows/macOS only).
 
 ## 2026-03-23 (v1.1.8308)
 

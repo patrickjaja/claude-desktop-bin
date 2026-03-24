@@ -2,29 +2,20 @@
 # @patch-target: app.asar.contents/.vite/build/index.js
 # @patch-type: python
 """
-Force host CLI runner for marketplace operations on Linux.
+Force CCD mode for marketplace operations on Linux.
 
-Marketplace operations (browse plugins, add marketplace, search plugins) are
-routed through either the host runner (gz) or the Cowork VM runner (mz).
-On the Cowork tab, the VM runner is selected, which shells out through the
-daemon — this fails on Linux with MARKETPLACE_ERROR:UNKNOWN because the
-daemon doesn't handle marketplace commands.
+The CCD/Cowork gate function determines whether plugin operations use
+host-local CCD paths or account-scoped Cowork paths. On Linux there's
+no VM, so all operations should use the CCD (host-local) path.
 
-Since marketplace management is a host filesystem operation (it runs
-`claude plugin marketplace list --json` etc.), we force the host runner
-on Linux regardless of session type.
+This patch makes the gate function return true on Linux by prepending
+a process.platform check, so all plugin operations (getPlugins,
+uploadPlugin, deletePlugin, setPluginEnabled) use host-local paths.
 
-Three-part patch:
-A. IPC bridge runner selector — `const e=r=><gate>(r)?<host>:<vm>`
-   Add process.platform==="linux" to always pick the host runner on Linux.
-B. search_plugins tool handler — `r.sessionType==="ccd"?<host>:<vm>`
-   Same logic: force host runner on Linux.
-C. CCD/Cowork gate function — `function <gate>(t){return(t==null?void 0:t.mode)==="ccd"}`
-   Force true on Linux so all plugin operations (getPlugins, uploadPlugin,
-   deletePlugin, setPluginEnabled) use host-local CCD paths instead of
-   account-scoped Cowork paths. On Linux there's no VM, so the CCD path
-   is always correct.
-   Note: Function name changes between versions (Hb, Gw, etc.).
+Original:  function vu(t){return(t==null?void 0:t.mode)==="ccd"}
+Patched:   function vu(t){return process.platform==="linux"||(t==null?void 0:t.mode)==="ccd"}
+
+Note: Function name changes between versions (Hb, Gw, vu, etc.).
 
 Usage: python3 fix_marketplace_linux.py <path_to_index.js>
 """
@@ -35,7 +26,7 @@ import re
 
 
 def patch_marketplace_linux(filepath):
-    """Force host CLI runner for marketplace operations on Linux."""
+    """Force CCD mode for marketplace operations on Linux."""
 
     print(f"=== Patch: fix_marketplace_linux ===")
     print(f"  Target: {filepath}")
@@ -48,56 +39,17 @@ def patch_marketplace_linux(filepath):
         content = f.read()
 
     original_content = content
-    patches_applied = 0
 
-    # Patch A: IPC bridge runner selector
+    # Idempotency check: the patched version has the platform check before the mode check
+    idempotency_pattern = rb'function [\w$]+\([\w$]+\)\{return process\.platform==="linux"\|\|'
+    if re.search(idempotency_pattern, content):
+        print("  [OK] Already patched (Linux platform check found in CCD gate)")
+        print("  [PASS] No changes needed")
+        return True
+
+    # CCD/Cowork gate — force CCD mode on Linux
     #
-    # Original: const e=r=>$S(r)?CK:$K
-    # Patched:  const e=r=>process.platform==="linux"||$S(r)?CK:$K
-    #
-    # On Linux, the || short-circuits to true → always selects CK (host runner).
-    # On other platforms, falls through to $S(r) which checks CCD mode.
-    #
-    # Variable names may contain $ (valid JS identifier), so use [\w$]+.
-    pattern_a = rb'(const [\w$]+=)([\w$]+)(=>([\w$]+)\(\2\)\?)([\w$]+):([\w$]+)'
-
-    def replacement_a(m):
-        gate_fn = m.group(4)  # The gate function name ($S, Hb, Gw, etc.)
-        return (m.group(1) + m.group(2) +
-                b'=>process.platform==="linux"||' + gate_fn + b'(' + m.group(2) + b')?' +
-                m.group(5) + b':' + m.group(6))
-
-    content, count_a = re.subn(pattern_a, replacement_a, content)
-    if count_a >= 1:
-        print(f"  [OK] runner selector: force host runner on Linux ({count_a} match)")
-        patches_applied += 1
-    else:
-        print(f"  [INFO] runner selector: 0 matches (pattern removed in newer versions)")
-
-    # Patch B: search_plugins tool handler
-    #
-    # Original: r.sessionType==="ccd"?CK:$K
-    # Patched:  (process.platform==="linux"||r.sessionType==="ccd")?CK:$K
-    #
-    # Same logic as Patch A but in the search_plugins handler.
-    # Variable names may contain $ (valid JS identifier), so use [\w$]+.
-    pattern_b = rb'([\w$]+)(\.sessionType==="ccd"\?)([\w$]+):([\w$]+)'
-
-    def replacement_b(m):
-        return (b'(process.platform==="linux"||' + m.group(1) +
-                b'.sessionType==="ccd")?' +
-                m.group(3) + b':' + m.group(4))
-
-    content, count_b = re.subn(pattern_b, replacement_b, content)
-    if count_b >= 1:
-        print(f"  [OK] search_plugins handler: force host runner on Linux ({count_b} match)")
-        patches_applied += 1
-    else:
-        print(f"  [INFO] search_plugins handler: 0 matches (pattern removed in newer versions)")
-
-    # Patch C: CCD/Cowork gate — force CCD mode on Linux
-    #
-    # $S() (formerly Hb()) is the CCD/Cowork gate called throughout the plugin system.
+    # The gate function is called throughout the plugin system.
     # When it returns true, operations use host-local CCD paths.
     # When false, they use account-scoped Cowork paths.
     # On Linux there's no VM, so all operations should use the CCD path.
@@ -106,34 +58,29 @@ def patch_marketplace_linux(filepath):
     # Patched:  function $S(t){return process.platform==="linux"||(t==null?void 0:t.mode)==="ccd"}
     #
     # Function name may contain $ (valid JS identifier), so use [\w$]+.
-    pattern_c = rb'function ([\w$]+)\(([\w$]+)\)\{return\((\2)==null\?void 0:\3\.mode\)==="ccd"\}'
+    pattern = rb'function ([\w$]+)\(([\w$]+)\)\{return\((\2)==null\?void 0:\3\.mode\)==="ccd"\}'
 
-    def replacement_c(m):
+    def replacement(m):
         fn_name = m.group(1)
         param = m.group(2)
         return (b'function ' + fn_name + b'(' + param + b'){return process.platform==="linux"||(' +
                 param + b'==null?void 0:' + param + b'.mode)==="ccd"}')
 
-    content, count_c = re.subn(pattern_c, replacement_c, content)
-    if count_c >= 1:
-        print(f"  [OK] CCD/Cowork gate: force CCD mode on Linux ({count_c} match)")
-        patches_applied += 1
+    content, count = re.subn(pattern, replacement, content)
+    if count >= 1:
+        print(f"  [OK] CCD/Cowork gate: force CCD mode on Linux ({count} match)")
     else:
         print(f"  [FAIL] CCD/Cowork gate: 0 matches")
-
-    # Check results
-    if patches_applied == 0:
-        print("  [FAIL] No patches could be applied")
         return False
 
     if content == original_content:
-        print("  [WARN] No changes made (patterns may have already been applied)")
+        print("  [WARN] No changes made (pattern may have already been applied)")
         return True
 
     # Write back
     with open(filepath, 'wb') as f:
         f.write(content)
-    print(f"  [PASS] {patches_applied} patches applied")
+    print(f"  [PASS] Marketplace Linux patch applied")
     return True
 
 

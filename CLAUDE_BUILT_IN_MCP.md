@@ -115,6 +115,7 @@ These are accessible to CCD/Cowork sessions but not directly from the renderer.
 | Field | Value |
 |-------|-------|
 | Server name | `"visualize"` |
+| Factory | `p3n()` via `getImagineServerDef` |
 | Gating | Server flag `3444158716` + Cowork session only |
 
 | Tool | Description |
@@ -362,3 +363,17 @@ Uses `createDarwinExecutor()` → `@ant/claude-swift` native module for screen c
 - **Terminal**: macOS only. Patched to enable on Linux via `fix_read_terminal_linux.py`.
 - **Computer Use**: Works on Linux via `fix_computer_use_linux.py` — uses xdotool/scrot/xclip instead of `@ant/claude-swift`. Available in Cowork and Code sessions.
 - **MCP Registry / Plugins / Visualize / Scheduled Tasks**: Cross-platform, work on Linux.
+
+## Operon IPC System (v1.1.8359)
+
+Not an MCP server, but a new internal IPC layer with 120+ endpoints across 18 sub-interfaces:
+
+`OperonAgents`, `OperonAnnotations`, `OperonApiKeys`, `OperonArtifactDownloads`, `OperonArtifacts`, `OperonAttachments`, `OperonBootstrap`, `OperonCloud`, `OperonConversations`, `OperonEvents`, `OperonFolders`, `OperonFrames`, `OperonHostAccess`, `OperonMcp`, `OperonNotes`, `OperonPreferences`, `OperonProjects`, `OperonSecrets`, `OperonSkills`, `OperonSystem`
+
+Gated behind GrowthBook flag `1306813456` — currently **unavailable** on all platforms (not enabled server-side). Do NOT force-enable; requires VM infrastructure (Nest).
+
+## Version Notes
+
+| Version | Changes |
+|---------|---------|
+| v1.1.8359 | Visualize server factory renamed to `p3n()` via `getImagineServerDef` (same interface). Operon IPC system added (not MCP). No new MCP servers — all 14 unchanged. |
