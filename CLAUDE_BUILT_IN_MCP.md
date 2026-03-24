@@ -1,4 +1,4 @@
-# Built-in MCP Servers — Claude Desktop v1.1.7714
+# Built-in MCP Servers — Claude Desktop v1.1.8359
 
 Claude Desktop registers internal MCP servers via a two-layer architecture:
 
@@ -278,13 +278,87 @@ disallowedTools: ["AskUserQuestion", "mcp__cowork__allow_cowork_file_delete",
                    "mcp__cowork__present_files", "mcp__cowork__launch_code_session"]
 ```
 
-## AllowedTools Reference
+### 14. Computer Use
 
-The `allowedTools` list also includes `"mcp__computer-use"`, but **no computer-use MCP server is registered** in v1.1.7714. The client-side code (permissions, system prompts) remains as dead code.
+| Field | Value |
+|-------|-------|
+| Server name | `"computer-use"` (constant `zxt`) |
+| Tool prefix | `mcp__computer-use__` |
+| Platform | macOS (native), **Linux (patched)** |
+| Gating (macOS) | Triple gate: `process.platform==="darwin" && featureFlagEnabled && chicagoEnabled` preference |
+| Gating (Linux) | Always enabled (feature flag and preference bypassed) |
+| Internal codename | "chicago" |
+
+**Background:** Computer-use was previously a separate `computer-use-server.js` file in the app root (removed in v1.1.7714). As of v1.1.8359, it's fully integrated into `index.js` as an internal MCP server, registered via the `t7r()` factory function.
+
+**Tools (22):**
+
+| Tool | Description |
+|------|-------------|
+| `screenshot` | Take screenshot of display |
+| `left_click` | Left mouse click at coordinates |
+| `right_click` | Right mouse click at coordinates |
+| `double_click` | Double-click at coordinates |
+| `triple_click` | Triple-click at coordinates |
+| `middle_click` | Middle mouse click at coordinates |
+| `type` | Type text at current cursor position |
+| `key` | Press keyboard key/combo |
+| `scroll` | Scroll at coordinates |
+| `cursor_position` | Get current cursor position |
+| `wait` | Wait for specified duration |
+| `zoom` | High-res screenshot of a region |
+| `left_click_drag` | Click and drag between coordinates |
+| `mouse_move` | Move cursor without clicking |
+| `hold_key` | Hold a key for a duration |
+| `left_mouse_down` | Press and hold left button |
+| `left_mouse_up` | Release left button |
+| `open_application` | Open an application by name |
+| `read_clipboard` | Read clipboard contents |
+| `write_clipboard` | Write text to clipboard |
+| `request_access` | Request app access (auto-granted on Linux) |
+| `list_granted_applications` | List granted apps (all on Linux) |
+
+#### macOS executor
+
+Uses `createDarwinExecutor()` → `@ant/claude-swift` native module for screen capture, mouse/keyboard control, app management, and TCC permission grants.
+
+#### Linux executor (`fix_computer_use_linux.py`)
+
+`fix_computer_use_linux.py` applies 6 sub-patches:
+
+| # | Sub-patch | What it does |
+|---|-----------|-------------|
+| 1 | Inject `__linuxExecutor` | Linux executor using xdotool/scrot/xclip at `app.on("ready")` |
+| 2 | Remove `b7r()` gate | Let `t7r()` register the server on all platforms (was darwin-only) |
+| 3 | Extend `ZM()` | Return `true` on Linux (bypass feature flag + `chicagoEnabled` preference) |
+| 4 | Patch `createDarwinExecutor` | Return `__linuxExecutor` on Linux instead of throwing |
+| 5 | Patch `ensureOsPermissions` | Return `{granted: true}` on Linux (skip macOS TCC checks) |
+| 6 | Bypass permission model | Direct tool dispatch on Linux, skip `rvr()` allowlist/tier system |
+
+**Linux tools used:**
+
+| Tool | Package | Purpose |
+|------|---------|---------|
+| `xdotool` | `xdotool` | Mouse, keyboard, window info |
+| `scrot` | `scrot` | Screenshots (with `-a` for per-monitor capture) |
+| `import` | `imagemagick` | Fallback screenshots, zoom/crop |
+| `xrandr` | `xorg-xrandr` | Display/monitor enumeration |
+| `xclip` | `xclip` | Clipboard read/write |
+| `wmctrl` | `wmctrl` | Running application detection |
+
+**Key differences from macOS:**
+- No TCC permissions — all tools work immediately without `request_access`
+- No app tier restrictions — can type into any window (no "click only" for editors)
+- No app hiding before screenshots (`screenshotFiltering: "none"`)
+- `request_access` returns "granted" immediately (model may still call it)
+- X11/XWayland only (native Wayland not yet supported for global input)
+
+**Additional Linux patch:** `fix_computer_use_tcc.py` registers stub IPC handlers for `ComputerUseTcc` namespace so that renderer-side TCC permission queries don't throw errors.
 
 ## Linux Notes
 
 - **Claude in Chrome**: Works on Linux (Unix socket). No patches needed.
-- **Office Add-in**: Platform-gated to macOS/Windows. Not available on Linux.
-- **Terminal**: macOS only. Not available on Linux.
+- **Office Add-in**: Platform-gated to macOS/Windows. Patched to enable on Linux via `fix_office_addin_linux.py`.
+- **Terminal**: macOS only. Patched to enable on Linux via `fix_read_terminal_linux.py`.
+- **Computer Use**: Works on Linux via `fix_computer_use_linux.py` — uses xdotool/scrot/xclip instead of `@ant/claude-swift`. Available in Cowork and Code sessions.
 - **MCP Registry / Plugins / Visualize / Scheduled Tasks**: Cross-platform, work on Linux.

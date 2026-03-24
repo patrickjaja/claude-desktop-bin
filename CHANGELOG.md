@@ -2,6 +2,24 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-03-24 (v1.1.8359)
+
+### Added
+- **fix_computer_use_linux.py** — New patch: enables Computer Use on Linux with 6 sub-patches. Removes 3 upstream platform gates (`b7r()`, `ZM()`, `createDarwinExecutor`), provides a Linux executor using xdotool/scrot/xclip/wmctrl, bypasses macOS TCC permissions (`ensureOsPermissions` returns granted), and replaces the macOS permission model (`rvr()` allowlist/tier system) with direct tool dispatch. 22 tools work immediately without `request_access` — no app tier restrictions, no bundle ID matching, no permission dialogs.
+
+### Changed
+- **All existing patches pass cleanly** — No patch code changes needed for v1.1.8359 (up from v1.1.8308).
+- **CLAUDE_BUILT_IN_MCP.md** — Updated to v1.1.8359. Added Computer Use as Server #14 with full Linux executor documentation, 22-tool table, 6 sub-patch table, Linux tools table, and key differences from macOS.
+- **README.md** — Added Computer Use to features section. Added `fix_computer_use_linux.py` to patches table. Updated version references to v1.1.8359.
+- **PKGBUILD.template** — Added `scrot`, `xclip`, `wmctrl` as optional dependencies for computer-use.
+- **packaging/debian/control** — Added `scrot`, `xclip`, `wmctrl` to Suggests.
+- **packaging/rpm/claude-desktop-bin.spec** — Added `scrot`, `xclip`, `wmctrl` to Suggests.
+- **packaging/nix/package.nix** — Added `scrot`, `xclip`, `wmctrl` as optional inputs with PATH prefixes.
+
+### Notes
+- **Computer Use MCP is back** — Removed in v1.1.7714 (commit 2c69b13) when upstream dropped the standalone `computer-use-server.js`. Now reintroduced as a built-in internal MCP server integrated into `index.js`. Upstream gates it to macOS-only (`@ant/claude-swift`); our patch provides a Linux-native implementation. Key architectural decision: upstream's macOS permission model (app tiers, allowlists, TCC) is bypassed entirely on Linux since xdotool can interact with any window freely.
+- **No new platform gates** — No other new `process.platform` restrictions found requiring patches.
+
 ## 2026-03-23 (v1.1.8308)
 
 ### Added

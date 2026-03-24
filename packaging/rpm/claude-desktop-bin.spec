@@ -23,6 +23,9 @@ Requires:       mesa-libgbm
 Requires:       alsa-lib
 Requires:       libnotify
 Suggests:       xdotool
+Suggests:       scrot
+Suggests:       xclip
+Suggests:       wmctrl
 
 %description
 Claude is an AI assistant created by Anthropic to be helpful,

@@ -6,6 +6,9 @@
 , makeDesktopItem
 , copyDesktopItems
 , xdotool ? null
+, scrot ? null
+, xclip ? null
+, wmctrl ? null
 }:
 
 let
@@ -53,6 +56,9 @@ stdenvNoCC.mkDerivation {
     makeWrapper ${electron}/bin/electron $out/bin/claude-desktop \
       --set ELECTRON_OZONE_PLATFORM_HINT "auto" \
       ${lib.optionalString (xdotool != null) "--prefix PATH : ${xdotool}/bin"} \
+      ${lib.optionalString (scrot != null) "--prefix PATH : ${scrot}/bin"} \
+      ${lib.optionalString (xclip != null) "--prefix PATH : ${xclip}/bin"} \
+      ${lib.optionalString (wmctrl != null) "--prefix PATH : ${wmctrl}/bin"} \
       --add-flags "$out/lib/claude-desktop/resources/app.asar"
 
     # Install icon

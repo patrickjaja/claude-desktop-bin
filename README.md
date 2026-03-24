@@ -91,6 +91,7 @@ cd claude-desktop-bin
 - **Claude Code CLI integration** - Auto-detects system-installed Claude Code (requires [claude-code](https://code.claude.com/docs/en/setup))
 - **Local Agent Mode** - Git worktrees and agent sessions
 - **Cowork support** - Agentic workspace feature enabled on Linux (requires [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service))
+- **Computer Use** - Desktop automation via built-in MCP server (screenshot, click, type, scroll, drag, clipboard). Uses `xdotool` for input, `scrot` for screenshots, `xclip` for clipboard. No macOS-style permission grants needed — all tools work immediately. Install: `sudo pacman -S xdotool scrot xclip wmctrl`
 - **Dispatch** - Send tasks from your phone to your desktop Claude via Anthropic's environments bridge API (requires Cowork). Text responses, task orchestration, and SDK MCP tools work. Bridge-level transform wraps plain text as `SendUserMessage` (workaround for CLI 2.1.x bug where `--brief` doesn't expose the tool)
 - **MCP server support** - Model Context Protocol servers work on Linux
 - **Custom Themes (Experimental)** - 6 built-in color themes (Nord, Catppuccin Mocha/Frappe/Latte/Macchiato, Sweet) or create your own via JSON config — not all UI elements are fully themed yet
@@ -178,6 +179,7 @@ The package applies several patches to make Claude Desktop work on Linux. Each p
 | `fix_app_quit.py` | Fixes app not quitting after cleanup on Linux (uses `app.exit(0)` instead of `app.quit()`) | LOW | Uses `app.quit()` literal |
 | `fix_browse_files_linux.py` | Enables `openDirectory` in browseFiles dialog on Linux (Electron supports it, upstream only enabled for macOS) | LOW | `rg -o 'openDirectory.{0,60}' index.js` |
 | `fix_claude_code.py` | Enables Claude Code CLI integration by detecting system-installed claude binary | MED | `rg -o 'async getStatus\(\)\{.{0,200}' index.js` |
+| `fix_computer_use_linux.py` | Enables Computer Use on Linux: removes 3 platform gates, provides xdotool/scrot executor, bypasses macOS permission model | MED | `rg -o 'process.platform.*darwin.*t7r' index.js` |
 | `fix_computer_use_tcc.py` | Registers no-op IPC handlers for macOS TCC permission checks — prevents repeated error logs | LOW | Uses eipc UUID extraction |
 | `fix_cowork_error_message.py` | Replaces Windows VM errors with Linux-friendly guidance for claude-cowork-service | LOW | Uses string literals |
 | `fix_cowork_linux.py` | Enables Cowork on Linux: VM client loader, Unix socket path, bundle config, claude binary resolution | HIGH | `rg -o '.{0,50}vmClient.{0,50}' index.js` |
