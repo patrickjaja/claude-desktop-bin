@@ -615,14 +615,17 @@ jobs:
           # Build APT repo metadata
           bash packaging/apt/update-apt-repo.sh "$DEB_FILE" "$APT_REPO_DIR" "$GPG_KEY_ID"
 
-          # Commit and push
+          # Commit and force-push as orphan (prevents gh-pages bloat from ~95MB .deb history)
           cd "$APT_REPO_DIR"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan new-gh-pages
           git add -A
           git diff --staged --quiet || {
             git commit -m "Update APT repo: claude-desktop ${VERSION}"
-            git push origin gh-pages
+            git branch -D gh-pages 2>/dev/null || true
+            git branch -m gh-pages
+            git push --force origin gh-pages
           }
 
       - name: Verify release tarball download
