@@ -107,7 +107,6 @@ if command -v gtk-update-icon-cache &>/dev/null; then
 fi
 
 %files
-%attr(4755,root,root) /usr/lib/claude-desktop/chrome-sandbox
 /usr/lib/claude-desktop/
 /usr/bin/claude-desktop
 /usr/share/applications/claude-desktop.desktop
