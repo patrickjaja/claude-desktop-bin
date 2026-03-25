@@ -88,17 +88,20 @@ def patch_dispatch_linux(filepath):
     # is on. On Linux, the flag never fires. We force f=!0 (true) from the
     # start so the bridge initializes unconditionally.
     #
-    # Pattern uses \w+ for all minified variable names and a backreference
-    # (\2) to ensure the same variable appears in both the declaration and
-    # the if-check.
+    # Pattern uses \w+ for all minified variable names. The gate variable
+    # is the LAST in a comma-separated `let` declaration before `;const`.
+    # In v1.1.8359 it was a single var: `let f=!1;const h=...`
+    # In v1.1.8629 it's three vars: `let f=!1,p=!1,h=!1;const y=...`
+    # The backreference (\2) ensures the captured gate var matches the
+    # one in the if-check.
 
-    gate_pattern = rb'(let )(\w+)(=)(!1)(;const \w+=async\(\)=>\{if\(!\2\)\{\w+\.info\("\[sessions-bridge\] init skipped)'
+    gate_pattern = rb'(let (?:\w+=!1,)*)(\w+)(=)(!1)(;const \w+=async\(\)=>\{if\(!\2\)\{\w+\.info\("\[sessions-bridge\] init skipped)'
 
     def gate_replacement(m):
         return m.group(1) + m.group(2) + m.group(3) + b'!0' + m.group(5)
 
-    # Check if already patched (f=!0 instead of f=!1)
-    gate_already = rb'let \w+=!0;const \w+=async\(\)=>\{if\(!\w+\)\{\w+\.info\("\[sessions-bridge\] init skipped'
+    # Check if already patched (gate var=!0 instead of =!1)
+    gate_already = rb'let (?:\w+=!(?:0|1),)*\w+=!0;const \w+=async\(\)=>\{if\(!\w+\)\{\w+\.info\("\[sessions-bridge\] init skipped'
     if re.search(gate_already, content):
         print(f"  [OK] Sessions-bridge gate: already patched (skipped)")
         patches_applied += 1
@@ -351,26 +354,33 @@ def patch_dispatch_linux(filepath):
     # which creates the inputStream and drains pending notifications.
     # The model then reads the child's transcript and delivers the answer.
 
-    wake_old = (
-        b'((n.pendingDispatchNotifications??(n.pendingDispatchNotifications=[])).push(s),'
-        b'B.info(`[Dispatch] Queued notification for cold parent ${n.sessionId} (child ${e.sessionId} ${r})`))'
-    )
-    wake_new = (
-        b'((n.pendingDispatchNotifications??(n.pendingDispatchNotifications=[])).push(s),'
-        b'B.info(`[Dispatch] Queued notification for cold parent ${n.sessionId} (child ${e.sessionId} ${r})`),'
-        b'setTimeout(()=>{B.info(`[Dispatch] Auto-waking cold parent ${n.sessionId}`);'
-        b'this.sendMessage(n.sessionId,s).catch(x=>B.error(`[Dispatch] Auto-wake failed for ${n.sessionId}:`,x))},500))'
+    # Use regex to capture the logger variable name (was B in v8359, P in v8629)
+    wake_pattern = re.compile(
+        rb'(\(\(n\.pendingDispatchNotifications\?\?\(n\.pendingDispatchNotifications=\[\]\)\)\.push\(s\),)'
+        rb'(\w+)'  # capture logger variable
+        rb'(\.info\(`\[Dispatch\] Queued notification for cold parent \$\{n\.sessionId\} \(child \$\{e\.sessionId\} \$\{r\}\)`\)\))'
     )
 
-    if wake_new in content:
+    # Check if already patched (has setTimeout auto-wake)
+    if b'Auto-waking cold parent' in content:
         print(f"  [OK] dispatch auto-wake parent: already patched (skipped)")
         patches_applied += 1
-    elif wake_old in content:
-        content = content.replace(wake_old, wake_new, 1)
-        print(f"  [OK] dispatch auto-wake parent: injected setTimeout sendMessage")
-        patches_applied += 1
     else:
-        print(f"  [WARN] dispatch auto-wake parent: pattern not found")
+        wake_match = wake_pattern.search(content)
+        if wake_match:
+            logger = wake_match.group(2)
+            wake_replacement = (
+                wake_match.group(1) + logger + wake_match.group(3)[:-1] +  # strip trailing )
+                b',setTimeout(()=>{' + logger +
+                b'.info(`[Dispatch] Auto-waking cold parent ${n.sessionId}`);'
+                b'this.sendMessage(n.sessionId,s).catch(x=>' + logger +
+                b'.error(`[Dispatch] Auto-wake failed for ${n.sessionId}:`,x))},500))'
+            )
+            content = content[:wake_match.start()] + wake_replacement + content[wake_match.end():]
+            print(f"  [OK] dispatch auto-wake parent: injected setTimeout sendMessage (logger={logger.decode()})")
+            patches_applied += 1
+        else:
+            print(f"  [WARN] dispatch auto-wake parent: pattern not found")
 
     # ── Results ──────────────────────────────────────────────────────────
 

@@ -2,6 +2,25 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-03-25 (v1.1.8629)
+
+### Fixed
+- **fix_dispatch_linux.py — Patch A (Sessions-bridge gate)**: Variable declaration changed from single (`let f=!1;const`) to triple (`let f=!1,p=!1,h=!1;const`). Updated regex to handle comma-separated declarations with `(?:\w+=!1,)*` prefix. The gate variable `h` is now `h = f || p` where `p` is the new remote orchestrator flag.
+- **fix_dispatch_linux.py — Patch J (Auto-wake parent)**: Logger variable renamed `B` → `P`. Converted from hardcoded byte string to regex with dynamic capture group for the logger variable.
+- **fix_dispatch_linux.py — Patch K (present_files unblock)**: Removed `mcp__cowork__present_files` from `RIt` renderer-dependent disallowed tools list. This tool works through the MCP proxy and doesn't need the local renderer. Without this, dispatch file sharing (e.g. PDF generation from phone) gets "Permission denied".
+
+### New Upstream
+- **Feature flag `4201169164`** — Remote Orchestrator (codename "manta" / `yukon_silver_manta_desktop`). Alternative to local Cowork: connects to Anthropic's cloud via WebSocket (`wss://bridge.claudeusercontent.com`) instead of local `cowork-svc`. Enabled via env var `CLAUDE_COWORK_FORCE_REMOTE_ORCHESTRATOR=1` or developer setting `isMantaDesktopEnabled`. Not tested on Linux — likely requires Pro account or server-side enablement.
+- **16 i18n locale files** — de-DE, en-US, en-XA, en-XB, es-419, es-ES, fr-FR, hi-IN, id-ID, it-IT, ja-JP, ko-KR, pt-BR, xx-AC, xx-HA, xx-LS. Already handled by build script's i18n copy step.
+- **Developer setting `isMantaDesktopEnabled`** — New toggle in developer settings: "Forces yukon_silver_manta_desktop (remote orchestrator mode) regardless of GrowthBook".
+
+### Changed
+- **CLAUDE_FEATURE_FLAGS.md** — Updated for v1.1.8629: new flag `4201169164` (remote orchestrator), function renames (`Qn`→`Hn`, `Bx`→`Hk`, `lA`→`dA`, `jY`→`JX`, `VKe`→`Oet`), documented remote orchestrator architecture and env vars.
+
+### Notes
+- **No new platform gates** — No new `darwin`/`win32`-only patterns found. All 32 existing patches still required.
+- **All 32 patches pass** with zero failures on v1.1.8629. Only variable name renames (handled by `\w+` wildcards).
+
 ## 2026-03-24 (v1.1.8359)
 
 ### Added

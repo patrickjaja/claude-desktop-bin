@@ -1,14 +1,14 @@
 # Claude Desktop Feature Flag Architecture
 
-Reference documentation for the feature flag system in Claude Desktop's Electron app. This documents v1.1.8359 internals to aid patch maintenance.
+Reference documentation for the feature flag system in Claude Desktop's Electron app. This documents v1.1.8629 internals to aid patch maintenance.
 
 ## Overview
 
 16 feature flags are controlled by a 3-layer system:
 
-1. **`lA()` (static)** - Calls individual feature functions, builds base object (14 features)
-2. **`jY` (async merger)** - Spreads `lA()`, adds `louderPenguin` + `operon` as async overrides
-3. **IPC handler** - Calls `jY`, validates against schema, sends to renderer
+1. **`dA()` (static)** - Calls individual feature functions, builds base object (14 features)
+2. **`JX` (async merger)** - Spreads `dA()`, adds `louderPenguin` + `operon` as async overrides
+3. **IPC handler** - Calls `JX`, validates against schema, sends to renderer
 
 Feature name strings (`chillingSlothFeat`, `louderPenguin`, etc.) are runtime IPC identifiers, **not minified** - they are stable pattern anchors.
 
@@ -16,75 +16,75 @@ Feature name strings (`chillingSlothFeat`, `louderPenguin`, etc.) are runtime IP
 
 | # | Feature | Function | Gate | Purpose |
 |---|---------|----------|------|---------|
-| 1 | `nativeQuickEntry` | `zjr()` | `platform !== "darwin"` | Native Quick Entry (macOS only) |
-| 2 | `quickEntryDictation` | `Gjr()` | `platform !== "darwin"` | Quick Entry dictation |
-| 3 | `customQuickEntryDictationShortcut` | direct value `xq` | None | Custom dictation shortcut value |
-| 4 | `plushRaccoon` | `VKe(() => xq)` | **VKe() production gate** | Custom dictation shortcut (dev-gated) |
-| 5 | `quietPenguin` | `VKe(tqr)` | **VKe()** + darwin check in `tqr()` | Code-related feature (dev-gated) |
-| 6 | `louderPenguin` | `await aqr()` in jY only | **async override** in jY; platform gate (darwin/win32) + GrowthBook `4116586025` | **Code tab** |
-| 7 | `chillingSlothFeat` | `Kjr()` | `platform !== "darwin"` | Local Agent Mode / Cowork |
-| 8 | `chillingSlothEnterprise` | `Wjr()` | Org config check | Enterprise disable for Claude Code |
-| 9 | `chillingSlothLocal` | `Yjr()` | **None** (always supported) | Local sessions |
-| 10 | `yukonSilver` | `U2e()` | Platform/arch gate via `uUt()` + org config | Secure VM |
-| 11 | `yukonSilverGems` | `QKe()` | Depends on `yukonSilver` (`U2e()`) | VM extensions |
-| 12 | `yukonSilverGemsCache` | `QKe()` | Depends on `yukonSilver` (`U2e()`) | VM extensions cache |
-| 13 | `desktopTopBar` | `nqr()` | **None** (always supported) | Desktop top bar |
-| 14 | `ccdPlugins` | `xq` (constant) | **None** (always supported) | CCD Plugins UI (Add plugins, Browse plugins) |
-| 15 | `floatingAtoll` | `iqr()` | **Always unavailable** | Floating mini-window (macOS window button offset, disabled for all) |
-| 16 | **`operon`** | `await I$t()` in jY only | **async override** in jY; blocks win32, checks `U2e()` (yukonSilver) + GrowthBook `1306813456`. Static: `oqr()` returns unavailable (**new in v1.1.8359**) | Nest — 120+ IPC endpoints, 18 sub-interfaces |
+| 1 | `nativeQuickEntry` | `BKr()` | `platform !== "darwin"` | Native Quick Entry (macOS only) |
+| 2 | `quickEntryDictation` | `NKr()` | `platform !== "darwin"` | Quick Entry dictation |
+| 3 | `customQuickEntryDictationShortcut` | direct value `Cq` | None | Custom dictation shortcut value |
+| 4 | `plushRaccoon` | `Oet(() => Cq)` | **Oet() production gate** | Custom dictation shortcut (dev-gated) |
+| 5 | `quietPenguin` | `Oet(qKr)` | **Oet()** + darwin check in `qKr()` | Code-related feature (dev-gated) |
+| 6 | `louderPenguin` | `await GKr()` in JX only | **async override** in JX; platform gate (darwin/win32) + GrowthBook `4116586025` | **Code tab** |
+| 7 | `chillingSlothFeat` | `DKr()` | `platform !== "darwin"` | Local Agent Mode / Cowork |
+| 8 | `chillingSlothEnterprise` | `FKr()` | Org config check | Enterprise disable for Claude Code |
+| 9 | `chillingSlothLocal` | `MKr()` | **None** (always supported) | Local sessions |
+| 10 | `yukonSilver` | `M4e()` | Platform/arch gate via `wNt()` + org config | Secure VM |
+| 11 | `yukonSilverGems` | `Xet()` | Depends on `yukonSilver` (`M4e()`) | VM extensions |
+| 12 | `yukonSilverGemsCache` | `Xet()` | Depends on `yukonSilver` (`M4e()`) | VM extensions cache |
+| 13 | `desktopTopBar` | `VKr()` | **None** (always supported) | Desktop top bar |
+| 14 | `ccdPlugins` | `Cq` (constant) | **None** (always supported) | CCD Plugins UI (Add plugins, Browse plugins) |
+| 15 | `floatingAtoll` | `QKr()` | **Always unavailable** | Floating mini-window (macOS window button offset, disabled for all) |
+| 16 | **`operon`** | `await fNt()` in JX only | **async override** in JX; blocks win32, checks `M4e()` (yukonSilver) + GrowthBook `1306813456`. Static: `WKr()` returns unavailable | Nest — 120+ IPC endpoints, 18 sub-interfaces |
 
-## The VKe() Production Gate
+## The Oet() Production Gate
 
 ```javascript
-function VKe(t){return Ee.app.isPackaged?{status:"unavailable"}:t()}
+function Oet(t){return Be.app.isPackaged?{status:"unavailable"}:t()}
 ```
 
-In production builds (`app.isPackaged === true`), VKe() returns `{status:"unavailable"}` **without calling** the wrapped function. Only in development builds does it call `t()`.
+In production builds (`app.isPackaged === true`), Oet() returns `{status:"unavailable"}` **without calling** the wrapped function. Only in development builds does it call `t()`.
 
-**Features gated by VKe():** `plushRaccoon`, `quietPenguin`
+**Features gated by Oet():** `plushRaccoon`, `quietPenguin`
 
-Note: `louderPenguin` is no longer in lA() at all (was QL()-gated in earlier versions). It exists only in jY as `await aqr()`, which has its own platform gate (darwin/win32 only) + server feature flag check. Similarly, `operon` exists only in jY as `await I$t()`.
+Note: `louderPenguin` is no longer in dA() at all (was QL()-gated in earlier versions). It exists only in JX as `await GKr()`, which has its own platform gate (darwin/win32 only) + server feature flag check. Similarly, `operon` exists only in JX as `await fNt()`.
 
 This is why patching the inner functions alone is insufficient - VKe() never calls them in packaged builds.
 
 ## The Three Layers
 
-### Layer 1: lA() - Static Registry
+### Layer 1: dA() - Static Registry
 
 ```javascript
-function lA(){
+function dA(){
   return{
-    nativeQuickEntry:zjr(),
-    quickEntryDictation:Gjr(),
-    customQuickEntryDictationShortcut:xq,
-    plushRaccoon:VKe(()=>xq),
-    quietPenguin:VKe(tqr),             // VKe blocks in production
-    chillingSlothFeat:Kjr(),
-    chillingSlothEnterprise:Wjr(),
-    chillingSlothLocal:Yjr(),
-    yukonSilver:U2e(),
-    yukonSilverGems:QKe(),
-    yukonSilverGemsCache:QKe(),
-    desktopTopBar:nqr(),
-    ccdPlugins:xq,                     // constant {status:"supported"}
-    floatingAtoll:iqr()                // always {status:"unavailable"}
+    nativeQuickEntry:BKr(),
+    quickEntryDictation:NKr(),
+    customQuickEntryDictationShortcut:Cq,
+    plushRaccoon:Oet(()=>Cq),
+    quietPenguin:Oet(qKr),             // Oet blocks in production
+    chillingSlothFeat:DKr(),
+    chillingSlothEnterprise:FKr(),
+    chillingSlothLocal:MKr(),
+    yukonSilver:M4e(),
+    yukonSilverGems:Xet(),
+    yukonSilverGemsCache:Xet(),
+    desktopTopBar:VKr(),
+    ccdPlugins:Cq,                     // constant {status:"supported"}
+    floatingAtoll:QKr()                // always {status:"unavailable"}
   }
 }
 ```
 
-Returns 14 features synchronously. `xq` is a constant `{status:"supported"}`. Features wrapped by `VKe()` are always `{status:"unavailable"}` in packaged builds.
+Returns 14 features synchronously. `Cq` is a constant `{status:"supported"}`. Features wrapped by `Oet()` are always `{status:"unavailable"}` in packaged builds.
 
-### Layer 2: jY - Async Merger
+### Layer 2: JX - Async Merger
 
 ```javascript
-const jY=async()=>({
-  ...lA(),
-  louderPenguin:await aqr(),           // async override (platform + GrowthBook 4116586025)
-  operon:await I$t()                   // NEW in v1.1.8359 — checks yukonSilver + GrowthBook 1306813456
+const JX=async()=>({
+  ...dA(),
+  louderPenguin:await GKr(),           // async override (platform + GrowthBook 4116586025)
+  operon:await fNt()                   // checks yukonSilver + GrowthBook 1306813456
 })
 ```
 
-Spreads `lA()` then adds `louderPenguin` and `operon` as async overrides. `aqr()` checks `process.platform!=="darwin"&&process.platform!=="win32"` (returns unavailable on Linux) then checks server feature flag `4116586025`. `I$t()` blocks win32, checks `U2e()` (yukonSilver), then checks GrowthBook flag `1306813456`.
+Spreads `dA()` then adds `louderPenguin` and `operon` as async overrides. `GKr()` checks `process.platform!=="darwin"&&process.platform!=="win32"` (returns unavailable on Linux) then checks server feature flag `4116586025`. `fNt()` blocks win32, checks `M4e()` (yukonSilver), then checks GrowthBook flag `1306813456`.
 
 **v1.1.3770 → v1.1.3918 changes:**
 - `chillingSlothEnterprise` moved from async-only (mC) to static (Fd)
@@ -135,9 +135,9 @@ Feature flags can also be affected by organization-level admin settings:
 
 Calls `jY`, validates the result against a Zod schema, and sends it to the renderer process via IPC. The renderer uses these flags to conditionally render UI elements (e.g., Chat|Code toggle).
 
-## GrowthBook Flag Catalog (v1.1.8359)
+## GrowthBook Flag Catalog (v1.1.8629)
 
-### Boolean Flags (Qn())
+### Boolean Flags (Hn())
 
 | Flag ID | Purpose | Patched? |
 |---------|---------|----------|
@@ -176,6 +176,7 @@ Calls `jY`, validates the result against a Zod schema, and sends it to the rende
 | `4116586025` | louderPenguin / Code tab master gate | No (overridden at merger level) |
 | `4153934152` | CLAUDE_CODE_SKIP_PRECOMPACT_LOAD | No |
 | `4160352601` | VM heartbeat monitoring | No |
+| `4201169164` | **Remote orchestrator** (codename "manta") — sessions-bridge init + remote cowork mode (**new in v1.1.8629**) | Indirectly — sessions-bridge gate forced ON in `fix_dispatch_linux.py` |
 
 ### Object/Value Flags (xy() / $o())
 
@@ -191,32 +192,33 @@ Calls `jY`, validates the result against a Zod schema, and sends it to the rende
 | `3586389629` | xy() | Connection timeout config |
 | `3758515526` | $o() | Default marketplace repo config (repo, repoCCD) |
 
-### Listener Flags (Bx())
+### Listener Flags (Hk())
 
 | Flag ID | Purpose |
 |---------|---------|
 | `180602792` | Cookie change / midnight owl |
 | `1978029737` | Skills plugin sync |
 | `3572572142` | Sessions-bridge on/off toggle |
+| `4201169164` | Remote orchestrator on/off toggle (**new in v1.1.8629**) |
 
 ## What We Patch on Linux
 
 ### enable_local_agent_mode.py
 
-**Patch 1 - Individual functions:** Remove `process.platform!=="darwin"` gate from `tqr()` (quietPenguin inner) and `Kjr()` (chillingSlothFeat). Also inject Linux early-return in `U2e()` (yukonSilver) via `uUt()` to bypass its platform gate.
+**Patch 1 - Individual functions:** Remove `process.platform!=="darwin"` gate from `qKr()` (quietPenguin inner) and `DKr()` (chillingSlothFeat). Also inject Linux early-return in `M4e()` (yukonSilver) via `wNt()` to bypass its platform gate.
 
-**Patch 3 - jY merger override:** Append to the `jY` return object:
+**Patch 3 - JX merger override:** Append to the `JX` return object:
 ```javascript
 ,quietPenguin:{status:"supported"},louderPenguin:{status:"supported"},chillingSlothFeat:{status:"supported"},chillingSlothLocal:{status:"supported"},yukonSilver:{status:"supported"},yukonSilverGems:{status:"supported"},ccdPlugins:{status:"supported"}
 ```
 
-This bypasses the VKe() gate by overriding at the merger level. The spread order ensures our values win:
+This bypasses the Oet() gate by overriding at the merger level. The spread order ensures our values win:
 ```
-...lA()           -> quietPenguin: {status:"unavailable"}  (from VKe)
+...dA()           -> quietPenguin: {status:"unavailable"}  (from Oet)
 ...our overrides  -> quietPenguin: {status:"supported"}    (wins)
 ```
 
-Note: `chillingSlothLocal` and `ccdPlugins` overrides are defensive — both are already `{status:"supported"}`, but the overrides protect against future gating. `yukonSilverGemsCache` is NOT overridden but inherits support from the `U2e()` (yukonSilver) function patch in Patch 1b.
+Note: `chillingSlothLocal` and `ccdPlugins` overrides are defensive — both are already `{status:"supported"}`, but the overrides protect against future gating. `yukonSilverGemsCache` is NOT overridden but inherits support from the `M4e()` (yukonSilver) function patch in Patch 1b.
 
 ### Cowork on Linux (experimental)
 
@@ -225,7 +227,7 @@ As of v1.1.2685, Cowork uses a decoupled architecture with a TypeScript VM clien
 - **`fix_cowork_linux.py`** patches the VM client loader to include Linux (not just `win32`)
 - The Named Pipe path is replaced with a Unix domain socket on Linux
 - **`claude-cowork-service`** (separate Go daemon at `/home/patrickjaja/development/claude-cowork-service`) provides native execution backend — 18 RPC methods, process spawning, path remapping
-- `chillingSlothFeat`, `chillingSlothLocal`, `yukonSilver`, `yukonSilverGems`, and `ccdPlugins` are all overridden to `{status:"supported"}` in the cN merger
+- `chillingSlothFeat`, `chillingSlothLocal`, `yukonSilver`, `yukonSilverGems`, and `ccdPlugins` are all overridden to `{status:"supported"}` in the JX merger
 
 Without the daemon running, Cowork will show connection errors naturally in the UI.
 
@@ -236,10 +238,10 @@ Dispatch is a remote task orchestration feature that lets you send tasks from yo
 **Architecture:** Desktop registers with `POST /v1/environments/bridge`, then long-polls `GET /v1/environments/{id}/work/poll` for incoming work from the mobile client. All traffic routes through Anthropic's servers over TLS — no inbound ports needed.
 
 **What we patch:**
-1. **Sessions-bridge init gate** (GrowthBook flag `3572572142`) — The bridge only initializes when this server-side flag fires with `on=true`. On Linux it never fires. We force the gate variable to `!0` (true).
-2. **Remote session control** (GrowthBook flag `2216414644`) — Messages with `channel:"mobile"` throw unless this flag is on. We replace `!Qn("2216414644")` with `!1` at both call sites.
-3. **Platform label** (`HI()`) — Returns "Unsupported Platform" for Linux. We add `case"linux":return"Linux"`.
-4. **Telemetry gate** — `Hr||Pn` (darwin||win32) silently drops telemetry on Linux. We extend to include Linux.
+1. **Sessions-bridge init gate** (GrowthBook flags `3572572142` + `4201169164`) — The bridge only initializes when the combined gate `h = f || p` is true (`f` from flag `3572572142`, `p` from flag `4201169164`). On Linux neither flag fires. We force `h=!0` (true).
+2. **Remote session control** (GrowthBook flag `2216414644`) — Messages with `channel:"mobile"` throw unless this flag is on. We replace `!Hn("2216414644")` with `!1` at both call sites.
+3. **Platform label** (`bhe()`) — Returns "Unsupported Platform" for Linux. We add `case"linux":return"Linux"`.
+4. **Telemetry gate** — `di||ns` (darwin||win32) silently drops telemetry on Linux. We extend to include Linux.
 
 **Note on `operon` (Nest):** Do NOT force-enable — requires VM infrastructure (120+ IPC endpoints across 18 sub-interfaces). Currently `{status:"unavailable"}` on Linux (GrowthBook flag `1306813456` not enabled server-side).
 
@@ -248,6 +250,29 @@ Dispatch is a remote task orchestration feature that lets you send tasks from yo
 - Bridge state persistence — uses `userData` path, works on Linux
 - CCR transport — pure HTTP/SSE, platform-agnostic
 - OAuth configs — same endpoints for all platforms
+
+### Remote Orchestrator ("Manta Desktop") — new in v1.1.8629
+
+The **Remote Orchestrator** (codename "manta", flag `4201169164` / `yukon_silver_manta_desktop`) is an alternative to local Cowork. Instead of running a local `cowork-svc` process, it connects to Anthropic's cloud infrastructure via WebSocket (`wss://bridge.claudeusercontent.com`) to run Cowork/Dispatch sessions remotely.
+
+**Flow:**
+1. Calls `findOrchestrationRemoteEnvironment()` → looks for an `anthropic_cloud` environment via `/v1/environments`
+2. Creates a CCR (Claude Code Remote) session on Anthropic's servers
+3. Connects via WebSocket bridge (`/v2/ccr-sessions/devices/{org}_{account}/mcp`)
+4. Skips local env registration & work polling — the cloud handles it
+
+**Three ways to enable:**
+1. GrowthBook flag `4201169164` — server-side, not enabled for Linux users
+2. Env var `CLAUDE_COWORK_FORCE_REMOTE_ORCHESTRATOR=1` — force override
+3. Developer setting `isMantaDesktopEnabled` (requires restart)
+
+**Sessions-bridge gate interaction:** The sessions-bridge init gate variable `h` is now `h = f || p` where `f` = flag `3572572142` (dispatch) and `p` = flag `4201169164` (remote orchestrator). Our Patch A forces `h=!0`, which opens the gate for both features. However, the remote orchestrator has its own separate `isRemoteOrchestratorEnabled()` check — our patch doesn't force that.
+
+**Linux status:** Not tested. The remote orchestrator bypasses the need for local `cowork-svc` entirely, which could simplify the Linux Cowork stack. However, it requires Anthropic's backend to return an `anthropic_cloud` environment, which may be limited to Pro accounts or not yet rolled out. Setting `CLAUDE_COWORK_FORCE_REMOTE_ORCHESTRATOR=1` would attempt the connection but likely fail with "No anthropic_cloud environment found" until Anthropic enables it server-side.
+
+**Related env vars:**
+- `CLAUDE_COWORK_FORCE_REMOTE_ORCHESTRATOR` — force enable remote mode
+- `CLAUDE_REMOTE_TOOLS_BRIDGE_URL` — override WebSocket bridge URL (default: `wss://bridge.claudeusercontent.com`)
 
 ### Features we do NOT enable
 
@@ -259,7 +284,7 @@ Dispatch is a remote task orchestration feature that lets you send tasks from yo
 | `floatingAtoll` | macOS window button positioning, disabled for all platforms |
 | `operon` | Requires VM infrastructure (Nest); flag not enabled server-side |
 
-### Known Issues (v1.1.8359)
+### Known Issues (v1.1.8629)
 
 | Issue | Status | Detail |
 |-------|--------|--------|
@@ -304,3 +329,4 @@ Feature name strings are stable across versions because they're IPC identifiers 
 | v1.1.7464 | `rp()` | `zM` | `$Se()` | No structural changes; Dispatch infrastructure added (separate GrowthBook gates); function renames only |
 | v1.1.7714 | `fp()` | `cN` | `r1e()` | New `yukonSilverGemsCache` (15 features); `Jr()`→`Vr()` flag function; logger `T`→`C`; `computer-use-server.js` removed; Quick Entry position-save added; two Linux guards removed upstream |
 | v1.1.8359 | `lA()` | `jY` | `VKe()` | New `operon` (Nest) feature (16 features, 2 async overrides); `Vr()`→`Qn()` flag reader; new GrowthBook flags: `1306813456` (operon), `2051942385` (CIC can-use-tool), `720735283` (marketplace migration), `748063099` (VM pipe retry); removed flags: `1143815894`, `2339607491`; Operon adds 120+ IPC endpoints across 18 sub-interfaces but currently unavailable on Linux |
+| v1.1.8629 | `dA()` | `JX` | `Oet()` | New GrowthBook flag `4201169164` (remote orchestrator / "manta"); `Qn()`→`Hn()` flag reader; `Bx()`→`Hk()` listener; sessions-bridge gate changed from single var to triple (`let f,p,h; h=f\|\|p`); 16 new i18n locale files; no structural changes to feature flag architecture |
