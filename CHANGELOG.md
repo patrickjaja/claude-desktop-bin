@@ -5,6 +5,7 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 ## 2026-03-27 (v1.1.9310)
 
 ### Changed
+- **Launcher: native Wayland by default** — Wayland sessions now use native Wayland instead of XWayland. Global hotkeys (Ctrl+Alt+Space) work via `xdg-desktop-portal` GlobalShortcuts API (KDE, Hyprland; Sway/GNOME pending upstream portal support). Set `CLAUDE_USE_XWAYLAND=1` to force XWayland if needed. Niri sessions still auto-forced to native Wayland. The old `CLAUDE_USE_WAYLAND=1` env var is now a no-op (native is the default).
 - **CI**: Remove push trigger from release workflow — now runs only on nightly schedule (2 AM UTC) or manual dispatch
 
 ### Fixed

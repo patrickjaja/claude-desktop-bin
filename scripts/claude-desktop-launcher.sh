@@ -5,7 +5,7 @@
 # Works across all packaging formats (Arch, RPM, DEB, AppImage, Nix).
 #
 # Environment variables:
-#   CLAUDE_USE_WAYLAND=1     - Use native Wayland instead of XWayland
+#   CLAUDE_USE_XWAYLAND=1    - Force XWayland instead of native Wayland (escape hatch)
 #   CLAUDE_MENU_BAR          - Menu bar mode: auto (default), visible, hidden
 #   CLAUDE_DISABLE_GPU=1     - Disable GPU compositing (fixes white screen on some systems)
 #   CLAUDE_DISABLE_GPU=full  - Disable GPU entirely (more aggressive fallback)
@@ -79,25 +79,29 @@ fi
 # ---------------------------------------------------------------------------
 # Wayland / X11 detection
 # ---------------------------------------------------------------------------
+# Default: native Wayland on Wayland sessions, X11 on X11 sessions.
+# Global hotkeys use the xdg-desktop-portal GlobalShortcuts API on Wayland
+# (works on KDE, Hyprland; Sway/GNOME portal support pending upstream).
+# Set CLAUDE_USE_XWAYLAND=1 to force XWayland if you hit issues.
+# Legacy: CLAUDE_USE_WAYLAND=1 is accepted but now a no-op (native is default).
 
 is_wayland=false
 [[ -n "${WAYLAND_DISPLAY:-}" ]] && is_wayland=true
 
-# Default: use X11/XWayland on Wayland compositors.
-# XWayland preserves global hotkeys (Ctrl+Alt+Space for Quick Entry).
-# Set CLAUDE_USE_WAYLAND=1 to use native Wayland (global hotkeys disabled).
-use_xwayland=true
-[[ "${CLAUDE_USE_WAYLAND:-}" == '1' ]] && use_xwayland=false
-
-# Auto-detect compositors that have no XWayland support.
-# Niri is the only known one; Sway and Hyprland have working XWayland.
-# XDG_CURRENT_DESKTOP can be colon-separated (e.g. "niri:GNOME").
-if [[ $is_wayland == true && $use_xwayland == true ]]; then
-    desktop="${XDG_CURRENT_DESKTOP:-}"
-    desktop="${desktop,,}"
-    if [[ -n "${NIRI_SOCKET:-}" || "$desktop" == *niri* ]]; then
-        log 'Niri detected - forcing native Wayland'
-        use_xwayland=false
+# Determine platform mode: x11, wayland, or xwayland
+platform_mode=x11
+if [[ $is_wayland == true ]]; then
+    platform_mode=wayland
+    if [[ "${CLAUDE_USE_XWAYLAND:-}" == '1' ]]; then
+        # User explicitly wants XWayland — respect it unless compositor can't do it
+        platform_mode=xwayland
+        # Niri has no XWayland support; override back to native Wayland
+        desktop="${XDG_CURRENT_DESKTOP:-}"
+        desktop="${desktop,,}"
+        if [[ -n "${NIRI_SOCKET:-}" || "$desktop" == *niri* ]]; then
+            log 'Niri detected — ignoring CLAUDE_USE_XWAYLAND (no XWayland support)'
+            platform_mode=wayland
+        fi
     fi
 fi
 
@@ -110,22 +114,23 @@ ELECTRON_ARGS=()
 # Disable CustomTitlebar for better Linux integration
 ELECTRON_ARGS+=('--disable-features=CustomTitlebar')
 
-if [[ $is_wayland != true ]]; then
-    # Pure X11 session -- no extra flags needed
-    log 'X11 session detected'
-elif [[ $use_xwayland == true ]]; then
-    # Wayland with XWayland (default) -- keeps global hotkeys working
-    log 'Using X11 backend via XWayland (for global hotkey support)'
-    ELECTRON_ARGS+=('--no-sandbox' '--ozone-platform=x11')
-else
-    # Native Wayland (user opted in, or Niri auto-detected)
-    log 'Using native Wayland backend (global hotkeys may not work)'
-    ELECTRON_ARGS+=('--no-sandbox')
-    ELECTRON_ARGS+=('--enable-features=UseOzonePlatform,WaylandWindowDecorations')
-    ELECTRON_ARGS+=('--ozone-platform=wayland')
-    ELECTRON_ARGS+=('--enable-wayland-ime')
-    ELECTRON_ARGS+=('--wayland-text-input-version=3')
-fi
+case $platform_mode in
+    x11)
+        log 'X11 session detected'
+        ;;
+    xwayland)
+        log 'Using X11 backend via XWayland (CLAUDE_USE_XWAYLAND=1)'
+        ELECTRON_ARGS+=('--no-sandbox' '--ozone-platform=x11')
+        ;;
+    wayland)
+        log 'Using native Wayland backend'
+        ELECTRON_ARGS+=('--no-sandbox')
+        ELECTRON_ARGS+=('--enable-features=UseOzonePlatform,WaylandWindowDecorations,GlobalShortcutsPortal')
+        ELECTRON_ARGS+=('--ozone-platform=wayland')
+        ELECTRON_ARGS+=('--enable-wayland-ime')
+        ELECTRON_ARGS+=('--wayland-text-input-version=3')
+        ;;
+esac
 
 # ---------------------------------------------------------------------------
 # GPU compositing fallback

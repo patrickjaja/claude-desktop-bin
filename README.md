@@ -126,18 +126,25 @@ Claude Desktop works without these — features degrade gracefully when tools ar
 
 | Feature | Packages | Notes |
 |---------|----------|-------|
-| **Computer Use (X11)** | `xdotool`, `scrot`, `xclip`, `wmctrl`, `xrandr` | Desktop automation: screenshot, click, type, scroll, clipboard |
-| **Computer Use (Wayland)** | `ydotool`, `grim`, `slurp`, `wl-clipboard`, `wlr-randr` | For wlroots compositors (Sway, Hyprland). Falls back to X11 tools via XWayland |
-| **Computer Use (Hyprland)** | `hyprctl` (included with Hyprland) | Cursor positioning and window queries on Hyprland |
+| **Computer Use** | See table below | Auto-detected per session type — install the packages for your setup |
 | **Cowork & Dispatch** | [`claude-cowork-service`](https://github.com/patrickjaja/claude-cowork-service) | Agentic workspace and mobile→desktop task orchestration |
 | **Claude Code CLI** | [`claude`](https://code.claude.com/docs/en/setup) | Required for Code integration, Cowork, and Dispatch |
 | **Browser Tools** | [Claude in Chrome extension](https://chromewebstore.google.com/detail/claude-code/fcoeoabgfenejglbffodgkkbkcdhcgfn) | Uses Claude Code's native host (`~/.claude/chrome/chrome-native-host`). Claude Code CLI must be installed |
 | **Custom MCP Servers** | `nodejs` | Only needed for third-party MCP servers requiring system Node.js |
 
-> **Wayland users:** Claude Desktop defaults to XWayland, which is recommended for full functionality. See [Wayland limitations](#wayland) for native Wayland details.
+**Computer Use packages** — install only what matches your session. The app auto-detects which tools to use.
+
+| Operation | X11 / XWayland | Wayland (Sway, Hyprland) | Hyprland extras |
+|-----------|---------------|--------------------------|-----------------|
+| Input automation | `xdotool` | `ydotool` | — |
+| Screenshots | `scrot` | `grim`, `slurp` | — |
+| Clipboard | `xclip` | `wl-clipboard` | — |
+| Display info | `xrandr` | `wlr-randr` | — |
+| Window queries | `wmctrl` | `swaymsg` (Sway) | `hyprctl` (included) |
+| Cursor positioning | `xdotool` | Electron API | `hyprctl` (included) |
 
 ## Features
-- Native Linux support (Arch, Debian/Ubuntu, Fedora/RHEL, NixOS, AppImage) — **x86_64 and ARM64**
+- Native Linux support (Arch, Debian/Ubuntu, Fedora/RHEL, NixOS, AppImage) — **x86_64 and ARM64**, X11 and Wayland
 - **Claude Code CLI integration** - Auto-detects system-installed Claude Code (requires [claude-code](https://code.claude.com/docs/en/setup))
 - **Local Agent Mode** - Git worktrees and agent sessions
 - **Cowork support** - Agentic workspace feature enabled on Linux (requires [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service))
@@ -146,7 +153,7 @@ Claude Desktop works without these — features degrade gracefully when tools ar
 - **Browser Tools (Chrome integration)** - 18 browser automation tools (navigate, read_page, javascript_tool, etc.) via the [Claude in Chrome](https://chromewebstore.google.com/detail/claude-code/fcoeoabgfenejglbffodgkkbkcdhcgfn) extension. Uses Claude Code's native messaging host (`~/.claude/chrome/chrome-native-host`) instead of the proprietary Windows/macOS binary
 - **MCP server support** - Model Context Protocol servers work on Linux
 - **Custom Themes (Experimental)** - 6 built-in color themes (Nord, Catppuccin Mocha/Frappe/Latte/Macchiato, Sweet) or create your own via JSON config — not all UI elements are fully themed yet
-- **Multi-monitor Quick Entry** - Global hotkey (Ctrl+Alt+Space) opens on the monitor where your cursor is ([Wayland notes](#wayland))
+- **Multi-monitor Quick Entry** - Global hotkey (Ctrl+Alt+Space) opens on the monitor where your cursor is
 - Automated daily version checks
 - …and [33+ more patches](#patches) for native Linux integration (tray icons, window management, enterprise config, detected projects, and more)
 
@@ -210,15 +217,7 @@ Example prompt: *"Can you use computer use MCP to explain me the PhpStorm applic
 |---------|----------|---------|
 | ![Learn Tool - Welcome](co_computer_use_learn_tool.png) | ![Learn Tool - Menu Bar](co_computer_use_learn_tool2.png) | ![Learn Tool - Toolbar](co_computer_use_learn_tool3.png) |
 
-**How it works on Linux:** Upstream Computer Use is macOS-only — gated behind `process.platform==="darwin"` checks, macOS TCC permissions, and a native Swift executor. The patch ([fix_computer_use_linux.py](patches/fix_computer_use_linux.py)) removes 3 platform gates, bypasses TCC with a no-op `{granted: true}`, and injects a Linux executor that auto-detects X11 vs Wayland via `$XDG_SESSION_TYPE`:
-
-| Operation | X11 | Wayland |
-|-----------|-----|---------|
-| Input | `xdotool` | `ydotool` |
-| Screenshots | `scrot` | `grim` |
-| Clipboard | `xclip` | `wl-clipboard` |
-| Displays | `xrandr` | `wlr-randr` |
-| Window info | `wmctrl` | `hyprctl` / `swaymsg` |
+**How it works on Linux:** Upstream Computer Use is macOS-only — gated behind `process.platform==="darwin"` checks, macOS TCC permissions, and a native Swift executor. The patch ([fix_computer_use_linux.py](patches/fix_computer_use_linux.py)) removes 3 platform gates, bypasses TCC with a no-op `{granted: true}`, and injects a Linux executor that auto-detects your session type and uses the right tools. See [Optional Dependencies](#optional-dependencies) for the full package list.
 
 **App discovery** for the teach/learn overlay scans `.desktop` files from `/usr/share/applications`, `~/.local/share/applications`, and Flatpak directories. Each app is registered with multiple name variants (full name, first word, exec basename, icon name, .desktop filename) so the model can match apps flexibly (e.g., "Thunar" matches "Thunar File Manager").
 
@@ -368,7 +367,7 @@ You can identify your UUIDs from the directory listing — there's typically one
 
 ### White screen / blank window
 
-Some GPU/driver combinations (notably on Fedora KDE with Wayland) fail to create GBM buffers, causing Electron to render a blank white window. To fix:
+Some GPU/driver combinations (notably on Fedora KDE) fail to create GBM buffers, causing Electron to render a blank white window. To fix:
 
 ```bash
 # Recommended: disable GPU compositing only (keeps hardware acceleration for other tasks)
@@ -395,23 +394,9 @@ Both issues resolve when Anthropic fixes the CLI so `SendUserMessage` is properl
 
 ## Known Limitations
 
-### Wayland
+### Global hotkey on Sway / GNOME
 
-Both the launcher and Computer Use auto-detect X11 vs Wayland via `$WAYLAND_DISPLAY` and `$XDG_SESSION_TYPE` — no manual configuration needed. The launcher defaults to **XWayland** on Wayland compositors (preserves global hotkeys); Computer Use auto-switches its tool chain (`xdotool`/`scrot`/`xclip` on X11, `ydotool`/`grim`/`wl-clipboard` on Wayland). Niri sessions are auto-detected and forced to native Wayland (no XWayland support).
-
-To opt into native Wayland: `CLAUDE_USE_WAYLAND=1 claude-desktop`
-
-| What | XWayland (default) | Native Wayland |
-|------|--------------------|----------------|
-| Global hotkey (Ctrl+Alt+Space) | Works | **Broken** (no global shortcut protocol) |
-| Quick Entry cursor positioning | Works (`xdotool`) | Hyprland only (`hyprctl cursorpos`); other compositors get stale coordinates |
-| Computer Use input | Works (`xdotool`) | Works (`ydotool` + `ydotoold` daemon required) |
-| Computer Use screenshots | Works (`scrot`) | Works (`grim`) |
-| Computer Use clipboard | Works (`xclip`) | Works (`wl-clipboard`) |
-| Active window / running apps | Works (`wmctrl`/`xdotool`) | Hyprland + Sway only; GNOME Wayland has no CLI equivalent |
-| Teach overlay tooltip interaction | Works (`xdotool`) | Hyprland only; others fall back to stale Electron cursor API |
-
-**Recommendation:** Stick with the default XWayland mode for full functionality. Native Wayland works for Computer Use input/screenshots/clipboard but loses global hotkeys and has compositor-specific gaps for window queries and cursor tracking.
+The Ctrl+Alt+Space global hotkey works on X11, KDE, and Hyprland. On **Sway** and **GNOME**, the compositor doesn't yet implement the desktop portal GlobalShortcuts interface — the hotkey won't fire. Workaround: configure a compositor keybind to focus the Claude Desktop window, or set `CLAUDE_USE_XWAYLAND=1` to fall back to XWayland (where X11 hotkeys work).
 
 ## Tips
 - Press **Alt** to toggle the app menu bar (Electron default)
