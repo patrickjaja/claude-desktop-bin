@@ -27,7 +27,7 @@ let
   # Update these values when a new version is released.
   # Run packaging/nix/update-hash.sh to compute the new hash.
   version = "1.1.3918";
-  hash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+  hash = "sha256-oVesBRJ9g32EyZzncKpBUstIm0mylNaWr+9oJMLSOCs=";
 in
 stdenvNoCC.mkDerivation {
   pname = "claude-desktop-bin";
