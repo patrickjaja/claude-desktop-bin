@@ -946,14 +946,14 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.AUR_SSH_KEY }}" > ~/.ssh/aur
           chmod 600 ~/.ssh/aur
-          ssh-keyscan -t rsa aur.archlinux.org >> ~/.ssh/known_hosts
+          ssh-keyscan -t ed25519 aur.archlinux.org >> ~/.ssh/known_hosts
 
-          cat << EOF >> ~/.ssh/config
-          Host aur.archlinux.org
-            User aur
-            IdentityFile ~/.ssh/aur
-            StrictHostKeyChecking no
-          EOF
+          printf '%s\n' \
+            "Host aur.archlinux.org" \
+            "  User aur" \
+            "  IdentityFile ~/.ssh/aur" \
+            "  StrictHostKeyChecking no" \
+            >> ~/.ssh/config
 
       - name: Push to AUR
         env:
