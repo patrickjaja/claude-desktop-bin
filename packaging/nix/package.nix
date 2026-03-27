@@ -26,7 +26,7 @@
 let
   # Updated automatically by CI (update-aur.yml) on each release.
   version = "1.1.9310";
-  hash = "sha256-q8rUcsHCIFAMToOLW8PLTK/cnTFlxs+k6GpF17yPnFc=";
+  hash = "sha256-/pz3MARpZ/HFRYgelZfpy017xli+QDCcIHXUaYtRmiE=";
 in
 stdenvNoCC.mkDerivation {
   pname = "claude-desktop-bin";
