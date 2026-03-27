@@ -2,6 +2,40 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-03-27 (v1.1.9134)
+
+### Fixed
+- **enable_local_agent_mode.py — Patch 7 (mainView.js platform spoof)**: Variable `$s` contains `$` which isn't matched by `\w+`. Changed regex to use `[\w$]+` for filter variable names in `Object.fromEntries(Object.entries(process).filter(([e])=>$s[e]))`.
+- **fix_computer_use_linux.py — Sub-patch 6 rewrite (hybrid handler)**: Replaced full `handleToolCall` replacement with a hybrid early-return injection. Teach tools (`request_teach_access`, `teach_step`, `teach_batch`) now fall through to the upstream chain (which uses `__linuxExecutor` via sub-patches 3-5), enabling the teach overlay on Linux. Normal CU tools keep the fast direct handler. Also fixed: variable name collisions (`var c` hoisting vs upstream `const c`).
+- **fix_computer_use_linux.py — `switch_display`**: Real implementation using `xrandr` display enumeration and `globalThis.__cuPinnedDisplay` state tracking. Screenshots respect pinned display. Replaces the previous "not available" stub.
+- **fix_computer_use_linux.py — `computer_batch`**: Fixed return format to match upstream's `{completed:[...], failed:{index,action,error}, remaining:[...]}` structure instead of only returning the last result.
+
+### Removed
+- **fix_tray_path.py** — Deleted: redundant since `fix_locale_paths.py` already replaces ALL `process.resourcesPath` references globally (including the tray path function). Patch count: 33→32.
+
+### New Upstream
+- **New MCP server: `ccd_session`** — Provides `spawn_task` tool to spin off parallel tasks into separate Claude Code Desktop sessions. Gated by CCD session + server flag `1585356617`. Already Linux compatible (no platform gates).
+- **5 new Computer Use tools** — `switch_display` (multi-monitor), `computer_batch` (batch actions), `request_teach_access`, `teach_step`, `teach_batch` (guided teach mode). Total tools: 22→27. All 5 now Linux compatible.
+- **New feature flag: `wakeScheduler`** — macOS-only Login Items scheduling (gated by `Kge()` + darwin). Not needed on Linux — the scheduled tasks engine is platform-independent (`setInterval` + cron evaluation). Tasks fire on wake-up if missed during sleep.
+- **Operon expanded**: 18→28 sub-interfaces (9 new: `OperonAgentConfig`, `OperonAnalytics`, `OperonAssembly`, `OperonHostAccessProvider`, `OperonImageProvider`, `OperonQuitHandler`, `OperonServices`, `OperonSessionManager`, `OperonSkillsSync`). Still gated behind flag `1306813456`.
+- **New GrowthBook flags**: `66187241` + `3792010343` (tool use summaries), `1585356617` (epitaxy/session routing), `2199295617` (auto-archive PRs), `927037640` (subagent model config), `2893011886` (wake scheduler timing). All cross-platform, no patching needed. Removed: `3196624152` (Phoenix Rising updater).
+
+### Added
+- **Wayland support in Computer Use executor** — Full auto-detection via `$XDG_SESSION_TYPE`. On Wayland: `ydotool` for input, `grim` for screenshots (wlroots), `wl-clipboard` for clipboard, Electron APIs for display enumeration and cursor position. On X11: existing tools (`xdotool`, `scrot`, `xclip`, `xrandr`). Falls back to X11/XWayland if Wayland tools are not installed. Compositor-specific window info via `hyprctl` (Hyprland) and `swaymsg` (Sway).
+- **Fedora/RHEL DNF repository** — RPM packages now published to GitHub Pages alongside APT. One-line setup: `curl -fsSL .../install-rpm.sh | sudo bash`. Auto-updates via `dnf upgrade`. Scripts: `packaging/rpm/update-rpm-repo.sh`, `packaging/rpm/install-rpm.sh`.
+
+### Changed
+- **Dependencies** — Moved `nodejs` from `depends` to optional across all formats (Electron bundles Node.js; system node only needed for MCP extensions requiring specific versions). Added Wayland optdeps (`ydotool`, `grim`, `slurp`, `wl-clipboard`, `wlr-randr`) and `xorg-xrandr` with (X11)/(Wayland) annotations. Updated: PKGBUILD.template, debian/control, rpm/spec, nix/package.nix.
+- **CLAUDE_BUILT_IN_MCP.md** — Updated for v1.1.9134: new `ccd_session` server, 5 new computer-use tools, registration function rename `IM()`→`Pee()`, expanded Operon sub-interfaces.
+- **CLAUDE_FEATURE_FLAGS.md** — Updated for v1.1.9134: new `wakeScheduler` (17 features total), function renames (`dA`→`rw`, `JX`→`yre`, `Oet`→`Kge`, `Hn`→`kn`, `Hk`→`bC`), 4 new GrowthBook flags, 1 removed flag.
+- **README.md** — Fedora section updated from manual download to DNF repo with auto-updates. Computer Use feature description updated with Wayland/X11 tool split.
+
+### Notes
+- **All 32 patches pass** with zero failures on v1.1.9134.
+- **Computer Use teach mode** now works on Linux — the teach overlay is pure Electron `BrowserWindow` + IPC, not macOS-specific. The hybrid handler routes teach tools through the upstream chain while keeping the fast direct handler for normal tools.
+- **No new platform gates** blocking core Linux functionality. The 4 new GrowthBook flags and `ccd_session` MCP server are all platform-independent.
+- **Verified all existing patches still needed** — upstream has NOT removed darwin gates for chillingSlothFeat, yukonSilver, or navigator spoofs despite initial false positive (caused by inspecting already-patched files).
+
 ## 2026-03-25 (v1.1.8629)
 
 ### Fixed

@@ -32,14 +32,24 @@ sudo dpkg -i claude-desktop-bin_*_amd64.deb
 ```
 </details>
 
-### Fedora / RHEL (.rpm)
+### Fedora / RHEL (DNF Repository)
 ```bash
-# Download from GitHub Releases
+# Add repository (one-time setup)
+curl -fsSL https://patrickjaja.github.io/claude-desktop-bin/install-rpm.sh | sudo bash
+
+# Install
+sudo dnf install claude-desktop-bin
+```
+Updates are automatic via `sudo dnf upgrade`.
+
+<details>
+<summary>Manual .rpm install (without DNF repo)</summary>
+
+```bash
 wget https://github.com/patrickjaja/claude-desktop-bin/releases/latest/download/claude-desktop-bin-1.1.8629-2.x86_64.rpm
 sudo dnf install ./claude-desktop-bin-*.x86_64.rpm
 ```
-
-> **Note:** No automatic updates. Download the latest `.rpm` from [GitHub Releases](https://github.com/patrickjaja/claude-desktop-bin/releases) to update.
+</details>
 
 ### NixOS / Nix
 ```bash
@@ -91,7 +101,7 @@ cd claude-desktop-bin
 - **Claude Code CLI integration** - Auto-detects system-installed Claude Code (requires [claude-code](https://code.claude.com/docs/en/setup))
 - **Local Agent Mode** - Git worktrees and agent sessions
 - **Cowork support** - Agentic workspace feature enabled on Linux (requires [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service))
-- **Computer Use** - Desktop automation via built-in MCP server (screenshot, click, type, scroll, drag, clipboard). Uses `xdotool` for input, `scrot` for screenshots, `xclip` for clipboard. No macOS-style permission grants needed — all tools work immediately. Install: `sudo pacman -S xdotool scrot xclip wmctrl`
+- **Computer Use** - Desktop automation via built-in MCP server (27 tools: screenshot, click, type, scroll, drag, clipboard, multi-monitor switch, batch actions, teach mode). On X11: uses `xdotool`, `scrot`, `xclip`, `wmctrl`, `xrandr`. On Wayland: uses `ydotool`, `grim`, `slurp`, `wl-clipboard`, `wlr-randr`. Teach mode (model-initiated guided tutorials with overlay tooltips) works via upstream Electron overlay. No macOS-style permission grants needed — all tools work immediately. Install the appropriate X11 or Wayland optional dependencies for your session type (listed as optional deps in each package format)
 - **Dispatch** - Send tasks from your phone to your desktop Claude via Anthropic's environments bridge API (requires Cowork). Text responses, task orchestration, and SDK MCP tools work. Bridge-level transform wraps plain text as `SendUserMessage` (workaround for CLI 2.1.x bug where `--brief` doesn't expose the tool)
 - **MCP server support** - Model Context Protocol servers work on Linux
 - **Custom Themes (Experimental)** - 6 built-in color themes (Nord, Catppuccin Mocha/Frappe/Latte/Macchiato, Sweet) or create your own via JSON config — not all UI elements are fully themed yet

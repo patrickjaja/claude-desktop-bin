@@ -245,7 +245,7 @@ def patch_local_agent_mode(filepath):
 
         # Pattern: ...Object.fromEntries(Object.entries(process).filter(([e])=>Na[e]));Oe.version=Ia().appVersion;
         # We inject: if(process.platform==="linux"){Oe.platform="win32"} after .appVersion;
-        mv_pattern = rb'(Object\.fromEntries\(Object\.entries\(process\)\.filter\(\(\[\w+\]\)=>\w+\[\w+\]\)\);)(\w+)(\.version=\w+\(\)\.appVersion;)'
+        mv_pattern = rb'(Object\.fromEntries\(Object\.entries\(process\)\.filter\(\(\[\w+\]\)=>[\w$]+\[[\w$]+\]\)\);)([\w$]+)(\.version=[\w$]+\(\)\.appVersion;)'
 
         def mv_replacement(m):
             proc_var = m.group(2)

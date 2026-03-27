@@ -1,23 +1,21 @@
-# Built-in MCP Servers — Claude Desktop v1.1.8359
+# Built-in MCP Servers — Claude Desktop v1.1.9134
 
 Claude Desktop registers internal MCP servers via a two-layer architecture:
 
-1. **Renderer-facing layer (`IM()`)** — servers accessible from the BrowserView via Electron `MessageChannelMain` ports
-2. **Backend/session layer (`P8t`/`R8t`)** — servers providing tools to CCD/Cowork sessions
+1. **Renderer-facing layer (`Pee()`)** — servers accessible from the BrowserView via Electron `MessageChannelMain` ports
+2. **Backend/session layer (`zZr`/`VZr`)** — servers providing tools to CCD/Cowork sessions
 
 A server may appear in both layers (e.g., Chrome, mcp-registry) or only one.
 
 ## Registration System
 
 ```
-IM(serverName, displayLabel, factoryFn)
+Pee(serverName, displayLabel, factoryFn)
 ```
 
-- `wg[serverName] = factoryFn` — lazy singleton factory
-- `LH[serverName] = displayLabel` — UUID sent to renderer for identification
-- `Px()` = `Object.keys(wg)` — list all registered names
-- `E2e(name)` — instantiate/retrieve cached server
-- `x2e(name)` — get display label
+- Lazy singleton factory per server name
+- UUID display label sent to renderer for identification
+- Server list and instantiation managed via helper functions
 
 ## Renderer-Facing Servers (via `IM()`)
 
@@ -63,7 +61,7 @@ Communicates with the Chrome browser extension via Unix socket at `/tmp/claude-m
 | Platform | All |
 | Gating | Always enabled |
 
-The `IM()` registration is a **stub returning no tools**. Actual tools are provided via the backend session layer (`P8t`).
+The `Pee()` registration is a **stub returning no tools**. Actual tools are provided via the backend session layer.
 
 **Tools (via P8t):**
 
@@ -94,7 +92,7 @@ Communicates via WebSocket to `wss://localhost:8766` (configurable via `OFFICE_A
 | `open_office_file` | Open an Office file and the Claude add-in panel |
 | `close_office_file` | Close a currently open Office file |
 
-## Backend-Only Servers (via `P8t`/`R8t`, not `IM()`)
+## Backend-Only Servers (via `zZr`/`VZr`, not `Pee()`)
 
 These are accessible to CCD/Cowork sessions but not directly from the renderer.
 
@@ -115,7 +113,7 @@ These are accessible to CCD/Cowork sessions but not directly from the renderer.
 | Field | Value |
 |-------|-------|
 | Server name | `"visualize"` |
-| Factory | `p3n()` via `getImagineServerDef` |
+| Factory | `Vzn()` via `getImagineServerDef` |
 | Gating | Server flag `3444158716` + Cowork session only |
 
 | Tool | Description |
@@ -164,9 +162,25 @@ Registered separately via `createScheduledTasksServer()`, injected directly into
 | `create_scheduled_task` | Create a new scheduled task |
 | `update_scheduled_task` | Update an existing scheduled task |
 
+### 10 (new). CCD Session
+
+| Field | Value |
+|-------|-------|
+| Server name | `"ccd_session"` |
+| Gating | CCD session + server flag `1585356617` |
+| Platform | All |
+
+**New in v1.1.9134.** Allows the model to spawn a parallel task into its own separate CCD session.
+
+| Tool | Description |
+|------|-------------|
+| `spawn_task` | Spin off a parallel task into a separate Claude Code Desktop session |
+
+The `spawn_task` tool requires desktop approval card injection — cannot be auto-approved by hooks or permission rules.
+
 ## Per-Session Dynamic MCP Servers (SDK-type)
 
-Claude Desktop creates 4 additional MCP servers **dynamically per cowork/dispatch session**. These are NOT registered via `IM()` — they are created inline in the session manager and passed to the Claude Code CLI via `sdkMcpServers` in `--mcp-config`.
+Claude Desktop creates 4 additional MCP servers **dynamically per cowork/dispatch session**. These are NOT registered via `Pee()` — they are created inline in the session manager and passed to the Claude Code CLI via `sdkMcpServers` in `--mcp-config`.
 
 **Communication:** SDK-type servers use `MessagePort` bridges. On Mac/Windows, the VM SDK daemon (`nodeHost.js`) provides this bridge via vsock. On Linux native, `cowork-svc-linux` currently **strips** all SDK servers (replacing `--mcp-config` with `{"mcpServers":{}}`), because there is no MessagePort bridge implementation.
 
@@ -283,16 +297,16 @@ disallowedTools: ["AskUserQuestion", "mcp__cowork__allow_cowork_file_delete",
 
 | Field | Value |
 |-------|-------|
-| Server name | `"computer-use"` (constant `zxt`) |
+| Server name | `"computer-use"` (constant `p6t`) |
 | Tool prefix | `mcp__computer-use__` |
 | Platform | macOS (native), **Linux (patched)** |
 | Gating (macOS) | Triple gate: `process.platform==="darwin" && featureFlagEnabled && chicagoEnabled` preference |
 | Gating (Linux) | Always enabled (feature flag and preference bypassed) |
 | Internal codename | "chicago" |
 
-**Background:** Computer-use was previously a separate `computer-use-server.js` file in the app root (removed in v1.1.7714). As of v1.1.8359, it's fully integrated into `index.js` as an internal MCP server, registered via the `t7r()` factory function.
+**Background:** Computer-use was previously a separate `computer-use-server.js` file in the app root (removed in v1.1.7714). As of v1.1.8359, it's fully integrated into `index.js` as an internal MCP server. In v1.1.9134, 5 new tools were added (multi-monitor, batch actions, teach mode).
 
-**Tools (22):**
+**Tools (27):**
 
 | Tool | Description |
 |------|-------------|
@@ -318,6 +332,11 @@ disallowedTools: ["AskUserQuestion", "mcp__cowork__allow_cowork_file_delete",
 | `write_clipboard` | Write text to clipboard |
 | `request_access` | Request app access (auto-granted on Linux) |
 | `list_granted_applications` | List granted apps (all on Linux) |
+| `switch_display` | Switch which monitor subsequent screenshots capture (**new in v1.1.9134**) |
+| `computer_batch` | Execute a sequence of actions in one tool call (**new in v1.1.9134**) |
+| `request_teach_access` | Request permission for guided teach mode (**new in v1.1.9134**) |
+| `teach_step` | Show one guided-tour tooltip, wait for user click, execute actions (**new in v1.1.9134**) |
+| `teach_batch` | Queue multiple teach steps in one tool call (**new in v1.1.9134**) |
 
 #### macOS executor
 
@@ -364,11 +383,11 @@ Uses `createDarwinExecutor()` → `@ant/claude-swift` native module for screen c
 - **Computer Use**: Works on Linux via `fix_computer_use_linux.py` — uses xdotool/scrot/xclip instead of `@ant/claude-swift`. Available in Cowork and Code sessions.
 - **MCP Registry / Plugins / Visualize / Scheduled Tasks**: Cross-platform, work on Linux.
 
-## Operon IPC System (v1.1.8359)
+## Operon IPC System (v1.1.9134)
 
-Not an MCP server, but a new internal IPC layer with 120+ endpoints across 18 sub-interfaces:
+Not an MCP server, but a new internal IPC layer with 120+ endpoints across 28 sub-interfaces:
 
-`OperonAgents`, `OperonAnnotations`, `OperonApiKeys`, `OperonArtifactDownloads`, `OperonArtifacts`, `OperonAttachments`, `OperonBootstrap`, `OperonCloud`, `OperonConversations`, `OperonEvents`, `OperonFolders`, `OperonFrames`, `OperonHostAccess`, `OperonMcp`, `OperonNotes`, `OperonPreferences`, `OperonProjects`, `OperonSecrets`, `OperonSkills`, `OperonSystem`
+`OperonAgentConfig`, `OperonAgents`, `OperonAnalytics`, `OperonAnnotations`, `OperonApiKeys`, `OperonArtifactDownloads`, `OperonArtifacts`, `OperonAssembly`, `OperonAttachments`, `OperonBootstrap`, `OperonCloud`, `OperonConversations`, `OperonEvents`, `OperonFolders`, `OperonFrames`, `OperonHostAccess`, `OperonHostAccessProvider`, `OperonImageProvider`, `OperonMcp`, `OperonNotes`, `OperonPreferences`, `OperonProjects`, `OperonQuitHandler`, `OperonSecrets`, `OperonServices`, `OperonSessionManager`, `OperonSkills`, `OperonSkillsSync`, `OperonSystem`
 
 Gated behind GrowthBook flag `1306813456` — currently **unavailable** on all platforms (not enabled server-side). Do NOT force-enable; requires VM infrastructure (Nest).
 
@@ -376,4 +395,5 @@ Gated behind GrowthBook flag `1306813456` — currently **unavailable** on all p
 
 | Version | Changes |
 |---------|---------|
+| v1.1.9134 | **New MCP server: `ccd_session`** (`spawn_task` tool for parallel session spawning). **5 new computer-use tools** (`switch_display`, `computer_batch`, `request_teach_access`, `teach_step`, `teach_batch` — 22→27 total). Registration function renamed `IM()`→`Pee()`. Operon expanded from 18→28 sub-interfaces (9 new: `OperonAgentConfig`, `OperonAnalytics`, `OperonAssembly`, `OperonHostAccessProvider`, `OperonImageProvider`, `OperonQuitHandler`, `OperonServices`, `OperonSessionManager`, `OperonSkillsSync`). Computer-use constant renamed `zxt`→`p6t`. |
 | v1.1.8359 | Visualize server factory renamed to `p3n()` via `getImagineServerDef` (same interface). Operon IPC system added (not MCP). No new MCP servers — all 14 unchanged. |

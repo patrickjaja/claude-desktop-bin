@@ -28,6 +28,12 @@ Suggests:       xclip
 Suggests:       wmctrl
 Suggests:       socat
 Suggests:       hyprland
+Suggests:       ydotool
+Suggests:       grim
+Suggests:       slurp
+Suggests:       wl-clipboard
+Suggests:       wlr-randr
+Suggests:       nodejs
 
 %description
 Claude is an AI assistant created by Anthropic to be helpful,
