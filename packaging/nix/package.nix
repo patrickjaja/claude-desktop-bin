@@ -5,18 +5,21 @@
 , makeWrapper
 , makeDesktopItem
 , copyDesktopItems
-, xdotool ? null
-, scrot ? null
-, xclip ? null
-, wmctrl ? null
-, socat ? null
-, hyprland ? null
-, ydotool ? null
-, grim ? null
-, slurp ? null
-, wl-clipboard ? null
-, wlr-randr ? null
-, nodejs ? null
+# Computer Use — X11/XWayland session
+, xdotool ? null       # input automation + Quick Entry positioning
+, scrot ? null          # screenshot capture
+, xclip ? null          # clipboard access
+, wmctrl ? null         # running app detection
+# Computer Use — Wayland session (Sway, Hyprland, etc.)
+, ydotool ? null        # input automation
+, grim ? null           # screenshot capture (wlroots)
+, slurp ? null          # region selection
+, wl-clipboard ? null   # clipboard access
+, wlr-randr ? null      # display enumeration (wlroots)
+, hyprland ? null       # cursor positioning (Hyprland only)
+# Other optional
+, socat ? null          # cowork socket health check
+, nodejs ? null         # third-party MCP servers
 }:
 
 let

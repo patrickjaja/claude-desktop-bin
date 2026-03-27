@@ -22,17 +22,23 @@ Requires:       libdrm
 Requires:       mesa-libgbm
 Requires:       alsa-lib
 Requires:       libnotify
+# Computer Use — X11/XWayland (install these if running X11 or XWayland session)
 Suggests:       xdotool
 Suggests:       scrot
 Suggests:       xclip
 Suggests:       wmctrl
-Suggests:       socat
-Suggests:       hyprland
+Suggests:       xrandr
+# Computer Use — Wayland (install these if running native Wayland, e.g. Sway, Hyprland)
 Suggests:       ydotool
 Suggests:       grim
 Suggests:       slurp
 Suggests:       wl-clipboard
 Suggests:       wlr-randr
+# Computer Use — Hyprland-specific
+Suggests:       hyprland
+# Cowork socket health check
+Suggests:       socat
+# MCP servers requiring system Node.js
 Suggests:       nodejs
 
 %description
