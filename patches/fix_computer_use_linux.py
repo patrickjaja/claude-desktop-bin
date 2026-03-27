@@ -703,6 +703,53 @@ def patch_computer_use_linux(filepath):
     else:
         print("  [WARN] teach overlay: RUn pattern not found in darwin branch")
 
+    # Patch 8: Fix teach overlay mouse events on Linux
+    # On macOS, setIgnoreMouseEvents(true, {forward: true}) makes transparent areas
+    # click-through while still receiving mouseenter/mouseleave events. On Linux/X11
+    # (especially XFCE/xfwm4), {forward: true} doesn't work — the overlay becomes
+    # fully click-through and NEVER receives mouseenter, so the tooltip buttons
+    # (Next/Exit) remain unclickable forever.
+    #
+    # Fix: Replace setIgnoreMouseEvents(true,{forward:true}) with a polling mechanism
+    # on Linux. A 50ms interval checks if the cursor is inside the tooltip card bounds.
+    # If yes → setIgnoreMouseEvents(false) (clickable).
+    # If no → setIgnoreMouseEvents(true) (pass-through).
+    #
+    # We patch the overlay creation (oa.setIgnoreMouseEvents) and the RUn mouse-enter/
+    # mouse-leave IPC handlers.
+
+    # Find the overlay variable name from: OVERLAYVAR.setAlwaysOnTop(!0,"screen-saver"),OVERLAYVAR.setFullScreenable(!1),OVERLAYVAR.setIgnoreMouseEvents(!0,{forward:!0})
+    overlay_var_pattern = rb'(\w+)\.setAlwaysOnTop\(!0,"screen-saver"\),\1\.setFullScreenable\(!1\),\1\.setIgnoreMouseEvents\(!0,\{forward:!0\}\)'
+
+    overlay_var_match = re.search(overlay_var_pattern, content)
+    if overlay_var_match:
+        ov = overlay_var_match.group(1).decode('utf-8')  # e.g. oa
+
+        # Replace the initial setIgnoreMouseEvents on the overlay with Linux polling
+        old_init = f'{ov}.setIgnoreMouseEvents(!0,{{forward:!0}})'.encode('utf-8')
+        new_init = (
+            f'(process.platform==="linux"?'
+            f'(()=>{{let __ig=!0;{ov}.setIgnoreMouseEvents(!0);'
+            f'setInterval(()=>{{if({ov}.isDestroyed())return;'
+            f'const __cp=require("electron").screen.getCursorScreenPoint(),'
+            f'__wb={ov}.getBounds(),'
+            f'__cv={ov}.getContentBounds?{ov}.getContentBounds():{ov}.getBounds(),'
+            f'__in=__cp.x>=__cv.x&&__cp.x<=__cv.x+__cv.width&&__cp.y>=__cv.y&&__cp.y<=__cv.y+__cv.height;'
+            f'if(__in&&__ig){{{ov}.setIgnoreMouseEvents(!1);__ig=!1}}'
+            f'else if(!__in&&!__ig){{{ov}.setIgnoreMouseEvents(!0);__ig=!0}}'
+            f'}},50)}})():{ov}.setIgnoreMouseEvents(!0,{{forward:!0}}))'
+        ).encode('utf-8')
+
+        # Only replace the first occurrence (overlay init)
+        content = content.replace(old_init, new_init, 1)
+        if new_init in content:
+            print(f"  [OK] teach overlay mouse: polling workaround for Linux ({ov})")
+            changes += 1
+        else:
+            print(f"  [WARN] teach overlay mouse: replacement failed")
+    else:
+        print("  [WARN] teach overlay mouse: overlay variable pattern not found")
+
     if changes > 0 and content != original_content:
         with open(filepath, 'wb') as f:
             f.write(content)
