@@ -665,6 +665,7 @@ jobs:
           path: |
             PKGBUILD
             .SRCINFO
+          include-hidden-files: true
           retention-days: 1
 
   # ================================================================
