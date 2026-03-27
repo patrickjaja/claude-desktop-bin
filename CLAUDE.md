@@ -263,3 +263,9 @@ When CI fails, download the exe locally and debug using the workflow above.
 
 # Ubuntu VM
 vboxmanage startvm "Ubuntu"
+
+# Fedora 43 KDE VM (RPM testing)
+vboxmanage startvm "Fedora43-KDE"
+# SSH: ssh -p 2223 localhost
+# Shared folder: /tmp/fedora-test → auto-mounted in guest
+# Install RPM: sudo dnf install /media/sf_shared/claude-desktop-bin-*.x86_64.rpm
