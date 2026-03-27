@@ -198,6 +198,18 @@ CoworkSpaces organizes folders, projects, and links into named Spaces for Cowork
 
 The Spaces UI is rendered by the claude.ai web frontend (loaded in the BrowserView).
 
+## Computer Use
+
+Claude Desktop includes a built-in Computer Use MCP server with 27 tools for desktop automation — screenshot, click, type, scroll, drag, clipboard, and more. The **learn tools** (`learn_application`, `learn_screen_region`) generate interactive overlay tutorials that walk through any application's UI elements step by step.
+
+Example prompt: *"Can you use computer use MCP to explain me the PhpStorm application?"*
+
+| Welcome | Menu Bar | Toolbar |
+|---------|----------|---------|
+| ![Learn Tool - Welcome](co_computer_use_learn_tool.png) | ![Learn Tool - Menu Bar](co_computer_use_learn_tool2.png) | ![Learn Tool - Toolbar](co_computer_use_learn_tool3.png) |
+
+See [CLAUDE_BUILT_IN_MCP.md](CLAUDE_BUILT_IN_MCP.md#14-computer-use) for the full tool reference and [Optional Dependencies](#optional-dependencies) for required packages.
+
 ## Custom Themes (Experimental)
 
 Themes override CSS variables in **all windows** (main chat, Quick Entry, Find-in-Page, About) via Electron's `insertCSS()` API. Set Claude Desktop to **dark mode** for best results with dark themes.
