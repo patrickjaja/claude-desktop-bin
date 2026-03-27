@@ -24,8 +24,7 @@
 }:
 
 let
-  # Update these values when a new version is released.
-  # Run packaging/nix/update-hash.sh to compute the new hash.
+  # Updated automatically by CI (update-aur.yml) on each release.
   version = "1.1.3918";
   hash = "sha256-oVesBRJ9g32EyZzncKpBUstIm0mylNaWr+9oJMLSOCs=";
 in

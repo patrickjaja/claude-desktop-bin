@@ -560,6 +560,8 @@ jobs:
     needs: [check-version, build-tarball]
     if: needs.check-version.outputs.should_build == 'true'
     runs-on: ubuntu-latest
+    outputs:
+      nix_hash: ${{ steps.nix-build.outputs.nix_hash }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -573,12 +575,14 @@ jobs:
         uses: cachix/install-nix-action@v27
 
       - name: Build with Nix
+        id: nix-build
         env:
           VERSION: ${{ needs.check-version.outputs.version }}
         run: |
           TARBALL="$(pwd)/claude-desktop-${VERSION}-linux.tar.gz"
 
           HASH=$(nix hash file --type sha256 --sri "$TARBALL")
+          echo "nix_hash=${HASH}" >> $GITHUB_OUTPUT
 
           sed -i -E "s|version = \"[^\"]+\"|version = \"$VERSION\"|" packaging/nix/package.nix
           sed -i -E "s|hash = \"sha256-[^\"]+\"|hash = \"$HASH\"|" packaging/nix/package.nix
@@ -991,6 +995,21 @@ jobs:
             git commit -m "Update README install commands to v${VERSION}"
             git reset --hard HEAD
             git clean -fdx --exclude=aur-repo
+            git pull --rebase origin master
+            git push origin master
+          }
+
+      - name: Update Nix package hash
+        env:
+          VERSION: ${{ needs.check-version.outputs.version }}
+          NIX_HASH: ${{ needs.test-nix.outputs.nix_hash }}
+        run: |
+          sed -i -E "s|version = \"[^\"]+\"|version = \"$VERSION\"|" packaging/nix/package.nix
+          sed -i -E "s|hash = \"sha256-[^\"]+\"|hash = \"$NIX_HASH\"|" packaging/nix/package.nix
+
+          git add packaging/nix/package.nix
+          git diff --staged --quiet || {
+            git commit -m "Update Nix package hash for v${VERSION}"
             git pull --rebase origin master
             git push origin master
           }
