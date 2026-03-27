@@ -664,6 +664,45 @@ def patch_computer_use_linux(filepath):
         print("  [FAIL] handleToolCall pattern: 0 matches")
         return False
 
+    # Patch 7: Initialize teach overlay controller on Linux
+    # The main window init has a ternary: process.platform==="darwin" ? (darwin-only setup) : (stub)
+    # The darwin branch calls RUn(r,t) which initializes the teach overlay controller,
+    # QDr() for escape-key handling, FUn() for side-panel, and mUn() for nav/focus.
+    # On Linux, none of these run — so the teach overlay BrowserWindow is never created,
+    # the IPC handlers for cu-teach:next/exit are never registered, and teach_step hangs.
+    #
+    # Fix: Find the else-branch stub (rIt.for(WEBCONTENTS).setImplementation({...})) and
+    # inject the essential overlay calls AFTER it. We capture the session manager and main
+    # window variable names from the darwin branch pattern.
+    #
+    # Pattern: RUn(MGR,WIN),...  (in the darwin branch)
+    # Then after the else stub: inject RUn(MGR,WIN) + QDr + FUn for Linux
+    overlay_pattern = rb'(\w+)\((\w+),(\w+)\),(\w+)\((\w+)=>\{[^}]*\},\3\),\2\.on\("cuSelectedDisplayChanged"'
+
+    overlay_match = re.search(overlay_pattern, content)
+    if overlay_match:
+        run_fn = overlay_match.group(1).decode('utf-8')    # RUn
+        mgr_var = overlay_match.group(2).decode('utf-8')    # r (session manager)
+        win_var = overlay_match.group(3).decode('utf-8')    # t (main window)
+
+        # Find the else-branch stub and inject RUn as a comma expression
+        # The else branch is: (rIt.for(...).setImplementation({...}),fY.for(...),...)
+        # We add RUn(r,t) as another comma-separated expression inside it.
+        # Pattern: listInstalledApps:()=>[]}) — end of the TCC stub, followed by comma
+        stub_end = rb'listInstalledApps:\(\)=>\[\]\}\)'
+        stub_match = re.search(stub_end, content)
+        if stub_match:
+            inject_pos = stub_match.end()
+            # Use comma expression with short-circuit: ,process.platform==="linux"&&RUn(r,t)
+            inject_js = f',process.platform==="linux"&&{run_fn}({mgr_var},{win_var})'.encode('utf-8')
+            content = content[:inject_pos] + inject_js + content[inject_pos:]
+            print(f"  [OK] teach overlay controller: {run_fn}({mgr_var},{win_var}) injected for Linux (1 match)")
+            changes += 1
+        else:
+            print("  [WARN] teach overlay: TCC stub end pattern not found")
+    else:
+        print("  [WARN] teach overlay: RUn pattern not found in darwin branch")
+
     if changes > 0 and content != original_content:
         with open(filepath, 'wb') as f:
             f.write(content)
