@@ -7,6 +7,8 @@ Unofficial Linux packages for Claude Desktop AI assistant with automated updates
 
 ## Installation
 
+> After installing, see [Optional Dependencies](#optional-dependencies) to enable Computer Use, Cowork, and more.
+
 ### Arch Linux / Manjaro (AUR)
 ```bash
 yay -S claude-desktop-bin
@@ -112,12 +114,27 @@ sudo dnf install claude-desktop-bin
 
 The APT and DNF repos serve both x86_64 and arm64 packages — your package manager picks the correct architecture automatically.
 
+## Optional Dependencies
+
+Claude Desktop works without these — features degrade gracefully when tools are missing.
+
+| Feature | Packages | Notes |
+|---------|----------|-------|
+| **Computer Use (X11)** | `xdotool`, `scrot`, `xclip`, `wmctrl`, `xrandr` | Desktop automation: screenshot, click, type, scroll, clipboard |
+| **Computer Use (Wayland)** | `ydotool`, `grim`, `slurp`, `wl-clipboard`, `wlr-randr` | For wlroots compositors (Sway, Hyprland). Falls back to X11 tools via XWayland |
+| **Computer Use (Hyprland)** | `hyprctl` (included with Hyprland) | Cursor positioning and window queries on Hyprland |
+| **Cowork & Dispatch** | [`claude-cowork-service`](https://github.com/patrickjaja/claude-cowork-service) | Agentic workspace and mobile→desktop task orchestration |
+| **Claude Code CLI** | [`claude`](https://code.claude.com/docs/en/setup) | Required for Code integration, Cowork, and Dispatch |
+| **Custom MCP Servers** | `nodejs` | Only needed for third-party MCP servers requiring system Node.js |
+
+> **Wayland users:** Claude Desktop defaults to XWayland, which is recommended for full functionality. See [Wayland](#wayland) for native Wayland notes.
+
 ## Features
 - Native Linux support (Arch, Debian/Ubuntu, Fedora/RHEL, NixOS, AppImage) — **x86_64 and ARM64**
 - **Claude Code CLI integration** - Auto-detects system-installed Claude Code (requires [claude-code](https://code.claude.com/docs/en/setup))
 - **Local Agent Mode** - Git worktrees and agent sessions
 - **Cowork support** - Agentic workspace feature enabled on Linux (requires [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service))
-- **Computer Use** - Desktop automation via built-in MCP server (27 tools: screenshot, click, type, scroll, drag, clipboard, multi-monitor switch, batch actions, teach mode). On X11: uses `xdotool`, `scrot`, `xclip`, `wmctrl`, `xrandr`. On Wayland: uses `ydotool`, `grim`, `slurp`, `wl-clipboard`, `wlr-randr`. Teach mode (model-initiated guided tutorials with overlay tooltips) works via upstream Electron overlay. No macOS-style permission grants needed — all tools work immediately. Install the appropriate X11 or Wayland optional dependencies for your session type (listed as optional deps in each package format)
+- **Computer Use** - Desktop automation via built-in MCP server (27 tools: screenshot, click, type, scroll, drag, clipboard, multi-monitor switch, batch actions, teach mode). No permission grants needed — see [Optional Dependencies](#optional-dependencies) for required packages
 - **Dispatch** - Send tasks from your phone to your desktop Claude via Anthropic's environments bridge API (requires Cowork). Text responses, task orchestration, and SDK MCP tools work. Bridge-level transform wraps plain text as `SendUserMessage` (workaround for CLI 2.1.x bug where `--brief` doesn't expose the tool)
 - **MCP server support** - Model Context Protocol servers work on Linux
 - **Custom Themes (Experimental)** - 6 built-in color themes (Nord, Catppuccin Mocha/Frappe/Latte/Macchiato, Sweet) or create your own via JSON config — not all UI elements are fully themed yet
