@@ -14,14 +14,6 @@ on:
         required: false
         type: boolean
         default: false
-  push:
-    branches:
-      - master
-    paths:
-      - '.github/workflows/update-aur.yml'
-      - 'scripts/**'
-      - 'patches/**'
-      - 'PKGBUILD.template'
 
 # ──────────────────────────────────────────────────────────────────────
 # Job graph (fan-out / fan-in):

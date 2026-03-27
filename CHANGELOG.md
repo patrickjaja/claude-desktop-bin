@@ -4,6 +4,9 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 
 ## 2026-03-27 (v1.1.9310)
 
+### Changed
+- **CI**: Remove push trigger from release workflow — now runs only on nightly schedule (2 AM UTC) or manual dispatch
+
 ### Fixed
 - **fix_utility_process_kill.py**: Logger variable changed from `\w+` name to `$` — updated pattern to `[\w$]+` for the `.info()` call
 - **fix_detected_projects_linux.py**: Same `$` logger issue — updated pattern to `[\w$]+` for the `.debug()` call
