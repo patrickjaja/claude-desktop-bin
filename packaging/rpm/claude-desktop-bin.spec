@@ -11,7 +11,7 @@ URL:            https://claude.ai
 Source0:        claude-desktop-%{pkg_version}-linux.tar.gz
 Source1:        electron.zip
 
-ExclusiveArch:  x86_64
+ExclusiveArch:  x86_64 aarch64
 
 Requires:       gtk3
 Requires:       nss

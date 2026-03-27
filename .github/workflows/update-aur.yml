@@ -335,11 +335,11 @@ jobs:
           rm generate-srcinfo.sh
           cat .SRCINFO
 
-      - name: Build AppImage
+      - name: Build AppImage (x86_64)
         if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
         id: appimage
         run: |
-          echo "=== Building AppImage ==="
+          echo "=== Building AppImage (x86_64) ==="
           VERSION="${{ steps.version.outputs.version }}"
           TARBALL="claude-desktop-${VERSION}-linux.tar.gz"
 
@@ -356,18 +356,38 @@ jobs:
           bash packaging/appimage/build-appimage.sh "$TARBALL" ./dist
 
           # Get output info
-          APPIMAGE_FILE=$(ls dist/*.AppImage)
+          APPIMAGE_FILE=$(ls dist/Claude_Desktop-*-x86_64.AppImage)
           APPIMAGE_SHA256=$(sha256sum "$APPIMAGE_FILE" | cut -d' ' -f1)
           echo "appimage_sha256=${APPIMAGE_SHA256}" >> $GITHUB_OUTPUT
 
           echo "AppImage built: $APPIMAGE_FILE"
           echo "SHA256: $APPIMAGE_SHA256"
 
-      - name: Build Debian Package
+      - name: Build AppImage (aarch64)
+        if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
+        id: appimage_arm64
+        run: |
+          echo "=== Building AppImage (aarch64) ==="
+          VERSION="${{ steps.version.outputs.version }}"
+          TARBALL="claude-desktop-${VERSION}-linux.tar.gz"
+
+          # Reuse Electron version from x86_64 build
+          ELECTRON_VERSION="${{ steps.appimage.outputs.electron_version }}"
+          export ELECTRON_VERSION
+          bash packaging/appimage/build-appimage.sh --arch aarch64 "$TARBALL" ./dist
+
+          APPIMAGE_FILE=$(ls dist/Claude_Desktop-*-aarch64.AppImage)
+          APPIMAGE_ARM64_SHA256=$(sha256sum "$APPIMAGE_FILE" | cut -d' ' -f1)
+          echo "appimage_arm64_sha256=${APPIMAGE_ARM64_SHA256}" >> $GITHUB_OUTPUT
+
+          echo "AppImage (arm64) built: $APPIMAGE_FILE"
+          echo "SHA256: $APPIMAGE_ARM64_SHA256"
+
+      - name: Build Debian Package (amd64)
         if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
         id: deb
         run: |
-          echo "=== Building Debian Package ==="
+          echo "=== Building Debian Package (amd64) ==="
           VERSION="${{ steps.version.outputs.version }}"
           TARBALL="claude-desktop-${VERSION}-linux.tar.gz"
 
@@ -379,14 +399,32 @@ jobs:
           bash packaging/debian/build-deb.sh "$TARBALL" ./dist "$PKGREL"
 
           # Get output info
-          DEB_FILE=$(ls dist/*.deb)
+          DEB_FILE=$(ls dist/claude-desktop-bin_*_amd64.deb)
           DEB_SHA256=$(sha256sum "$DEB_FILE" | cut -d' ' -f1)
           echo "deb_sha256=${DEB_SHA256}" >> $GITHUB_OUTPUT
 
           echo "Debian package built: $DEB_FILE"
           echo "SHA256: $DEB_SHA256"
 
-      - name: Test Debian Package
+      - name: Build Debian Package (arm64)
+        if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
+        id: deb_arm64
+        run: |
+          echo "=== Building Debian Package (arm64) ==="
+          VERSION="${{ steps.version.outputs.version }}"
+          TARBALL="claude-desktop-${VERSION}-linux.tar.gz"
+
+          PKGREL="${{ steps.pkgrel.outputs.pkgrel }}"
+          bash packaging/debian/build-deb.sh --arch arm64 "$TARBALL" ./dist "$PKGREL"
+
+          DEB_FILE=$(ls dist/claude-desktop-bin_*_arm64.deb)
+          DEB_ARM64_SHA256=$(sha256sum "$DEB_FILE" | cut -d' ' -f1)
+          echo "deb_arm64_sha256=${DEB_ARM64_SHA256}" >> $GITHUB_OUTPUT
+
+          echo "Debian (arm64) package built: $DEB_FILE"
+          echo "SHA256: $DEB_ARM64_SHA256"
+
+      - name: Test Debian Package (amd64)
         if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
         run: |
           docker run --rm \
@@ -403,7 +441,7 @@ jobs:
                 /usr/lib/claude-desktop/electron
             "
 
-      - name: Test AppImage
+      - name: Test AppImage (x86_64)
         if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
         run: |
           docker run --rm \
@@ -429,11 +467,37 @@ jobs:
                 /tmp/squashfs-root/usr/lib/claude-desktop/claude-desktop
             "
 
-      - name: Build RPM Package
+      - name: Set up QEMU for ARM64 testing
+        if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Test Debian Package (arm64)
+        if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
+        run: |
+          docker run --rm --platform linux/arm64 \
+            -v "$(pwd)/dist:/dist:ro" \
+            -v "$(pwd)/scripts:/scripts:ro" \
+            arm64v8/ubuntu:22.04 \
+            bash -c "
+              set -e
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update
+              # Install the arm64 .deb — verify it installs cleanly
+              apt-get install -y /dist/claude-desktop-bin_*_arm64.deb
+              # Verify key files are in place
+              test -f /usr/lib/claude-desktop/electron
+              test -f /usr/lib/claude-desktop/resources/app.asar
+              test -x /usr/bin/claude-desktop
+              echo 'ARM64 Debian package installed successfully'
+            "
+
+      - name: Build RPM Package (x86_64)
         if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
         id: rpm
         run: |
-          echo "=== Building RPM Package ==="
+          echo "=== Building RPM Package (x86_64) ==="
           VERSION="${{ steps.version.outputs.version }}"
           TARBALL="claude-desktop-${VERSION}-linux.tar.gz"
 
@@ -447,14 +511,39 @@ jobs:
               bash /build/packaging/rpm/build-rpm.sh /build/$TARBALL /output ${{ steps.pkgrel.outputs.pkgrel }}
             "
 
-          RPM_FILE=$(ls dist/claude-desktop-bin-*.rpm)
+          RPM_FILE=$(ls dist/claude-desktop-bin-*.x86_64.rpm)
           RPM_SHA256=$(sha256sum "$RPM_FILE" | cut -d' ' -f1)
           echo "rpm_sha256=${RPM_SHA256}" >> $GITHUB_OUTPUT
 
           echo "RPM built: $RPM_FILE"
           echo "SHA256: $RPM_SHA256"
 
-      - name: Test RPM Package
+      - name: Build RPM Package (aarch64)
+        if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
+        id: rpm_arm64
+        run: |
+          echo "=== Building RPM Package (aarch64) ==="
+          VERSION="${{ steps.version.outputs.version }}"
+          TARBALL="claude-desktop-${VERSION}-linux.tar.gz"
+
+          docker run --rm \
+            -v "$(pwd):/build:ro" \
+            -v "$(pwd)/dist:/output" \
+            fedora:40 \
+            bash -c "
+              set -euo pipefail
+              dnf install -y rpm-build wget unzip
+              bash /build/packaging/rpm/build-rpm.sh --arch aarch64 /build/$TARBALL /output ${{ steps.pkgrel.outputs.pkgrel }}
+            "
+
+          RPM_FILE=$(ls dist/claude-desktop-bin-*.aarch64.rpm)
+          RPM_ARM64_SHA256=$(sha256sum "$RPM_FILE" | cut -d' ' -f1)
+          echo "rpm_arm64_sha256=${RPM_ARM64_SHA256}" >> $GITHUB_OUTPUT
+
+          echo "RPM (aarch64) built: $RPM_FILE"
+          echo "SHA256: $RPM_ARM64_SHA256"
+
+      - name: Test RPM Package (x86_64)
         if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
         run: |
           docker run --rm \
@@ -463,10 +552,27 @@ jobs:
             fedora:40 \
             bash -c "
               set -e
-              dnf install -y xorg-x11-server-Xvfb /dist/claude-desktop-bin-*.rpm
+              dnf install -y xorg-x11-server-Xvfb /dist/claude-desktop-bin-*.x86_64.rpm
               bash /scripts/smoke-test.sh \
                 /usr/lib/claude-desktop/resources/app.asar \
                 /usr/lib/claude-desktop/electron
+            "
+
+      - name: Test RPM Package (aarch64)
+        if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
+        run: |
+          docker run --rm --platform linux/arm64 \
+            -v "$(pwd)/dist:/dist:ro" \
+            arm64v8/fedora:40 \
+            bash -c "
+              set -e
+              # Install the aarch64 .rpm — verify it installs cleanly
+              dnf install -y /dist/claude-desktop-bin-*.aarch64.rpm
+              # Verify key files are in place
+              test -f /usr/lib/claude-desktop/electron
+              test -f /usr/lib/claude-desktop/resources/app.asar
+              test -x /usr/bin/claude-desktop
+              echo 'aarch64 RPM package installed successfully'
             "
 
       - name: Test Nix Build
@@ -506,8 +612,11 @@ jobs:
           files: |
             claude-desktop-${{ steps.version.outputs.version }}-linux.tar.gz
             dist/Claude_Desktop-${{ steps.version.outputs.version }}-x86_64.AppImage
+            dist/Claude_Desktop-${{ steps.version.outputs.version }}-aarch64.AppImage
             dist/claude-desktop-bin_${{ steps.version.outputs.version }}-${{ steps.pkgrel.outputs.pkgrel }}_amd64.deb
+            dist/claude-desktop-bin_${{ steps.version.outputs.version }}-${{ steps.pkgrel.outputs.pkgrel }}_arm64.deb
             dist/claude-desktop-bin-${{ steps.version.outputs.version }}-${{ steps.pkgrel.outputs.pkgrel }}.x86_64.rpm
+            dist/claude-desktop-bin-${{ steps.version.outputs.version }}-${{ steps.pkgrel.outputs.pkgrel }}.aarch64.rpm
           body: |
             ## ${{ steps.pkgrel.outputs.release_name }}
 
@@ -528,7 +637,10 @@ jobs:
 
             **Debian/Ubuntu (manual .deb)**
             ```bash
+            # x86_64
             sudo apt install ./claude-desktop-bin_${{ steps.version.outputs.version }}-${{ steps.pkgrel.outputs.pkgrel }}_amd64.deb
+            # ARM64
+            sudo apt install ./claude-desktop-bin_${{ steps.version.outputs.version }}-${{ steps.pkgrel.outputs.pkgrel }}_arm64.deb
             ```
 
             **Fedora/RHEL (RPM Repository — recommended)**
@@ -539,7 +651,10 @@ jobs:
 
             **Fedora/RHEL (manual .rpm)**
             ```bash
+            # x86_64
             sudo dnf install ./claude-desktop-bin-${{ steps.version.outputs.version }}-${{ steps.pkgrel.outputs.pkgrel }}.x86_64.rpm
+            # ARM64
+            sudo dnf install ./claude-desktop-bin-${{ steps.version.outputs.version }}-${{ steps.pkgrel.outputs.pkgrel }}.aarch64.rpm
             ```
 
             **NixOS / Nix**
@@ -549,17 +664,24 @@ jobs:
 
             **AppImage (Any Distro)**
             ```bash
+            # x86_64
             chmod +x Claude_Desktop-${{ steps.version.outputs.version }}-x86_64.AppImage
             ./Claude_Desktop-${{ steps.version.outputs.version }}-x86_64.AppImage
+            # ARM64
+            chmod +x Claude_Desktop-${{ steps.version.outputs.version }}-aarch64.AppImage
+            ./Claude_Desktop-${{ steps.version.outputs.version }}-aarch64.AppImage
             ```
 
             ### Checksums
             | File | SHA256 |
             |------|--------|
             | Tarball | `${{ steps.build.outputs.tarball_sha256 }}` |
-            | AppImage | `${{ steps.appimage.outputs.appimage_sha256 }}` |
-            | Debian | `${{ steps.deb.outputs.deb_sha256 }}` |
-            | RPM | `${{ steps.rpm.outputs.rpm_sha256 }}` |
+            | AppImage (x86_64) | `${{ steps.appimage.outputs.appimage_sha256 }}` |
+            | AppImage (aarch64) | `${{ steps.appimage_arm64.outputs.appimage_arm64_sha256 }}` |
+            | Debian (amd64) | `${{ steps.deb.outputs.deb_sha256 }}` |
+            | Debian (arm64) | `${{ steps.deb_arm64.outputs.deb_arm64_sha256 }}` |
+            | RPM (x86_64) | `${{ steps.rpm.outputs.rpm_sha256 }}` |
+            | RPM (aarch64) | `${{ steps.rpm_arm64.outputs.rpm_arm64_sha256 }}` |
 
             ### Changes since last release
             ${{ steps.git_changelog.outputs.content }}
@@ -580,15 +702,17 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           PKGREL="${{ steps.pkgrel.outputs.pkgrel }}"
-          DEB_FILE="$(pwd)/dist/claude-desktop-bin_${VERSION}-${PKGREL}_amd64.deb"
-          RPM_FILE="$(pwd)/dist/claude-desktop-bin-${VERSION}-${PKGREL}.x86_64.rpm"
+          DEB_FILE_AMD64="$(pwd)/dist/claude-desktop-bin_${VERSION}-${PKGREL}_amd64.deb"
+          DEB_FILE_ARM64="$(pwd)/dist/claude-desktop-bin_${VERSION}-${PKGREL}_arm64.deb"
+          RPM_FILE_X86_64="$(pwd)/dist/claude-desktop-bin-${VERSION}-${PKGREL}.x86_64.rpm"
+          RPM_FILE_AARCH64="$(pwd)/dist/claude-desktop-bin-${VERSION}-${PKGREL}.aarch64.rpm"
 
           if [ -z "$GPG_PRIVATE_KEY" ]; then
             echo "::warning::APT_GPG_PRIVATE_KEY secret not set — skipping repo deploy"
             exit 0
           fi
 
-          if [ ! -f "$DEB_FILE" ] && [ ! -f "$RPM_FILE" ]; then
+          if [ ! -f "$DEB_FILE_AMD64" ] && [ ! -f "$RPM_FILE_X86_64" ]; then
             echo "::warning::No .deb or .rpm files found — skipping repo deploy"
             exit 0
           fi
@@ -620,19 +744,23 @@ jobs:
           gpg --armor --export "$GPG_KEY_ID" > "$REPO_DIR/gpg-key.asc"
           touch "$REPO_DIR/.nojekyll"
 
-          # Build APT repo metadata
-          if [ -f "$DEB_FILE" ]; then
-            bash packaging/apt/update-apt-repo.sh "$DEB_FILE" "$REPO_DIR" "$GPG_KEY_ID"
-          else
-            echo "::warning::No .deb file found — skipping APT repo update"
-          fi
+          # Build APT repo metadata (both architectures)
+          for DEB_FILE in "$DEB_FILE_AMD64" "$DEB_FILE_ARM64"; do
+            if [ -f "$DEB_FILE" ]; then
+              bash packaging/apt/update-apt-repo.sh "$DEB_FILE" "$REPO_DIR" "$GPG_KEY_ID"
+            else
+              echo "::warning::$(basename "$DEB_FILE") not found — skipping"
+            fi
+          done
 
-          # Build RPM repo metadata
-          if [ -f "$RPM_FILE" ]; then
-            bash packaging/rpm/update-rpm-repo.sh "$RPM_FILE" "$REPO_DIR" "$GPG_KEY_ID"
-          else
-            echo "::warning::No .rpm file found — skipping RPM repo update"
-          fi
+          # Build RPM repo metadata (both architectures)
+          for RPM_FILE in "$RPM_FILE_X86_64" "$RPM_FILE_AARCH64"; do
+            if [ -f "$RPM_FILE" ]; then
+              bash packaging/rpm/update-rpm-repo.sh "$RPM_FILE" "$REPO_DIR" "$GPG_KEY_ID"
+            else
+              echo "::warning::$(basename "$RPM_FILE") not found — skipping"
+            fi
+          done
 
           # Commit and force-push as orphan (prevents gh-pages bloat from large package history)
           cd "$REPO_DIR"
@@ -723,11 +851,14 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.version }}"
 
-          # Update version numbers in README
+          # Update version numbers in README (both x86_64 and arm64 variants)
           PKGREL="${{ steps.pkgrel.outputs.pkgrel }}"
           sed -i -E "s/claude-desktop-bin_[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+)?_amd64\.deb/claude-desktop-bin_${VERSION}-${PKGREL}_amd64.deb/g" README.md
+          sed -i -E "s/claude-desktop-bin_[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+)?_arm64\.deb/claude-desktop-bin_${VERSION}-${PKGREL}_arm64.deb/g" README.md
           sed -i -E "s/claude-desktop-bin-[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+)?\.x86_64\.rpm/claude-desktop-bin-${VERSION}-${PKGREL}.x86_64.rpm/g" README.md
+          sed -i -E "s/claude-desktop-bin-[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+)?\.aarch64\.rpm/claude-desktop-bin-${VERSION}-${PKGREL}.aarch64.rpm/g" README.md
           sed -i -E "s/Claude_Desktop-[0-9]+\.[0-9]+\.[0-9]+-x86_64\.AppImage/Claude_Desktop-${VERSION}-x86_64.AppImage/g" README.md
+          sed -i -E "s/Claude_Desktop-[0-9]+\.[0-9]+\.[0-9]+-aarch64\.AppImage/Claude_Desktop-${VERSION}-aarch64.AppImage/g" README.md
 
           # Commit and push if changed
           git config user.name "github-actions[bot]"

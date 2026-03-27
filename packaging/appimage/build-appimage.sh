@@ -2,7 +2,7 @@
 #
 # Build AppImage from pre-patched Claude Desktop tarball
 #
-# Usage: ./build-appimage.sh <tarball_path> <output_dir>
+# Usage: ./build-appimage.sh [--arch x86_64|aarch64] <tarball_path> <output_dir>
 #
 # Requirements: wget, appimagetool (or will be downloaded)
 #
@@ -30,19 +30,37 @@ log_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
 log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
-# Parse arguments
+# Parse optional --arch flag (default: x86_64)
+APPIMAGE_ARCH="x86_64"
+if [ "${1:-}" = "--arch" ]; then
+    APPIMAGE_ARCH="$2"
+    shift 2
+fi
+
+# Map AppImage arch to Electron arch
+case "$APPIMAGE_ARCH" in
+    x86_64)   ELECTRON_ARCH="x64" ;;
+    aarch64)  ELECTRON_ARCH="arm64" ;;
+    *)
+        log_error "Unsupported architecture: $APPIMAGE_ARCH (supported: x86_64, aarch64)"
+        exit 1
+        ;;
+esac
+
+# Parse positional arguments
 TARBALL_PATH="$1"
 OUTPUT_DIR="$2"
 
 if [ -z "$TARBALL_PATH" ] || [ -z "$OUTPUT_DIR" ]; then
-    echo "Usage: $0 <tarball_path> <output_dir>"
+    echo "Usage: $0 [--arch x86_64|aarch64] <tarball_path> <output_dir>"
     echo ""
     echo "Arguments:"
+    echo "  --arch        Target architecture (default: x86_64, also: aarch64)"
     echo "  tarball_path  Path to claude-desktop-VERSION-linux.tar.gz"
     echo "  output_dir    Directory to write AppImage"
     echo ""
     echo "Output:"
-    echo "  <output_dir>/Claude_Desktop-<version>-x86_64.AppImage"
+    echo "  <output_dir>/Claude_Desktop-<version>-<arch>.AppImage"
     exit 1
 fi
 
@@ -53,7 +71,7 @@ fi
 
 # Extract version from tarball filename
 VERSION=$(basename "$TARBALL_PATH" | sed -E 's/claude-desktop-([0-9]+\.[0-9]+\.[0-9]+)-linux\.tar\.gz/\1/')
-log_info "Building AppImage for version: $VERSION"
+log_info "Building AppImage for version: $VERSION (arch: $APPIMAGE_ARCH, electron: $ELECTRON_ARCH)"
 
 # Create work directory
 WORK_DIR=$(mktemp -d)
@@ -66,21 +84,23 @@ cleanup() {
 trap cleanup EXIT
 
 # Download appimagetool if not available
+# appimagetool must match the HOST architecture (it runs on the build machine)
+HOST_ARCH=$(uname -m)
 if ! command -v appimagetool &> /dev/null; then
-    log_info "Downloading appimagetool..."
+    log_info "Downloading appimagetool (host: ${HOST_ARCH})..."
     APPIMAGETOOL="$WORK_DIR/appimagetool"
     wget -q -O "$APPIMAGETOOL" \
-        "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
+        "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-${HOST_ARCH}.AppImage"
     chmod +x "$APPIMAGETOOL"
 else
     APPIMAGETOOL="appimagetool"
 fi
 
-# Download Electron
-log_info "Downloading Electron v${ELECTRON_VERSION}..."
+# Download Electron (target architecture — may differ from host when cross-building)
+log_info "Downloading Electron v${ELECTRON_VERSION} for ${ELECTRON_ARCH}..."
 ELECTRON_ZIP="$WORK_DIR/electron.zip"
 wget -q -O "$ELECTRON_ZIP" \
-    "https://github.com/electron/electron/releases/download/v${ELECTRON_VERSION}/electron-v${ELECTRON_VERSION}-linux-x64.zip"
+    "https://github.com/electron/electron/releases/download/v${ELECTRON_VERSION}/electron-v${ELECTRON_VERSION}-linux-${ELECTRON_ARCH}.zip"
 
 # Extract Electron to AppDir
 log_info "Extracting Electron..."
@@ -149,10 +169,10 @@ fi
 # Build AppImage
 log_info "Building AppImage..."
 mkdir -p "$OUTPUT_DIR"
-APPIMAGE_PATH="$OUTPUT_DIR/Claude_Desktop-${VERSION}-x86_64.AppImage"
+APPIMAGE_PATH="$OUTPUT_DIR/Claude_Desktop-${VERSION}-${APPIMAGE_ARCH}.AppImage"
 
 # Set architecture for appimagetool
-export ARCH=x86_64
+export ARCH=$APPIMAGE_ARCH
 
 "$APPIMAGETOOL" "$APPDIR" "$APPIMAGE_PATH"
 

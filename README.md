@@ -96,8 +96,24 @@ cd claude-desktop-bin
 
 > **Note:** Source builds do not receive automatic updates. Pull and rebuild to update.
 
+### ARM64 / aarch64 (NVIDIA DGX Spark, Jetson, etc.)
+
+ARM64 .deb and .rpm packages are available for platforms like **NVIDIA DGX Spark** (Ubuntu 24.04 arm64) and **Jetson** (JetPack/Ubuntu 22.04 arm64).
+
+```bash
+# Debian/Ubuntu ARM64 (via APT repo)
+curl -fsSL https://patrickjaja.github.io/claude-desktop-bin/install.sh | sudo bash
+sudo apt install claude-desktop-bin
+
+# Fedora ARM64 (via DNF repo)
+curl -fsSL https://patrickjaja.github.io/claude-desktop-bin/install-rpm.sh | sudo bash
+sudo dnf install claude-desktop-bin
+```
+
+The APT and DNF repos serve both x86_64 and arm64 packages — your package manager picks the correct architecture automatically.
+
 ## Features
-- Native Linux support (Arch, Debian/Ubuntu, Fedora/RHEL, NixOS, AppImage)
+- Native Linux support (Arch, Debian/Ubuntu, Fedora/RHEL, NixOS, AppImage) — **x86_64 and ARM64**
 - **Claude Code CLI integration** - Auto-detects system-installed Claude Code (requires [claude-code](https://code.claude.com/docs/en/setup))
 - **Local Agent Mode** - Git worktrees and agent sessions
 - **Cowork support** - Agentic workspace feature enabled on Linux (requires [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service))

@@ -2,7 +2,7 @@
 #
 # Build Debian package from pre-patched Claude Desktop tarball
 #
-# Usage: ./build-deb.sh <tarball_path> <output_dir>
+# Usage: ./build-deb.sh [--arch amd64|arm64] <tarball_path> <output_dir> [pkgrel]
 #
 # Requirements: dpkg-deb, wget, unzip, fakeroot (optional but recommended)
 #
@@ -30,21 +30,39 @@ log_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
 log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
-# Parse arguments
+# Parse optional --arch flag (default: amd64)
+DEB_ARCH="amd64"
+if [ "$1" = "--arch" ]; then
+    DEB_ARCH="$2"
+    shift 2
+fi
+
+# Map Debian arch to Electron arch
+case "$DEB_ARCH" in
+    amd64)  ELECTRON_ARCH="x64" ;;
+    arm64)  ELECTRON_ARCH="arm64" ;;
+    *)
+        log_error "Unsupported architecture: $DEB_ARCH (supported: amd64, arm64)"
+        exit 1
+        ;;
+esac
+
+# Parse positional arguments
 TARBALL_PATH="$1"
 OUTPUT_DIR="$2"
 PKGREL="${3:-1}"
 
 if [ -z "$TARBALL_PATH" ] || [ -z "$OUTPUT_DIR" ]; then
-    echo "Usage: $0 <tarball_path> <output_dir> [pkgrel]"
+    echo "Usage: $0 [--arch amd64|arm64] <tarball_path> <output_dir> [pkgrel]"
     echo ""
     echo "Arguments:"
+    echo "  --arch        Target architecture (default: amd64, also: arm64)"
     echo "  tarball_path  Path to claude-desktop-VERSION-linux.tar.gz"
     echo "  output_dir    Directory to write .deb package"
     echo "  pkgrel        Package release number (default: 1)"
     echo ""
     echo "Output:"
-    echo "  <output_dir>/claude-desktop-bin_<version>-<pkgrel>_amd64.deb"
+    echo "  <output_dir>/claude-desktop-bin_<version>-<pkgrel>_<arch>.deb"
     exit 1
 fi
 
@@ -56,11 +74,11 @@ fi
 # Extract version from tarball filename
 VERSION=$(basename "$TARBALL_PATH" | sed -E 's/claude-desktop-([0-9]+\.[0-9]+\.[0-9]+)-linux\.tar\.gz/\1/')
 DEB_VERSION="${VERSION}-${PKGREL}"
-log_info "Building Debian package for version: $DEB_VERSION"
+log_info "Building Debian package for version: $DEB_VERSION (arch: $DEB_ARCH, electron: $ELECTRON_ARCH)"
 
 # Create work directory
 WORK_DIR=$(mktemp -d)
-DEB_ROOT="$WORK_DIR/claude-desktop-bin_${DEB_VERSION}_amd64"
+DEB_ROOT="$WORK_DIR/claude-desktop-bin_${DEB_VERSION}_${DEB_ARCH}"
 
 cleanup() {
     rm -rf "$WORK_DIR"
@@ -73,10 +91,10 @@ mkdir -p "$WORK_DIR/tarball"
 tar -xzf "$TARBALL_PATH" -C "$WORK_DIR/tarball"
 
 # Download Electron
-log_info "Downloading Electron v${ELECTRON_VERSION}..."
+log_info "Downloading Electron v${ELECTRON_VERSION} for ${ELECTRON_ARCH}..."
 ELECTRON_ZIP="$WORK_DIR/electron.zip"
 wget -q -O "$ELECTRON_ZIP" \
-    "https://github.com/electron/electron/releases/download/v${ELECTRON_VERSION}/electron-v${ELECTRON_VERSION}-linux-x64.zip"
+    "https://github.com/electron/electron/releases/download/v${ELECTRON_VERSION}/electron-v${ELECTRON_VERSION}-linux-${ELECTRON_ARCH}.zip"
 
 # Create directory structure
 log_info "Creating package structure..."
@@ -138,7 +156,7 @@ Package: claude-desktop-bin
 Version: ${DEB_VERSION}
 Section: utils
 Priority: optional
-Architecture: amd64
+Architecture: ${DEB_ARCH}
 Installed-Size: ${INSTALLED_SIZE}
 Depends: libgtk-3-0, libnotify4, libnss3, libxss1, libxtst6, libatspi2.0-0, libdrm2, libgbm1, libasound2
 Recommends: libnotify-bin
@@ -198,7 +216,7 @@ chmod +x "$DEB_ROOT/DEBIAN/postrm"
 # Build the package
 log_info "Building .deb package..."
 mkdir -p "$OUTPUT_DIR"
-DEB_PATH="$OUTPUT_DIR/claude-desktop-bin_${DEB_VERSION}_amd64.deb"
+DEB_PATH="$OUTPUT_DIR/claude-desktop-bin_${DEB_VERSION}_${DEB_ARCH}.deb"
 
 if command -v fakeroot &> /dev/null; then
     fakeroot dpkg-deb --build "$DEB_ROOT" "$DEB_PATH"

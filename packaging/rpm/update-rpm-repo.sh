@@ -3,10 +3,15 @@
 #
 # Usage: update-rpm-repo.sh <rpm_file> <repo_dir> <gpg_key_id>
 #
-# 1. Copies new .rpm into repo_dir/rpm/x86_64/
-# 2. Prunes old versions (keeps latest 1)
-# 3. Runs createrepo_c to generate repodata/
-# 4. GPG-signs repodata/repomd.xml (detached armored signature)
+# Multi-arch support: the architecture is auto-detected from the .rpm filename.
+# The script places packages in rpm/<arch>/ subdirectories. createrepo_c is run
+# on the rpm/ parent directory, which natively handles multi-arch repos.
+#
+# 1. Auto-detects arch from .rpm filename (x86_64 or aarch64)
+# 2. Copies new .rpm into repo_dir/rpm/<arch>/
+# 3. Prunes old versions per arch (keeps latest 1)
+# 4. Runs createrepo_c to generate repodata/
+# 5. GPG-signs repodata/repomd.xml (detached armored signature)
 
 set -euo pipefail
 
@@ -19,29 +24,39 @@ if [ ! -f "$RPM_FILE" ]; then
   exit 1
 fi
 
+# Auto-detect architecture from .rpm filename (e.g., .x86_64.rpm or .aarch64.rpm)
+RPM_BASENAME=$(basename "$RPM_FILE")
+if [[ "$RPM_BASENAME" =~ \.(x86_64|aarch64|noarch)\.rpm$ ]]; then
+    RPM_ARCH="${BASH_REMATCH[1]}"
+else
+    echo "WARNING: Could not detect arch from filename, defaulting to x86_64"
+    RPM_ARCH="x86_64"
+fi
+
 echo "=== Updating RPM repository ==="
 echo "  .rpm file:  $RPM_FILE"
+echo "  Arch:       $RPM_ARCH"
 echo "  Repo dir:   $REPO_DIR"
 echo "  GPG key:    $GPG_KEY_ID"
 
-# Create directory structure
-mkdir -p "$REPO_DIR/rpm/x86_64"
+# Create directory structure for this architecture
+mkdir -p "$REPO_DIR/rpm/$RPM_ARCH"
 
 # Copy new .rpm
-cp "$RPM_FILE" "$REPO_DIR/rpm/x86_64/"
-echo "Copied $(basename "$RPM_FILE") to rpm/x86_64/"
+cp "$RPM_FILE" "$REPO_DIR/rpm/$RPM_ARCH/"
+echo "Copied $RPM_BASENAME to rpm/$RPM_ARCH/"
 
-# Prune old versions — keep only the latest 1 to avoid gh-pages repo bloat
-cd "$REPO_DIR/rpm/x86_64"
+# Prune old versions within this arch — keep only the latest 1
+cd "$REPO_DIR/rpm/$RPM_ARCH"
 # shellcheck disable=SC2012
 ls -t *.rpm 2>/dev/null | tail -n +2 | xargs -r rm -f
 KEPT=$(ls -1 *.rpm 2>/dev/null | wc -l)
-echo "Kept $KEPT .rpm file(s) after pruning"
+echo "Kept $KEPT .rpm file(s) in $RPM_ARCH after pruning"
 
-# Generate repository metadata
+# Generate repository metadata (createrepo_c handles multi-arch natively)
 cd "$REPO_DIR/rpm"
 createrepo_c --update .
-echo "Generated repodata/"
+echo "Generated repodata/ (arches: $(ls -d */ 2>/dev/null | tr -d '/' | tr '\n' ' '))"
 
 # GPG sign repomd.xml (detached armored signature)
 rm -f repodata/repomd.xml.asc
