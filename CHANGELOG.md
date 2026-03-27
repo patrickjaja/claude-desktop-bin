@@ -33,6 +33,9 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 - **CLAUDE_FEATURE_FLAGS.md** — Updated for v1.1.9134: new `wakeScheduler` (17 features total), function renames (`dA`→`rw`, `JX`→`yre`, `Oet`→`Kge`, `Hn`→`kn`, `Hk`→`bC`), 4 new GrowthBook flags, 1 removed flag.
 - **README.md** — Fedora section updated from manual download to DNF repo with auto-updates. Computer Use feature description updated with Wayland/X11 tool split.
 
+### CI
+- **Parallelized GitHub Actions workflow** — Refactored monolithic single-job pipeline into fan-out/fan-in pattern with 8 jobs. Package builds (AppImage, DEB, RPM × 2 architectures), Nix test, and PKGBUILD generation now run in parallel on separate runners after the tarball build. Estimated ~6 min savings per run.
+
 ### Notes
 - **All 32 patches pass** with zero failures on v1.1.9134.
 - **Computer Use teach mode** now works on Linux — the teach overlay is pure Electron `BrowserWindow` + IPC, not macOS-specific. The hybrid handler routes teach tools through the upstream chain while keeping the fast direct handler for normal tools.
