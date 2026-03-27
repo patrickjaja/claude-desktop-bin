@@ -4,7 +4,7 @@
 #
 # Usage: ./build-appimage.sh [--arch x86_64|aarch64] <tarball_path> <output_dir>
 #
-# Requirements: wget, appimagetool (or will be downloaded)
+# Requirements: wget, appimagetool (or will be downloaded), zsyncmake (for delta updates)
 #
 set -e
 
@@ -129,6 +129,23 @@ HERE=${SELF%/*}
 export PATH="${HERE}/usr/bin:${PATH}"
 export LD_LIBRARY_PATH="${HERE}/usr/lib/claude-desktop:${LD_LIBRARY_PATH}"
 export ELECTRON_OZONE_PLATFORM_HINT="${ELECTRON_OZONE_PLATFORM_HINT:-auto}"
+
+# Support --appimage-update flag for self-updating
+if [ "$1" = "--appimage-update" ]; then
+    if [ -z "$APPIMAGE" ]; then
+        echo "Error: Not running as AppImage (extracted?)"
+        exit 1
+    fi
+    if command -v appimageupdatetool &>/dev/null; then
+        exec appimageupdatetool "$APPIMAGE"
+    else
+        echo "appimageupdatetool not found."
+        echo "Install it from: https://github.com/AppImageCommunity/AppImageUpdate"
+        echo "Or update manually: https://github.com/patrickjaja/claude-desktop-bin/releases/latest"
+        exit 1
+    fi
+fi
+
 exec "${HERE}/usr/lib/claude-desktop/claude-desktop" "${HERE}/usr/lib/claude-desktop/resources/app.asar" "$@"
 EOF
 chmod +x "$APPDIR/AppRun"
@@ -174,7 +191,17 @@ APPIMAGE_PATH="$OUTPUT_DIR/Claude_Desktop-${VERSION}-${APPIMAGE_ARCH}.AppImage"
 # Set architecture for appimagetool
 export ARCH=$APPIMAGE_ARCH
 
-"$APPIMAGETOOL" "$APPDIR" "$APPIMAGE_PATH"
+# Embed update information for AppImage delta updates (gh-releases-zsync transport)
+UPDATE_INFO="gh-releases-zsync|patrickjaja|claude-desktop-bin|latest|Claude_Desktop-*-${APPIMAGE_ARCH}.AppImage.zsync"
+log_info "Embedding update info: $UPDATE_INFO"
+
+if command -v zsyncmake &> /dev/null; then
+    log_info "zsyncmake found — .zsync delta file will be generated"
+else
+    log_warn "zsyncmake not found — .zsync file will NOT be generated (install zsync package)"
+fi
+
+"$APPIMAGETOOL" -u "$UPDATE_INFO" "$APPDIR" "$APPIMAGE_PATH"
 
 # Calculate SHA256
 SHA256=$(sha256sum "$APPIMAGE_PATH" | cut -d' ' -f1)
@@ -183,6 +210,13 @@ log_info "AppImage built successfully!"
 echo "  Version:  $VERSION"
 echo "  Path:     $APPIMAGE_PATH"
 echo "  SHA256:   $SHA256"
+
+# Report zsync file if generated
+ZSYNC_PATH="${APPIMAGE_PATH}.zsync"
+if [ -f "$ZSYNC_PATH" ]; then
+    ZSYNC_SHA256=$(sha256sum "$ZSYNC_PATH" | cut -d' ' -f1)
+    log_info "Zsync file: $ZSYNC_PATH (SHA256: $ZSYNC_SHA256)"
+fi
 
 # Write build info
 cat > "$OUTPUT_DIR/appimage-info.txt" << EOF

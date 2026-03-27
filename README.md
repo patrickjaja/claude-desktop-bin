@@ -87,7 +87,13 @@ chmod +x Claude_Desktop-*-x86_64.AppImage
 ./Claude_Desktop-*-x86_64.AppImage
 ```
 
-> **Note:** AppImage does not receive automatic updates. Download the latest release manually to update.
+> **Update:** AppImage supports delta updates via [appimageupdatetool](https://github.com/AppImageCommunity/AppImageUpdate). Only changed blocks are downloaded.
+> ```bash
+> appimageupdatetool Claude_Desktop-*-x86_64.AppImage
+> # Or from within the AppImage:
+> ./Claude_Desktop-*-x86_64.AppImage --appimage-update
+> ```
+> Compatible with [AppImageLauncher](https://github.com/TheAssassin/AppImageLauncher) and [Gear Lever](https://github.com/mijorus/gearlever) for automatic update notifications.
 
 ### From Source
 ```bash

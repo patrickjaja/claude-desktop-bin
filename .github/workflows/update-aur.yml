@@ -334,7 +334,7 @@ jobs:
           name: tarball
 
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y wget unzip file
+        run: sudo apt-get update && sudo apt-get install -y wget unzip file zsync
 
       - name: Get Electron version
         id: electron
@@ -384,7 +384,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: appimage-${{ matrix.arch }}
-          path: dist/Claude_Desktop-*-${{ matrix.arch }}.AppImage
+          path: |
+            dist/Claude_Desktop-*-${{ matrix.arch }}.AppImage
+            dist/Claude_Desktop-*-${{ matrix.arch }}.AppImage.zsync
           retention-days: 1
 
   # ================================================================
@@ -694,6 +696,10 @@ jobs:
           cp artifacts/appimage-x86_64/Claude_Desktop-*-x86_64.AppImage release-files/
           cp artifacts/appimage-aarch64/Claude_Desktop-*-aarch64.AppImage release-files/
 
+          # Zsync files (for AppImage delta updates)
+          cp artifacts/appimage-x86_64/Claude_Desktop-*-x86_64.AppImage.zsync release-files/ 2>/dev/null || true
+          cp artifacts/appimage-aarch64/Claude_Desktop-*-aarch64.AppImage.zsync release-files/ 2>/dev/null || true
+
           # DEBs
           cp artifacts/deb-amd64/claude-desktop-bin_*_amd64.deb release-files/
           cp artifacts/deb-arm64/claude-desktop-bin_*_arm64.deb release-files/
@@ -792,6 +798,13 @@ jobs:
             chmod +x Claude_Desktop-${{ needs.check-version.outputs.version }}-aarch64.AppImage
             ./Claude_Desktop-${{ needs.check-version.outputs.version }}-aarch64.AppImage
             ```
+
+            > **Update existing AppImage** (delta download — only changed blocks):
+            > ```bash
+            > appimageupdatetool Claude_Desktop-*-x86_64.AppImage
+            > # Or from within the AppImage:
+            > ./Claude_Desktop-*-x86_64.AppImage --appimage-update
+            > ```
 
             ### Checksums
             | File | SHA256 |
