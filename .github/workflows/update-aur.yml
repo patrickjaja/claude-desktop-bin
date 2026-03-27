@@ -1003,6 +1003,8 @@ jobs:
           git add packaging/nix/package.nix
           git diff --staged --quiet || {
             git commit -m "Update Nix package hash for v${VERSION}"
+            git reset --hard HEAD
+            git clean -fdx --exclude=aur-repo
             git pull --rebase origin master
             git push origin master
           }
