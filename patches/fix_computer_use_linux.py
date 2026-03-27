@@ -261,8 +261,10 @@ globalThis.__linuxExecutor={
   async findWindowDisplays(bundleIds){return[]},
   async listInstalledApps(){
     var apps=[];
+    var seen={};
+    function _add(bid,dname,p){var k=bid+"|"+dname.toLowerCase();if(!seen[k]){seen[k]=1;apps.push({bundleId:bid,displayName:dname,path:p})}}
     try{
-      var dirs=["/usr/share/applications",_path.join(_os.homedir(),".local/share/applications")];
+      var dirs=["/usr/share/applications",_path.join(_os.homedir(),".local/share/applications"),"/var/lib/flatpak/exports/share/applications",_path.join(_os.homedir(),".local/share/flatpak/exports/share/applications")];
       for(var d=0;d<dirs.length;d++){
         try{
           var files=_fs.readdirSync(dirs[d]);
@@ -273,9 +275,21 @@ globalThis.__linuxExecutor={
               var content=_fs.readFileSync(fp,"utf-8");
               var nameMatch=content.match(/^Name=(.+)$/m);
               var execMatch=content.match(/^Exec=(\S+)/m);
+              var iconMatch=content.match(/^Icon=(.+)$/m);
               if(nameMatch&&execMatch){
-                var id=execMatch[1].replace(/%.*/,"").trim();
-                apps.push({bundleId:id,displayName:nameMatch[1],path:fp});
+                var fullName=nameMatch[1].trim();
+                var execName=execMatch[1].replace(/%.*/,"").trim();
+                var baseName=_path.basename(execName);
+                _add(baseName,fullName,fp);
+                var parts=fullName.split(/\s+/);
+                if(parts.length>1){_add(baseName,parts[0],fp)}
+                _add(baseName,baseName,fp);
+                if(iconMatch){
+                  var icon=iconMatch[1].trim();
+                  if(icon.indexOf(".")!==-1){_add(icon,fullName,fp);if(parts.length>1){_add(icon,parts[0],fp)}}
+                }
+                var dfn=files[i].replace(/\.desktop$/,"");
+                if(dfn!==baseName){_add(dfn,fullName,fp)}
               }
             }catch(fe){}
           }
@@ -705,18 +719,22 @@ def patch_computer_use_linux(filepath):
 
     # Patch 8: Fix teach overlay mouse events on Linux
     # On macOS, setIgnoreMouseEvents(true, {forward: true}) makes transparent areas
-    # click-through while still receiving mouseenter/mouseleave events. On Linux/X11
-    # (especially XFCE/xfwm4), {forward: true} doesn't work — the overlay becomes
-    # fully click-through and NEVER receives mouseenter, so the tooltip buttons
-    # (Next/Exit) remain unclickable forever.
+    # click-through while still receiving mouseenter/mouseleave events. On Linux/X11,
+    # {forward: true} is NOT implemented (Electron issue #16777, open since 2019).
+    # The overlay becomes fully click-through and NEVER receives mouseenter, so the
+    # tooltip buttons (Next/Exit) remain unclickable forever.
     #
-    # Fix: Replace setIgnoreMouseEvents(true,{forward:true}) with a polling mechanism
-    # on Linux. A 50ms interval checks if the cursor is inside the tooltip card bounds.
-    # If yes → setIgnoreMouseEvents(false) (clickable).
-    # If no → setIgnoreMouseEvents(true) (pass-through).
+    # Previous fix (broken): Polled cursor against overlay.getContentBounds() — but
+    # the overlay is FULLSCREEN, so cursor was always "inside" → setIgnoreMouseEvents(false)
+    # permanently → entire screen blocked.
     #
-    # We patch the overlay creation (oa.setIgnoreMouseEvents) and the RUn mouse-enter/
-    # mouse-leave IPC handlers.
+    # Current fix: Poll cursor against the TOOLTIP CARD bounds (not the overlay window
+    # bounds). Uses executeJavaScript to query the .tooltip element's bounding rect
+    # from the renderer every 200ms, then checks cursor position against those card
+    # bounds every 50ms. When cursor is over the card → clickable. Otherwise → pass-through.
+    #
+    # Works on X11 and XWayland. Wayland fallback: if getPosition() returns (0,0) and
+    # tooltip bounds are available, assumes the overlay fills the workArea and adjusts.
 
     # Find the overlay variable name from: OVERLAYVAR.setAlwaysOnTop(!0,"screen-saver"),OVERLAYVAR.setFullScreenable(!1),OVERLAYVAR.setIgnoreMouseEvents(!0,{forward:!0})
     overlay_var_pattern = rb'(\w+)\.setAlwaysOnTop\(!0,"screen-saver"\),\1\.setFullScreenable\(!1\),\1\.setIgnoreMouseEvents\(!0,\{forward:!0\}\)'
@@ -725,30 +743,118 @@ def patch_computer_use_linux(filepath):
     if overlay_var_match:
         ov = overlay_var_match.group(1).decode('utf-8')  # e.g. oa
 
-        # Replace the initial setIgnoreMouseEvents on the overlay with Linux polling
+        # Replace the initial setIgnoreMouseEvents on the overlay with Linux tooltip-bounds polling
         old_init = f'{ov}.setIgnoreMouseEvents(!0,{{forward:!0}})'.encode('utf-8')
+
+        # Build the executeJavaScript query string separately to avoid f-string escaping hell
+        # This JS runs in the overlay renderer to get the tooltip card's bounding rect
+        js_query = (
+            "'(function(){var t=document.querySelector(\".tooltip\");"
+            "if(t&&t.offsetWidth>0){var r=t.getBoundingClientRect();"
+            "return JSON.stringify({x:r.left,y:r.top,w:r.width,h:r.height})}"
+            "return null})()'"
+        )
+
         new_init = (
-            f'(process.platform==="linux"?'
-            f'(()=>{{let __ig=!0;{ov}.setIgnoreMouseEvents(!0);'
-            f'setInterval(()=>{{if({ov}.isDestroyed())return;'
-            f'const __cp=require("electron").screen.getCursorScreenPoint(),'
-            f'__wb={ov}.getBounds(),'
-            f'__cv={ov}.getContentBounds?{ov}.getContentBounds():{ov}.getBounds(),'
-            f'__in=__cp.x>=__cv.x&&__cp.x<=__cv.x+__cv.width&&__cp.y>=__cv.y&&__cp.y<=__cv.y+__cv.height;'
-            f'if(__in&&__ig){{{ov}.setIgnoreMouseEvents(!1);__ig=!1}}'
-            f'else if(!__in&&!__ig){{{ov}.setIgnoreMouseEvents(!0);__ig=!0}}'
-            f'}},50)}})():{ov}.setIgnoreMouseEvents(!0,{{forward:!0}}))'
+            '(process.platform==="linux"?'
+            '(()=>{'
+            # __ig = ignoring mouse, __tb = tooltip bounds, __tbP = query pending
+            # __lastIn = last cursor-in-card timestamp, __cachedCp = cached cursor pos
+            # __cpT = cursor cache timestamp (refresh every 100ms, not every 50ms tick)
+            'let __ig=!0,__tb=null,__tbP=!1,__lastIn=0,__cachedCp=null,__cpT=0;'
+            f'{ov}.setIgnoreMouseEvents(!0);'
+            # 50ms interval: tooltip bounds query + cursor check
+            'setInterval(()=>{'
+            f'if({ov}.isDestroyed())return;'
+            # Query tooltip bounds every tick (pending guard prevents pileup)
+            'if(!__tbP){'
+            '__tbP=!0;'
+            f'{ov}.webContents.executeJavaScript('
+            f'{js_query}'
+            ').then(function(__r){if(__r)__tb=JSON.parse(__r)})'
+            '.catch(function(){})'
+            '.finally(function(){__tbP=!1});'
+            '}'
+            # If no tooltip bounds yet, stay in ignore mode (pass-through)
+            'if(!__tb)return;'
+            # Get REAL cursor position — Electron's getCursorScreenPoint() returns STALE
+            # coords on X11 when cursor is not over an Electron window.
+            # Use xdotool (X11) → hyprctl (Hyprland) → Electron API fallback.
+            # Cache result for 100ms to reduce subprocess spawns (10/s instead of 20/s).
+            'const __now=Date.now();'
+            'if(!__cachedCp||__now-__cpT>100){'
+            '__cpT=__now;'
+            'try{const __o=require("child_process").execFileSync("xdotool",["getmouselocation","--shell"],{encoding:"utf-8",timeout:500});'
+            'const __mx=parseInt((__o.match(/X=(\\d+)/)||[])[1]);'
+            'const __my=parseInt((__o.match(/Y=(\\d+)/)||[])[1]);'
+            'if(!isNaN(__mx)&&!isNaN(__my))__cachedCp={x:__mx,y:__my}}catch(__e){}'
+            'if(!__cachedCp){try{const __o2=require("child_process").execFileSync("hyprctl",["cursorpos"],{encoding:"utf-8",timeout:500});'
+            'const __m=__o2.match(/(\\d+),\\s*(\\d+)/);'
+            'if(__m)__cachedCp={x:parseInt(__m[1]),y:parseInt(__m[2])}}catch(__e2){}}'
+            'if(!__cachedCp)__cachedCp=require("electron").screen.getCursorScreenPoint();'
+            '}'
+            'const __cp=__cachedCp;'
+            # Get overlay window position, compute tooltip screen coords
+            f'const __wp={ov}.getPosition(),'
+            '__sx=__wp[0]+__tb.x,__sy=__wp[1]+__tb.y,'
+            '__pad=15,'
+            '__in=__cp.x>=__sx-__pad&&__cp.x<=__sx+__tb.w+__pad&&'
+            '__cp.y>=__sy-__pad&&__cp.y<=__sy+__tb.h+__pad;'
+            # Track last time cursor was inside card (for grace period during step transitions)
+            'if(__in)__lastIn=Date.now();'
+            # Grace period: keep overlay clickable for 400ms after tooltip moves/rebuilds
+            'const __grace=__in||(Date.now()-__lastIn<400);'
+            f'if(__grace&&__ig){{{ov}.setIgnoreMouseEvents(!1);__ig=!1}}'
+            f'else if(!__grace&&!__ig){{{ov}.setIgnoreMouseEvents(!0);__ig=!0}}'
+            '},50)'
+            f'}})():{ov}.setIgnoreMouseEvents(!0,{{forward:!0}}))'
         ).encode('utf-8')
 
         # Only replace the first occurrence (overlay init)
         content = content.replace(old_init, new_init, 1)
         if new_init in content:
-            print(f"  [OK] teach overlay mouse: polling workaround for Linux ({ov})")
+            print(f"  [OK] teach overlay mouse: tooltip-bounds polling for Linux ({ov})")
             changes += 1
         else:
             print(f"  [WARN] teach overlay mouse: replacement failed")
     else:
         print("  [WARN] teach overlay mouse: overlay variable pattern not found")
+
+    # Patch 9: Neutralize setIgnoreMouseEvents resets in yJt/SUn on Linux
+    # The upstream code calls setIgnoreMouseEvents(true,{forward:true}) in two places
+    # during step transitions: yJt() (show step) and SUn() (working state).
+    # On macOS, {forward:true} allows the overlay to still receive mouse-enter events.
+    # On Linux, it just becomes setIgnoreMouseEvents(true) which fights with our polling.
+    # Fix: wrap these calls so on Linux they're no-ops (our polling handles the state).
+    #
+    # Pattern in yJt: OVERLAYVAR.setIgnoreMouseEvents(!0,{forward:!0}),OVERLAYVAR.webContents.send("cu-teach:show"
+    # Pattern in SUn: OVERLAYVAR.setIgnoreMouseEvents(!0,{forward:!0}),OVERLAYVAR.webContents.send("cu-teach:working"
+
+    if overlay_var_match:
+        # 9a: yJt() uses function parameter (not global oa) — pattern: function yJt(PARAM,e){PARAM.setIgnoreMouseEvents(!0,{forward:!0})
+        yjt_pat = rb'(function \w+\(\w+,\w+\)\{)(\w+)(\.setIgnoreMouseEvents\(!0,\{forward:!0\}\))'
+        def yjt_repl(m):
+            fn_head = m.group(1).decode('utf-8')
+            var = m.group(2).decode('utf-8')
+            rest = m.group(3).decode('utf-8')
+            return f'{fn_head}(process.platform!=="linux"&&{var}{rest})'.encode('utf-8')
+        content_new, yjt_count = re.subn(yjt_pat, yjt_repl, content, count=1)
+        if yjt_count:
+            content = content_new
+            print("  [OK] teach overlay: neutralized setIgnoreMouseEvents in show handler (yJt) for Linux")
+            changes += 1
+        else:
+            print("  [WARN] teach overlay: yJt pattern not found (may be OK)")
+
+        # 9b: SUn() uses global overlay var — pattern: oa.setIgnoreMouseEvents(!0,{forward:!0}),oa.webContents.send("cu-teach:working"
+        sun_pat = f'{ov}.setIgnoreMouseEvents(!0,{{forward:!0}}),{ov}.webContents.send("cu-teach:working"'.encode('utf-8')
+        sun_repl = f'(process.platform!=="linux"&&{ov}.setIgnoreMouseEvents(!0,{{forward:!0}})),{ov}.webContents.send("cu-teach:working"'.encode('utf-8')
+        if sun_pat in content:
+            content = content.replace(sun_pat, sun_repl, 1)
+            print("  [OK] teach overlay: neutralized setIgnoreMouseEvents in working handler (SUn) for Linux")
+            changes += 1
+        else:
+            print("  [WARN] teach overlay: SUn pattern not found (may be OK)")
 
     if changes > 0 and content != original_content:
         with open(filepath, 'wb') as f:
