@@ -11,7 +11,7 @@ Package: claude-desktop-bin
 Architecture: amd64
 Depends: ${shlibs:Depends}, ${misc:Depends}, electron | electron-bin | electron33
 Recommends: libnotify-bin
-Suggests: xdotool, scrot, xclip, wmctrl, xrandr, socat, hyprland, ydotool, grim, slurp, wl-clipboard, wlr-randr, nodejs
+Suggests: xdotool, scrot, xclip, wmctrl, x11-xserver-utils, socat, hyprland, ydotool, grim, slurp, wl-clipboard, wlr-randr, nodejs
 Description: Claude AI Desktop Application
  Claude is an AI assistant created by Anthropic to be helpful,
  harmless, and honest. This desktop application provides native
@@ -28,7 +28,7 @@ Description: Claude AI Desktop Application
   * scrot - Screenshot capture
   * xclip - Clipboard access
   * wmctrl - Running app detection
-  * xrandr - Display enumeration
+  * x11-xserver-utils - Display enumeration (xrandr)
  .
  Optional dependencies for Computer Use (Wayland sessions):
   * ydotool - Input automation
