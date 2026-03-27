@@ -66,14 +66,10 @@ mkdir -p %{buildroot}/usr/lib/claude-desktop
 cp -a electron/* %{buildroot}/usr/lib/claude-desktop/
 cp -a tarball/app/* %{buildroot}/usr/lib/claude-desktop/resources/
 
-# Install launcher
+# Install launcher (full launcher from tarball with Wayland/X11 detection,
+# GPU fallback, SingletonLock cleanup, cowork socket cleanup, and logging)
 mkdir -p %{buildroot}/usr/bin
-cat > %{buildroot}/usr/bin/claude-desktop << 'LAUNCHER'
-#!/bin/bash
-export ELECTRON_OZONE_PLATFORM_HINT="${ELECTRON_OZONE_PLATFORM_HINT:-auto}"
-exec /usr/lib/claude-desktop/electron /usr/lib/claude-desktop/resources/app.asar "$@"
-LAUNCHER
-chmod +x %{buildroot}/usr/bin/claude-desktop
+install -m755 tarball/launcher/claude-desktop %{buildroot}/usr/bin/claude-desktop
 
 # Install desktop file
 mkdir -p %{buildroot}/usr/share/applications

@@ -1,21 +1,65 @@
-#!/usr/bin/env bash
-# Claude Desktop launcher for Arch Linux (AUR package)
+  #!/usr/bin/env bash
+# Claude Desktop launcher for Linux
 #
-# Handles Wayland/X11 detection, Electron flags, and stale lock cleanup.
+# Handles Wayland/X11 detection, Electron flags, GPU fallback, and stale lock cleanup.
+# Works across all packaging formats (Arch, RPM, DEB, AppImage, Nix).
 #
 # Environment variables:
-#   CLAUDE_USE_WAYLAND=1   - Use native Wayland instead of XWayland
-#   CLAUDE_MENU_BAR        - Menu bar mode: auto (default), visible, hidden
+#   CLAUDE_USE_WAYLAND=1     - Use native Wayland instead of XWayland
+#   CLAUDE_MENU_BAR          - Menu bar mode: auto (default), visible, hidden
+#   CLAUDE_DISABLE_GPU=1     - Disable GPU compositing (fixes white screen on some systems)
+#   CLAUDE_DISABLE_GPU=full  - Disable GPU entirely (more aggressive fallback)
+#   CLAUDE_ELECTRON          - Override path to Electron binary
+#   CLAUDE_APP_ASAR          - Override path to app.asar
 
 set -euo pipefail
 
-APP_ASAR='/usr/lib/claude-desktop-bin/app.asar'
+# ---------------------------------------------------------------------------
+# Path discovery (supports Arch, RPM, DEB, AppImage layouts)
+# ---------------------------------------------------------------------------
+
+ELECTRON_BIN="${CLAUDE_ELECTRON:-}"
+APP_ASAR="${CLAUDE_APP_ASAR:-}"
+
+if [[ -z "$ELECTRON_BIN" ]]; then
+    # Try bundled Electron first (RPM/DEB with bundled Electron)
+    for candidate in /usr/lib/claude-desktop/electron; do
+        if [[ -x "$candidate" ]]; then
+            ELECTRON_BIN="$candidate"
+            break
+        fi
+    done
+    # Fall back to system Electron (Arch, DEB with system electron)
+    if [[ -z "$ELECTRON_BIN" ]]; then
+        ELECTRON_BIN="electron"
+    fi
+fi
+
+if [[ -z "$APP_ASAR" ]]; then
+    for candidate in \
+        /usr/lib/claude-desktop-bin/app.asar \
+        /usr/lib/claude-desktop/resources/app.asar \
+        /usr/lib/claude-desktop/app.asar \
+        ; do
+        if [[ -f "$candidate" ]]; then
+            APP_ASAR="$candidate"
+            break
+        fi
+    done
+fi
+
+if [[ -z "$APP_ASAR" || ! -f "$APP_ASAR" ]]; then
+    echo >&2 'claude-desktop: app.asar not found.'
+    echo >&2 'Searched: /usr/lib/claude-desktop-bin/app.asar, /usr/lib/claude-desktop/resources/app.asar, /usr/lib/claude-desktop/app.asar'
+    echo >&2 'Set CLAUDE_APP_ASAR=/path/to/app.asar to override.'
+    exit 1
+fi
 
 # ---------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------
 
-LOG_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/claude-desktop-bin"
+LOG_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/claude-desktop"
 mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/launcher.log"
 
@@ -84,6 +128,24 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# GPU compositing fallback
+# ---------------------------------------------------------------------------
+# Some GPU/driver combinations (notably GBM buffer creation failures on
+# Wayland, common on Fedora KDE) cause a blank white window.
+# See: https://github.com/patrickjaja/claude-desktop-bin/issues/13
+
+case "${CLAUDE_DISABLE_GPU:-}" in
+    1|compositing)
+        log 'GPU compositing disabled (CLAUDE_DISABLE_GPU)'
+        ELECTRON_ARGS+=('--disable-gpu-compositing')
+        ;;
+    full)
+        log 'GPU fully disabled (CLAUDE_DISABLE_GPU=full)'
+        ELECTRON_ARGS+=('--disable-gpu')
+        ;;
+esac
+
+# ---------------------------------------------------------------------------
 # Environment variables
 # ---------------------------------------------------------------------------
 
@@ -145,5 +207,5 @@ fi
 # Launch
 # ---------------------------------------------------------------------------
 
-log "Launching: electron $APP_ASAR ${ELECTRON_ARGS[*]} $*"
-exec electron "$APP_ASAR" "${ELECTRON_ARGS[@]}" "$@"
+log "Launching: $ELECTRON_BIN $APP_ASAR ${ELECTRON_ARGS[*]} $*"
+exec "$ELECTRON_BIN" "$APP_ASAR" "${ELECTRON_ARGS[@]}" "$@"

@@ -118,13 +118,9 @@ fi
 log_info "Installing application files..."
 cp -r "$WORK_DIR/tarball/app/"* "$DEB_ROOT/usr/lib/claude-desktop/resources/"
 
-# Install launcher script
-cat > "$DEB_ROOT/usr/bin/claude-desktop" << 'EOF'
-#!/bin/bash
-export ELECTRON_OZONE_PLATFORM_HINT="${ELECTRON_OZONE_PLATFORM_HINT:-auto}"
-exec /usr/lib/claude-desktop/electron /usr/lib/claude-desktop/resources/app.asar "$@"
-EOF
-chmod +x "$DEB_ROOT/usr/bin/claude-desktop"
+# Install launcher (full launcher from tarball with Wayland/X11 detection,
+# GPU fallback, SingletonLock cleanup, cowork socket cleanup, and logging)
+install -m755 "$WORK_DIR/tarball/launcher/claude-desktop" "$DEB_ROOT/usr/bin/claude-desktop"
 
 # Install desktop file
 cat > "$DEB_ROOT/usr/share/applications/claude-desktop.desktop" << EOF

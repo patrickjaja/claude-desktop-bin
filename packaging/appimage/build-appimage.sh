@@ -120,7 +120,12 @@ cp -r "$WORK_DIR/tarball/app/"* "$APPDIR/usr/lib/claude-desktop/resources/"
 # Rename electron binary to claude-desktop
 mv "$APPDIR/usr/lib/claude-desktop/electron" "$APPDIR/usr/lib/claude-desktop/claude-desktop"
 
-# Create AppRun
+# Install full launcher from tarball
+log_info "Installing launcher..."
+mkdir -p "$APPDIR/usr/bin"
+install -m755 "$WORK_DIR/tarball/launcher/claude-desktop" "$APPDIR/usr/bin/claude-desktop"
+
+# Create AppRun (delegates to full launcher with AppImage-specific path overrides)
 log_info "Creating AppRun..."
 cat > "$APPDIR/AppRun" << 'EOF'
 #!/bin/bash
@@ -128,7 +133,10 @@ SELF=$(readlink -f "$0")
 HERE=${SELF%/*}
 export PATH="${HERE}/usr/bin:${PATH}"
 export LD_LIBRARY_PATH="${HERE}/usr/lib/claude-desktop:${LD_LIBRARY_PATH}"
-export ELECTRON_OZONE_PLATFORM_HINT="${ELECTRON_OZONE_PLATFORM_HINT:-auto}"
+
+# Tell the launcher where the bundled Electron and app.asar live
+export CLAUDE_ELECTRON="${HERE}/usr/lib/claude-desktop/claude-desktop"
+export CLAUDE_APP_ASAR="${HERE}/usr/lib/claude-desktop/resources/app.asar"
 
 # Support --appimage-update flag for self-updating
 if [ "$1" = "--appimage-update" ]; then
@@ -146,7 +154,7 @@ if [ "$1" = "--appimage-update" ]; then
     fi
 fi
 
-exec "${HERE}/usr/lib/claude-desktop/claude-desktop" "${HERE}/usr/lib/claude-desktop/resources/app.asar" "$@"
+exec "${HERE}/usr/bin/claude-desktop" "$@"
 EOF
 chmod +x "$APPDIR/AppRun"
 

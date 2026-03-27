@@ -339,6 +339,24 @@ rm -rf ~/.config/Claude/local-agent-mode-sessions/<account-uuid>/<org-uuid>/agen
 
 You can identify your UUIDs from the directory listing — there's typically one account directory containing one org directory.
 
+## Troubleshooting
+
+### White screen / blank window
+
+Some GPU/driver combinations (notably on Fedora KDE with Wayland) fail to create GBM buffers, causing Electron to render a blank white window. To fix:
+
+```bash
+# Recommended: disable GPU compositing only (keeps hardware acceleration for other tasks)
+CLAUDE_DISABLE_GPU=1 claude-desktop
+
+# More aggressive: disable all GPU acceleration
+CLAUDE_DISABLE_GPU=full claude-desktop
+```
+
+To make it permanent, add `export CLAUDE_DISABLE_GPU=1` to your `~/.bashrc` or `~/.zshrc`.
+
+See [#13](https://github.com/patrickjaja/claude-desktop-bin/issues/13) for details.
+
 ## Known Issues (Dispatch)
 
 These issues are caused by a regression in Claude Code CLI v2.1.79+ where the `SendUserMessage` tool is not exposed to the model. On Windows/Mac, the cowork VM bundles CLI v2.1.78 (via Agent SDK 0.2.78) where this works. On Linux, the system-installed CLI has the bug. Tracked upstream: [anthropics/claude-code#35076](https://github.com/anthropics/claude-code/issues/35076)

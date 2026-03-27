@@ -67,6 +67,9 @@ stdenvNoCC.mkDerivation {
     mkdir -p $out/bin
     makeWrapper ${electron}/bin/electron $out/bin/claude-desktop \
       --set ELECTRON_OZONE_PLATFORM_HINT "auto" \
+      --set ELECTRON_FORCE_IS_PACKAGED "true" \
+      --set ELECTRON_USE_SYSTEM_TITLE_BAR "1" \
+      --add-flags "--disable-features=CustomTitlebar" \
       ${lib.optionalString (xdotool != null) "--prefix PATH : ${xdotool}/bin"} \
       ${lib.optionalString (scrot != null) "--prefix PATH : ${scrot}/bin"} \
       ${lib.optionalString (xclip != null) "--prefix PATH : ${xclip}/bin"} \

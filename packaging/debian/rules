@@ -8,9 +8,9 @@ override_dh_auto_install:
 	install -d debian/claude-desktop/usr/lib/claude-desktop
 	cp -r app/* debian/claude-desktop/usr/lib/claude-desktop/
 
-	# Install launcher script
+	# Install launcher (full launcher with Wayland/X11 detection, GPU fallback, etc.)
 	install -d debian/claude-desktop/usr/bin
-	install -m755 debian/claude-desktop.sh debian/claude-desktop/usr/bin/claude-desktop
+	install -m755 launcher/claude-desktop debian/claude-desktop/usr/bin/claude-desktop
 
 	# Install desktop file
 	install -d debian/claude-desktop/usr/share/applications
