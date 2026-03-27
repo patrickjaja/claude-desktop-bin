@@ -10,6 +10,7 @@
 , scrot ? null          # screenshot capture
 , xclip ? null          # clipboard access
 , wmctrl ? null         # running app detection
+, xrandr ? null         # display enumeration
 # Computer Use — Wayland session (Sway, Hyprland, etc.)
 , ydotool ? null        # input automation
 , grim ? null           # screenshot capture (wlroots)
@@ -70,6 +71,7 @@ stdenvNoCC.mkDerivation {
       ${lib.optionalString (scrot != null) "--prefix PATH : ${scrot}/bin"} \
       ${lib.optionalString (xclip != null) "--prefix PATH : ${xclip}/bin"} \
       ${lib.optionalString (wmctrl != null) "--prefix PATH : ${wmctrl}/bin"} \
+      ${lib.optionalString (xrandr != null) "--prefix PATH : ${xrandr}/bin"} \
       ${lib.optionalString (socat != null) "--prefix PATH : ${socat}/bin"} \
       ${lib.optionalString (hyprland != null) "--prefix PATH : ${hyprland}/bin"} \
       ${lib.optionalString (ydotool != null) "--prefix PATH : ${ydotool}/bin"} \
