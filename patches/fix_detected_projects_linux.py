@@ -76,7 +76,7 @@ def patch_detected_projects(filepath):
 
     pat_guard = (
         rb'(if\(process\.platform!=="darwin")'
-        rb'(\)return \w+\.debug\(`\[detectedProjects\] skipping)'
+        rb'(\)return [\w$]+\.debug\(`\[detectedProjects\] skipping)'
     )
 
     def repl_guard(m):

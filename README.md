@@ -131,6 +131,7 @@ Claude Desktop works without these — features degrade gracefully when tools ar
 | **Computer Use (Hyprland)** | `hyprctl` (included with Hyprland) | Cursor positioning and window queries on Hyprland |
 | **Cowork & Dispatch** | [`claude-cowork-service`](https://github.com/patrickjaja/claude-cowork-service) | Agentic workspace and mobile→desktop task orchestration |
 | **Claude Code CLI** | [`claude`](https://code.claude.com/docs/en/setup) | Required for Code integration, Cowork, and Dispatch |
+| **Browser Tools** | [Claude in Chrome extension](https://chromewebstore.google.com/detail/claude-code/fcoeoabgfenejglbffodgkkbkcdhcgfn) | Uses Claude Code's native host (`~/.claude/chrome/chrome-native-host`). Claude Code CLI must be installed |
 | **Custom MCP Servers** | `nodejs` | Only needed for third-party MCP servers requiring system Node.js |
 
 > **Wayland users:** Claude Desktop defaults to XWayland, which is recommended for full functionality. See [Wayland limitations](#wayland) for native Wayland details.
@@ -141,12 +142,13 @@ Claude Desktop works without these — features degrade gracefully when tools ar
 - **Local Agent Mode** - Git worktrees and agent sessions
 - **Cowork support** - Agentic workspace feature enabled on Linux (requires [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service))
 - **Computer Use** - Desktop automation via built-in MCP server (27 tools: screenshot, click, type, scroll, drag, clipboard, multi-monitor switch, batch actions, teach mode). No permission grants needed — see [Optional Dependencies](#optional-dependencies) for required packages
-- **Dispatch** - Send tasks from your phone to your desktop Claude via Anthropic's environments bridge API (requires Cowork). Text responses, task orchestration, and SDK MCP tools work. Bridge-level transform wraps plain text as `SendUserMessage` (workaround for CLI 2.1.x bug where `--brief` doesn't expose the tool)
+- **Dispatch** - Send tasks from your phone to your desktop Claude via Anthropic's environments bridge API (requires Cowork). Text responses, task orchestration, and SDK MCP tools work. Bridge-level transform wraps plain text as `SendUserMessage` (workaround for CLI bug [anthropics/claude-code#35076](https://github.com/anthropics/claude-code/issues/35076) — `SendUserMessage` is never registered, confirmed on v2.1.85)
+- **Browser Tools (Chrome integration)** - 18 browser automation tools (navigate, read_page, javascript_tool, etc.) via the [Claude in Chrome](https://chromewebstore.google.com/detail/claude-code/fcoeoabgfenejglbffodgkkbkcdhcgfn) extension. Uses Claude Code's native messaging host (`~/.claude/chrome/chrome-native-host`) instead of the proprietary Windows/macOS binary
 - **MCP server support** - Model Context Protocol servers work on Linux
 - **Custom Themes (Experimental)** - 6 built-in color themes (Nord, Catppuccin Mocha/Frappe/Latte/Macchiato, Sweet) or create your own via JSON config — not all UI elements are fully themed yet
 - **Multi-monitor Quick Entry** - Global hotkey (Ctrl+Alt+Space) opens on the monitor where your cursor is ([Wayland notes](#wayland))
 - Automated daily version checks
-- …and [30+ more patches](#patches) for native Linux integration (tray icons, window management, enterprise config, detected projects, and more)
+- …and [33+ more patches](#patches) for native Linux integration (tray icons, window management, enterprise config, detected projects, and more)
 
 ## Claude Chat
 
@@ -253,6 +255,7 @@ The package applies several patches to make Claude Desktop work on Linux. Each p
 | `enable_local_agent_mode.py` | Enables Local Agent Mode (chillingSlothFeat) on Linux for git worktrees and agent sessions | HIGH | `rg -o 'function \w+\(\)\{return process\.platform.*status' index.js` |
 | `fix_0_node_host.py` | Fixes MCP server node host path for Linux (uses `app.getAppPath()`) | LOW | `rg -o 'nodeHostPath.{0,50}' index.js` |
 | `fix_app_quit.py` | Fixes app not quitting after cleanup on Linux (uses `app.exit(0)` instead of `app.quit()`) | LOW | Uses `app.quit()` literal |
+| `fix_browser_tools_linux.py` | Enables Chrome browser tools on Linux: redirects native host binary to Claude Code's `~/.claude/chrome/chrome-native-host`, adds Linux NativeMessagingHosts paths for 6 browsers | LOW | `rg -o '"Helpers".{0,50}' index.js` |
 | `fix_browse_files_linux.py` | Enables `openDirectory` in browseFiles dialog on Linux (Electron supports it, upstream only enabled for macOS) | LOW | `rg -o 'openDirectory.{0,60}' index.js` |
 | `fix_claude_code.py` | Enables Claude Code CLI integration by detecting system-installed claude binary | MED | `rg -o 'async getStatus\(\)\{.{0,200}' index.js` |
 | `fix_computer_use_linux.py` | Enables Computer Use on Linux: removes 3 platform gates, provides xdotool/scrot executor, bypasses macOS permission model | MED | `rg -o 'process.platform.*darwin.*t7r' index.js` |
@@ -381,14 +384,14 @@ See [#13](https://github.com/patrickjaja/claude-desktop-bin/issues/13) for detai
 
 ## Known Issues (Dispatch)
 
-These issues are caused by a regression in Claude Code CLI v2.1.79+ where the `SendUserMessage` tool is not exposed to the model. On Windows/Mac, the cowork VM bundles CLI v2.1.78 (via Agent SDK 0.2.78) where this works. On Linux, the system-installed CLI has the bug. Tracked upstream: [anthropics/claude-code#35076](https://github.com/anthropics/claude-code/issues/35076)
+These issues are caused by a bug in Claude Code CLI where the `SendUserMessage` tool is never exposed to the model. Empirically confirmed on CLI v2.1.85 (2026-03-27): neither `--brief` flag, `CLAUDE_CODE_BRIEF=1` env var, nor both together cause `SendUserMessage` to appear in the registered tool list. On Windows/Mac, the cowork VM bundles CLI via Agent SDK 0.2.78 which may use a different code path. Tracked upstream: [anthropics/claude-code#35076](https://github.com/anthropics/claude-code/issues/35076) (still open, no assignees)
 
 | Issue | Status | Detail |
 |-------|--------|--------|
-| Dispatch text responses not rendering | **Workaround active** | Patch I wraps plain text as synthetic `SendUserMessage` tool_use blocks. Responses render on phone/desktop. |
+| Dispatch text responses not rendering | **Workaround active** | Patch I wraps plain text as synthetic `SendUserMessage` tool_use blocks. Responses render on phone/desktop. Note: `mcp__dispatch__send_message` is unrelated — it sends messages to other sessions, not to the user. |
 | File attachments load endlessly on phone | **Not yet fixed** | The model can't use `SendUserMessage` with `attachments`, so files aren't uploaded via the dispatch file API. Will resolve when the CLI exposes `SendUserMessage` natively. |
 
-Both issues resolve when Anthropic fixes the CLI initialization ordering so `--brief` properly exposes `SendUserMessage`. We're monitoring upstream.
+Both issues resolve when Anthropic fixes the CLI so `SendUserMessage` is properly registered. We're monitoring upstream.
 
 ## Known Limitations
 
@@ -409,12 +412,6 @@ To opt into native Wayland: `CLAUDE_USE_WAYLAND=1 claude-desktop`
 | Teach overlay tooltip interaction | Works (`xdotool`) | Hyprland only; others fall back to stale Electron cursor API |
 
 **Recommendation:** Stick with the default XWayland mode for full functionality. Native Wayland works for Computer Use input/screenshots/clipboard but loses global hotkeys and has compositor-specific gaps for window queries and cursor tracking.
-
-### Other
-
-| Feature | Detail |
-|---------|--------|
-| **Browser Tools (Chrome integration)** | Not available on Linux. The Chrome Extension MCP server requires a native messaging host binary (`chrome-native-host`) that Anthropic ships only for Windows/macOS (Rust, proprietary). A Linux replacement would need to implement Chrome's Native Messaging protocol. Contributions welcome. |
 
 ## Tips
 - Press **Alt** to toggle the app menu bar (Electron default)

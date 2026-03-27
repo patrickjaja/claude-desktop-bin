@@ -35,7 +35,7 @@ def main():
     # after 5 seconds. Matches:
     #   const a=(s=this.process)==null?void 0:s.kill();te.info(`Killing utiltiy proccess again
     # Uses \w+ to capture minified variable names (s, a) flexibly
-    pattern = rb'(const \w+=\(\w+=this\.process\)==null\?void 0:\w+)(\.kill\(\))(;\w+\.info\(`Killing utiltiy proccess again)'
+    pattern = rb'(const \w+=\(\w+=this\.process\)==null\?void 0:\w+)(\.kill\(\))(;[\w$]+\.info\(`Killing utiltiy proccess again)'
 
     def replacement(m):
         # Replace .kill() with .kill("SIGKILL")

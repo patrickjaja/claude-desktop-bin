@@ -42,12 +42,16 @@ F. Fix sessions-bridge event filter to forward text responses.
 
 G–H. (Removed) Diagnostic logging — no longer needed.
 
-I.   (Removed) Bridge-level SendUserMessage transform — no longer needed.
-     Since cowork-svc-linux passes --mcp-config through unchanged,
-     Claude Desktop's session manager handles the bidirectional SDK MCP
-     proxy over the event stream (identical to VM mode on Mac/Windows).
-     The CLI now has native access to mcp__dispatch__send_message and
-     all other SDK MCP tools.
+I.   Bridge-level SendUserMessage transform (ACTIVE workaround).
+     Claude Code CLI v2.1.x has a bug (anthropics/claude-code#35076,
+     still open as of 2026-03-27) where SendUserMessage is never exposed
+     to the model — neither --brief flag nor CLAUDE_CODE_BRIEF=1 env var
+     enables it. Empirically confirmed on CLI v2.1.85: the tool does not
+     appear in the registered tool list under any flag/env combination.
+     Patch I wraps plain text and present_files responses as synthetic
+     SendUserMessage tool_use blocks so the sessions API renders them.
+     Note: mcp__dispatch__send_message is NOT a substitute — it sends
+     messages to other sessions, not to the human user.
 
 Usage: python3 fix_dispatch_linux.py <path_to_index.js>
 """
@@ -95,13 +99,13 @@ def patch_dispatch_linux(filepath):
     # The backreference (\2) ensures the captured gate var matches the
     # one in the if-check.
 
-    gate_pattern = rb'(let (?:\w+=!1,)*)(\w+)(=)(!1)(;const \w+=async\(\)=>\{if\(!\2\)\{\w+\.info\("\[sessions-bridge\] init skipped)'
+    gate_pattern = rb'(let (?:\w+=!1,)*)(\w+)(=)(!1)(;const \w+=async\(\)=>\{if\(!\2\)\{[\w$]+\.info\("\[sessions-bridge\] init skipped)'
 
     def gate_replacement(m):
         return m.group(1) + m.group(2) + m.group(3) + b'!0' + m.group(5)
 
     # Check if already patched (gate var=!0 instead of =!1)
-    gate_already = rb'let (?:\w+=!(?:0|1),)*\w+=!0;const \w+=async\(\)=>\{if\(!\w+\)\{\w+\.info\("\[sessions-bridge\] init skipped'
+    gate_already = rb'let (?:\w+=!(?:0|1),)*\w+=!0;const \w+=async\(\)=>\{if\(!\w+\)\{[\w$]+\.info\("\[sessions-bridge\] init skipped'
     if re.search(gate_already, content):
         print(f"  [OK] Sessions-bridge gate: already patched (skipped)")
         patches_applied += 1
@@ -357,7 +361,7 @@ def patch_dispatch_linux(filepath):
     # Use regex to capture the logger variable name (was B in v8359, P in v8629)
     wake_pattern = re.compile(
         rb'(\(\(n\.pendingDispatchNotifications\?\?\(n\.pendingDispatchNotifications=\[\]\)\)\.push\(s\),)'
-        rb'(\w+)'  # capture logger variable
+        rb'([\w$]+)'  # capture logger variable (may be $ in newer versions)
         rb'(\.info\(`\[Dispatch\] Queued notification for cold parent \$\{n\.sessionId\} \(child \$\{e\.sessionId\} \$\{r\}\)`\)\))'
     )
 

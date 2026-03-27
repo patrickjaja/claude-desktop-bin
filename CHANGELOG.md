@@ -2,6 +2,18 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-03-27 (v1.1.9310)
+
+### Fixed
+- **fix_utility_process_kill.py**: Logger variable changed from `\w+` name to `$` — updated pattern to `[\w$]+` for the `.info()` call
+- **fix_detected_projects_linux.py**: Same `$` logger issue — updated pattern to `[\w$]+` for the `.debug()` call
+- **fix_dispatch_linux.py**: Same `$` logger issue in sessions-bridge gate pattern and auto-wake parent pattern — updated all logger references to `[\w$]+`. Dispatch now applies 8/8 sub-patches (was 6/8)
+
+### New Upstream
+- **Operon (full-stack web agent)**: Still gated behind flag `1306813456`, returns `{status:"unavailable"}` unconditionally. Will need Cowork-style patch when activated
+- **Epitaxy (new sidebar mode)**: No platform gate — works on Linux as-is
+- **Imagine (visual creation MCP server)**: No platform gate — works on Linux as-is
+
 ## 2026-03-27 (v1.1.9134)
 
 ### Fixed

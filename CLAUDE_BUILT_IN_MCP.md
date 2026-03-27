@@ -182,7 +182,7 @@ The `spawn_task` tool requires desktop approval card injection — cannot be aut
 
 Claude Desktop creates 4 additional MCP servers **dynamically per cowork/dispatch session**. These are NOT registered via `Pee()` — they are created inline in the session manager and passed to the Claude Code CLI via `sdkMcpServers` in `--mcp-config`.
 
-**Communication:** SDK-type servers use `MessagePort` bridges. On Mac/Windows, the VM SDK daemon (`nodeHost.js`) provides this bridge via vsock. On Linux native, `cowork-svc-linux` currently **strips** all SDK servers (replacing `--mcp-config` with `{"mcpServers":{}}`), because there is no MessagePort bridge implementation.
+**Communication:** SDK-type servers use `MessagePort` bridges. On Mac/Windows, the VM SDK daemon (`nodeHost.js`) provides this bridge via vsock. On Linux native, `cowork-svc-linux` now **passes `--mcp-config` through unchanged** (since commit `d1dfc3b`). The CLI sends `control_request` messages on stdout, which flow through the event stream to Claude Desktop. Desktop's session manager intercepts them and sends `control_response` back via writeStdin — identical to VM mode on Mac/Windows.
 
 ### 10. Dispatch
 
@@ -192,7 +192,7 @@ Claude Desktop creates 4 additional MCP servers **dynamically per cowork/dispatc
 | Tool prefix | `mcp__dispatch__` |
 | Session type | Agent (dispatch parent) sessions only |
 | Registration | Dynamic via `f6t()` factory |
-| Linux status | **Not available** — stripped by `cowork-svc-linux` (no MCP proxy) |
+| Linux status | **Available** — via `control_request`/`control_response` proxy over event stream (since cowork-svc commit `d1dfc3b`) |
 
 | Tool | Variable | Description |
 |------|----------|-------------|
@@ -203,7 +203,7 @@ Claude Desktop creates 4 additional MCP servers **dynamically per cowork/dispatc
 | `list_code_workspaces` | `Gdt` | List available code workspaces. Gated by flag `3723845789` |
 | `list_projects` | `Kdt` | List available projects |
 
-**Key role:** `mcp__dispatch__send_message` is the **primary fallback** when the built-in `SendUserMessage` CLI tool isn't available (which happens due to a CLI initialization timing bug). On Mac/Windows, this SDK tool routes through the MessagePort bridge back to Desktop. On Linux, it's stripped, so Patch I in `fix_dispatch_linux.py` compensates by transforming plain text responses into synthetic `SendUserMessage` at the sessions-bridge level.
+**Important:** `mcp__dispatch__send_message` is **NOT** a replacement for the built-in `SendUserMessage` CLI tool — they serve completely different purposes. `send_message` sends a follow-up message **to another session** (inter-session communication, takes `{session_id, message}`). `SendUserMessage` sends a response **to the human user** (renders on phone, takes `{message, attachments?}`). Since `SendUserMessage` is broken ([anthropics/claude-code#35076](https://github.com/anthropics/claude-code/issues/35076) — still open as of 2026-03-27, confirmed on v2.1.85), there is **no native tool** for the model to send user-facing responses. Patch I in `fix_dispatch_linux.py` compensates by transforming plain text assistant messages into synthetic `SendUserMessage` tool_use blocks, which the sessions API renders on phone.
 
 ### 11. Cowork
 
@@ -213,7 +213,7 @@ Claude Desktop creates 4 additional MCP servers **dynamically per cowork/dispatc
 | Tool prefix | `mcp__cowork__` |
 | Session type | All cowork sessions |
 | Registration | Dynamic via `l6t()` factory |
-| Linux status | **Not available** — stripped by `cowork-svc-linux` (no MCP proxy) |
+| Linux status | **Available** — via `control_request`/`control_response` proxy over event stream (since cowork-svc commit `d1dfc3b`) |
 
 | Tool | Variable | Description |
 |------|----------|-------------|
@@ -232,7 +232,7 @@ Claude Desktop creates 4 additional MCP servers **dynamically per cowork/dispatc
 | Tool prefix | `mcp__session_info__` |
 | Session type | All except dispatch-child sessions |
 | Registration | Dynamic via `p1e()` factory |
-| Linux status | **Not available** — stripped by `cowork-svc-linux` (no MCP proxy) |
+| Linux status | **Available** — via `control_request`/`control_response` proxy over event stream (since cowork-svc commit `d1dfc3b`) |
 
 | Tool | Variable | Description |
 |------|----------|-------------|
@@ -247,7 +247,7 @@ Claude Desktop creates 4 additional MCP servers **dynamically per cowork/dispatc
 | Tool prefix | `mcp__workspace__` |
 | Session type | Cowork sessions |
 | Registration | Dynamic per-session |
-| Linux status | **Not available** — stripped by `cowork-svc-linux` (no MCP proxy) |
+| Linux status | **Available** — via `control_request`/`control_response` proxy over event stream (since cowork-svc commit `d1dfc3b`) |
 
 | Tool | Variable | Description |
 |------|----------|-------------|
@@ -264,13 +264,18 @@ Mac/Windows (VM):
     ├─ VM SDK daemon (nodeHost.js) creates MessagePort bridges
     └─ Claude Code CLI connects via MessagePort → tool calls route back to Desktop
 
-Linux native (current):
+Linux native (current, since cowork-svc commit d1dfc3b):
   Claude Desktop main process
     ├─ creates same server instances
     ├─ passes via sdkMcpServers in --mcp-config to cowork-svc
-    ├─ cowork-svc STRIPS --mcp-config → {"mcpServers":{}}
-    └─ Claude Code CLI has NO access to SDK tools
-       → Patch I compensates at sessions-bridge level for text/file responses
+    ├─ cowork-svc passes --mcp-config through unchanged
+    ├─ Claude Code CLI sends control_request on stdout for MCP tool calls
+    ├─ cowork-svc forwards via event stream to Desktop session manager
+    ├─ Desktop sends control_response back via writeStdin
+    └─ SDK MCP tools available (identical to VM mode)
+       → Patch I still needed: SendUserMessage CLI built-in is broken
+         (anthropics/claude-code#35076), sessions API only renders
+         SendUserMessage blocks on phone
 ```
 
 ### AllowedTools for Dispatch Sessions
@@ -377,7 +382,7 @@ Uses `createDarwinExecutor()` → `@ant/claude-swift` native module for screen c
 
 ## Linux Notes
 
-- **Claude in Chrome**: Works on Linux (Unix socket). No patches needed.
+- **Claude in Chrome**: Works on Linux via `fix_browser_tools_linux.py` — redirects native host binary to Claude Code's `~/.claude/chrome/chrome-native-host` and installs NativeMessagingHosts manifests for 6 Linux browsers (Chrome, Chromium, Brave, Edge, Vivaldi, Opera). Requires Claude Code CLI and the [Claude in Chrome](https://chromewebstore.google.com/detail/claude-code/fcoeoabgfenejglbffodgkkbkcdhcgfn) extension.
 - **Office Add-in**: Platform-gated to macOS/Windows. Patched to enable on Linux via `fix_office_addin_linux.py`.
 - **Terminal**: macOS only. Patched to enable on Linux via `fix_read_terminal_linux.py`.
 - **Computer Use**: Works on Linux via `fix_computer_use_linux.py` — uses xdotool/scrot/xclip instead of `@ant/claude-swift`. Available in Cowork and Code sessions.
