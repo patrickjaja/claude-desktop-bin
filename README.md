@@ -208,6 +208,20 @@ Example prompt: *"Can you use computer use MCP to explain me the PhpStorm applic
 |---------|----------|---------|
 | ![Learn Tool - Welcome](co_computer_use_learn_tool.png) | ![Learn Tool - Menu Bar](co_computer_use_learn_tool2.png) | ![Learn Tool - Toolbar](co_computer_use_learn_tool3.png) |
 
+**How it works on Linux:** Upstream Computer Use is macOS-only — gated behind `process.platform==="darwin"` checks, macOS TCC permissions, and a native Swift executor. The patch ([fix_computer_use_linux.py](patches/fix_computer_use_linux.py)) removes 3 platform gates, bypasses TCC with a no-op `{granted: true}`, and injects a Linux executor that auto-detects X11 vs Wayland via `$XDG_SESSION_TYPE`:
+
+| Operation | X11 | Wayland |
+|-----------|-----|---------|
+| Input | `xdotool` | `ydotool` |
+| Screenshots | `scrot` | `grim` |
+| Clipboard | `xclip` | `wl-clipboard` |
+| Displays | `xrandr` | `wlr-randr` |
+| Window info | `wmctrl` | `hyprctl` / `swaymsg` |
+
+**App discovery** for the teach/learn overlay scans `.desktop` files from `/usr/share/applications`, `~/.local/share/applications`, and Flatpak directories. Each app is registered with multiple name variants (full name, first word, exec basename, icon name, .desktop filename) so the model can match apps flexibly (e.g., "Thunar" matches "Thunar File Manager").
+
+**Teach overlay on Linux:** The overlay BrowserWindow and IPC handlers (`cu-teach:next`, `cu-teach:exit`) initialize on Linux via an injected `process.platform==="linux"&&RUn(mgr,win)` call. Since Electron's `setIgnoreMouseEvents(true, {forward: true})` is [broken on X11](https://github.com/electron/electron/issues/16777), a 50ms polling loop queries the tooltip card's bounding rect and cursor position (via `xdotool getmouselocation` → `hyprctl cursorpos` → Electron API fallback) to toggle click-through dynamically.
+
 See [CLAUDE_BUILT_IN_MCP.md](CLAUDE_BUILT_IN_MCP.md#14-computer-use) for the full tool reference and [Optional Dependencies](#optional-dependencies) for required packages.
 
 ## Custom Themes (Experimental)
