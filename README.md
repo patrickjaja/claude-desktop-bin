@@ -133,7 +133,7 @@ Claude Desktop works without these — features degrade gracefully when tools ar
 | **Claude Code CLI** | [`claude`](https://code.claude.com/docs/en/setup) | Required for Code integration, Cowork, and Dispatch |
 | **Custom MCP Servers** | `nodejs` | Only needed for third-party MCP servers requiring system Node.js |
 
-> **Wayland users:** Claude Desktop defaults to XWayland, which is recommended for full functionality. See [Wayland](#wayland) for native Wayland notes.
+> **Wayland users:** Claude Desktop defaults to XWayland, which is recommended for full functionality. See [Wayland limitations](#wayland) for native Wayland details.
 
 ## Features
 - Native Linux support (Arch, Debian/Ubuntu, Fedora/RHEL, NixOS, AppImage) — **x86_64 and ARM64**
@@ -313,10 +313,6 @@ If upstream Claude Desktop changes break a patch:
 - `packaging/` - Debian, RPM, AppImage, and Nix build scripts
 - `PKGBUILD.template` - AUR package template
 
-## Wayland
-
-Claude Desktop defaults to XWayland mode, which is recommended. If you use native Wayland (`CLAUDE_USE_WAYLAND=1`), global shortcuts (Ctrl+Alt+Space) and window positioning won't work — these require X11. Stick with XWayland for full functionality.
-
 ## Debugging
 
 Launch Claude Desktop with DevTools auto-opened:
@@ -395,6 +391,26 @@ These issues are caused by a regression in Claude Code CLI v2.1.79+ where the `S
 Both issues resolve when Anthropic fixes the CLI initialization ordering so `--brief` properly exposes `SendUserMessage`. We're monitoring upstream.
 
 ## Known Limitations
+
+### Wayland
+
+Both the launcher and Computer Use auto-detect X11 vs Wayland via `$WAYLAND_DISPLAY` and `$XDG_SESSION_TYPE` — no manual configuration needed. The launcher defaults to **XWayland** on Wayland compositors (preserves global hotkeys); Computer Use auto-switches its tool chain (`xdotool`/`scrot`/`xclip` on X11, `ydotool`/`grim`/`wl-clipboard` on Wayland). Niri sessions are auto-detected and forced to native Wayland (no XWayland support).
+
+To opt into native Wayland: `CLAUDE_USE_WAYLAND=1 claude-desktop`
+
+| What | XWayland (default) | Native Wayland |
+|------|--------------------|----------------|
+| Global hotkey (Ctrl+Alt+Space) | Works | **Broken** (no global shortcut protocol) |
+| Quick Entry cursor positioning | Works (`xdotool`) | Hyprland only (`hyprctl cursorpos`); other compositors get stale coordinates |
+| Computer Use input | Works (`xdotool`) | Works (`ydotool` + `ydotoold` daemon required) |
+| Computer Use screenshots | Works (`scrot`) | Works (`grim`) |
+| Computer Use clipboard | Works (`xclip`) | Works (`wl-clipboard`) |
+| Active window / running apps | Works (`wmctrl`/`xdotool`) | Hyprland + Sway only; GNOME Wayland has no CLI equivalent |
+| Teach overlay tooltip interaction | Works (`xdotool`) | Hyprland only; others fall back to stale Electron cursor API |
+
+**Recommendation:** Stick with the default XWayland mode for full functionality. Native Wayland works for Computer Use input/screenshots/clipboard but loses global hotkeys and has compositor-specific gaps for window queries and cursor tracking.
+
+### Other
 
 | Feature | Detail |
 |---------|--------|
