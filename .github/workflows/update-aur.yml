@@ -104,8 +104,12 @@ jobs:
           CURRENT_VERSION: ${{ steps.version.outputs.version }}
           REPO: ${{ github.repository }}
         run: |
-          HIGHEST_VERSION=$(curl -s "https://api.github.com/repos/${REPO}/releases?per_page=20" \
-            | python3 -c "
+          RELEASES_JSON=$(curl -sf "https://api.github.com/repos/${REPO}/releases?per_page=20") || {
+            echo "::error::Failed to fetch releases from GitHub API (rate limit or auth issue)"
+            exit 1
+          }
+
+          HIGHEST_VERSION=$(echo "$RELEASES_JSON" | python3 -c "
           import sys, json
           releases = json.load(sys.stdin)
           versions = []
@@ -118,8 +122,13 @@ jobs:
               versions.sort(key=lambda x: x[0], reverse=True)
               print(versions[0][1])
           else:
-              print('0.0.0')
-          " 2>/dev/null || echo "0.0.0")
+              print('')
+          ")
+
+          if [ -z "$HIGHEST_VERSION" ]; then
+            echo "::error::No releases found — cannot determine highest version"
+            exit 1
+          fi
 
           echo "Highest released version: ${HIGHEST_VERSION}"
           echo "Current version: ${CURRENT_VERSION}"
