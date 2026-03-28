@@ -12,7 +12,7 @@ license=('custom:Claude')
 depends=('electron')
 optdepends=('nodejs: System Node.js for MCP extensions that require specific versions (Electron bundles Node.js as fallback)'
             'claude-code: Claude Code CLI for agentic coding features (npm i -g @anthropic-ai/claude-code)'
-            'claude-cowork-service: Enables Cowork VM features on Linux (experimental)'
+            'claude-cowork-service: Enables Cowork VM features on Linux'
             'xdotool: Computer Use input + Quick Entry positioning (X11/XWayland)'
             'scrot: Computer Use screenshots (X11)'
             'xclip: Computer Use clipboard access (X11)'
