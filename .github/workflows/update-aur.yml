@@ -1068,3 +1068,26 @@ jobs:
         if: always()
         run: |
           rm -rf release-files artifacts ~/.ssh/aur
+
+  # ================================================================
+  # Job 5: Validate Nix package builds from GitHub Releases
+  # ================================================================
+  validate-nix:
+    needs: [check-version, release]
+    if: needs.check-version.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository (latest master with updated hash)
+        uses: actions/checkout@v4
+        with:
+          ref: master
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v27
+
+      - name: Build with real fetchurl from GitHub Releases
+        run: |
+          echo "Validating Nix build using fetchurl from GitHub Releases..."
+          echo "This simulates exactly what users run."
+          NIXPKGS_ALLOW_UNFREE=1 nix build .#claude-desktop --no-link --print-build-logs --impure
+          echo "Nix build validation passed — hash matches released tarball"
