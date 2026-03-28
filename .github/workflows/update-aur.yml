@@ -252,6 +252,14 @@ jobs:
           fi
           echo "All scripts passed shellcheck"
 
+      - name: Run ruff on Python patches
+        run: |
+          pip install ruff
+          echo "=== Running ruff check on patches ==="
+          ruff check patches/
+          echo "=== Running ruff format check on patches ==="
+          ruff format --check patches/
+
   # ================================================================
   # Job 2: Build the patched tarball (the main bottleneck)
   # ================================================================

@@ -28,19 +28,19 @@ import re
 def patch_process_argv(filepath):
     """Add process.argv to the exposed process object in the preload."""
 
-    print(f"=== Patch: fix_process_argv_renderer ===")
+    print("=== Patch: fix_process_argv_renderer ===")
     print(f"  Target: {filepath}")
 
     if not os.path.exists(filepath):
         print(f"  [FAIL] File not found: {filepath}")
         return False
 
-    with open(filepath, 'rb') as f:
+    with open(filepath, "rb") as f:
         content = f.read()
 
     # Check if already patched (use flexible pattern for any variable name)
-    if re.search(rb'\w+\.argv=\[\]', content):
-        print(f"  [OK] process.argv: already patched (skipped)")
+    if re.search(rb"\w+\.argv=\[\]", content):
+        print("  [OK] process.argv: already patched (skipped)")
         return True
 
     # Pattern: after the platform spoof, before exposeInMainWorld
@@ -55,26 +55,26 @@ def patch_process_argv(filepath):
     match = re.search(spoof_pattern, content)
     if match:
         var_name = match.group(1)
-        insert = var_name + b'.argv=[];'
-        content = content[:match.end()] + insert + content[match.end():]
-        with open(filepath, 'wb') as f:
+        insert = var_name + b".argv=[];"
+        content = content[: match.end()] + insert + content[match.end() :]
+        with open(filepath, "wb") as f:
             f.write(content)
         print(f"  [OK] process.argv: added {var_name.decode()}.argv=[] (after platform spoof)")
         return True
 
     # Fallback: insert after <var>.version=...appVersion;
-    version_pattern = rb'(\w+)(\.version=\w+\(\)\.appVersion;)'
+    version_pattern = rb"(\w+)(\.version=\w+\(\)\.appVersion;)"
     match = re.search(version_pattern, content)
     if match:
         var_name = match.group(1)
-        insert = var_name + b'.argv=[];'
-        content = content[:match.end()] + insert + content[match.end():]
-        with open(filepath, 'wb') as f:
+        insert = var_name + b".argv=[];"
+        content = content[: match.end()] + insert + content[match.end() :]
+        with open(filepath, "wb") as f:
             f.write(content)
         print(f"  [OK] process.argv: added {var_name.decode()}.argv=[] (after version)")
         return True
 
-    print(f"  [FAIL] process.argv: could not find insertion point")
+    print("  [FAIL] process.argv: could not find insertion point")
     return False
 
 

@@ -31,11 +31,11 @@ import re
 def extract_eipc_uuid(content):
     """Extract the eipc UUID from the file content dynamically."""
     m = re.search(
-        rb'\$eipc_message\$_([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})',
-        content
+        rb"\$eipc_message\$_([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})",
+        content,
     )
     if m:
-        return m.group(1).decode('utf-8')
+        return m.group(1).decode("utf-8")
     return None
 
 
@@ -47,9 +47,9 @@ def extract_space_manager_singleton(content):
     We capture the variable name from that pattern.
     """
     # Pattern: (r=VARNAME.peek())==null?void 0:r.getSpace(
-    m = re.search(rb'\(\w+=(\w+)\.peek\(\)\)==null\?void 0:\w+\.getSpace\(', content)
+    m = re.search(rb"\(\w+=(\w+)\.peek\(\)\)==null\?void 0:\w+\.getSpace\(", content)
     if m:
-        return m.group(1).decode('utf-8')
+        return m.group(1).decode("utf-8")
     return None
 
 
@@ -72,265 +72,240 @@ def build_spaces_service_js(eipc_prefix, singleton_var):
         'const _EE=require("events").EventEmitter;'
         f'const _P="{eipc_prefix}";'
         f'const _EVT="{event_channel}";'
-
         # SpacesService class
-        'class _SpacesService extends _EE{'
-        'constructor(){'
-        'super();'
+        "class _SpacesService extends _EE{"
+        "constructor(){"
+        "super();"
         'this._file=_path.join(_app.getPath("userData"),"spaces.json");'
-        'this._spaces=[];'
-        'this._load();'
-        '}'
-
+        "this._spaces=[];"
+        "this._load();"
+        "}"
         # Load from disk
-        '_load(){'
-        'try{'
-        'if(_fs.existsSync(this._file)){'
+        "_load(){"
+        "try{"
+        "if(_fs.existsSync(this._file)){"
         'const d=_fs.readFileSync(this._file,"utf-8");'
-        'const p=JSON.parse(d);'
-        'this._spaces=Array.isArray(p.spaces)?p.spaces:Array.isArray(p)?p:[];'
-        '}'
+        "const p=JSON.parse(d);"
+        "this._spaces=Array.isArray(p.spaces)?p.spaces:Array.isArray(p)?p:[];"
+        "}"
         '}catch(e){console.error("[SpacesService] load error:",e);this._spaces=[];}'
-        '}'
-
+        "}"
         # Save to disk
-        '_save(){'
-        'try{'
-        'const dir=_path.dirname(this._file);'
-        'if(!_fs.existsSync(dir))_fs.mkdirSync(dir,{recursive:true});'
-        '_fs.writeFileSync(this._file,JSON.stringify({spaces:this._spaces},null,2));'
+        "_save(){"
+        "try{"
+        "const dir=_path.dirname(this._file);"
+        "if(!_fs.existsSync(dir))_fs.mkdirSync(dir,{recursive:true});"
+        "_fs.writeFileSync(this._file,JSON.stringify({spaces:this._spaces},null,2));"
         '}catch(e){console.error("[SpacesService] save error:",e);}'
-        '}'
-
+        "}"
         # Push event to all renderer windows AND emit for K6e
-        '_notify(evt){'
+        "_notify(evt){"
         'this.emit("space_event",evt);'
-        'try{'
-        'const wins=_BW.getAllWindows();'
-        'for(const w of wins){'
-        'if(w.webContents&&!w.webContents.isDestroyed())'
-        'w.webContents.send(_EVT,evt);'
-        '}'
-        '}catch(e){}'
-        '}'
-
+        "try{"
+        "const wins=_BW.getAllWindows();"
+        "for(const w of wins){"
+        "if(w.webContents&&!w.webContents.isDestroyed())"
+        "w.webContents.send(_EVT,evt);"
+        "}"
+        "}catch(e){}"
+        "}"
         # Find space by id
-        '_find(id){return this._spaces.find(s=>s.id===id)||null;}'
-
+        "_find(id){return this._spaces.find(s=>s.id===id)||null;}"
         # getAllSpaces
-        'getAllSpaces(){return this._spaces;}'
-
+        "getAllSpaces(){return this._spaces;}"
         # getSpace
-        'getSpace(id){return this._find(id);}'
-
+        "getSpace(id){return this._find(id);}"
         # createSpace
-        'createSpace(data){'
-        'const now=new Date().toISOString();'
-        'const id=_crypto.randomUUID();'
-        'const space={'
-        'id,'
+        "createSpace(data){"
+        "const now=new Date().toISOString();"
+        "const id=_crypto.randomUUID();"
+        "const space={"
+        "id,"
         'name:data.name||"Untitled Space",'
-        'description:data.description||undefined,'
-        'folders:Array.isArray(data.folders)?data.folders:[],'
-        'projects:Array.isArray(data.projects)?data.projects:[],'
-        'links:Array.isArray(data.links)?data.links:[],'
-        'instructions:data.instructions||undefined,'
+        "description:data.description||undefined,"
+        "folders:Array.isArray(data.folders)?data.folders:[],"
+        "projects:Array.isArray(data.projects)?data.projects:[],"
+        "links:Array.isArray(data.links)?data.links:[],"
+        "instructions:data.instructions||undefined,"
         'ccdFolderPath:data.ccdFolderPath||_path.join(_app.getPath("userData"),"spaces",id),'
-        'createdAt:now,'
-        'updatedAt:now'
-        '};'
-        'try{_fs.mkdirSync(space.ccdFolderPath,{recursive:true});}catch(e){}'
-        'this._spaces.push(space);'
-        'this._save();'
+        "createdAt:now,"
+        "updatedAt:now"
+        "};"
+        "try{_fs.mkdirSync(space.ccdFolderPath,{recursive:true});}catch(e){}"
+        "this._spaces.push(space);"
+        "this._save();"
         'this._notify({type:"created",space});'
-        'return space;'
-        '}'
-
+        "return space;"
+        "}"
         # updateSpace
-        'updateSpace(id,updates){'
-        'const s=this._find(id);'
-        'if(!s)return null;'
-        'if(updates.name!==undefined)s.name=updates.name;'
-        'if(updates.description!==undefined)s.description=updates.description;'
-        'if(updates.instructions!==undefined)s.instructions=updates.instructions;'
-        'if(updates.folders!==undefined)s.folders=updates.folders;'
-        'if(updates.projects!==undefined)s.projects=updates.projects;'
-        'if(updates.links!==undefined)s.links=updates.links;'
-        'if(updates.ccdFolderPath!==undefined)s.ccdFolderPath=updates.ccdFolderPath;'
-        's.updatedAt=new Date().toISOString();'
-        'this._save();'
+        "updateSpace(id,updates){"
+        "const s=this._find(id);"
+        "if(!s)return null;"
+        "if(updates.name!==undefined)s.name=updates.name;"
+        "if(updates.description!==undefined)s.description=updates.description;"
+        "if(updates.instructions!==undefined)s.instructions=updates.instructions;"
+        "if(updates.folders!==undefined)s.folders=updates.folders;"
+        "if(updates.projects!==undefined)s.projects=updates.projects;"
+        "if(updates.links!==undefined)s.links=updates.links;"
+        "if(updates.ccdFolderPath!==undefined)s.ccdFolderPath=updates.ccdFolderPath;"
+        "s.updatedAt=new Date().toISOString();"
+        "this._save();"
         'this._notify({type:"updated",space:s});'
-        'return s;'
-        '}'
-
+        "return s;"
+        "}"
         # deleteSpace
-        'deleteSpace(id){'
-        'const idx=this._spaces.findIndex(s=>s.id===id);'
-        'if(idx===-1)return null;'
-        'const removed=this._spaces.splice(idx,1)[0];'
-        'this._save();'
+        "deleteSpace(id){"
+        "const idx=this._spaces.findIndex(s=>s.id===id);"
+        "if(idx===-1)return null;"
+        "const removed=this._spaces.splice(idx,1)[0];"
+        "this._save();"
         'this._notify({type:"deleted",spaceId:id});'
-        'return removed;'
-        '}'
-
+        "return removed;"
+        "}"
         # addFolderToSpace
-        'addFolderToSpace(id,folder){'
-        'const s=this._find(id);'
-        'if(!s)return null;'
+        "addFolderToSpace(id,folder){"
+        "const s=this._find(id);"
+        "if(!s)return null;"
         'const p=typeof folder==="string"?folder:folder.path;'
-        'if(!s.folders.some(f=>f.path===p)){'
-        's.folders.push({path:p});'
-        's.updatedAt=new Date().toISOString();'
-        'this._save();'
+        "if(!s.folders.some(f=>f.path===p)){"
+        "s.folders.push({path:p});"
+        "s.updatedAt=new Date().toISOString();"
+        "this._save();"
         'this._notify({type:"updated",space:s});'
-        '}'
-        'return s;'
-        '}'
-
+        "}"
+        "return s;"
+        "}"
         # removeFolderFromSpace
-        'removeFolderFromSpace(id,folderPath){'
-        'const s=this._find(id);'
-        'if(!s)return null;'
+        "removeFolderFromSpace(id,folderPath){"
+        "const s=this._find(id);"
+        "if(!s)return null;"
         'const p=typeof folderPath==="string"?folderPath:folderPath.path;'
-        's.folders=s.folders.filter(f=>f.path!==p);'
-        's.updatedAt=new Date().toISOString();'
-        'this._save();'
+        "s.folders=s.folders.filter(f=>f.path!==p);"
+        "s.updatedAt=new Date().toISOString();"
+        "this._save();"
         'this._notify({type:"updated",space:s});'
-        'return s;'
-        '}'
-
+        "return s;"
+        "}"
         # addProjectToSpace
-        'addProjectToSpace(id,project){'
-        'const s=this._find(id);'
-        'if(!s)return null;'
+        "addProjectToSpace(id,project){"
+        "const s=this._find(id);"
+        "if(!s)return null;"
         'const u=typeof project==="string"?project:project.uuid;'
-        'if(!s.projects.some(p=>p.uuid===u)){'
-        's.projects.push({uuid:u});'
-        's.updatedAt=new Date().toISOString();'
-        'this._save();'
+        "if(!s.projects.some(p=>p.uuid===u)){"
+        "s.projects.push({uuid:u});"
+        "s.updatedAt=new Date().toISOString();"
+        "this._save();"
         'this._notify({type:"updated",space:s});'
-        '}'
-        'return s;'
-        '}'
-
+        "}"
+        "return s;"
+        "}"
         # removeProjectFromSpace
-        'removeProjectFromSpace(id,projectUuid){'
-        'const s=this._find(id);'
-        'if(!s)return null;'
+        "removeProjectFromSpace(id,projectUuid){"
+        "const s=this._find(id);"
+        "if(!s)return null;"
         'const u=typeof projectUuid==="string"?projectUuid:projectUuid.uuid;'
-        's.projects=s.projects.filter(p=>p.uuid!==u);'
-        's.updatedAt=new Date().toISOString();'
-        'this._save();'
+        "s.projects=s.projects.filter(p=>p.uuid!==u);"
+        "s.updatedAt=new Date().toISOString();"
+        "this._save();"
         'this._notify({type:"updated",space:s});'
-        'return s;'
-        '}'
-
+        "return s;"
+        "}"
         # addLinkToSpace
-        'addLinkToSpace(id,link){'
-        'const s=this._find(id);'
-        'if(!s)return null;'
-        'if(!s.links)s.links=[];'
+        "addLinkToSpace(id,link){"
+        "const s=this._find(id);"
+        "if(!s)return null;"
+        "if(!s.links)s.links=[];"
         'const url=typeof link==="string"?link:link.url;'
-        'if(!s.links.some(l=>l.url===url)){'
+        "if(!s.links.some(l=>l.url===url)){"
         's.links.push(typeof link==="string"?{url:link}:link);'
-        's.updatedAt=new Date().toISOString();'
-        'this._save();'
+        "s.updatedAt=new Date().toISOString();"
+        "this._save();"
         'this._notify({type:"updated",space:s});'
-        '}'
-        'return s;'
-        '}'
-
+        "}"
+        "return s;"
+        "}"
         # removeLinkFromSpace
-        'removeLinkFromSpace(id,linkUrl){'
-        'const s=this._find(id);'
-        'if(!s)return null;'
+        "removeLinkFromSpace(id,linkUrl){"
+        "const s=this._find(id);"
+        "if(!s)return null;"
         'const url=typeof linkUrl==="string"?linkUrl:linkUrl.url;'
-        's.links=(s.links||[]).filter(l=>l.url!==url);'
-        's.updatedAt=new Date().toISOString();'
-        'this._save();'
+        "s.links=(s.links||[]).filter(l=>l.url!==url);"
+        "s.updatedAt=new Date().toISOString();"
+        "this._save();"
         'this._notify({type:"updated",space:s});'
-        'return s;'
-        '}'
-
+        "return s;"
+        "}"
         # getAutoMemoryDir
-        'getAutoMemoryDir(spaceId){'
-        'const s=this._find(spaceId);'
-        'if(!s)return null;'
+        "getAutoMemoryDir(spaceId){"
+        "const s=this._find(spaceId);"
+        "if(!s)return null;"
         'const dir=_path.join(_app.getPath("userData"),"spaces",spaceId,"memory");'
-        'try{_fs.mkdirSync(dir,{recursive:true});}catch(e){}'
-        'return dir;'
-        '}'
-
+        "try{_fs.mkdirSync(dir,{recursive:true});}catch(e){}"
+        "return dir;"
+        "}"
         # listFolderContents
-        'listFolderContents(spaceId,folderPath){'
-        'const s=this._find(spaceId);'
-        'if(!s)return[];'
+        "listFolderContents(spaceId,folderPath){"
+        "const s=this._find(spaceId);"
+        "if(!s)return[];"
         # Security: ensure folderPath is within one of the space's folders
-        'const resolved=_path.resolve(folderPath);'
-        'const allowed=s.folders.some(f=>resolved.startsWith(_path.resolve(f.path)))'
+        "const resolved=_path.resolve(folderPath);"
+        "const allowed=s.folders.some(f=>resolved.startsWith(_path.resolve(f.path)))"
         '||resolved.startsWith(_path.resolve(s.ccdFolderPath||""));'
-        'if(!allowed)return[];'
-        'try{'
-        'const entries=_fs.readdirSync(resolved,{withFileTypes:true});'
-        'return entries.map(e=>({'
-        'name:e.name,'
-        'isDirectory:e.isDirectory(),'
-        'path:_path.join(resolved,e.name)'
-        '}));'
-        '}catch(e){return[];}'
-        '}'
-
+        "if(!allowed)return[];"
+        "try{"
+        "const entries=_fs.readdirSync(resolved,{withFileTypes:true});"
+        "return entries.map(e=>({"
+        "name:e.name,"
+        "isDirectory:e.isDirectory(),"
+        "path:_path.join(resolved,e.name)"
+        "}));"
+        "}catch(e){return[];}"
+        "}"
         # readFileContents
-        'readFileContents(spaceId,filePath){'
-        'const s=this._find(spaceId);'
-        'if(!s)return null;'
-        'const resolved=_path.resolve(filePath);'
-        'const allowed=s.folders.some(f=>resolved.startsWith(_path.resolve(f.path)))'
+        "readFileContents(spaceId,filePath){"
+        "const s=this._find(spaceId);"
+        "if(!s)return null;"
+        "const resolved=_path.resolve(filePath);"
+        "const allowed=s.folders.some(f=>resolved.startsWith(_path.resolve(f.path)))"
         '||resolved.startsWith(_path.resolve(s.ccdFolderPath||""));'
-        'if(!allowed)return null;'
+        "if(!allowed)return null;"
         'try{return _fs.readFileSync(resolved,"utf-8");}catch(e){return null;}'
-        '}'
-
+        "}"
         # openFile
-        'openFile(spaceId,filePath){'
-        'try{_shell.openPath(_path.resolve(filePath));}catch(e){}'
-        'return null;'
-        '}'
-
+        "openFile(spaceId,filePath){"
+        "try{_shell.openPath(_path.resolve(filePath));}catch(e){}"
+        "return null;"
+        "}"
         # createSpaceFolder — takes (parentPath, folderName), NOT spaceId
-        'createSpaceFolder(parentPath,folderName){'
-        'if(!folderName||!folderName.trim())return null;'
-        'const name=folderName.trim();'
-        'let dir=_path.join(parentPath,name);'
-        'let n=0;'
+        "createSpaceFolder(parentPath,folderName){"
+        "if(!folderName||!folderName.trim())return null;"
+        "const name=folderName.trim();"
+        "let dir=_path.join(parentPath,name);"
+        "let n=0;"
         'while(_fs.existsSync(dir)){n++;dir=_path.join(parentPath,name+" ("+n+")");}'
-        'try{_fs.mkdirSync(dir,{recursive:true});return dir;}catch(e){return null;}'
-        '}'
-
+        "try{_fs.mkdirSync(dir,{recursive:true});return dir;}catch(e){return null;}"
+        "}"
         # copyFilesToSpaceFolder
-        'copyFilesToSpaceFolder(spaceId,files){'
-        'const s=this._find(spaceId);'
-        'if(!s||!s.ccdFolderPath)return null;'
-        'const results=[];'
-        'const flist=Array.isArray(files)?files:[];'
-        'for(const f of flist){'
-        'try{'
+        "copyFilesToSpaceFolder(spaceId,files){"
+        "const s=this._find(spaceId);"
+        "if(!s||!s.ccdFolderPath)return null;"
+        "const results=[];"
+        "const flist=Array.isArray(files)?files:[];"
+        "for(const f of flist){"
+        "try{"
         'const src=typeof f==="string"?f:f.path||f.sourcePath;'
-        'const name=_path.basename(src);'
-        'const dest=_path.join(s.ccdFolderPath,name);'
-        '_fs.copyFileSync(src,dest);'
-        'results.push({name,path:dest,success:true});'
+        "const name=_path.basename(src);"
+        "const dest=_path.join(s.ccdFolderPath,name);"
+        "_fs.copyFileSync(src,dest);"
+        "results.push({name,path:dest,success:true});"
         '}catch(e){results.push({name:typeof f==="string"?_path.basename(f):"unknown",success:false,error:e.message});}'
-        '}'
-        'return results;'
-        '}'
-
+        "}"
+        "return results;"
+        "}"
         # End of class
-        '}'  # end class _SpacesService
-
+        "}"  # end class _SpacesService
         # Create the service instance
-        'const _svc=new _SpacesService();'
-
+        "const _svc=new _SpacesService();"
         # Register all IPC handlers
         '_ipc.handle(_P+"getAllSpaces",()=>_svc.getAllSpaces());'
         '_ipc.handle(_P+"getSpace",(ev,id)=>_svc.getSpace(id));'
@@ -349,48 +324,45 @@ def build_spaces_service_js(eipc_prefix, singleton_var):
         '_ipc.handle(_P+"openFile",(ev,id,p)=>_svc.openFile(id,p));'
         '_ipc.handle(_P+"createSpaceFolder",(ev,parentPath,name)=>_svc.createSpaceFolder(parentPath,name));'
         '_ipc.handle(_P+"copyFilesToSpaceFolder",(ev,id,f)=>_svc.copyFilesToSpaceFolder(id,f));'
-
         # Set the service on the SpaceManager singleton so resolveSpaceContext works
-        f'try{{{singleton_var}.set(_svc);'
+        f"try{{{singleton_var}.set(_svc);"
         f'console.log("[SpacesService] Registered on {singleton_var} singleton");'
         '}catch(_e){console.warn("[SpacesService] Could not set singleton:",_e);}'
-
         'console.log("[SpacesService] Linux CoworkSpaces service initialized with",_svc._spaces.length,"spaces");'
-
-        '}'  # end if(process.platform==="linux")
+        "}"  # end if(process.platform==="linux")
     )
 
 
 def patch_cowork_spaces(filepath):
     """Register CoworkSpaces file-based service on Linux."""
 
-    print(f"=== Patch: fix_cowork_spaces ===")
+    print("=== Patch: fix_cowork_spaces ===")
     print(f"  Target: {filepath}")
 
     if not os.path.exists(filepath):
         print(f"  [FAIL] File not found: {filepath}")
         return False
 
-    with open(filepath, 'rb') as f:
+    with open(filepath, "rb") as f:
         content = f.read()
 
     original_content = content
 
     # --- Step 0: Check if full service is already injected ---
-    if b'class _SpacesService extends _EE{' in content:
-        print(f"  [OK] Full CoworkSpaces service already injected")
+    if b"class _SpacesService extends _EE{" in content:
+        print("  [OK] Full CoworkSpaces service already injected")
         print("  [PASS] No patch needed")
         return True
 
     # --- Step 1: Extract eipc UUID ---
     uuid = extract_eipc_uuid(content)
     if not uuid:
-        mainview = os.path.join(os.path.dirname(filepath), 'mainView.js')
+        mainview = os.path.join(os.path.dirname(filepath), "mainView.js")
         if os.path.exists(mainview):
-            with open(mainview, 'rb') as f:
+            with open(mainview, "rb") as f:
                 uuid = extract_eipc_uuid(f.read())
     if not uuid:
-        print(f"  [FAIL] Could not extract eipc UUID from source files")
+        print("  [FAIL] Could not extract eipc UUID from source files")
         return False
 
     eipc_prefix = f"$eipc_message$_{uuid}_$_claude.web_$_CoworkSpaces_$_"
@@ -399,16 +371,16 @@ def patch_cowork_spaces(filepath):
     # --- Step 2: Find SpaceManager singleton variable name ---
     singleton_var = extract_space_manager_singleton(content)
     if not singleton_var:
-        print(f"  [WARN] Could not find SpaceManager singleton variable, using fallback")
+        print("  [WARN] Could not find SpaceManager singleton variable, using fallback")
         # Fallback: try to find it from the $Dt class pattern
         # Pattern: peek(){return this.current}}const VARNAME=new
-        m = re.search(rb'peek\(\)\{return this\.current\}\}const (\w+)=new \w+,', content)
+        m = re.search(rb"peek\(\)\{return this\.current\}\}const (\w+)=new \w+,", content)
         if m:
-            singleton_var = m.group(1).decode('utf-8')
+            singleton_var = m.group(1).decode("utf-8")
             print(f"  [OK] Found singleton via fallback pattern: {singleton_var}")
         else:
-            singleton_var = '__spaceMgr__'
-            print(f"  [WARN] Using dummy singleton name (resolveSpaceContext won't work)")
+            singleton_var = "__spaceMgr__"
+            print("  [WARN] Using dummy singleton name (resolveSpaceContext won't work)")
 
     print(f"  [OK] SpaceManager singleton: {singleton_var}")
 
@@ -418,9 +390,9 @@ def patch_cowork_spaces(filepath):
         rb'if\(process\.platform==="linux"\)\{'
         rb'const _ipc=require\("electron"\)\.ipcMain;'
         rb'const _P="\$eipc_message\$_[a-f0-9-]+_\$_claude\.web_\$_CoworkSpaces_\$_";'
-        rb'[^}]*\}'
+        rb"[^}]*\}"
     )
-    content, removed = re.subn(old_stub_pattern, b'', content)
+    content, removed = re.subn(old_stub_pattern, b"", content)
     if removed:
         print(f"  [OK] Removed {removed} old CoworkSpaces stub block(s)")
 
@@ -429,17 +401,17 @@ def patch_cowork_spaces(filepath):
 
     # Inject after app.on("ready", async () => {
     pattern = rb'(app\.on\("ready",async\(\)=>\{)'
-    replacement = rb'\1' + service_js.encode('utf-8')
+    replacement = rb"\1" + service_js.encode("utf-8")
 
     content, count = re.subn(pattern, replacement, content, count=1)
     if count >= 1:
         print(f"  [OK] CoworkSpaces service injected ({count} match)")
     else:
-        print(f"  [FAIL] app.on(\"ready\") pattern: 0 matches")
+        print('  [FAIL] app.on("ready") pattern: 0 matches')
         return False
 
     if content != original_content:
-        with open(filepath, 'wb') as f:
+        with open(filepath, "wb") as f:
             f.write(content)
         print("  [PASS] CoworkSpaces file-based service registered for Linux")
         return True

@@ -40,14 +40,14 @@ import re
 def patch_browser_tools_linux(filepath):
     """Enable Chrome browser tools on Linux."""
 
-    print(f"=== Patch: fix_browser_tools_linux ===")
+    print("=== Patch: fix_browser_tools_linux ===")
     print(f"  Target: {filepath}")
 
     if not os.path.exists(filepath):
         print(f"  [FAIL] File not found: {filepath}")
         return False
 
-    with open(filepath, 'rb') as f:
+    with open(filepath, "rb") as f:
         content = f.read()
 
     original_content = content
@@ -75,22 +75,20 @@ def patch_browser_tools_linux(filepath):
 
     pattern_a = rb'"Helpers",\w+\)}else return \w+\.join\('
 
-    linux_binary = (
-        b'"linux")return require("path").join('
-        b'require("os").homedir(),".claude","chrome","chrome-native-host");'
-    )
+    linux_binary = b'"linux")return require("path").join(require("os").homedir(),".claude","chrome","chrome-native-host");'
 
     already_a = rb'process\.platform==="linux"\)return require\("path"\)\.join\(require\("os"\)\.homedir\(\),".claude"'
 
     if re.search(already_a, content):
-        print(f"  [OK] Binary path resolution: already patched (skipped)")
+        print("  [OK] Binary path resolution: already patched (skipped)")
         patches_applied += 1
     else:
+
         def replacement_a(m):
             matched = m.group(0)
             return matched.replace(
-                b'}else return',
-                b'}else if(process.platform===' + linux_binary + b'else return',
+                b"}else return",
+                b"}else if(process.platform===" + linux_binary + b"else return",
             )
 
         content, count_a = re.subn(pattern_a, replacement_a, content, count=1)
@@ -98,8 +96,8 @@ def patch_browser_tools_linux(filepath):
             print(f"  [OK] Binary path resolution: redirected to Claude Code native host ({count_a} match)")
             patches_applied += 1
         else:
-            print(f"  [FAIL] Binary path resolution: pattern not found")
-            print(f"         Debug: rg -o '\"Helpers\".{{0,50}}' index.js")
+            print("  [FAIL] Binary path resolution: pattern not found")
+            print("         Debug: rg -o '\"Helpers\".{0,50}' index.js")
 
     # ── Patch B: NativeMessagingHosts directory paths ───────────────────
     #
@@ -120,20 +118,20 @@ def patch_browser_tools_linux(filepath):
     linux_paths = (
         b':process.platform==="linux"?(()=>{'
         b'const h=require("os").homedir(),p=require("path");'
-        b'return['
+        b"return["
         b'{name:"Chrome",path:p.join(h,".config","google-chrome","NativeMessagingHosts")},'
         b'{name:"Chromium",path:p.join(h,".config","chromium","NativeMessagingHosts")},'
         b'{name:"Brave",path:p.join(h,".config","BraveSoftware","Brave-Browser","NativeMessagingHosts")},'
         b'{name:"Edge",path:p.join(h,".config","microsoft-edge","NativeMessagingHosts")},'
         b'{name:"Vivaldi",path:p.join(h,".config","vivaldi","NativeMessagingHosts")},'
         b'{name:"Opera",path:p.join(h,".config","opera","NativeMessagingHosts")}'
-        b']})():[]'
+        b"]})():[]"
     )
 
     already_b = rb'"ChromeNativeHost"\)\}\]:process\.platform==="linux"'
 
     if re.search(already_b, content):
-        print(f"  [OK] NativeMessagingHosts paths: already patched (skipped)")
+        print("  [OK] NativeMessagingHosts paths: already patched (skipped)")
         patches_applied += 1
     else:
         content, count_b = re.subn(
@@ -146,8 +144,8 @@ def patch_browser_tools_linux(filepath):
             print(f"  [OK] NativeMessagingHosts paths: added 6 Linux browsers ({count_b} match)")
             patches_applied += 1
         else:
-            print(f"  [FAIL] NativeMessagingHosts paths: pattern not found")
-            print(f"         Debug: rg -o '\"ChromeNativeHost\".{{0,30}}' index.js")
+            print("  [FAIL] NativeMessagingHosts paths: pattern not found")
+            print("         Debug: rg -o '\"ChromeNativeHost\".{0,30}' index.js")
 
     # ── Results ────────────────────────────────────────────────────────
 
@@ -160,15 +158,15 @@ def patch_browser_tools_linux(filepath):
         return True
 
     # Verify patches didn't introduce a brace imbalance
-    original_delta = original_content.count(b'{') - original_content.count(b'}')
-    patched_delta = content.count(b'{') - content.count(b'}')
+    original_delta = original_content.count(b"{") - original_content.count(b"}")
+    patched_delta = content.count(b"{") - content.count(b"}")
     if original_delta != patched_delta:
         diff = patched_delta - original_delta
         print(f"  [FAIL] Patch introduced brace imbalance: {diff:+d} unmatched braces")
         return False
 
     # Write back
-    with open(filepath, 'wb') as f:
+    with open(filepath, "wb") as f:
         f.write(content)
     print(f"  [PASS] {patches_applied} patches applied")
     return True

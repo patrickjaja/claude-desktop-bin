@@ -15,14 +15,14 @@ import os
 def patch_cowork_error_message(filepath):
     """Replace VM service error messages with Linux-friendly guidance."""
 
-    print(f"=== Patch: fix_cowork_error_message ===")
+    print("=== Patch: fix_cowork_error_message ===")
     print(f"  Target: {filepath}")
 
     if not os.path.exists(filepath):
         print(f"  [FAIL] File not found: {filepath}")
         return False
 
-    with open(filepath, 'rb') as f:
+    with open(filepath, "rb") as f:
         content = f.read()
 
     original_content = content
@@ -30,34 +30,38 @@ def patch_cowork_error_message(filepath):
 
     # Patch A: ENOENT / retry-exhausted error
     old_a = b'"VM service not running. The service failed to start."'
-    new_a = (b'(process.platform==="linux"'
-             b'?"Cowork requires claude-cowork-service. '
-             b'Install it from github.com/patrickjaja/claude-cowork-service, '
-             b'then restart Claude Desktop."'
-             b':"VM service not running. The service failed to start.")')
+    new_a = (
+        b'(process.platform==="linux"'
+        b'?"Cowork requires claude-cowork-service. '
+        b"Install it from github.com/patrickjaja/claude-cowork-service, "
+        b'then restart Claude Desktop."'
+        b':"VM service not running. The service failed to start.")'
+    )
 
     if old_a in content:
         content = content.replace(old_a, new_a, 1)
-        print(f"  [OK] Startup error message: replaced")
+        print("  [OK] Startup error message: replaced")
         patches_applied += 1
     else:
-        print(f"  [WARN] Startup error message not found")
+        print("  [WARN] Startup error message not found")
 
     # Patch B: Timeout fallback error
     old_b = b'throw new Error("VM service not running.")'
-    new_b = (b'throw new Error(process.platform==="linux"'
-             b'?"Cowork service not responding. '
-             b'Make sure claude-cowork-service is running '
-             b'(github.com/patrickjaja/claude-cowork-service), '
-             b'then restart Claude Desktop."'
-             b':"VM service not running.")')
+    new_b = (
+        b'throw new Error(process.platform==="linux"'
+        b'?"Cowork service not responding. '
+        b"Make sure claude-cowork-service is running "
+        b"(github.com/patrickjaja/claude-cowork-service), "
+        b'then restart Claude Desktop."'
+        b':"VM service not running.")'
+    )
 
     if old_b in content:
         content = content.replace(old_b, new_b, 1)
-        print(f"  [OK] Timeout error message: replaced")
+        print("  [OK] Timeout error message: replaced")
         patches_applied += 1
     else:
-        print(f"  [WARN] Timeout error message not found")
+        print("  [WARN] Timeout error message not found")
 
     # Check results
     if patches_applied == 0:
@@ -69,15 +73,15 @@ def patch_cowork_error_message(filepath):
         return True
 
     # Verify brace balance
-    original_delta = original_content.count(b'{') - original_content.count(b'}')
-    patched_delta = content.count(b'{') - content.count(b'}')
+    original_delta = original_content.count(b"{") - original_content.count(b"}")
+    patched_delta = content.count(b"{") - content.count(b"}")
     if original_delta != patched_delta:
         diff = patched_delta - original_delta
         print(f"  [FAIL] Patch introduced brace imbalance: {diff:+d} unmatched braces")
         return False
 
     # Write back
-    with open(filepath, 'wb') as f:
+    with open(filepath, "wb") as f:
         f.write(content)
     print(f"  [PASS] {patches_applied} patches applied")
     return True

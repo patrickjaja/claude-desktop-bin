@@ -56,7 +56,7 @@ def patch_detected_projects(filepath):
         # (look for the guard specifically near the detectedProjects context)
         idx = content.find(b"[detectedProjects] skipping")
         if idx != -1:
-            nearby = content[max(0, idx - 200):idx]
+            nearby = content[max(0, idx - 200) : idx]
             if b'process.platform!=="linux"' in nearby:
                 print("  [SKIP] Already patched (linux platform guard found)")
                 return True
@@ -76,7 +76,7 @@ def patch_detected_projects(filepath):
 
     pat_guard = (
         rb'(if\(process\.platform!=="darwin")'
-        rb'(\)return [\w$]+\.debug\(`\[detectedProjects\] skipping)'
+        rb"(\)return [\w$]+\.debug\(`\[detectedProjects\] skipping)"
     )
 
     def repl_guard(m):
@@ -101,25 +101,17 @@ def patch_detected_projects(filepath):
     # <path>, <os>, and <dir> are captured dynamically.
 
     pat_vscode = (
-        rb'(\w+)\.join\((\w+)\.homedir\(\),'
+        rb"(\w+)\.join\((\w+)\.homedir\(\),"
         rb'"Library","Application Support",(\w+),'
         rb'"User","globalStorage","state\.vscdb"\)'
     )
 
     def repl_vscode(m):
-        p = m.group(1).decode()   # path module (e.g. ke)
-        o = m.group(2).decode()   # os module   (e.g. Gr)
-        d = m.group(3).decode()   # dir param   (e.g. t)
-        mac = (
-            f'{p}.join({o}.homedir(),'
-            f'"Library","Application Support",{d},'
-            f'"User","globalStorage","state.vscdb")'
-        )
-        lin = (
-            f'{p}.join({o}.homedir(),'
-            f'".config",{d},'
-            f'"User","globalStorage","state.vscdb")'
-        )
+        p = m.group(1).decode()  # path module (e.g. ke)
+        o = m.group(2).decode()  # os module   (e.g. Gr)
+        d = m.group(3).decode()  # dir param   (e.g. t)
+        mac = f'{p}.join({o}.homedir(),"Library","Application Support",{d},"User","globalStorage","state.vscdb")'
+        lin = f'{p}.join({o}.homedir(),".config",{d},"User","globalStorage","state.vscdb")'
         return f'(process.platform==="darwin"?{mac}:{lin})'.encode()
 
     content, count = re.subn(pat_vscode, repl_vscode, content)
@@ -139,24 +131,16 @@ def patch_detected_projects(filepath):
     #     : <path>.join(<os>.homedir(),".local","share","zed","db","0-stable","db.sqlite"))
 
     pat_zed = (
-        rb'(\w+)\.join\((\w+)\.homedir\(\),'
+        rb"(\w+)\.join\((\w+)\.homedir\(\),"
         rb'"Library","Application Support","Zed",'
         rb'"db","0-stable","db\.sqlite"\)'
     )
 
     def repl_zed(m):
-        p = m.group(1).decode()   # path module
-        o = m.group(2).decode()   # os module
-        mac = (
-            f'{p}.join({o}.homedir(),'
-            f'"Library","Application Support","Zed",'
-            f'"db","0-stable","db.sqlite")'
-        )
-        lin = (
-            f'{p}.join({o}.homedir(),'
-            f'".local","share","zed",'
-            f'"db","0-stable","db.sqlite")'
-        )
+        p = m.group(1).decode()  # path module
+        o = m.group(2).decode()  # os module
+        mac = f'{p}.join({o}.homedir(),"Library","Application Support","Zed","db","0-stable","db.sqlite")'
+        lin = f'{p}.join({o}.homedir(),".local","share","zed","db","0-stable","db.sqlite")'
         return f'(process.platform==="darwin"?{mac}:{lin})'.encode()
 
     content, count = re.subn(pat_zed, repl_zed, content)

@@ -26,14 +26,14 @@ import re
 def patch_read_terminal_linux(filepath):
     """Enable read_terminal MCP server on Linux."""
 
-    print(f"=== Patch: fix_read_terminal_linux ===")
+    print("=== Patch: fix_read_terminal_linux ===")
     print(f"  Target: {filepath}")
 
     if not os.path.exists(filepath):
         print(f"  [FAIL] File not found: {filepath}")
         return False
 
-    with open(filepath, 'rb') as f:
+    with open(filepath, "rb") as f:
         content = f.read()
 
     original_content = content
@@ -47,20 +47,18 @@ def patch_read_terminal_linux(filepath):
     pattern = rb'(sessionType==="ccd"&&)process\.platform==="darwin"(&&\w+\("\d+"\))'
 
     def replacement(m):
-        return (m.group(1) +
-                b'(process.platform==="darwin"||process.platform==="linux")' +
-                m.group(2))
+        return m.group(1) + b'(process.platform==="darwin"||process.platform==="linux")' + m.group(2)
 
     content, count = re.subn(pattern, replacement, content)
     if count > 0:
         print(f"  [OK] read_terminal isEnabled: {count} match(es)")
     else:
-        print(f"  [FAIL] read_terminal isEnabled: 0 matches")
+        print("  [FAIL] read_terminal isEnabled: 0 matches")
         return False
 
     # Write back if changed
     if content != original_content:
-        with open(filepath, 'wb') as f:
+        with open(filepath, "wb") as f:
             f.write(content)
         print("  [PASS] read_terminal enabled on Linux")
         return True

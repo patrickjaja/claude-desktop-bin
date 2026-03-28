@@ -41,14 +41,14 @@ import re
 def patch_office_addin_linux(filepath):
     """Enable Office Addin feature on Linux."""
 
-    print(f"=== Patch: fix_office_addin_linux ===")
+    print("=== Patch: fix_office_addin_linux ===")
     print(f"  Target: {filepath}")
 
     if not os.path.exists(filepath):
         print(f"  [FAIL] File not found: {filepath}")
         return False
 
-    with open(filepath, 'rb') as f:
+    with open(filepath, "rb") as f:
         content = f.read()
 
     original_content = content
@@ -68,9 +68,10 @@ def patch_office_addin_linux(filepath):
     already_a = rb'&&\(\w+\|\|\w+\|\|process\.platform==="linux"\)&&\w+\("louderPenguinEnabled"\)'
 
     if re.search(already_a, content):
-        print(f"  [OK] MCP server isEnabled: already patched (skipped)")
+        print("  [OK] MCP server isEnabled: already patched (skipped)")
         patches_applied += 1
     else:
+
         def replacement_a(m):
             return m.group(1) + m.group(2) + b'||process.platform==="linux"' + m.group(3)
 
@@ -79,7 +80,7 @@ def patch_office_addin_linux(filepath):
             print(f"  [OK] MCP server isEnabled: added Linux ({count_a} match)")
             patches_applied += 1
         else:
-            print(f"  [FAIL] MCP server isEnabled: pattern not found")
+            print("  [FAIL] MCP server isEnabled: pattern not found")
 
     # ── Patch B: Init block gate ──────────────────────────────────────────
     #
@@ -96,9 +97,10 @@ def patch_office_addin_linux(filepath):
     already_b = rb'\}\);\(\w+\|\|\w+\|\|process\.platform==="linux"\)&&\w+\("louderPenguinEnabled"\)&&\('
 
     if re.search(already_b, content):
-        print(f"  [OK] Init block: already patched (skipped)")
+        print("  [OK] Init block: already patched (skipped)")
         patches_applied += 1
     else:
+
         def replacement_b(m):
             return m.group(1) + m.group(2) + b'||process.platform==="linux"' + m.group(3)
 
@@ -107,7 +109,7 @@ def patch_office_addin_linux(filepath):
             print(f"  [OK] Init block: added Linux ({count_b} match)")
             patches_applied += 1
         else:
-            print(f"  [FAIL] Init block: pattern not found")
+            print("  [FAIL] Init block: pattern not found")
 
     # ── Patch C: Connected file detection gate ────────────────────────────
     #
@@ -119,13 +121,14 @@ def patch_office_addin_linux(filepath):
     #
     # Pattern anchors on `(` before and `)&&await VAR(VAR.app,VAR.document)` after.
 
-    pattern_c = rb'(\()(\w+\|\|\w+)(\)&&await \w+\(\w+\.app,\w+\.document\))'
+    pattern_c = rb"(\()(\w+\|\|\w+)(\)&&await \w+\(\w+\.app,\w+\.document\))"
     already_c = rb'\(\w+\|\|\w+\|\|process\.platform==="linux"\)&&await \w+\(\w+\.app,\w+\.document\)'
 
     if re.search(already_c, content):
-        print(f"  [OK] Connected file detection: already patched (skipped)")
+        print("  [OK] Connected file detection: already patched (skipped)")
         patches_applied += 1
     else:
+
         def replacement_c(m):
             return m.group(1) + m.group(2) + b'||process.platform==="linux"' + m.group(3)
 
@@ -134,7 +137,7 @@ def patch_office_addin_linux(filepath):
             print(f"  [OK] Connected file detection: added Linux ({count_c} match)")
             patches_applied += 1
         else:
-            print(f"  [FAIL] Connected file detection: pattern not found")
+            print("  [FAIL] Connected file detection: pattern not found")
 
     # ── Results ───────────────────────────────────────────────────────────
 
@@ -147,15 +150,15 @@ def patch_office_addin_linux(filepath):
         return True
 
     # Verify patches didn't introduce a brace imbalance
-    original_delta = original_content.count(b'{') - original_content.count(b'}')
-    patched_delta = content.count(b'{') - content.count(b'}')
+    original_delta = original_content.count(b"{") - original_content.count(b"}")
+    patched_delta = content.count(b"{") - content.count(b"}")
     if original_delta != patched_delta:
         diff = patched_delta - original_delta
         print(f"  [FAIL] Patch introduced brace imbalance: {diff:+d} unmatched braces")
         return False
 
     # Write back
-    with open(filepath, 'wb') as f:
+    with open(filepath, "wb") as f:
         f.write(content)
     print(f"  [PASS] {patches_applied} patches applied")
     return True

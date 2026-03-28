@@ -28,14 +28,14 @@ import re
 def patch_marketplace_linux(filepath):
     """Force CCD mode for marketplace operations on Linux."""
 
-    print(f"=== Patch: fix_marketplace_linux ===")
+    print("=== Patch: fix_marketplace_linux ===")
     print(f"  Target: {filepath}")
 
     if not os.path.exists(filepath):
         print(f"  [FAIL] File not found: {filepath}")
         return False
 
-    with open(filepath, 'rb') as f:
+    with open(filepath, "rb") as f:
         content = f.read()
 
     original_content = content
@@ -63,14 +63,13 @@ def patch_marketplace_linux(filepath):
     def replacement(m):
         fn_name = m.group(1)
         param = m.group(2)
-        return (b'function ' + fn_name + b'(' + param + b'){return process.platform==="linux"||(' +
-                param + b'==null?void 0:' + param + b'.mode)==="ccd"}')
+        return b"function " + fn_name + b"(" + param + b'){return process.platform==="linux"||(' + param + b"==null?void 0:" + param + b'.mode)==="ccd"}'
 
     content, count = re.subn(pattern, replacement, content)
     if count >= 1:
         print(f"  [OK] CCD/Cowork gate: force CCD mode on Linux ({count} match)")
     else:
-        print(f"  [FAIL] CCD/Cowork gate: 0 matches")
+        print("  [FAIL] CCD/Cowork gate: 0 matches")
         return False
 
     if content == original_content:
@@ -78,9 +77,9 @@ def patch_marketplace_linux(filepath):
         return True
 
     # Write back
-    with open(filepath, 'wb') as f:
+    with open(filepath, "wb") as f:
         f.write(content)
-    print(f"  [PASS] Marketplace Linux patch applied")
+    print("  [PASS] Marketplace Linux patch applied")
     return True
 
 

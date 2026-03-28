@@ -23,14 +23,14 @@ import re
 def patch_tray_icon_theme(filepath):
     """Patch tray icon selection to respect theme on Linux."""
 
-    print(f"=== Patch: fix_tray_icon_theme ===")
+    print("=== Patch: fix_tray_icon_theme ===")
     print(f"  Target: {filepath}")
 
     if not os.path.exists(filepath):
         print(f"  [FAIL] File not found: {filepath}")
         return False
 
-    with open(filepath, 'rb') as f:
+    with open(filepath, "rb") as f:
         content = f.read()
 
     original_content = content
@@ -50,25 +50,23 @@ def patch_tray_icon_theme(filepath):
 
     def replacement(m):
         is_win_var = m.group(1)  # Ln
-        icon_var = m.group(2)     # e
-        electron_var = m.group(3) # $e
+        icon_var = m.group(2)  # e
+        electron_var = m.group(3)  # $e
         # On Windows: use .ico files with theme check
         # On Linux: always use light icon (Dark.png) since trays are universally dark
-        return (is_win_var + b'?' + icon_var + b'=' + electron_var +
-                b'.nativeTheme.shouldUseDarkColors?"Tray-Win32-Dark.ico":"Tray-Win32.ico":' +
-                icon_var + b'="TrayIconTemplate-Dark.png"')
+        return is_win_var + b"?" + icon_var + b"=" + electron_var + b'.nativeTheme.shouldUseDarkColors?"Tray-Win32-Dark.ico":"Tray-Win32.ico":' + icon_var + b'="TrayIconTemplate-Dark.png"'
 
     content, count = re.subn(pattern, replacement, content)
 
     if count > 0:
         print(f"  [OK] tray icon theme logic: {count} match(es)")
     else:
-        print(f"  [FAIL] tray icon theme logic: 0 matches")
+        print("  [FAIL] tray icon theme logic: 0 matches")
         return False
 
     # Write back if changed
     if content != original_content:
-        with open(filepath, 'wb') as f:
+        with open(filepath, "wb") as f:
             f.write(content)
         print("  [PASS] Tray icon theme patched successfully")
         return True

@@ -27,14 +27,14 @@ import re
 def patch_browse_files(filepath):
     """Enable directory browsing in the browseFiles dialog on Linux."""
 
-    print(f"=== Patch: fix_browse_files_linux ===")
+    print("=== Patch: fix_browse_files_linux ===")
     print(f"  Target: {filepath}")
 
     if not os.path.exists(filepath):
         print(f"  [FAIL] File not found: {filepath}")
         return False
 
-    with open(filepath, 'rb') as f:
+    with open(filepath, "rb") as f:
         content = f.read()
 
     original_content = content
@@ -52,12 +52,12 @@ def patch_browse_files(filepath):
     if count > 0:
         print(f"  [OK] browseFiles openDirectory: {count} match(es)")
     else:
-        print(f"  [FAIL] browseFiles openDirectory: 0 matches")
+        print("  [FAIL] browseFiles openDirectory: 0 matches")
         return False
 
     # Write back if changed
     if content != original_content:
-        with open(filepath, 'wb') as f:
+        with open(filepath, "wb") as f:
             f.write(content)
         print("  [PASS] Browse files dialog patched successfully")
         return True

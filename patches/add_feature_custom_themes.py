@@ -228,41 +228,41 @@ console.log("[CustomThemes] Injected CSS into "+url);
 def patch_custom_themes(filepath):
     """Inject custom CSS theme support for Linux."""
 
-    print(f"=== Patch: add_feature_custom_themes ===")
+    print("=== Patch: add_feature_custom_themes ===")
     print(f"  Target: {filepath}")
 
     if not os.path.exists(filepath):
         print(f"  [FAIL] File not found: {filepath}")
         return False
 
-    with open(filepath, 'rb') as f:
+    with open(filepath, "rb") as f:
         content = f.read()
 
     original_content = content
 
     # Check if already applied
-    marker = b'__cdb_builtins'
+    marker = b"__cdb_builtins"
     if marker in content:
-        print(f"  [INFO] Custom theme injection already applied")
-        print(f"  [PASS] No changes needed (already patched)")
+        print("  [INFO] Custom theme injection already applied")
+        print("  [PASS] No changes needed (already patched)")
         return True
 
     # Inject right after "use strict"; at the top of the file
     strict_prefix = b'"use strict";'
     if content.startswith(strict_prefix):
-        content = strict_prefix + THEME_INJECTION_JS + content[len(strict_prefix):]
-        print(f"  [OK] Theme injection IIFE inserted after \"use strict\"")
+        content = strict_prefix + THEME_INJECTION_JS + content[len(strict_prefix) :]
+        print('  [OK] Theme injection IIFE inserted after "use strict"')
     else:
         content = THEME_INJECTION_JS + content
-        print(f"  [OK] Theme injection IIFE prepended")
+        print("  [OK] Theme injection IIFE prepended")
 
     if content != original_content:
-        with open(filepath, 'wb') as f:
+        with open(filepath, "wb") as f:
             f.write(content)
-        print(f"  [PASS] Custom theme support added")
+        print("  [PASS] Custom theme support added")
         return True
     else:
-        print(f"  [WARN] No changes made")
+        print("  [WARN] No changes made")
         return False
 
 

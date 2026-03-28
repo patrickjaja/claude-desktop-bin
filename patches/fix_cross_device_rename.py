@@ -28,14 +28,14 @@ import re
 def patch_cross_device_rename(filepath):
     """Replace fs.rename with cross-device-safe wrapper on Linux."""
 
-    print(f"=== Patch: fix_cross_device_rename ===")
+    print("=== Patch: fix_cross_device_rename ===")
     print(f"  Target: {filepath}")
 
     if not os.path.exists(filepath):
         print(f"  [FAIL] File not found: {filepath}")
         return False
 
-    with open(filepath, 'rb') as f:
+    with open(filepath, "rb") as f:
         content = f.read()
 
     original_content = content
@@ -51,39 +51,41 @@ def patch_cross_device_rename(filepath):
     #
     # Before: await ur.rename(x,y)
     # After:  await ur.rename(x,y).catch(async e=>{if(e.code==="EXDEV"){await ur.copyFile(x,y);await ur.unlink(x)}else throw e})
-    rename_pattern = rb'(?<!try\{)await (\w+)\.rename\((\w+),(\w+)\)'
+    rename_pattern = rb"(?<!try\{)await (\w+)\.rename\((\w+),(\w+)\)"
 
     def rename_replacement(m):
         mod = m.group(1)
         src = m.group(2)
         dst = m.group(3)
-        return (b'await ' + mod + b'.rename(' + src + b',' + dst + b')'
-                b'.catch(async e=>{if(e.code==="EXDEV"){'
-                b'await ' + mod + b'.copyFile(' + src + b',' + dst + b');'
-                b'await ' + mod + b'.unlink(' + src + b')'
-                b'}else throw e})')
+        return (
+            b"await " + mod + b".rename(" + src + b"," + dst + b")"
+            b'.catch(async e=>{if(e.code==="EXDEV"){'
+            b"await " + mod + b".copyFile(" + src + b"," + dst + b");"
+            b"await " + mod + b".unlink(" + src + b")"
+            b"}else throw e})"
+        )
 
     content, count = re.subn(rename_pattern, rename_replacement, content)
     if count >= 1:
         print(f"  [OK] Replaced {count} rename() calls with inline EXDEV fallback")
     else:
-        print(f"  [WARN] No unguarded rename() calls found")
+        print("  [WARN] No unguarded rename() calls found")
 
     if content == original_content:
         print("  [WARN] No changes made")
         return True
 
     # Verify brace balance
-    original_delta = original_content.count(b'{') - original_content.count(b'}')
-    patched_delta = content.count(b'{') - content.count(b'}')
+    original_delta = original_content.count(b"{") - original_content.count(b"}")
+    patched_delta = content.count(b"{") - content.count(b"}")
     if original_delta != patched_delta:
         diff = patched_delta - original_delta
         print(f"  [FAIL] Patch introduced brace imbalance: {diff:+d}")
         return False
 
-    with open(filepath, 'wb') as f:
+    with open(filepath, "wb") as f:
         f.write(content)
-    print(f"  [PASS] Cross-device rename fix applied")
+    print("  [PASS] Cross-device rename fix applied")
     return True
 
 

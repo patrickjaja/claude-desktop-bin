@@ -548,18 +548,18 @@ def patch_computer_use_linux(filepath):
         print(f"  [FAIL] File not found: {filepath}")
         return False
 
-    with open(filepath, 'rb') as f:
+    with open(filepath, "rb") as f:
         content = f.read()
 
     original_content = content
     changes = 0
 
     # Patch 1: Inject Linux executor at app.on("ready")
-    inject_js = LINUX_EXECUTOR_JS.strip().encode('utf-8')
+    inject_js = LINUX_EXECUTOR_JS.strip().encode("utf-8")
     ready_pattern = rb'(app\.on\("ready",async\(\)=>\{)'
 
     def inject_at_ready(m):
-        return m.group(1) + b'if(process.platform==="linux"){' + inject_js + b'}'
+        return m.group(1) + b'if(process.platform==="linux"){' + inject_js + b"}"
 
     content, count = re.subn(ready_pattern, inject_at_ready, content, count=1)
     if count >= 1:
@@ -575,9 +575,9 @@ def patch_computer_use_linux(filepath):
     darwin_gate = rb'process\.platform==="darwin"&&(\w+)\.push\(await (\w+)\(\)\)'
 
     def always_push(m):
-        arr_var = m.group(1).decode('utf-8')
-        fn_var = m.group(2).decode('utf-8')
-        return f'{arr_var}.push(await {fn_var}())'.encode('utf-8')
+        arr_var = m.group(1).decode("utf-8")
+        fn_var = m.group(2).decode("utf-8")
+        return f"{arr_var}.push(await {fn_var}())".encode("utf-8")
 
     content, count = re.subn(darwin_gate, always_push, content, count=1)
     if count >= 1:
@@ -595,7 +595,7 @@ def patch_computer_use_linux(filepath):
     zm_pattern = rb'(function \w+\(\)\{return )(process\.platform==="darwin"&&\w+\(\)&&\w+\("chicagoEnabled"\))'
 
     def extend_zm(m):
-        return m.group(1) + b'(process.platform==="linux"?!0:' + m.group(2) + b')'
+        return m.group(1) + b'(process.platform==="linux"?!0:' + m.group(2) + b")"
 
     content, count = re.subn(zm_pattern, extend_zm, content, count=1)
     if count >= 1:
@@ -610,11 +610,7 @@ def patch_computer_use_linux(filepath):
     executor_pattern = rb'(function \w+\(\w+\)\{)if\(process\.platform!=="darwin"\)throw new Error'
 
     def patch_executor(m):
-        return (
-            m.group(1) +
-            b'if(process.platform==="linux"&&globalThis.__linuxExecutor)return globalThis.__linuxExecutor;' +
-            b'if(process.platform!=="darwin")throw new Error'
-        )
+        return m.group(1) + b'if(process.platform==="linux"&&globalThis.__linuxExecutor)return globalThis.__linuxExecutor;' + b'if(process.platform!=="darwin")throw new Error'
 
     content, count = re.subn(executor_pattern, patch_executor, content, count=1)
     if count >= 1:
@@ -627,14 +623,11 @@ def patch_computer_use_linux(filepath):
     # Patch 5: Patch ensureOsPermissions to return granted:true on Linux
     # Original: ensureOsPermissions:JLr  (JLr calls claude-swift TCC checks)
     # New: on Linux, return {granted:true} — no TCC permissions needed
-    perms_pattern = rb'ensureOsPermissions:(\w+)'
+    perms_pattern = rb"ensureOsPermissions:(\w+)"
 
     def patch_perms(m):
-        fn_name = m.group(1).decode('utf-8')
-        return (
-            f'ensureOsPermissions:process.platform==="linux"'
-            f'?async()=>({{granted:!0}}):{fn_name}'
-        ).encode('utf-8')
+        fn_name = m.group(1).decode("utf-8")
+        return (f'ensureOsPermissions:process.platform==="linux"?async()=>({{granted:!0}}):{fn_name}').encode("utf-8")
 
     content, count = re.subn(perms_pattern, patch_perms, content, count=1)
     if count >= 1:
@@ -654,21 +647,17 @@ def patch_computer_use_linux(filepath):
     # Pattern: VARNAME={isEnabled:FN,handleToolCall:async(t,e,r)=>{...const n=DISPATCHER(r),...
     # There may be variable declarations between { and const (e.g. var u,d,f,p,h,y;).
     # Inject: LINUX_HANDLER_INJECTION after the opening brace, before any existing code.
-    dwe_pattern = rb'((\w+)=\{isEnabled:\w+=>\w+\(\),handleToolCall:async\((\w+),(\w+),(\w+)\)=>\{)([^}]{0,100}const \w+=(\w+)\(\5\))'
+    dwe_pattern = rb"((\w+)=\{isEnabled:\w+=>\w+\(\),handleToolCall:async\((\w+),(\w+),(\w+)\)=>\{)([^}]{0,100}const \w+=(\w+)\(\5\))"
 
     def patch_dwe_handler(m):
-        prefix = m.group(1)          # e.g. nnt={isEnabled:t=>JL(),handleToolCall:async(t,e,r)=>{
-        obj_name = m.group(2).decode('utf-8')  # e.g. nnt
-        dispatcher = m.group(7).decode('utf-8')  # e.g. EZr
-        original_code = m.group(6)   # var u,d,f,p,h,y;const n=EZr(r)
+        prefix = m.group(1)  # e.g. nnt={isEnabled:t=>JL(),handleToolCall:async(t,e,r)=>{
+        obj_name = m.group(2).decode("utf-8")  # e.g. nnt
+        dispatcher = m.group(7).decode("utf-8")  # e.g. EZr
+        original_code = m.group(6)  # var u,d,f,p,h,y;const n=EZr(r)
         handler_js = LINUX_HANDLER_INJECTION_JS.strip()
-        handler_js = handler_js.replace('__SELF__', obj_name)
-        handler_js = handler_js.replace('__DISPATCHER__', dispatcher)
-        return (
-            prefix +
-            handler_js.encode('utf-8') +
-            original_code
-        )
+        handler_js = handler_js.replace("__SELF__", obj_name)
+        handler_js = handler_js.replace("__DISPATCHER__", dispatcher)
+        return prefix + handler_js.encode("utf-8") + original_code
 
     content, count = re.subn(dwe_pattern, patch_dwe_handler, content, count=1)
     if count >= 1:
@@ -695,20 +684,20 @@ def patch_computer_use_linux(filepath):
 
     overlay_match = re.search(overlay_pattern, content)
     if overlay_match:
-        run_fn = overlay_match.group(1).decode('utf-8')    # RUn
-        mgr_var = overlay_match.group(2).decode('utf-8')    # r (session manager)
-        win_var = overlay_match.group(3).decode('utf-8')    # t (main window)
+        run_fn = overlay_match.group(1).decode("utf-8")  # RUn
+        mgr_var = overlay_match.group(2).decode("utf-8")  # r (session manager)
+        win_var = overlay_match.group(3).decode("utf-8")  # t (main window)
 
         # Find the else-branch stub and inject RUn as a comma expression
         # The else branch is: (rIt.for(...).setImplementation({...}),fY.for(...),...)
         # We add RUn(r,t) as another comma-separated expression inside it.
         # Pattern: listInstalledApps:()=>[]}) — end of the TCC stub, followed by comma
-        stub_end = rb'listInstalledApps:\(\)=>\[\]\}\)'
+        stub_end = rb"listInstalledApps:\(\)=>\[\]\}\)"
         stub_match = re.search(stub_end, content)
         if stub_match:
             inject_pos = stub_match.end()
             # Use comma expression with short-circuit: ,process.platform==="linux"&&RUn(r,t)
-            inject_js = f',process.platform==="linux"&&{run_fn}({mgr_var},{win_var})'.encode('utf-8')
+            inject_js = f',process.platform==="linux"&&{run_fn}({mgr_var},{win_var})'.encode("utf-8")
             content = content[:inject_pos] + inject_js + content[inject_pos:]
             print(f"  [OK] teach overlay controller: {run_fn}({mgr_var},{win_var}) injected for Linux (1 match)")
             changes += 1
@@ -741,15 +730,15 @@ def patch_computer_use_linux(filepath):
 
     overlay_var_match = re.search(overlay_var_pattern, content)
     if overlay_var_match:
-        ov = overlay_var_match.group(1).decode('utf-8')  # e.g. oa
+        ov = overlay_var_match.group(1).decode("utf-8")  # e.g. oa
 
         # Replace the initial setIgnoreMouseEvents on the overlay with Linux tooltip-bounds polling
-        old_init = f'{ov}.setIgnoreMouseEvents(!0,{{forward:!0}})'.encode('utf-8')
+        old_init = f"{ov}.setIgnoreMouseEvents(!0,{{forward:!0}})".encode("utf-8")
 
         # Build the executeJavaScript query string separately to avoid f-string escaping hell
         # This JS runs in the overlay renderer to get the tooltip card's bounding rect
         js_query = (
-            "'(function(){var t=document.querySelector(\".tooltip\");"
+            '\'(function(){var t=document.querySelector(".tooltip");'
             "if(t&&t.offsetWidth>0){var r=t.getBoundingClientRect();"
             "return JSON.stringify({x:r.left,y:r.top,w:r.width,h:r.height})}"
             "return null})()'"
@@ -757,58 +746,58 @@ def patch_computer_use_linux(filepath):
 
         new_init = (
             '(process.platform==="linux"?'
-            '(()=>{'
+            "(()=>{"
             # __ig = ignoring mouse, __tb = tooltip bounds, __tbP = query pending
             # __lastIn = last cursor-in-card timestamp, __cachedCp = cached cursor pos
             # __cpT = cursor cache timestamp (refresh every 100ms, not every 50ms tick)
-            'let __ig=!0,__tb=null,__tbP=!1,__lastIn=0,__cachedCp=null,__cpT=0;'
-            f'{ov}.setIgnoreMouseEvents(!0);'
+            "let __ig=!0,__tb=null,__tbP=!1,__lastIn=0,__cachedCp=null,__cpT=0;"
+            f"{ov}.setIgnoreMouseEvents(!0);"
             # 50ms interval: tooltip bounds query + cursor check
-            'setInterval(()=>{'
-            f'if({ov}.isDestroyed())return;'
+            "setInterval(()=>{"
+            f"if({ov}.isDestroyed())return;"
             # Query tooltip bounds every tick (pending guard prevents pileup)
-            'if(!__tbP){'
-            '__tbP=!0;'
-            f'{ov}.webContents.executeJavaScript('
-            f'{js_query}'
-            ').then(function(__r){if(__r)__tb=JSON.parse(__r)})'
-            '.catch(function(){})'
-            '.finally(function(){__tbP=!1});'
-            '}'
+            "if(!__tbP){"
+            "__tbP=!0;"
+            f"{ov}.webContents.executeJavaScript("
+            f"{js_query}"
+            ").then(function(__r){if(__r)__tb=JSON.parse(__r)})"
+            ".catch(function(){})"
+            ".finally(function(){__tbP=!1});"
+            "}"
             # If no tooltip bounds yet, stay in ignore mode (pass-through)
-            'if(!__tb)return;'
+            "if(!__tb)return;"
             # Get REAL cursor position — Electron's getCursorScreenPoint() returns STALE
             # coords on X11 when cursor is not over an Electron window.
             # Use xdotool (X11) → hyprctl (Hyprland) → Electron API fallback.
             # Cache result for 100ms to reduce subprocess spawns (10/s instead of 20/s).
-            'const __now=Date.now();'
-            'if(!__cachedCp||__now-__cpT>100){'
-            '__cpT=__now;'
+            "const __now=Date.now();"
+            "if(!__cachedCp||__now-__cpT>100){"
+            "__cpT=__now;"
             'try{const __o=require("child_process").execFileSync("xdotool",["getmouselocation","--shell"],{encoding:"utf-8",timeout:500});'
-            'const __mx=parseInt((__o.match(/X=(\\d+)/)||[])[1]);'
-            'const __my=parseInt((__o.match(/Y=(\\d+)/)||[])[1]);'
-            'if(!isNaN(__mx)&&!isNaN(__my))__cachedCp={x:__mx,y:__my}}catch(__e){}'
+            "const __mx=parseInt((__o.match(/X=(\\d+)/)||[])[1]);"
+            "const __my=parseInt((__o.match(/Y=(\\d+)/)||[])[1]);"
+            "if(!isNaN(__mx)&&!isNaN(__my))__cachedCp={x:__mx,y:__my}}catch(__e){}"
             'if(!__cachedCp){try{const __o2=require("child_process").execFileSync("hyprctl",["cursorpos"],{encoding:"utf-8",timeout:500});'
-            'const __m=__o2.match(/(\\d+),\\s*(\\d+)/);'
-            'if(__m)__cachedCp={x:parseInt(__m[1]),y:parseInt(__m[2])}}catch(__e2){}}'
+            "const __m=__o2.match(/(\\d+),\\s*(\\d+)/);"
+            "if(__m)__cachedCp={x:parseInt(__m[1]),y:parseInt(__m[2])}}catch(__e2){}}"
             'if(!__cachedCp)__cachedCp=require("electron").screen.getCursorScreenPoint();'
-            '}'
-            'const __cp=__cachedCp;'
+            "}"
+            "const __cp=__cachedCp;"
             # Get overlay window position, compute tooltip screen coords
-            f'const __wp={ov}.getPosition(),'
-            '__sx=__wp[0]+__tb.x,__sy=__wp[1]+__tb.y,'
-            '__pad=15,'
-            '__in=__cp.x>=__sx-__pad&&__cp.x<=__sx+__tb.w+__pad&&'
-            '__cp.y>=__sy-__pad&&__cp.y<=__sy+__tb.h+__pad;'
+            f"const __wp={ov}.getPosition(),"
+            "__sx=__wp[0]+__tb.x,__sy=__wp[1]+__tb.y,"
+            "__pad=15,"
+            "__in=__cp.x>=__sx-__pad&&__cp.x<=__sx+__tb.w+__pad&&"
+            "__cp.y>=__sy-__pad&&__cp.y<=__sy+__tb.h+__pad;"
             # Track last time cursor was inside card (for grace period during step transitions)
-            'if(__in)__lastIn=Date.now();'
+            "if(__in)__lastIn=Date.now();"
             # Grace period: keep overlay clickable for 400ms after tooltip moves/rebuilds
-            'const __grace=__in||(Date.now()-__lastIn<400);'
-            f'if(__grace&&__ig){{{ov}.setIgnoreMouseEvents(!1);__ig=!1}}'
-            f'else if(!__grace&&!__ig){{{ov}.setIgnoreMouseEvents(!0);__ig=!0}}'
-            '},50)'
-            f'}})():{ov}.setIgnoreMouseEvents(!0,{{forward:!0}}))'
-        ).encode('utf-8')
+            "const __grace=__in||(Date.now()-__lastIn<400);"
+            f"if(__grace&&__ig){{{ov}.setIgnoreMouseEvents(!1);__ig=!1}}"
+            f"else if(!__grace&&!__ig){{{ov}.setIgnoreMouseEvents(!0);__ig=!0}}"
+            "},50)"
+            f"}})():{ov}.setIgnoreMouseEvents(!0,{{forward:!0}}))"
+        ).encode("utf-8")
 
         # Only replace the first occurrence (overlay init)
         content = content.replace(old_init, new_init, 1)
@@ -816,7 +805,7 @@ def patch_computer_use_linux(filepath):
             print(f"  [OK] teach overlay mouse: tooltip-bounds polling for Linux ({ov})")
             changes += 1
         else:
-            print(f"  [WARN] teach overlay mouse: replacement failed")
+            print("  [WARN] teach overlay mouse: replacement failed")
     else:
         print("  [WARN] teach overlay mouse: overlay variable pattern not found")
 
@@ -832,12 +821,14 @@ def patch_computer_use_linux(filepath):
 
     if overlay_var_match:
         # 9a: yJt() uses function parameter (not global oa) — pattern: function yJt(PARAM,e){PARAM.setIgnoreMouseEvents(!0,{forward:!0})
-        yjt_pat = rb'(function \w+\(\w+,\w+\)\{)(\w+)(\.setIgnoreMouseEvents\(!0,\{forward:!0\}\))'
+        yjt_pat = rb"(function \w+\(\w+,\w+\)\{)(\w+)(\.setIgnoreMouseEvents\(!0,\{forward:!0\}\))"
+
         def yjt_repl(m):
-            fn_head = m.group(1).decode('utf-8')
-            var = m.group(2).decode('utf-8')
-            rest = m.group(3).decode('utf-8')
-            return f'{fn_head}(process.platform!=="linux"&&{var}{rest})'.encode('utf-8')
+            fn_head = m.group(1).decode("utf-8")
+            var = m.group(2).decode("utf-8")
+            rest = m.group(3).decode("utf-8")
+            return f'{fn_head}(process.platform!=="linux"&&{var}{rest})'.encode("utf-8")
+
         content_new, yjt_count = re.subn(yjt_pat, yjt_repl, content, count=1)
         if yjt_count:
             content = content_new
@@ -847,8 +838,8 @@ def patch_computer_use_linux(filepath):
             print("  [WARN] teach overlay: yJt pattern not found (may be OK)")
 
         # 9b: SUn() uses global overlay var — pattern: oa.setIgnoreMouseEvents(!0,{forward:!0}),oa.webContents.send("cu-teach:working"
-        sun_pat = f'{ov}.setIgnoreMouseEvents(!0,{{forward:!0}}),{ov}.webContents.send("cu-teach:working"'.encode('utf-8')
-        sun_repl = f'(process.platform!=="linux"&&{ov}.setIgnoreMouseEvents(!0,{{forward:!0}})),{ov}.webContents.send("cu-teach:working"'.encode('utf-8')
+        sun_pat = f'{ov}.setIgnoreMouseEvents(!0,{{forward:!0}}),{ov}.webContents.send("cu-teach:working"'.encode("utf-8")
+        sun_repl = f'(process.platform!=="linux"&&{ov}.setIgnoreMouseEvents(!0,{{forward:!0}})),{ov}.webContents.send("cu-teach:working"'.encode("utf-8")
         if sun_pat in content:
             content = content.replace(sun_pat, sun_repl, 1)
             print("  [OK] teach overlay: neutralized setIgnoreMouseEvents in working handler (SUn) for Linux")
@@ -857,7 +848,7 @@ def patch_computer_use_linux(filepath):
             print("  [WARN] teach overlay: SUn pattern not found (may be OK)")
 
     if changes > 0 and content != original_content:
-        with open(filepath, 'wb') as f:
+        with open(filepath, "wb") as f:
             f.write(content)
         print(f"  [PASS] {changes} sub-patches applied")
         return True

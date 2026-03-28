@@ -37,30 +37,33 @@ def build_stub_handlers_js(eipc_prefix):
         '_ipc.handle(_P+"openSystemSettings",()=>{});'
         '_ipc.handle(_P+"getCurrentSessionGrants",()=>[]);'
         '_ipc.handle(_P+"revokeGrant",()=>{});'
-        '}'
+        "}"
     )
 
 
 def extract_eipc_uuid(content):
     """Extract the eipc UUID from the file content dynamically."""
     # Look for $eipc_message$_<UUID> pattern
-    m = re.search(rb'\$eipc_message\$_([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})', content)
+    m = re.search(
+        rb"\$eipc_message\$_([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})",
+        content,
+    )
     if m:
-        return m.group(1).decode('utf-8')
+        return m.group(1).decode("utf-8")
     return None
 
 
 def patch_computer_use_tcc(filepath):
     """Register ComputerUseTcc stub IPC handlers on Linux."""
 
-    print(f"=== Patch: fix_computer_use_tcc ===")
+    print("=== Patch: fix_computer_use_tcc ===")
     print(f"  Target: {filepath}")
 
     if not os.path.exists(filepath):
         print(f"  [FAIL] File not found: {filepath}")
         return False
 
-    with open(filepath, 'rb') as f:
+    with open(filepath, "rb") as f:
         content = f.read()
 
     original_content = content
@@ -69,12 +72,12 @@ def patch_computer_use_tcc(filepath):
     uuid = extract_eipc_uuid(content)
     if not uuid:
         # Fallback: check mainView.js in the same directory
-        mainview = os.path.join(os.path.dirname(filepath), 'mainView.js')
+        mainview = os.path.join(os.path.dirname(filepath), "mainView.js")
         if os.path.exists(mainview):
-            with open(mainview, 'rb') as f:
+            with open(mainview, "rb") as f:
                 uuid = extract_eipc_uuid(f.read())
     if not uuid:
-        print(f"  [FAIL] Could not extract eipc UUID from source files")
+        print("  [FAIL] Could not extract eipc UUID from source files")
         return False
 
     eipc_prefix = f"$eipc_message$_{uuid}_$_claude.web_$_ComputerUseTcc_$_"
@@ -86,17 +89,17 @@ def patch_computer_use_tcc(filepath):
     # We look for the app.on("ready" handler and inject right after the opening
     pattern = rb'(app\.on\("ready",async\(\)=>\{)'
 
-    replacement = rb'\1' + stub_js.encode('utf-8')
+    replacement = rb"\1" + stub_js.encode("utf-8")
 
     content, count = re.subn(pattern, replacement, content, count=1)
     if count >= 1:
         print(f"  [OK] ComputerUseTcc stub handlers: injected ({count} match)")
     else:
-        print(f"  [FAIL] app.on(\"ready\") pattern: 0 matches")
+        print('  [FAIL] app.on("ready") pattern: 0 matches')
         return False
 
     if content != original_content:
-        with open(filepath, 'wb') as f:
+        with open(filepath, "wb") as f:
             f.write(content)
         print("  [PASS] ComputerUseTcc handlers registered for Linux")
         return True

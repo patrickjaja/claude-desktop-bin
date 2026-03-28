@@ -25,14 +25,14 @@ import re
 def patch_updater_state(filepath):
     """Add version property to idle updater state."""
 
-    print(f"=== Patch: fix_updater_state_linux ===")
+    print("=== Patch: fix_updater_state_linux ===")
     print(f"  Target: {filepath}")
 
     if not os.path.exists(filepath):
         print(f"  [FAIL] File not found: {filepath}")
         return False
 
-    with open(filepath, 'rb') as f:
+    with open(filepath, "rb") as f:
         content = f.read()
 
     # Pattern: case"idle":return{status:<var>.Idle}
@@ -44,17 +44,17 @@ def patch_updater_state(filepath):
     # Check if already patched
     already = rb'case"idle":return\{status:[\w$]+\.[\w$]+,version:"",versionNumber:""\}'
     if re.search(already, content):
-        print(f"  [OK] Updater idle state: already patched (skipped)")
+        print("  [OK] Updater idle state: already patched (skipped)")
         return True
 
     content_new, count = re.subn(pattern, replacement, content, count=1)
     if count >= 1:
-        with open(filepath, 'wb') as f:
+        with open(filepath, "wb") as f:
             f.write(content_new)
         print(f"  [OK] Updater idle state: added version/versionNumber ({count} match)")
         return True
     else:
-        print(f"  [WARN] Updater idle state: pattern not found (may have changed)")
+        print("  [WARN] Updater idle state: pattern not found (may have changed)")
         return True  # Non-critical, don't fail the build
 
 

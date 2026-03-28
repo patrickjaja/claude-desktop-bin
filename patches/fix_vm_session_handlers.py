@@ -25,14 +25,14 @@ import re
 def patch_vm_session_handlers(filepath):
     """Add global error handler for ClaudeVM/LocalAgentModeSessions as safety net."""
 
-    print(f"=== Patch: fix_vm_session_handlers ===")
+    print("=== Patch: fix_vm_session_handlers ===")
     print(f"  Target: {filepath}")
 
     if not os.path.exists(filepath):
         print(f"  [FAIL] File not found: {filepath}")
         return False
 
-    with open(filepath, 'rb') as f:
+    with open(filepath, "rb") as f:
         content = f.read()
 
     original_content = content
@@ -46,7 +46,10 @@ def patch_vm_session_handlers(filepath):
 
     def app_ready_replacement(m):
         electron_var = m.group(1)
-        return (electron_var + b'.app.on("ready",async()=>{if(process.platform==="linux"){process.on("uncaughtException",(e)=>{if(e.message&&(e.message.includes("ClaudeVM")||e.message.includes("LocalAgentModeSessions"))){console.log("[LinuxPatch] Suppressing unsupported feature error:",e.message);return}throw e})};')
+        return (
+            electron_var
+            + b'.app.on("ready",async()=>{if(process.platform==="linux"){process.on("uncaughtException",(e)=>{if(e.message&&(e.message.includes("ClaudeVM")||e.message.includes("LocalAgentModeSessions"))){console.log("[LinuxPatch] Suppressing unsupported feature error:",e.message);return}throw e})};'
+        )
 
     content, count = re.subn(app_ready_pattern, app_ready_replacement, content, count=1)
     if count >= 1:
@@ -58,14 +61,17 @@ def patch_vm_session_handlers(filepath):
 
         def app_ready_replacement_alt(m):
             electron_var = m.group(1)
-            return (electron_var + b'.app.on("ready",()=>{if(process.platform==="linux"){process.on("uncaughtException",(e)=>{if(e.message&&(e.message.includes("ClaudeVM")||e.message.includes("LocalAgentModeSessions"))){console.log("[LinuxPatch] Suppressing unsupported feature error:",e.message);return}throw e})};')
+            return (
+                electron_var
+                + b'.app.on("ready",()=>{if(process.platform==="linux"){process.on("uncaughtException",(e)=>{if(e.message&&(e.message.includes("ClaudeVM")||e.message.includes("LocalAgentModeSessions"))){console.log("[LinuxPatch] Suppressing unsupported feature error:",e.message);return}throw e})};'
+            )
 
         content, count_alt = re.subn(app_ready_pattern_alt, app_ready_replacement_alt, content, count=1)
         if count_alt >= 1:
             print(f"  [OK] App error handler (alt): {count_alt} match(es)")
             patches_applied += 1
         else:
-            print(f"  [WARN] App ready pattern not found")
+            print("  [WARN] App ready pattern not found")
 
     # Check results
     if patches_applied == 0:
@@ -77,15 +83,15 @@ def patch_vm_session_handlers(filepath):
         return True
 
     # Verify our patches didn't introduce a brace imbalance
-    original_delta = original_content.count(b'{') - original_content.count(b'}')
-    patched_delta = content.count(b'{') - content.count(b'}')
+    original_delta = original_content.count(b"{") - original_content.count(b"}")
+    patched_delta = content.count(b"{") - content.count(b"}")
     if original_delta != patched_delta:
         diff = patched_delta - original_delta
         print(f"  [FAIL] Patch introduced brace imbalance: {diff:+d} unmatched braces")
         return False
 
     # Write back
-    with open(filepath, 'wb') as f:
+    with open(filepath, "wb") as f:
         f.write(content)
     print(f"  [PASS] {patches_applied} patches applied")
     return True

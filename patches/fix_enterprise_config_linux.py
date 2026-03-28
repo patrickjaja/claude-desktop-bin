@@ -35,18 +35,18 @@ import re
 def patch_enterprise_config_linux(filepath):
     """Add Linux enterprise config support via /etc/claude-desktop/enterprise.json."""
 
-    print(f"=== Patch: fix_enterprise_config_linux ===")
+    print("=== Patch: fix_enterprise_config_linux ===")
     print(f"  Target: {filepath}")
 
     if not os.path.exists(filepath):
         print(f"  [FAIL] File not found: {filepath}")
         return False
 
-    with open(filepath, 'rb') as f:
+    with open(filepath, "rb") as f:
         content = f.read()
 
     # Idempotency check: skip if already patched
-    if b'/etc/claude-desktop/enterprise.json' in content:
+    if b"/etc/claude-desktop/enterprise.json" in content:
         print("  [OK] Already patched (enterprise.json path found)")
         print("  [PASS] No changes needed")
         return True
@@ -69,24 +69,20 @@ def patch_enterprise_config_linux(filepath):
     pattern = rb'(case"win32":(\w+)=\w+\(\);break;default:)\2(=\{\};break)'
 
     def replacement(m):
-        prefix = m.group(1)       # case"win32":Tb=ztr();break;default:
-        cache_var = m.group(2)    # Tb
-        linux_reader = (
-            b'=function(){try{return JSON.parse('
-            b'require("fs").readFileSync("/etc/claude-desktop/enterprise.json","utf8")'
-            b')}catch(e){return{}}}();break'
-        )
+        prefix = m.group(1)  # case"win32":Tb=ztr();break;default:
+        cache_var = m.group(2)  # Tb
+        linux_reader = b'=function(){try{return JSON.parse(require("fs").readFileSync("/etc/claude-desktop/enterprise.json","utf8"))}catch(e){return{}}}();break'
         return prefix + cache_var + linux_reader
 
     content, count = re.subn(pattern, replacement, content)
     if count >= 1:
         print(f"  [OK] Enterprise config Linux reader: {count} match(es)")
     else:
-        print(f"  [FAIL] Enterprise config default case: 0 matches")
+        print("  [FAIL] Enterprise config default case: 0 matches")
         return False
 
     # Write back
-    with open(filepath, 'wb') as f:
+    with open(filepath, "wb") as f:
         f.write(content)
     print("  [PASS] Enterprise config Linux support added")
     return True

@@ -64,14 +64,14 @@ import re
 def patch_dispatch_linux(filepath):
     """Enable Dispatch remote task orchestration on Linux."""
 
-    print(f"=== Patch: fix_dispatch_linux ===")
+    print("=== Patch: fix_dispatch_linux ===")
     print(f"  Target: {filepath}")
 
     if not os.path.exists(filepath):
         print(f"  [FAIL] File not found: {filepath}")
         return False
 
-    with open(filepath, 'rb') as f:
+    with open(filepath, "rb") as f:
         content = f.read()
 
     original_content = content
@@ -102,12 +102,12 @@ def patch_dispatch_linux(filepath):
     gate_pattern = rb'(let (?:\w+=!1,)*)(\w+)(=)(!1)(;const \w+=async\(\)=>\{if\(!\2\)\{[\w$]+\.info\("\[sessions-bridge\] init skipped)'
 
     def gate_replacement(m):
-        return m.group(1) + m.group(2) + m.group(3) + b'!0' + m.group(5)
+        return m.group(1) + m.group(2) + m.group(3) + b"!0" + m.group(5)
 
     # Check if already patched (gate var=!0 instead of =!1)
     gate_already = rb'let (?:\w+=!(?:0|1),)*\w+=!0;const \w+=async\(\)=>\{if\(!\w+\)\{[\w$]+\.info\("\[sessions-bridge\] init skipped'
     if re.search(gate_already, content):
-        print(f"  [OK] Sessions-bridge gate: already patched (skipped)")
+        print("  [OK] Sessions-bridge gate: already patched (skipped)")
         patches_applied += 1
     else:
         content, count_a = re.subn(gate_pattern, gate_replacement, content)
@@ -115,7 +115,7 @@ def patch_dispatch_linux(filepath):
             print(f"  [OK] Sessions-bridge gate: forced ON ({count_a} match)")
             patches_applied += 1
         else:
-            print(f"  [FAIL] Sessions-bridge gate: pattern not found")
+            print("  [FAIL] Sessions-bridge gate: pattern not found")
 
     # ── Patch B: Bypass remote session control check ─────────────────────
     #
@@ -137,18 +137,18 @@ def patch_dispatch_linux(filepath):
     # Check if already patched (no Jr("2216414644") calls remain)
     if not re.search(remote_pattern, content):
         # Verify the throw sites still exist (meaning we patched, not that code changed)
-        if b'Remote session control is disabled' in content:
-            print(f"  [OK] Remote session control: already patched (skipped)")
+        if b"Remote session control is disabled" in content:
+            print("  [OK] Remote session control: already patched (skipped)")
             patches_applied += 1
         else:
-            print(f"  [FAIL] Remote session control: pattern not found")
+            print("  [FAIL] Remote session control: pattern not found")
     else:
-        content, count_b = re.subn(remote_pattern, b'!1', content)
+        content, count_b = re.subn(remote_pattern, b"!1", content)
         if count_b >= 1:
             print(f"  [OK] Remote session control: bypassed ({count_b} matches)")
             patches_applied += 1
         else:
-            print(f"  [FAIL] Remote session control: pattern not found")
+            print("  [FAIL] Remote session control: pattern not found")
 
     # ── Patch C: Add Linux to HI() platform label ───────────────────────
     #
@@ -166,14 +166,14 @@ def patch_dispatch_linux(filepath):
     platform_new = b'case"linux":return"Linux";default:return"Unsupported Platform"'
 
     if platform_new in content:
-        print(f"  [OK] Platform label: already patched (skipped)")
+        print("  [OK] Platform label: already patched (skipped)")
         patches_applied += 1
     elif platform_old in content:
         content = content.replace(platform_old, platform_new, 1)
-        print(f"  [OK] Platform label: added Linux to HI()")
+        print("  [OK] Platform label: added Linux to HI()")
         patches_applied += 1
     else:
-        print(f"  [WARN] Platform label: pattern not found")
+        print("  [WARN] Platform label: pattern not found")
 
     # ── Patch D: Include Linux in Xqe telemetry gate ────────────────────
     #
@@ -192,9 +192,10 @@ def patch_dispatch_linux(filepath):
     # Check if already patched (linux check already appended)
     telemetry_already = rb'(\w+)(=process\.platform==="darwin",)(\w+)(=process\.platform==="win32",)(\w+)=\1\|\|\3\|\|process\.platform==="linux"'
     if re.search(telemetry_already, content):
-        print(f"  [OK] Telemetry gate: already patched (skipped)")
+        print("  [OK] Telemetry gate: already patched (skipped)")
         patches_applied += 1
     else:
+
         def telemetry_replacement(m):
             return m.group(0) + b'||process.platform==="linux"'
 
@@ -203,7 +204,7 @@ def patch_dispatch_linux(filepath):
             print(f"  [OK] Telemetry gate: included Linux ({count_d} match)")
             patches_applied += 1
         else:
-            print(f"  [WARN] Telemetry gate: pattern not found")
+            print("  [WARN] Telemetry gate: pattern not found")
 
     # ── Patch E: Override Jr() for dispatch agent name flag ──────────────
     #
@@ -220,30 +221,26 @@ def patch_dispatch_linux(filepath):
 
     jr_already = b'if(t==="3558849738")return!0;'
     if jr_already in content:
-        print(f"  [OK] Jr() dispatch flag override: already patched (skipped)")
+        print("  [OK] Jr() dispatch flag override: already patched (skipped)")
         patches_applied += 1
     else:
         # Match: function Jr(t){const e=Cl[t];return(e==null?void 0:e.on)??!1}
-        jr_pattern = rb'(function )(\w+)(\()(\w+)(\)\{)(const \w+=\w+\[\4\];return\(\w+==null\?void 0:\w+\.on\)\?\?!1\})'
+        jr_pattern = rb"(function )(\w+)(\()(\w+)(\)\{)(const \w+=\w+\[\4\];return\(\w+==null\?void 0:\w+\.on\)\?\?!1\})"
 
         # Remove stale blanket override if present from previous builds
-        blanket_marker = rb'(return!0;)(const \w+=\w+\[\w+\];return)'
-        content = re.sub(blanket_marker, rb'\2', content)
+        blanket_marker = rb"(return!0;)(const \w+=\w+\[\w+\];return)"
+        content = re.sub(blanket_marker, rb"\2", content)
 
         def jr_replacement(m):
             param = m.group(4)
-            return (
-                m.group(1) + m.group(2) + m.group(3) + m.group(4) + m.group(5) +
-                b'if(' + param + b'==="3558849738")return!0;' +
-                m.group(6)
-            )
+            return m.group(1) + m.group(2) + m.group(3) + m.group(4) + m.group(5) + b"if(" + param + b'==="3558849738")return!0;' + m.group(6)
 
         content, count_e = re.subn(jr_pattern, jr_replacement, content)
         if count_e >= 1:
             print(f"  [OK] Jr() dispatch flag override: injected ({count_e} match)")
             patches_applied += 1
         else:
-            print(f"  [FAIL] Jr() dispatch flag override: pattern not found")
+            print("  [FAIL] Jr() dispatch flag override: pattern not found")
 
     # ── Patch F: Fix rjt() to forward text responses ────────────────────
     #
@@ -275,14 +272,14 @@ def patch_dispatch_linux(filepath):
     rjt_new = b'if((s==null?void 0:s.type)==="tool_use"&&(s.name==="SendUserMessage"||s.name==="mcp__dispatch__send_message"||s.name==="mcp__cowork__present_files"))return!0}return n.some(function(j){return j&&j.type==="text"&&j.text})}'
 
     if rjt_new in content:
-        print(f"  [OK] rjt() text forward: already patched (skipped)")
+        print("  [OK] rjt() text forward: already patched (skipped)")
         patches_applied += 1
     elif rjt_old in content:
         content = content.replace(rjt_old, rjt_new, 1)
-        print(f"  [OK] rjt() text forward: patched to include text content")
+        print("  [OK] rjt() text forward: patched to include text content")
         patches_applied += 1
     else:
-        print(f"  [WARN] rjt() text forward: pattern not found")
+        print("  [WARN] rjt() text forward: pattern not found")
 
     # ── Patch G: (Removed) ──────────────────────────────────────────────
     # Diagnostic forwardEvent logging was here. Removed — no longer needed.
@@ -320,12 +317,12 @@ def patch_dispatch_linux(filepath):
 
     fwd_old = b'msgType=${i}`);const c=o.uuid,l=i==="user"||i==="assistant"?i:null'
     fwd_new = (
-        b'msgType=${i}`);'
+        b"msgType=${i}`);"
         b'if(i==="assistant"&&o.message&&Array.isArray(o.message.content)){'
         b'const _dT=o.message.content.filter(x=>x&&x.type==="text").map(x=>x.text).join("\\n");'
         b'const _dH=o.message.content.some(x=>x&&x.type==="tool_use"&&(x.name==="SendUserMessage"||x.name==="mcp__dispatch__send_message"));'
         b'const _dA=o.message.content.filter(x=>x&&x.type==="tool_use"&&x.name==="mcp__cowork__present_files")'
-        b'.flatMap(x=>(x.input&&x.input.files||[]).map(f=>f.file_path).filter(Boolean));'
+        b".flatMap(x=>(x.input&&x.input.files||[]).map(f=>f.file_path).filter(Boolean));"
         b'const _dP=o.message.content.some(x=>x&&x.type==="tool_use"&&x.name!=="SendUserMessage"&&x.name!=="mcp__dispatch__send_message"&&x.name!=="mcp__cowork__present_files");'
         b'if((_dT||_dA.length)&&!_dH&&!_dP){o={...o,message:{...o.message,content:[{type:"tool_use",'
         b'id:"toolu_"+Math.random().toString(36).slice(2,14),'
@@ -334,14 +331,14 @@ def patch_dispatch_linux(filepath):
     )
 
     if fwd_new in content:
-        print(f"  [OK] forwardEvent text→SendUserMessage: already patched (skipped)")
+        print("  [OK] forwardEvent text→SendUserMessage: already patched (skipped)")
         patches_applied += 1
     elif fwd_old in content:
         content = content.replace(fwd_old, fwd_new, 1)
-        print(f"  [OK] forwardEvent text→SendUserMessage: injected transform")
+        print("  [OK] forwardEvent text→SendUserMessage: injected transform")
         patches_applied += 1
     else:
-        print(f"  [WARN] forwardEvent text→SendUserMessage: pattern not found")
+        print("  [WARN] forwardEvent text→SendUserMessage: pattern not found")
 
     # ── Patch J: Auto-wake dispatch parent when child task completes ─────
     #
@@ -360,31 +357,33 @@ def patch_dispatch_linux(filepath):
 
     # Use regex to capture the logger variable name (was B in v8359, P in v8629)
     wake_pattern = re.compile(
-        rb'(\(\(n\.pendingDispatchNotifications\?\?\(n\.pendingDispatchNotifications=\[\]\)\)\.push\(s\),)'
-        rb'([\w$]+)'  # capture logger variable (may be $ in newer versions)
-        rb'(\.info\(`\[Dispatch\] Queued notification for cold parent \$\{n\.sessionId\} \(child \$\{e\.sessionId\} \$\{r\}\)`\)\))'
+        rb"(\(\(n\.pendingDispatchNotifications\?\?\(n\.pendingDispatchNotifications=\[\]\)\)\.push\(s\),)"
+        rb"([\w$]+)"  # capture logger variable (may be $ in newer versions)
+        rb"(\.info\(`\[Dispatch\] Queued notification for cold parent \$\{n\.sessionId\} \(child \$\{e\.sessionId\} \$\{r\}\)`\)\))"
     )
 
     # Check if already patched (has setTimeout auto-wake)
-    if b'Auto-waking cold parent' in content:
-        print(f"  [OK] dispatch auto-wake parent: already patched (skipped)")
+    if b"Auto-waking cold parent" in content:
+        print("  [OK] dispatch auto-wake parent: already patched (skipped)")
         patches_applied += 1
     else:
         wake_match = wake_pattern.search(content)
         if wake_match:
             logger = wake_match.group(2)
             wake_replacement = (
-                wake_match.group(1) + logger + wake_match.group(3)[:-1] +  # strip trailing )
-                b',setTimeout(()=>{' + logger +
-                b'.info(`[Dispatch] Auto-waking cold parent ${n.sessionId}`);'
-                b'this.sendMessage(n.sessionId,s).catch(x=>' + logger +
-                b'.error(`[Dispatch] Auto-wake failed for ${n.sessionId}:`,x))},500))'
+                wake_match.group(1)
+                + logger
+                + wake_match.group(3)[:-1]  # strip trailing )
+                + b",setTimeout(()=>{"
+                + logger
+                + b".info(`[Dispatch] Auto-waking cold parent ${n.sessionId}`);"
+                b"this.sendMessage(n.sessionId,s).catch(x=>" + logger + b".error(`[Dispatch] Auto-wake failed for ${n.sessionId}:`,x))},500))"
             )
-            content = content[:wake_match.start()] + wake_replacement + content[wake_match.end():]
+            content = content[: wake_match.start()] + wake_replacement + content[wake_match.end() :]
             print(f"  [OK] dispatch auto-wake parent: injected setTimeout sendMessage (logger={logger.decode()})")
             patches_applied += 1
         else:
-            print(f"  [WARN] dispatch auto-wake parent: pattern not found")
+            print("  [WARN] dispatch auto-wake parent: pattern not found")
 
     # ── Results ──────────────────────────────────────────────────────────
 
@@ -397,15 +396,15 @@ def patch_dispatch_linux(filepath):
         return True
 
     # Verify our patches didn't introduce a brace imbalance
-    original_delta = original_content.count(b'{') - original_content.count(b'}')
-    patched_delta = content.count(b'{') - content.count(b'}')
+    original_delta = original_content.count(b"{") - original_content.count(b"}")
+    patched_delta = content.count(b"{") - content.count(b"}")
     if original_delta != patched_delta:
         diff = patched_delta - original_delta
         print(f"  [FAIL] Patch introduced brace imbalance: {diff:+d} unmatched braces")
         return False
 
     # Write back
-    with open(filepath, 'wb') as f:
+    with open(filepath, "wb") as f:
         f.write(content)
     print(f"  [PASS] {patches_applied} patches applied")
     return True

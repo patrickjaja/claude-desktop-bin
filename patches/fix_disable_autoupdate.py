@@ -26,14 +26,14 @@ import re
 def patch_disable_autoupdate(filepath):
     """Disable auto-updater on Linux by making isInstalled return false."""
 
-    print(f"=== Patch: fix_disable_autoupdate ===")
+    print("=== Patch: fix_disable_autoupdate ===")
     print(f"  Target: {filepath}")
 
     if not os.path.exists(filepath):
         print(f"  [FAIL] File not found: {filepath}")
         return False
 
-    with open(filepath, 'rb') as f:
+    with open(filepath, "rb") as f:
         content = f.read()
 
     original_content = content
@@ -59,7 +59,7 @@ def patch_disable_autoupdate(filepath):
     if count >= 1:
         print(f"  [OK] isInstalled Linux gate: {count} match(es)")
     else:
-        print(f"  [FAIL] isInstalled function: 0 matches")
+        print("  [FAIL] isInstalled function: 0 matches")
         failed = True
 
     if failed:
@@ -68,7 +68,7 @@ def patch_disable_autoupdate(filepath):
 
     # Write back if changed
     if content != original_content:
-        with open(filepath, 'wb') as f:
+        with open(filepath, "wb") as f:
             f.write(content)
         print("  [PASS] Auto-updater disabled on Linux")
         return True
