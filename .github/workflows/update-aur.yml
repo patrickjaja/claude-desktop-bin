@@ -216,6 +216,34 @@ jobs:
           retention-days: 1
 
   # ================================================================
+  # Job 1b: Lint shell scripts with shellcheck
+  # ================================================================
+  lint-scripts:
+    needs: check-version
+    if: needs.check-version.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run shellcheck on all scripts
+        run: |
+          echo "=== Running shellcheck on shell scripts ==="
+          FAILED=false
+          for f in scripts/*.sh packaging/rpm/*.sh; do
+            [ -f "$f" ] || continue
+            echo "Checking $f..."
+            if ! shellcheck -S error "$f"; then
+              FAILED=true
+            fi
+          done
+          if [ "$FAILED" = true ]; then
+            echo "::error::shellcheck found errors in one or more scripts"
+            exit 1
+          fi
+          echo "All scripts passed shellcheck"
+
+  # ================================================================
   # Job 2: Build the patched tarball (the main bottleneck)
   # ================================================================
   build-tarball:
@@ -251,7 +279,7 @@ jobs:
 
               echo '=== Installing build dependencies ==='
               pacman -Syu --noconfirm
-              pacman -S --noconfirm p7zip python nodejs npm git icoutils xorg-server-xvfb electron
+              pacman -S --noconfirm p7zip python nodejs npm git icoutils xorg-server-xvfb electron shellcheck
 
               echo '=== Installing asar from AUR ==='
               useradd -m builder
@@ -664,7 +692,7 @@ jobs:
   # Job 4: Release & Publish (fan-in — waits for ALL parallel jobs)
   # ================================================================
   release:
-    needs: [check-version, build-tarball, package-appimage, package-deb, package-rpm, test-nix, generate-pkgbuild]
+    needs: [check-version, build-tarball, lint-scripts, package-appimage, package-deb, package-rpm, test-nix, generate-pkgbuild]
     if: needs.check-version.outputs.should_build == 'true'
     runs-on: ubuntu-latest
     permissions:

@@ -226,13 +226,16 @@ cp -r "$WORK_DIR/app"/* "$TARBALL_DIR/app/"
 cp "$SCRIPT_DIR/claude-desktop-launcher.sh" "$TARBALL_DIR/launcher/claude-desktop"
 chmod +x "$TARBALL_DIR/launcher/claude-desktop"
 
-# Validate launcher shebang (kernel requires #! at byte 0)
-if ! head -c2 "$TARBALL_DIR/launcher/claude-desktop" | grep -q '^#!'; then
-    log_error "Launcher shebang broken — '#!' must be at byte 0 (no leading whitespace)"
-    log_error "Check scripts/claude-desktop-launcher.sh line 1"
-    exit 1
+# Validate launcher with shellcheck (catches shebang issues, syntax errors, common bugs)
+if command -v shellcheck &>/dev/null; then
+    if ! shellcheck -S error "$TARBALL_DIR/launcher/claude-desktop"; then
+        log_error "Launcher failed shellcheck — fix scripts/claude-desktop-launcher.sh"
+        exit 1
+    fi
+    log_info "Launcher passed shellcheck"
+else
+    log_warn "shellcheck not installed — skipping launcher validation"
 fi
-log_info "Launcher shebang OK"
 
 # Extract icon
 if [ -f "$WORK_DIR/extract/setupIcon.ico" ]; then
