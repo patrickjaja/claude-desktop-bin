@@ -18,9 +18,13 @@
 , wl-clipboard ? null   # clipboard access
 , wlr-randr ? null      # display enumeration (wlroots)
 , hyprland ? null       # cursor positioning (Hyprland only)
+# Claude Code CLI — required for Cowork, Dispatch, and Code integration
+, claude-code ? null    # auto-resolved by callPackage if in nixpkgs
 # Other optional
 , socat ? null          # cowork socket health check
 , nodejs ? null         # third-party MCP servers
+# Extra PATH entries for binaries not packaged in Nix (e.g. npm global, nvm)
+, extraSessionPaths ? []
 }:
 
 let
@@ -82,6 +86,11 @@ stdenvNoCC.mkDerivation {
       ${lib.optionalString (wl-clipboard != null) "--prefix PATH : ${wl-clipboard}/bin"} \
       ${lib.optionalString (wlr-randr != null) "--prefix PATH : ${wlr-randr}/bin"} \
       ${lib.optionalString (nodejs != null) "--prefix PATH : ${nodejs}/bin"} \
+      ${lib.optionalString (claude-code != null && extraSessionPaths == []) "--prefix PATH : ${claude-code}/bin"} \
+      ${lib.concatMapStringsSep " \\\n      " (p:
+        let path = if builtins.isString p then p else "${p}/bin";
+        in "--prefix PATH : ${path}"
+      ) extraSessionPaths} \
       --add-flags "$out/lib/claude-desktop/resources/app.asar"
 
     # Install icon
