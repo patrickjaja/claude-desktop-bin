@@ -2,6 +2,14 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-03-28 (v1.1.9310-3)
+
+### Fixed
+- **Launcher shebang**: Removed two leading spaces before `#!/usr/bin/env bash` that caused `Exec format error` when launched from desktop entries or protocol handlers (kernel requires `#!` at byte 0). Terminal launches were unaffected. (#17)
+
+### Changed
+- **Build: shebang validation**: `build-patched-tarball.sh` now validates that the launcher script has `#!` at byte 0 before creating the tarball, preventing this class of bug from reaching users
+
 ## 2026-03-27 (v1.1.9310)
 
 ### Changed

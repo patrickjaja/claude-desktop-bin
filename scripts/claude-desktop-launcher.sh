@@ -1,4 +1,4 @@
-  #!/usr/bin/env bash
+#!/usr/bin/env bash
 # Claude Desktop launcher for Linux
 #
 # Handles Wayland/X11 detection, Electron flags, GPU fallback, and stale lock cleanup.
