@@ -2,6 +2,11 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-03-29 (v1.1.9310-5)
+
+### Fixed
+- **Nix hash mismatch** (#19) — CI computed the Nix SRI hash from the locally-built tarball artifact, but users download from GitHub Releases. Non-deterministic tar builds across CI re-runs caused the hash to drift from the actual release asset. Fixed by computing the hash from the downloaded release tarball instead of the build artifact. Reverted `package.nix` hash to match the actual released tarball.
+
 ## 2026-03-28 (v1.1.9310-4)
 
 ### Fixed
