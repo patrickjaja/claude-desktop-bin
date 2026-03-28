@@ -12,7 +12,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Electron version to bundle (can be overridden via environment variable)
 if [ -z "${ELECTRON_VERSION:-}" ]; then
-    ELECTRON_VERSION=$(curl -s https://api.github.com/repos/electron/electron/releases/latest | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/')
+    ELECTRON_VERSION=$(curl -s https://api.github.com/repos/electron/electron/releases/latest 2>/dev/null | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/') || true
     if [ -z "$ELECTRON_VERSION" ]; then
         echo "Failed to fetch latest Electron version, using fallback"
         ELECTRON_VERSION="33.2.1"
