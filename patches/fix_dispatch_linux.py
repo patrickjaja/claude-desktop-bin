@@ -40,18 +40,8 @@ F. Fix sessions-bridge event filter to forward text responses.
    patch rjt() to also return true for text content, mcp__dispatch__send_message,
    and mcp__cowork__present_files tool_use blocks.
 
-G–H. (Removed) Diagnostic logging — no longer needed.
-
-I.   Bridge-level SendUserMessage transform (ACTIVE workaround).
-     Claude Code CLI v2.1.x has a bug (anthropics/claude-code#35076,
-     still open as of 2026-03-27) where SendUserMessage is never exposed
-     to the model — neither --brief flag nor CLAUDE_CODE_BRIEF=1 env var
-     enables it. Empirically confirmed on CLI v2.1.85: the tool does not
-     appear in the registered tool list under any flag/env combination.
-     Patch I wraps plain text and present_files responses as synthetic
-     SendUserMessage tool_use blocks so the sessions API renders them.
-     Note: mcp__dispatch__send_message is NOT a substitute — it sends
-     messages to other sessions, not to the human user.
+G–I. (Removed) Diagnostic logging and synthetic SendUserMessage transform
+     — no longer needed.
 
 Usage: python3 fix_dispatch_linux.py <path_to_index.js>
 """
@@ -289,56 +279,8 @@ def patch_dispatch_linux(filepath):
     # Diagnostic writeEvent logging was here. Removed — no longer needed.
     # The writeEvent function uses its original unpatched code.
 
-    # ── Patch I: Transform text/files → SendUserMessage in forwardEvent ──
-    #
-    # The sessions API only renders dispatch responses sent via the
-    # SendUserMessage tool. Claude Code CLI 2.1.x has a bug where
-    # --brief + --tools SendUserMessage doesn't expose SendUserMessage
-    # to the model. The model falls back to plain text, which the bridge
-    # forwards but the API silently drops.
-    #
-    # Additionally, file sharing via mcp__cowork__present_files doesn't
-    # render on the phone — the sessions API only shows SendUserMessage
-    # blocks. We extract file paths from present_files tool_use blocks
-    # and include them as attachments in the synthetic SendUserMessage.
-    #
-    # IMPORTANT: Only transform messages that are "final" responses —
-    # i.e. messages with text/present_files but NO other tool_use blocks
-    # (like MCP calls). If the model is calling an MCP tool (e.g. context7)
-    # alongside text like "Looking that up now...", we must NOT transform
-    # it — the tool call needs to execute and the real answer comes later.
-    #
-    # Fix: in forwardEvent(), before the message is written to the
-    # transport, check if it's an assistant message with text content
-    # or present_files tool_use but no SendUserMessage AND no other
-    # pending tool calls. If so, wrap as a synthetic SendUserMessage.
-    #
-    # Injection point: after the debug log and before `const c=o.uuid`.
-
-    fwd_old = b'msgType=${i}`);const c=o.uuid,l=i==="user"||i==="assistant"?i:null'
-    fwd_new = (
-        b"msgType=${i}`);"
-        b'if(i==="assistant"&&o.message&&Array.isArray(o.message.content)){'
-        b'const _dT=o.message.content.filter(x=>x&&x.type==="text").map(x=>x.text).join("\\n");'
-        b'const _dH=o.message.content.some(x=>x&&x.type==="tool_use"&&(x.name==="SendUserMessage"||x.name==="mcp__dispatch__send_message"));'
-        b'const _dA=o.message.content.filter(x=>x&&x.type==="tool_use"&&x.name==="mcp__cowork__present_files")'
-        b".flatMap(x=>(x.input&&x.input.files||[]).map(f=>f.file_path).filter(Boolean));"
-        b'const _dP=o.message.content.some(x=>x&&x.type==="tool_use"&&x.name!=="SendUserMessage"&&x.name!=="mcp__dispatch__send_message"&&x.name!=="mcp__cowork__present_files");'
-        b'if((_dT||_dA.length)&&!_dH&&!_dP){o={...o,message:{...o.message,content:[{type:"tool_use",'
-        b'id:"toolu_"+Math.random().toString(36).slice(2,14),'
-        b'name:"SendUserMessage",input:{message:_dT||"File attached",...(_dA.length?{attachments:_dA}:{})}}]}}}}'
-        b'const c=o.uuid,l=i==="user"||i==="assistant"?i:null'
-    )
-
-    if fwd_new in content:
-        print("  [OK] forwardEvent text→SendUserMessage: already patched (skipped)")
-        patches_applied += 1
-    elif fwd_old in content:
-        content = content.replace(fwd_old, fwd_new, 1)
-        print("  [OK] forwardEvent text→SendUserMessage: injected transform")
-        patches_applied += 1
-    else:
-        print("  [WARN] forwardEvent text→SendUserMessage: pattern not found")
+    # ── Patch I: (Removed) ────────────────────────────────────────────────
+    # Synthetic SendUserMessage transform was here. Removed — no longer needed.
 
     # ── Patch J: Auto-wake dispatch parent when child task completes ─────
     #

@@ -2,6 +2,16 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-03-28 (v1.1.9310-4)
+
+### Fixed
+- **Dispatch: SendUserMessage now works natively** — CLI v2.1.86 fixed the `CLAUDE_CODE_BRIEF=1` env var parser. The Ditto dispatch orchestrator agent now calls `SendUserMessage` directly — no synthetic transform needed. Removed Patch I (bridge-level text→SendUserMessage workaround)
+
+### Changed
+- **Dispatch: removed Patch I** — The synthetic `SendUserMessage` transform in `fix_dispatch_linux.py` is no longer needed. Patch F (rjt bridge filter widening) retained as defense-in-depth for edge cases
+- **Dispatch: documented Ditto architecture** — Added [Dispatch Architecture](#dispatch-architecture) section to README documenting the orchestrator agent, session types (`chat`/`agent`/`dispatch_child`), and Linux adaptations
+- **SEND_USER_MESSAGE_STATUS.md** — Complete rewrite reflecting fixed state: Ditto architecture, `--disallowedTools` discovery, `present_files` interception, `SendUserMessage` full signature, version bisect updated through v2.1.86
+
 ## 2026-03-28 (v1.1.9310-3)
 
 ### Fixed

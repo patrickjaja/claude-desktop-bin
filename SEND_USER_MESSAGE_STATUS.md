@@ -1,20 +1,91 @@
 # SendUserMessage Bug Status
 
 **Upstream issue:** [anthropics/claude-code#35076](https://github.com/anthropics/claude-code/issues/35076)
-**Status:** OPEN (no assignees, no maintainer comments)
-**Last verified:** 2026-03-27 on CLI v2.1.85
-**Verdict:** Bug persists. Workaround (Patch I) is required.
+**Status:** FIXED in CLI v2.1.86 / SDK 0.2.86 (env var path only)
+**Last verified:** 2026-03-28 on CLI v2.1.86
+**Verdict:** Bug partially fixed. `CLAUDE_CODE_BRIEF=1` env var now correctly enables SendUserMessage. `--brief` CLI flag alone still broken.
 
 ---
 
-## What is the bug?
+## Current state (v2.1.86)
 
-The `SendUserMessage` CLI built-in tool is **never registered** in the model's tool list.
-Without this tool, the dispatch model cannot send responses to the user's phone — the
-sessions API only renders `SendUserMessage` tool_use blocks. Plain text is silently dropped.
+| Scenario | SendUserMessage registered? | Tool count |
+|---|---|---|
+| No flags | **No** | 58 |
+| `--brief` only | **No** | 58 |
+| `CLAUDE_CODE_BRIEF=1` only | **Yes** | 59 |
+| `CLAUDE_CODE_BRIEF=1` + `--brief` | **Yes** | 59 |
 
-Patch I in `fix_dispatch_linux.py` works around this by transforming plain text assistant
-messages into synthetic `SendUserMessage` tool_use blocks at the sessions-bridge level.
+The env var `CLAUDE_CODE_BRIEF=1` is sufficient. The `--brief` CLI flag has no effect on its own.
+
+### What changed from v2.1.85 to v2.1.86
+
+The `rH()` env var parser was likely fixed to properly treat `"1"` as truthy. In v2.1.85,
+`CLAUDE_CODE_BRIEF=1` had zero effect (tool count stayed at 58). In v2.1.86, it correctly
+triggers the entitlement check → `isBriefEntitled()` returns true → `No$()` sets
+`userMsgOptIn=true` → `isEnabled()` returns true → tool is registered.
+
+The `--brief` CLI flag path remains broken — it does not set the entitlement independently
+of the env var. This may be intentional (env var is the real gate) or a separate bug.
+
+### Impact on claude-cowork-service
+
+**Positive:** The Go backend already sets `CLAUDE_CODE_BRIEF=1` in the CLI spawn environment.
+With v2.1.86, this means SendUserMessage is now natively available to the model — it should
+call the tool directly instead of falling back to plain text.
+
+**Action items:**
+1. Patch I (synthetic SendUserMessage transform) may become redundant — test end-to-end with dispatch
+2. Patch F (rjt filter widening) should remain for now — still useful for edge cases
+3. `--brief` flag injection in `backend.go` is harmless but not the mechanism that enables the tool
+
+---
+
+## What was the bug?
+
+The `SendUserMessage` CLI built-in tool was **never registered** in the model's tool list
+in CLI versions 2.1.79 through 2.1.85. Without this tool, the dispatch model could not send
+responses to the user's phone — the sessions API only renders `SendUserMessage` tool_use blocks.
+
+Patch I in `patches/fix_dispatch_linux.py` worked around this by transforming plain text
+assistant messages into synthetic `SendUserMessage` tool_use blocks at the sessions-bridge level.
+
+## Dispatch architecture (Ditto)
+
+Desktop spawns a long-running dispatch orchestrator agent internally named "Ditto" (visible in
+session directories as `local_ditto_*`). The architecture uses three distinct session types,
+identified by the `CLAUDE_CODE_TAGS` environment variable passed to the CLI:
+
+| Session type | `CLAUDE_CODE_TAGS` value | `CLAUDE_CODE_BRIEF` | Has SendUserMessage? | Has dispatch MCP? | Purpose |
+|---|---|---|---|---|---|
+| Regular cowork (chat) | `lam_session_type:chat` | Not set | No | No | Normal interactive cowork session |
+| Ditto orchestrator (agent) | `lam_session_type:agent` | `1` | **Yes** | **Yes** | Long-running dispatch agent that receives user tasks and delegates |
+| Dispatch child | `lam_session_type:dispatch_child` | Not set | No | No | Child task spawned by Ditto to do actual work |
+
+The Ditto orchestrator is the only session type that has both `SendUserMessage` (to reply to
+the user's phone) and the dispatch MCP tools (to spawn/manage child tasks). Child sessions do
+the actual coding work and report back to Ditto via `mcp__dispatch__send_message`.
+
+### --disallowedTools stripping
+
+Desktop passes a `--disallowedTools` flag containing VM-only tools that don't exist on native Linux:
+- `AskUserQuestion`
+- `mcp__cowork__allow_cowork_file_delete`
+- `mcp__cowork__present_files`
+- `mcp__cowork__launch_code_session`
+- `mcp__cowork__create_artifact`
+- `mcp__cowork__update_artifact`
+
+On native Linux (claude-cowork-service), we strip the entire `--disallowedTools` flag since
+there is no VM and these tools are not registered anyway.
+
+### present_files interception
+
+Desktop's built-in `present_files` MCP handler rejects native Linux paths as "not accessible on
+user's computer" because it expects VM paths. We intercept `present_files` calls locally in the
+Go backend (`claude-cowork-service`) and handle them natively.
+
+---
 
 ## Common misconception
 
@@ -24,9 +95,17 @@ completely different tools:
 | | `SendUserMessage` (CLI built-in) | `mcp__dispatch__send_message` (SDK MCP) |
 |---|---|---|
 | Purpose | Send response **to the human user** (phone) | Send follow-up **to another session** (inter-session) |
-| Input | `{message, attachments?}` | `{session_id, message}` |
+| Input | `{message, attachments?, status?}` | `{session_id, message}` |
 | Renders on phone? | Yes | No |
-| Status | Broken (never registered) | Works (via --mcp-config proxy) |
+| Status | **Fixed in v2.1.86** (via env var) | Works (via --mcp-config proxy) |
+
+### SendUserMessage full signature (CLI v2.1.86, from binary analysis)
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `message` | string | **Yes** | The message content. Supports markdown formatting. |
+| `attachments` | array of strings | No | File paths (absolute or cwd-relative) for images, diffs, logs, etc. |
+| `status` | string | No | `"normal"` (default, replying to user) or `"proactive"` (agent-initiated: scheduled task completion, blocker encountered, needs input). |
 
 ---
 
@@ -85,72 +164,43 @@ function No$(H) {
 }
 ```
 
-### Why it should work (in theory)
+### Why it works in v2.1.86
 
 With `CLAUDE_CODE_BRIEF=1`:
-- `isBriefEntitled()` checks `rH(process.env.CLAUDE_CODE_BRIEF)` → should be true
-- `No$()` sees entitled=true → calls `Vp(true)` → sets `userMsgOptIn=true`
+- `isBriefEntitled()` checks `rH(process.env.CLAUDE_CODE_BRIEF)` → now returns true (parser fixed)
+- `No$()` sees `envBrief=true`, entitled=true → calls `Vp(true)` → sets `userMsgOptIn=true`
 - `isEnabled()` = `(false || true) && true` = true
 
-### Why it doesn't work (empirically)
+### Why --brief alone doesn't work
 
-Despite the code logic suggesting the tool should be enabled, it **never appears** in the
-registered tool list. Possible causes:
-- The `rH()` parser may not treat `"1"` as truthy
-- A cold-start race condition (partially fixed in v2.1.84 for Edit/Write) may still affect
-  SendUserMessage — the tool could be filtered before `No$()` runs
-- There may be additional gating not visible in string analysis of the compiled binary
-- The `-p` (print/non-interactive) mode may use a different initialization path
+With just `--brief` (no env var):
+- `No$()` checks `H.brief` → true, but `envBrief` → false
+- `isBriefEntitled()` → `pT()` false, `rH(undefined)` false, feature flag false → **false**
+- `entitled = false` → `Vp(true)` is never called → tool stays disabled
+- The `--brief` flag alone can't enable the tool because it needs `isBriefEntitled()` to pass,
+  and the flag doesn't contribute to that check. This appears to be a design bug.
 
 ---
 
-## Empirical test results (v2.1.85)
+## Empirical test results
 
-### Test methodology
-
-Launch the CLI with various flag/env combinations and inspect the `tools` array in the
-stream-json init message. This is the authoritative list of tools registered for the session.
-
-```bash
-# Capture tool list:
-CLAUDE_CODE_BRIEF=1 claude --brief -p "say hi" --output-format stream-json --verbose \
-  2>&1 > /tmp/test.json
-
-# Parse:
-python3 -c "
-import json
-with open('/tmp/test.json') as f:
-    for line in f:
-        d = json.loads(line)
-        if d.get('type') == 'system' and d.get('subtype') == 'init':
-            print('SendUserMessage' in d['tools'])
-            break
-"
-```
-
-### Results
+### v2.1.86 (2026-03-28) — FIXED
 
 | Scenario | SendUserMessage in tools? | Tool count |
 |---|---|---|
-| `CLAUDE_CODE_BRIEF=1` + `--brief` | **No** | 58 |
-| `--brief` only | **No** | 58 |
-| `CLAUDE_CODE_BRIEF=1` only | **No** | 58 |
-| Neither | **No** | 58 |
+| `CLAUDE_CODE_BRIEF=1` + `--brief` | **Yes** | 59 |
+| `CLAUDE_CODE_BRIEF=1` only | **Yes** | 59 |
+| `--brief` only | No | 58 |
+| Neither | No | 58 |
 
-Tool count is identical in all cases — the flags have zero effect on tool registration.
+### v2.1.85 (2026-03-27) — BROKEN
 
-### Direct invocation test
-
-When explicitly asked to call `SendUserMessage`, the model:
-1. Searched for it via `ToolSearch` → not found
-2. Responded: *"There is no SendUserMessage tool available"*
-
-### Model hallucination warning
-
-When asked "Do you have a tool called SendUserMessage? Answer YES or NO" the model
-sometimes answers **YES** — this is a hallucination. The model recognizes the concept
-from training data but does not actually check its tool list. Always verify via
-stream-json init, never trust the model's self-report.
+| Scenario | SendUserMessage in tools? | Tool count |
+|---|---|---|
+| `CLAUDE_CODE_BRIEF=1` + `--brief` | No | 58 |
+| `--brief` only | No | 58 |
+| `CLAUDE_CODE_BRIEF=1` only | No | 58 |
+| Neither | No | 58 |
 
 ---
 
@@ -183,7 +233,7 @@ echo "SendUserMessage registered: $HAS_TOOL"
 if [ "$HAS_TOOL" = "YES" ]; then
     echo ""
     echo ">>> BUG APPEARS FIXED! <<<"
-    echo ">>> Consider removing Patch I from fix_dispatch_linux.py <<<"
+    echo ">>> Test end-to-end dispatch before removing Patch I <<<"
     echo ">>> Update SEND_USER_MESSAGE_STATUS.md <<<"
 else
     echo ""
@@ -191,24 +241,25 @@ else
 fi
 ```
 
-Save as `scripts/check_send_user_message.sh` and run after each CLI update.
-
 ---
 
 ## Affected components
 
 ### Workarounds (in claude-desktop-bin)
 
-| Component | File | Purpose | Remove when fixed? |
+| Component | File | Purpose | Status after v2.1.86 |
 |---|---|---|---|
-| Patch F | `patches/fix_dispatch_linux.py` | Widen rjt() bridge filter to accept text + other tool names | Review — may still be needed for edge cases |
-| Patch I | `patches/fix_dispatch_linux.py` | Transform plain text → synthetic SendUserMessage tool_use | Yes — primary workaround for this bug |
+| Patch F | `patches/fix_dispatch_linux.py` | Widen rjt() bridge filter to accept text + other tool names | **Keep** — still needed for edge cases where model uses plain text |
+| ~~Patch I~~ | ~~`patches/fix_dispatch_linux.py`~~ | ~~Transform plain text → synthetic SendUserMessage tool_use~~ | **Removed** — model calls SendUserMessage natively now |
 
 ### Belt-and-suspenders (in claude-cowork-service)
 
-| Component | File | Purpose | Remove when fixed? |
+| Component | File | Purpose | Status after v2.1.86 |
 |---|---|---|---|
-| `--brief` injection | `native/backend.go:254-271` | Inject `--brief` flag when `CLAUDE_CODE_BRIEF=1` in env | Review — low cost, may aid future fix |
+| `CLAUDE_CODE_BRIEF=1` env | `native/backend.go` | Set env var for CLI spawn | **Critical** — this is what actually enables the tool |
+| `--brief` injection | `native/backend.go` | Inject `--brief` flag | **Optional** — env var alone is sufficient |
+| `--disallowedTools` stripping | `native/backend.go` | Strip VM-only disallowed tools list | **Active** — Desktop passes VM tools that don't exist on native Linux |
+| `present_files` interception | `native/backend.go` | Handle present_files locally instead of Desktop's MCP handler | **Active** — Desktop rejects native Linux paths as "not accessible" |
 
 ---
 
@@ -218,79 +269,66 @@ The official cowork VM (used on Windows/Mac) ships via `@anthropic-ai/claude-age
 The SDK version maps 1:1 to a CLI version: **SDK `0.2.X` bundles CLI `2.1.X`**
 (confirmed via the `claudeCodeVersion` field in the npm registry metadata).
 
+### Latest stable Agent SDK (npm) — 2026-03-28
+
+| Field | Value |
+|-------|-------|
+| Latest SDK (`dist-tags.latest`) | `@anthropic-ai/claude-agent-sdk@0.2.86` |
+| **Bundled CLI** | **2.1.86 (FIXED)** |
+
+Both the SDK (0.2.86) and the native Linux CLI (2.1.86) now have the fix.
+
 ### Our extracted VM bundle (Claude Desktop 1.1.9134)
 
 | Field | Value |
 |-------|-------|
 | Claude Desktop version | 1.1.9134 (from `vm-bundle/.version`) |
 | Agent SDK | `@anthropic-ai/claude-agent-sdk@0.2.78` |
-| **Bundled CLI** | **2.1.78** (last working version) |
-| Future dev SDK in package.json | `0.2.86-dev.20260326` → CLI 2.1.86 (not yet published) |
+| **Bundled CLI** | **2.1.78** (last working version before regression) |
+| Future dev SDK in package.json | `0.2.86-dev.20260326` → CLI 2.1.86 (now published stable) |
 
-### Latest stable Agent SDK (npm)
-
-| Field | Value |
-|-------|-------|
-| Latest SDK (`dist-tags.latest`) | `@anthropic-ai/claude-agent-sdk@0.2.85` |
-| **Bundled CLI** | **2.1.85 (BROKEN)** |
-
-**Critical implication:** The latest stable SDK (0.2.85) bundles CLI 2.1.85,
-which has the same bug. This means:
-
-1. **Our extracted VM (from Desktop 1.1.9134) still uses SDK 0.2.78** —
-   Anthropic may be deliberately pinning to 0.2.78 because they know newer
-   versions break SendUserMessage. Or our VM extract is simply from before
-   they updated.
-2. **If/when Anthropic updates the VM to SDK 0.2.85+, dispatch will break
-   on Windows/Mac too** — unless they fix the CLI first.
-3. **Monitoring:** After each Claude Desktop update, re-extract `vm-bundle`
-   and check which SDK version is pinned. If it moves past 0.2.78 AND the
-   CLI bug is still present, Windows/Mac dispatch is also affected.
-
-### How to check after a Claude Desktop update
-
-```bash
-# Re-extract app.asar from the new Claude Desktop build, then:
-grep '"@anthropic-ai/claude-agent-sdk"' vm-bundle/app-asar-extracted/package.json
-# If the version moves past 0.2.78, check the CLI version:
-curl -s https://registry.npmjs.org/@anthropic-ai/claude-agent-sdk/<VERSION> | python3 -c "
-import json, sys; print(json.load(sys.stdin).get('claudeCodeVersion', 'NOT FOUND'))
-"
-```
+**Implication:** When Anthropic updates the VM bundle past 0.2.78, dispatch should work on
+Windows/Mac as well.
 
 ---
 
-## Version bisect (empirical, tested 2026-03-27)
+## Version bisect (empirical)
 
 All tests run with `CLAUDE_CODE_BRIEF=1` + `--brief` via
-`node cli.js -p "say hi" --output-format stream-json --verbose`,
+`node cli.js -p "say hi" --output-format stream-json --verbose` (or binary),
 checking the `tools` array in the stream-json init message.
 
 | CLI version | SendUserMessage registered? | Tool count | Notes |
 |-------------|---------------------------|------------|-------|
-| **2.1.78** | **Yes** | 89 | Last working version. Bundled in VM via Agent SDK 0.2.78. |
+| **2.1.78** | **Yes** | 89 | Last working version before regression. |
 | **2.1.79** | **No** | 57 | **Regression introduced here.** |
 | 2.1.80 | No | 57 | |
-| 2.1.83 | No | (binary-only, not testable via node) | |
+| 2.1.83 | No | (binary-only) | |
 | 2.1.84 | No | (binary-only) | CHANGELOG: fixed cold-start race for Edit/Write |
-| 2.1.85 | No | 58 | Latest. Full binary analysis confirms tool never registered. |
-
-The tool count dropped from 89 (v2.1.78) to 57 (v2.1.79), suggesting a major
-refactoring of the tool system happened at this version boundary (likely the
-introduction of deferred tools / ToolSearch).
+| 2.1.85 | No | 58 | Full binary analysis confirms tool never registered. |
+| **2.1.86** | **Yes** | 59 | **Fix shipped here.** Env var path works; --brief flag alone still broken. |
 
 ---
 
-## What "fixed" looks like
+## Upstream issue status (2026-03-28)
 
-When the bug is fixed:
-1. `SendUserMessage` appears in the stream-json init `tools` array
-2. The model can call the tool directly (no ToolSearch needed)
-3. Dispatch responses render on phone without Patch I
-4. File attachments via `SendUserMessage({attachments: [...]})` work natively
+- **Issue:** [anthropics/claude-code#35076](https://github.com/anthropics/claude-code/issues/35076)
+- **Status:** Still OPEN (not closed despite fix shipping in v2.1.86)
+- **Maintainer comments:** None
+- **Comments:** 1 (bot duplicate detection, received 3 thumbs-down)
+- **Linked PRs:** None
 
-At that point:
-- Remove Patch I from `fix_dispatch_linux.py`
-- Review whether Patch F is still needed (rjt() may be updated upstream)
-- Keep `--brief` injection in `backend.go` (harmless, matches Electron behavior)
-- Update this document
+The fix appears to have been shipped silently without closing the issue.
+
+---
+
+## What "fully fixed" looks like
+
+The env var path is fixed. Current checklist:
+1. ~~SendUserMessage appears in the tool list~~ DONE (with `CLAUDE_CODE_BRIEF=1`)
+2. ~~Remove Patch I (synthetic SendUserMessage transform)~~ DONE — model calls SendUserMessage natively
+3. ~~Strip `--disallowedTools` for native Linux~~ DONE — VM-only tools removed from disallow list
+4. ~~Intercept `present_files` locally~~ DONE — Desktop's handler rejects native paths
+5. Review Patch F (rjt filter) — may still be needed for fallback
+6. Keep `CLAUDE_CODE_BRIEF=1` env injection in `backend.go` (this is the mechanism)
+7. `--brief` flag injection in `backend.go` can be kept (harmless) or removed (unnecessary)

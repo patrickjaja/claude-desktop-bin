@@ -149,7 +149,7 @@ Claude Desktop works without these — features degrade gracefully when tools ar
 - **Local Agent Mode** - Git worktrees and agent sessions
 - **Cowork support** - Agentic workspace feature enabled on Linux (requires [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service))
 - **Computer Use** - Desktop automation via built-in MCP server (27 tools: screenshot, click, type, scroll, drag, clipboard, multi-monitor switch, batch actions, teach mode). No permission grants needed — see [Optional Dependencies](#optional-dependencies) for required packages
-- **Dispatch** - Send tasks from your phone to your desktop Claude via Anthropic's environments bridge API (requires Cowork). Text responses, task orchestration, and SDK MCP tools work. Bridge-level transform wraps plain text as `SendUserMessage` (workaround for CLI bug [anthropics/claude-code#35076](https://github.com/anthropics/claude-code/issues/35076) — `SendUserMessage` is never registered, confirmed on v2.1.85)
+- **Dispatch** - Send tasks from your phone to your desktop Claude via Anthropic's dispatch orchestrator agent (internally "Ditto"). Text responses, file delivery, task orchestration, and all SDK MCP tools work natively on Linux (requires [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service)). See [Dispatch Architecture](#dispatch-architecture) for details
 - **Browser Tools (Chrome integration)** - 18 browser automation tools (navigate, read_page, javascript_tool, etc.) via the [Claude in Chrome](https://chromewebstore.google.com/detail/claude-code/fcoeoabgfenejglbffodgkkbkcdhcgfn) extension. Uses Claude Code's native messaging host (`~/.claude/chrome/chrome-native-host`) instead of the proprietary Windows/macOS binary
 - **MCP server support** - Model Context Protocol servers work on Linux
 - **Custom Themes (Experimental)** - 6 built-in color themes (Nord, Catppuccin Mocha/Frappe/Latte/Macchiato, Sweet) or create your own via JSON config — not all UI elements are fully themed yet
@@ -381,16 +381,24 @@ To make it permanent, add `export CLAUDE_DISABLE_GPU=1` to your `~/.bashrc` or `
 
 See [#13](https://github.com/patrickjaja/claude-desktop-bin/issues/13) for details.
 
-## Known Issues (Dispatch)
+## Dispatch Architecture
 
-These issues are caused by a bug in Claude Code CLI where the `SendUserMessage` tool is never exposed to the model. Empirically confirmed on CLI v2.1.85 (2026-03-27): neither `--brief` flag, `CLAUDE_CODE_BRIEF=1` env var, nor both together cause `SendUserMessage` to appear in the registered tool list. On Windows/Mac, the cowork VM bundles CLI via Agent SDK 0.2.78 which may use a different code path. Tracked upstream: [anthropics/claude-code#35076](https://github.com/anthropics/claude-code/issues/35076) (still open, no assignees)
+Dispatch lets you send tasks from the Claude mobile app to your Linux desktop. It's fully native — no VM, no emulation.
 
-| Issue | Status | Detail |
-|-------|--------|--------|
-| Dispatch text responses not rendering | **Workaround active** | Patch I wraps plain text as synthetic `SendUserMessage` tool_use blocks. Responses render on phone/desktop. Note: `mcp__dispatch__send_message` is unrelated — it sends messages to other sessions, not to the user. |
-| File attachments load endlessly on phone | **Not yet fixed** | The model can't use `SendUserMessage` with `attachments`, so files aren't uploaded via the dispatch file API. Will resolve when the CLI exposes `SendUserMessage` natively. |
+Claude Desktop spawns a long-running **dispatch orchestrator agent** (Anthropic internally calls it "Ditto"). This agent receives messages from your phone, delegates work to child sessions, and sends responses back via `SendUserMessage`.
 
-Both issues resolve when Anthropic fixes the CLI so `SendUserMessage` is properly registered. We're monitoring upstream.
+```
+Phone → Anthropic API → SSE → Claude Desktop → Ditto agent (via cowork-service)
+  ├── Ditto calls SendUserMessage → response appears on phone
+  ├── Ditto calls mcp__dispatch__start_task → child session spawned
+  │     └── Child does the work (code, files, research, etc.)
+  │     └── Child completes → Ditto reads transcript → Ditto replies to phone
+  └── Ditto has access to all SDK MCP servers (Gmail, Drive, Chrome, etc.)
+```
+
+On Windows/Mac, dispatch runs inside a VM. On Linux, [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service) handles it natively with several adaptations (stripping VM-only tool restrictions, path mapping, local `present_files` interception). See the [Dispatch Support](https://github.com/patrickjaja/claude-cowork-service#dispatch-support) section in claude-cowork-service for full technical details.
+
+**History:** `SendUserMessage` was broken in CLI v2.1.79–2.1.85 ([anthropics/claude-code#35076](https://github.com/anthropics/claude-code/issues/35076)). Fixed in v2.1.86. See [SEND_USER_MESSAGE_STATUS.md](SEND_USER_MESSAGE_STATUS.md) for the investigation.
 
 ## Known Limitations
 
