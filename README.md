@@ -79,6 +79,13 @@ nix profile install github:patrickjaja/claude-desktop-bin
 
 > **Note:** Update by running `nix flake update` to pull the latest version. `nix run` always fetches the latest.
 
+> **Dispatch/Cowork:** Requires Claude Code >= 2.1.86 (fixes `CLAUDE_CODE_BRIEF` env parsing). If nixpkgs ships an older version, override with `extraSessionPaths`:
+> ```nix
+> claude-desktop.override {
+>   extraSessionPaths = [ "/home/user/.npm-global/bin" ];
+> }
+> ```
+
 ### AppImage (Any Distro)
 ```bash
 # Download from GitHub Releases
