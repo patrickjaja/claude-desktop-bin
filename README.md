@@ -82,7 +82,7 @@ nix profile install github:patrickjaja/claude-desktop-bin
 > **Dispatch/Cowork:** Requires Claude Code >= 2.1.86 (fixes `CLAUDE_CODE_BRIEF` env parsing). If nixpkgs ships an older version, override with `extraSessionPaths`:
 > ```nix
 > claude-desktop.override {
->   extraSessionPaths = [ "/home/user/.npm-global/bin" ];
+>   extraSessionPaths = [ "/path/to/directory/containing/claude" ];
 > }
 > ```
 
