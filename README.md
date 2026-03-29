@@ -327,22 +327,21 @@ If upstream Claude Desktop changes break a patch:
 - `packaging/` - Debian, RPM, AppImage, and Nix build scripts
 - `PKGBUILD.template` - AUR package template
 
+## Environment Variables
+
+| Variable | Values | Description |
+|----------|--------|-------------|
+| `CLAUDE_DISABLE_GPU` | `1`, `full` | Fix white screen on some GPU/driver combos ([#13](https://github.com/patrickjaja/claude-desktop-bin/issues/13)). `1` disables compositing only, `full` disables GPU entirely |
+| `CLAUDE_USE_XWAYLAND` | `1` | Force XWayland instead of native Wayland |
+| `CLAUDE_MENU_BAR` | `auto`, `visible`, `hidden` | Menu bar visibility (default: `auto`, toggle with Alt) |
+| `CLAUDE_DEV_TOOLS` | `detach` | Open Chromium DevTools on launch |
+| `CLAUDE_ELECTRON` | path | Override Electron binary path |
+| `CLAUDE_APP_ASAR` | path | Override app.asar path |
+| `ELECTRON_ENABLE_LOGGING` | `1` | Log Electron main process to stderr |
+
+Set permanently in `~/.bashrc` or `~/.zshrc`, or pass per-launch: `CLAUDE_DISABLE_GPU=1 claude-desktop`
+
 ## Debugging
-
-Launch Claude Desktop with DevTools auto-opened:
-```bash
-CLAUDE_DEV_TOOLS=detach claude-desktop
-```
-
-This opens a detached Chromium DevTools window where you can:
-- **Console** — view JavaScript errors and logs
-- **Network** — inspect API requests (check EventStream on `/completion` requests for streaming errors)
-- **Application** — inspect local storage, cookies, session data
-
-To also capture Electron main process logs to a file:
-```bash
-CLAUDE_DEV_TOOLS=detach ELECTRON_ENABLE_LOGGING=1 claude-desktop 2>&1 | tee /tmp/claude-debug.log
-```
 
 Runtime logs are written to `~/.config/Claude/logs/`:
 | Log File | Description |
@@ -357,45 +356,16 @@ tail -f ~/.config/Claude/logs/main.log
 
 # Search for errors across all logs
 grep -ri 'error\|exception\|fatal' ~/.config/Claude/logs/
+
+# Launch with DevTools + full logging
+CLAUDE_DEV_TOOLS=detach ELECTRON_ENABLE_LOGGING=1 claude-desktop 2>&1 | tee /tmp/claude-debug.log
 ```
-
-### Clear Dispatch session
-
-Dispatch reuses a persistent session transcript. If the model encountered errors in previous turns (e.g. "Permission denied" for a tool, or broken responses), it remembers those failures and may refuse to retry. Clear the session to start fresh:
-
-```bash
-# Find your dispatch session directory
-ls ~/.config/Claude/local-agent-mode-sessions/
-
-# Remove the dispatch agent session (replace UUIDs with your own)
-rm -rf ~/.config/Claude/local-agent-mode-sessions/<account-uuid>/<org-uuid>/agent/local_ditto_*/
-
-# Then restart Claude Desktop
-```
-
-You can identify your UUIDs from the directory listing — there's typically one account directory containing one org directory.
-
-## Troubleshooting
-
-### White screen / blank window
-
-Some GPU/driver combinations (notably on Fedora KDE) fail to create GBM buffers, causing Electron to render a blank white window. To fix:
-
-```bash
-# Recommended: disable GPU compositing only (keeps hardware acceleration for other tasks)
-CLAUDE_DISABLE_GPU=1 claude-desktop
-
-# More aggressive: disable all GPU acceleration
-CLAUDE_DISABLE_GPU=full claude-desktop
-```
-
-To make it permanent, add `export CLAUDE_DISABLE_GPU=1` to your `~/.bashrc` or `~/.zshrc`.
-
-See [#13](https://github.com/patrickjaja/claude-desktop-bin/issues/13) for details.
 
 ## Dispatch Architecture
 
 Dispatch lets you send tasks from the Claude mobile app to your Linux desktop. It's fully native — no VM, no emulation.
+
+![Dispatch on Android](android_dispatch_feature.png)
 
 Claude Desktop spawns a long-running **dispatch orchestrator agent** (Anthropic internally calls it "Ditto"). This agent receives messages from your phone, delegates work to child sessions, and sends responses back via `SendUserMessage`.
 
