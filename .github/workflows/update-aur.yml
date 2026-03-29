@@ -914,7 +914,7 @@ jobs:
           gpg --armor --export "$GPG_KEY_ID" > "$REPO_DIR/gpg-key.asc"
           touch "$REPO_DIR/.nojekyll"
 
-          # Version badge (shields.io endpoint) — release means we're on latest
+          # Shields.io endpoint badges
           mkdir -p "$REPO_DIR/badges"
           cat > "$REPO_DIR/badges/version-check.json" <<BADGE_EOF
           {
@@ -922,6 +922,32 @@ jobs:
             "label": "Claude Desktop",
             "message": "v${VERSION} (latest)",
             "color": "brightgreen"
+          }
+          BADGE_EOF
+
+          # Detect which architectures were actually built
+          DEB_ARCHS=""
+          [ -f "$DEB_FILE_AMD64" ] && DEB_ARCHS="amd64"
+          [ -f "$DEB_FILE_ARM64" ] && DEB_ARCHS="${DEB_ARCHS:+$DEB_ARCHS, }arm64"
+          RPM_ARCHS=""
+          [ -f "$RPM_FILE_X86_64" ] && RPM_ARCHS="x86_64"
+          [ -f "$RPM_FILE_AARCH64" ] && RPM_ARCHS="${RPM_ARCHS:+$RPM_ARCHS, }aarch64"
+
+          cat > "$REPO_DIR/badges/apt-repo.json" <<BADGE_EOF
+          {
+            "schemaVersion": 1,
+            "label": "APT repo",
+            "message": "v${VERSION} (${DEB_ARCHS:-none})",
+            "color": "blue"
+          }
+          BADGE_EOF
+
+          cat > "$REPO_DIR/badges/rpm-repo.json" <<BADGE_EOF
+          {
+            "schemaVersion": 1,
+            "label": "RPM repo",
+            "message": "v${VERSION} (${RPM_ARCHS:-none})",
+            "color": "blue"
           }
           BADGE_EOF
 

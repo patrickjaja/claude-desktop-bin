@@ -159,10 +159,39 @@ jobs:
           }
           BADGE_EOF
 
+          # Seed APT/RPM badges from repo contents (if not yet present)
+          if [ ! -f "$REPO_DIR/badges/apt-repo.json" ] && [ -f "$REPO_DIR/deb/Packages" ]; then
+            DEB_VER=$(grep -m1 '^Version:' "$REPO_DIR/deb/Packages" | awk '{print $2}' | cut -d- -f1)
+            DEB_ARCHS=$(grep '^Architecture:' "$REPO_DIR/deb/Packages" | awk '{print $2}' | sort -u | paste -sd', ')
+            cat > "$REPO_DIR/badges/apt-repo.json" <<BADGE_EOF
+          {
+            "schemaVersion": 1,
+            "label": "APT repo",
+            "message": "v${DEB_VER} (${DEB_ARCHS})",
+            "color": "blue"
+          }
+          BADGE_EOF
+          fi
+
+          if [ ! -f "$REPO_DIR/badges/rpm-repo.json" ] && [ -d "$REPO_DIR/rpm" ]; then
+            RPM_ARCHS=""
+            [ -d "$REPO_DIR/rpm/x86_64" ] && RPM_ARCHS="x86_64"
+            [ -d "$REPO_DIR/rpm/aarch64" ] && RPM_ARCHS="${RPM_ARCHS:+$RPM_ARCHS, }aarch64"
+            RPM_VER=$(ls "$REPO_DIR/rpm/x86_64/" 2>/dev/null | head -1 | grep -oP '\d+\.\d+\.\d+' || echo "${RELEASED}")
+            cat > "$REPO_DIR/badges/rpm-repo.json" <<BADGE_EOF
+          {
+            "schemaVersion": 1,
+            "label": "RPM repo",
+            "message": "v${RPM_VER} (${RPM_ARCHS})",
+            "color": "blue"
+          }
+          BADGE_EOF
+          fi
+
           cd "$REPO_DIR"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add badges/version-check.json
+          git add badges/
           git diff --staged --quiet || {
             git commit -m "Update version badge: ${MESSAGE}"
             git push origin gh-pages
