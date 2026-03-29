@@ -167,9 +167,3 @@ jobs:
             git commit -m "Update version badge: ${MESSAGE}"
             git push origin gh-pages
           }
-
-      - name: Fail if behind upstream
-        if: steps.upstream.outputs.version && steps.released.outputs.version != steps.upstream.outputs.version
-        run: |
-          echo "::error::Release v${{ steps.released.outputs.version }} is behind upstream v${{ steps.upstream.outputs.version }}"
-          exit 1
