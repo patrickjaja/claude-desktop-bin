@@ -2,6 +2,20 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-03-29 (v1.1.9493)
+
+### Changed
+- **Version bump to v1.1.9493** — Upstream metadata-only re-release; JS bundles are byte-for-byte identical to v1.1.9310. No new features, MCP servers, or platform checks.
+- **Custom themes: visual polish** — Borders now use accent color with subtle alpha (e.g. `#cba6f718`) instead of neutral gray, matching each theme's palette. Added accent-colored scrollbars, dialog/menu/tooltip glow shadows, button hover glow, smooth transitions on interactive elements, and transparent input borders/focus rings for a cleaner look. All 6 theme JSON files updated.
+
+### Fixed
+- **fix_process_argv_renderer.py**: Platform spoof pattern (`platform="win32"`) no longer exists in mainView.js. Added primary pattern matching `exposeInMainWorld("process",<var>)` to insert `argv=[]` before the expose call. Old spoof-based and appVersion-based patterns retained as fallbacks.
+- **enable_local_agent_mode.py**: Async feature merger restructured from arrow function `async()=>({...Oh(),...})` to block body with `Promise.all` and explicit `return{...vw(),...}`. Added new regex for the block-body format; old arrow-function pattern retained as fallback.
+
+### Docs
+- **CLAUDE_BUILT_IN_MCP.md**: Expanded Claude Preview section with full tool catalog (13 tools), `.claude/launch.json` configuration, and architecture description. Updated to v1.1.9493.
+- **CLAUDE.md**: Added CI-managed files section documenting that README install command versions are updated automatically by CI.
+
 ## 2026-03-29 (v1.1.9310-5)
 
 ### Fixed

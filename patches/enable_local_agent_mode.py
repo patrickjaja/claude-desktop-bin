@@ -116,9 +116,9 @@ def patch_local_agent_mode(filepath):
     print("  [OK] chillingSlothLocal: no gate needed (naturally returns supported on Linux)")
 
     # Patch 3: Override features in mC() async merger
-    # The mC() function merges Oh() with async overrides. Features wrapped by QL()
-    # in Oh() are blocked in production. We append overrides after the last async
-    # property so they take precedence over the ...Oh() spread.
+    # The mC() function merges the static registry with async overrides. Features
+    # wrapped by QL() in the static registry are blocked in production. We append
+    # overrides so they take precedence over the spread.
     #
     # We override:
     # - quietPenguin/louderPenguin → "supported" (Code tab, bypasses QL gate)
@@ -126,19 +126,31 @@ def patch_local_agent_mode(filepath):
     # - yukonSilver/yukonSilverGems → "supported" (VM features, needs daemon)
     # - ccdPlugins → "supported" (Plugin UI, defensive override for future gating)
     #
-    # The async merger spreads ...dg() and then overrides some features with async versions.
-    # The last property changes between versions. We match any feature:await pattern before })
-    # Before: louderPenguin:await fwt()})  [v1.1.2685]
-    # After:  louderPenguin:await fwt(),quietPenguin:{status:"supported"},...})
-    pattern3 = rb"(const [\w$]+=async\(\)=>\(\{\.\.\.[\w$]+\(\),[^}]+)(await [\w$]+\(\))\}\)"
-    replacement3 = rb'\1\2,quietPenguin:{status:"supported"},louderPenguin:{status:"supported"},chillingSlothFeat:{status:"supported"},chillingSlothLocal:{status:"supported"},yukonSilver:{status:"supported"},yukonSilverGems:{status:"supported"},ccdPlugins:{status:"supported"}})'
+    # Format varies across versions:
+    #   Old (≤v1.1.9310): const X=async()=>({...Oh(),...,louderPenguin:await fwt()})
+    #   New (≥v1.1.9493): const X=async()=>{...;return{...vw(),louderPenguin:t,operon:e}};
+    overrides = b',quietPenguin:{status:"supported"},louderPenguin:{status:"supported"},chillingSlothFeat:{status:"supported"},chillingSlothLocal:{status:"supported"},yukonSilver:{status:"supported"},yukonSilverGems:{status:"supported"},ccdPlugins:{status:"supported"}'
 
-    content, count3 = re.subn(pattern3, replacement3, content)
+    # New format: return{...FUNC(),...props}};
+    pattern3_new = rb"(return\{\.\.\.(\w+)\(\),[^}]+)(\}\};)"
+    count3 = 0
+    match3 = re.search(pattern3_new, content)
+    if match3:
+        content = content[: match3.end() - len(b"}};")] + overrides + b"}};" + content[match3.end() :]
+        count3 = 1
+
     if count3 >= 1:
         print(f"  [OK] mC() feature merger: 7 features overridden ({count3} match)")
     else:
-        print("  [FAIL] mC() feature merger: 0 matches, expected 1")
-        failed = True
+        # Fallback: old format const X=async()=>({...Oh(),...,await fn()})
+        pattern3_old = rb"(const [\w$]+=async\(\)=>\(\{\.\.\.[\w$]+\(\),[^}]+)(await [\w$]+\(\))\}\)"
+        replacement3_old = rb"\1\2" + overrides + rb"})"
+        content, count3 = re.subn(pattern3_old, replacement3_old, content)
+        if count3 >= 1:
+            print(f"  [OK] mC() feature merger: 7 features overridden (old format, {count3} match)")
+        else:
+            print("  [FAIL] mC() feature merger: 0 matches, expected 1")
+            failed = True
 
     # Check results
     if failed:

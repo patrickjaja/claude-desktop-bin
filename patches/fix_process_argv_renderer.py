@@ -50,7 +50,19 @@ def patch_process_argv(filepath):
     # Use \w+ wildcards for the variable name since minified names change
     # between upstream releases (e.g., Ie -> at).
 
-    # Try after platform spoof first
+    # Primary: insert <var>.argv=[] just before exposeInMainWorld("process",<var>)
+    expose_pattern = rb'(\w+\.contextBridge\.exposeInMainWorld\("process",)(\w+)(\))'
+    match = re.search(expose_pattern, content)
+    if match:
+        var_name = match.group(2)
+        insert = var_name + b".argv=[];"
+        content = content[: match.start()] + insert + content[match.start() :]
+        with open(filepath, "wb") as f:
+            f.write(content)
+        print(f"  [OK] process.argv: added {var_name.decode()}.argv=[] (before exposeInMainWorld)")
+        return True
+
+    # Fallback 1: after platform spoof
     spoof_pattern = rb'(\w+)(\.platform="win32"\})'
     match = re.search(spoof_pattern, content)
     if match:
@@ -62,7 +74,7 @@ def patch_process_argv(filepath):
         print(f"  [OK] process.argv: added {var_name.decode()}.argv=[] (after platform spoof)")
         return True
 
-    # Fallback: insert after <var>.version=...appVersion;
+    # Fallback 2: after <var>.version=...appVersion;
     version_pattern = rb"(\w+)(\.version=\w+\(\)\.appVersion;)"
     match = re.search(version_pattern, content)
     if match:

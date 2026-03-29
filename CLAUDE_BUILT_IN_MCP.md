@@ -1,4 +1,4 @@
-# Built-in MCP Servers — Claude Desktop v1.1.9134
+# Built-in MCP Servers — Claude Desktop v1.1.9493
 
 Claude Desktop registers internal MCP servers via a two-layer architecture:
 
@@ -124,10 +124,61 @@ These are accessible to CCD/Cowork sessions but not directly from the renderer.
 
 | Field | Value |
 |-------|-------|
-| Server name | `"Claude Preview"` |
-| Gating | Server flag `2976814254` + CCD session + `launchEnabled` preference |
+| Server name | `"Claude Preview"` (constant `lNe`) |
+| Gating | Server flag `2976814254` + CCD session + `launchEnabled` preference (default: `true`) |
+| Platform | All (no platform gate) |
+| Linux status | **Not implemented** — server flag `2976814254` is not force-enabled by our patches. The feature works architecturally (no platform blocks), but is waiting for Anthropic to enable the flag server-side. |
 
-Provides 13 `preview_*` tools for web preview functionality.
+Local dev server manager + browser inspector. Lets the model start dev servers, take screenshots, inspect DOM elements, fill forms, click buttons, run JS, and monitor logs/network — all without the user switching windows.
+
+**How it works:**
+
+1. **Configuration:** User creates `.claude/launch.json` in the project root:
+   ```json
+   {
+     "version": "0.0.1",
+     "configurations": [
+       {
+         "name": "frontend",
+         "runtimeExecutable": "npm",
+         "runtimeArgs": ["run", "dev"],
+         "port": 3000,
+         "autoPort": true
+       }
+     ]
+   }
+   ```
+2. **Activation:** When `launchEnabled` is on and the server flag is active, the session system prompt gets a `<preview_tools>` block injected telling the model to use `preview_*` tools instead of Bash for running servers.
+3. **Model calls `preview_start`:** Desktop reads `.claude/launch.json`, spawns the configured command as a child process, polls the port until HTTP responds.
+4. **Preview panel:** An Electron `WebContentsView` (sandboxed, localhost-only) loads `http://localhost:<port>`. Chrome DevTools Protocol (CDP) is connected for automation.
+5. **Feedback loop:** Model edits source code, reloads via `preview_eval`, verifies changes via screenshot/snapshot/inspect, reports back with visual proof.
+
+The preview panel blocks all navigation to non-localhost URLs.
+
+**Tools (13):**
+
+Server management (no timeout):
+
+| Tool | Description |
+|------|-------------|
+| `preview_start` | Start a dev server by name from `.claude/launch.json`. Reuses if already running |
+| `preview_stop` | Stop a running server |
+| `preview_list` | List running servers and their IDs |
+| `preview_logs` | Server stdout/stderr output (build errors, debug). Filterable by level/search |
+| `preview_console_logs` | Browser console output (log/warn/error). Filterable by level |
+
+Browser interaction (30-second timeout each):
+
+| Tool | Description |
+|------|-------------|
+| `preview_screenshot` | Take JPEG screenshot of the page (layout check, not precise style verification) |
+| `preview_snapshot` | Accessibility tree snapshot — text content, roles, element UIDs. Preferred over screenshot |
+| `preview_inspect` | Inspect DOM element by CSS selector — computed styles, bounding box, className |
+| `preview_click` | Click element by CSS selector. Supports double-click |
+| `preview_fill` | Fill input/textarea/select by CSS selector and value |
+| `preview_eval` | Execute JS in page context — debugging/inspection only, not for UI changes |
+| `preview_network` | List network requests or inspect a response body by requestId |
+| `preview_resize` | Resize viewport — presets (mobile/tablet/desktop), custom dimensions, dark mode emulation |
 
 ### 7. Terminal
 
@@ -400,5 +451,6 @@ Gated behind GrowthBook flag `1306813456` — currently **unavailable** on all p
 
 | Version | Changes |
 |---------|---------|
+| v1.1.9493 | Metadata-only re-release of v1.1.9310. JS bundles identical — no new MCP servers, tools, or IPC changes. Async feature merger restructured (`Promise.all` pattern). |
 | v1.1.9134 | **New MCP server: `ccd_session`** (`spawn_task` tool for parallel session spawning). **5 new computer-use tools** (`switch_display`, `computer_batch`, `request_teach_access`, `teach_step`, `teach_batch` — 22→27 total). Registration function renamed `IM()`→`Pee()`. Operon expanded from 18→28 sub-interfaces (9 new: `OperonAgentConfig`, `OperonAnalytics`, `OperonAssembly`, `OperonHostAccessProvider`, `OperonImageProvider`, `OperonQuitHandler`, `OperonServices`, `OperonSessionManager`, `OperonSkillsSync`). Computer-use constant renamed `zxt`→`p6t`. |
 | v1.1.8359 | Visualize server factory renamed to `p3n()` via `getImagineServerDef` (same interface). Operon IPC system added (not MCP). No new MCP servers — all 14 unchanged. |

@@ -1,6 +1,6 @@
 # Claude Desktop Feature Flag Architecture
 
-Reference documentation for the feature flag system in Claude Desktop's Electron app. This documents v1.1.9134 internals to aid patch maintenance.
+Reference documentation for the feature flag system in Claude Desktop's Electron app. This documents v1.1.9493 internals to aid patch maintenance.
 
 ## Overview
 

@@ -16,11 +16,15 @@ These files embed assumptions about upstream internals and **must be challenged 
 |------|---------------|-----------------|
 | `patches/*.py` | Regex patterns matching minified JS | Build fails → fix patterns → `node --check` |
 | `CLAUDE_FEATURE_FLAGS.md` | Function names, GrowthBook IDs, architecture details | Run Feature Flag Audit (Prompt 3 in update-prompt.md) |
-| `README.md` | Patch table (break risk, debug `rg` patterns), feature descriptions | Review after patches are fixed |
+| `README.md` | Patch table (break risk, debug `rg` patterns), feature descriptions. **NOT** install command version numbers — those are updated automatically by CI. | Review after patches are fixed |
 | `CLAUDE_BUILT_IN_MCP.md` | Built-in MCP server names, registration patterns | Check `registerInternalMcpServer` calls in new JS |
 | `CHANGELOG.md` | Version-specific notes | Add new entry for each release |
 
 **Rule of thumb:** If a doc references a specific minified name, it will be wrong after the next upstream release. Use `\w+` wildcards in patches; in docs, always note the version the names apply to.
+
+## CI-Managed Files (Do NOT Edit Manually)
+
+- **README.md install command version numbers** (`.deb`, `.rpm`, `.AppImage` filenames) — updated automatically by the `release` job in `.github/workflows/update-aur.yml` via `sed`. Manual edits will cause merge conflicts with the CI commit.
 
 ## Update Workflow
 
