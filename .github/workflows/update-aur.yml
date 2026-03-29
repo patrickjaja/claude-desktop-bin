@@ -914,6 +914,17 @@ jobs:
           gpg --armor --export "$GPG_KEY_ID" > "$REPO_DIR/gpg-key.asc"
           touch "$REPO_DIR/.nojekyll"
 
+          # Version badge (shields.io endpoint) — release means we're on latest
+          mkdir -p "$REPO_DIR/badges"
+          cat > "$REPO_DIR/badges/version-check.json" <<BADGE_EOF
+          {
+            "schemaVersion": 1,
+            "label": "Claude Desktop",
+            "message": "v${VERSION} (latest)",
+            "color": "brightgreen"
+          }
+          BADGE_EOF
+
           for DEB_FILE in "$DEB_FILE_AMD64" "$DEB_FILE_ARM64"; do
             if [ -f "$DEB_FILE" ]; then
               bash packaging/apt/update-apt-repo.sh "$DEB_FILE" "$REPO_DIR" "$GPG_KEY_ID"

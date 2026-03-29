@@ -7,6 +7,7 @@ on:
 
 permissions:
   issues: write
+  contents: write
 
 jobs:
   check-version:
@@ -120,3 +121,55 @@ jobs:
           )"
 
           echo "::notice::Created issue for new version v${UPSTREAM}"
+
+      - name: Update version badge on gh-pages
+        if: steps.upstream.outputs.version && steps.released.outputs.version
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPSTREAM: ${{ steps.upstream.outputs.version }}
+          RELEASED: ${{ steps.released.outputs.version }}
+        run: |
+          if [ "${RELEASED}" = "${UPSTREAM}" ]; then
+            COLOR="brightgreen"
+            MESSAGE="v${RELEASED} (latest)"
+          else
+            COLOR="red"
+            MESSAGE="v${RELEASED} ← v${UPSTREAM} available"
+          fi
+
+          REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
+          REPO_DIR="/tmp/gh-pages-badge"
+          rm -rf "$REPO_DIR"
+
+          if git ls-remote --heads "$REMOTE" gh-pages | grep -q gh-pages; then
+            git clone --depth 1 --branch gh-pages "$REMOTE" "$REPO_DIR"
+          else
+            mkdir -p "$REPO_DIR" && cd "$REPO_DIR"
+            git init && git checkout -b gh-pages && git remote add origin "$REMOTE"
+            cd -
+          fi
+
+          mkdir -p "$REPO_DIR/badges"
+          cat > "$REPO_DIR/badges/version-check.json" <<BADGE_EOF
+          {
+            "schemaVersion": 1,
+            "label": "Claude Desktop",
+            "message": "${MESSAGE}",
+            "color": "${COLOR}"
+          }
+          BADGE_EOF
+
+          cd "$REPO_DIR"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add badges/version-check.json
+          git diff --staged --quiet || {
+            git commit -m "Update version badge: ${MESSAGE}"
+            git push origin gh-pages
+          }
+
+      - name: Fail if behind upstream
+        if: steps.upstream.outputs.version && steps.released.outputs.version != steps.upstream.outputs.version
+        run: |
+          echo "::error::Release v${{ steps.released.outputs.version }} is behind upstream v${{ steps.upstream.outputs.version }}"
+          exit 1

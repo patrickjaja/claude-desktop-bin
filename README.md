@@ -1,6 +1,7 @@
 # Claude Desktop for Linux
 
 [![AUR version](https://img.shields.io/aur/version/claude-desktop-bin)](https://aur.archlinux.org/packages/claude-desktop-bin)
+[![Claude Desktop](https://img.shields.io/endpoint?url=https://patrickjaja.github.io/claude-desktop-bin/badges/version-check.json)](https://github.com/patrickjaja/claude-desktop-bin/actions/workflows/version-check.yml)
 [![Update AUR Package](https://github.com/patrickjaja/claude-desktop-bin/actions/workflows/update-aur.yml/badge.svg)](https://github.com/patrickjaja/claude-desktop-bin/actions/workflows/update-aur.yml)
 
 Unofficial Linux packages for Claude Desktop AI assistant with automated updates.
