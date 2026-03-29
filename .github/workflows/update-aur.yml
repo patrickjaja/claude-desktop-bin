@@ -1,9 +1,7 @@
 name: Update AUR Package
 
 on:
-  schedule:
-    - cron: '0 2 * * *'  # Run daily at 2 AM UTC
-  workflow_dispatch:  # Allow manual trigger
+  workflow_dispatch:  # Manual trigger only (version-check.yml notifies of new versions)
     inputs:
       download_url:
         description: 'Manual download URL (optional - bypasses auto-detection if Cloudflare blocks)'

@@ -1,0 +1,119 @@
+name: Check for New Claude Desktop Version
+
+on:
+  schedule:
+    - cron: '0 */2 * * *'  # Every 2 hours
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Query latest upstream version
+        id: upstream
+        run: |
+          LATEST_JSON=$(wget -q -O - "https://downloads.claude.ai/releases/win32/x64/.latest") || {
+            echo "::warning::Failed to query Claude version API"
+            exit 0
+          }
+
+          VERSION=$(echo "$LATEST_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['version'])")
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Upstream version: ${VERSION}"
+
+      - name: Get latest released version
+        id: released
+        if: steps.upstream.outputs.version
+        env:
+          REPO: ${{ github.repository }}
+        run: |
+          HIGHEST_VERSION=$(curl -sf "https://api.github.com/repos/${REPO}/releases?per_page=20" | python3 -c "
+          import sys, json
+          releases = json.load(sys.stdin)
+          versions = []
+          for r in releases:
+              tag = r['tag_name'].lstrip('v')
+              base = tag.split('-')[0] if '-' in tag else tag
+              parts = [int(x) for x in base.split('.')]
+              versions.append((parts, base))
+          if versions:
+              versions.sort(key=lambda x: x[0], reverse=True)
+              print(versions[0][1])
+          else:
+              print('')
+          ")
+
+          echo "version=${HIGHEST_VERSION}" >> $GITHUB_OUTPUT
+          echo "Latest released version: ${HIGHEST_VERSION}"
+
+      - name: Ensure new-version label exists
+        if: steps.upstream.outputs.version && steps.released.outputs.version != steps.upstream.outputs.version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh label create "new-version" \
+            --repo "${{ github.repository }}" \
+            --description "Auto-created: new upstream Claude Desktop version detected" \
+            --color "0E8A16" \
+            2>/dev/null || true
+
+      - name: Check for existing notification issue
+        id: existing
+        if: steps.upstream.outputs.version && steps.released.outputs.version != steps.upstream.outputs.version
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPSTREAM: ${{ steps.upstream.outputs.version }}
+        run: |
+          ISSUE_COUNT=$(gh issue list \
+            --repo "${{ github.repository }}" \
+            --label "new-version" \
+            --state open \
+            --search "New Claude Desktop v${UPSTREAM}" \
+            --json number \
+            --jq 'length')
+
+          echo "count=${ISSUE_COUNT}" >> $GITHUB_OUTPUT
+          echo "Open issues for v${UPSTREAM}: ${ISSUE_COUNT}"
+
+      - name: Create notification issue
+        if: |
+          steps.upstream.outputs.version &&
+          steps.released.outputs.version != steps.upstream.outputs.version &&
+          steps.existing.outputs.count == '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPSTREAM: ${{ steps.upstream.outputs.version }}
+          RELEASED: ${{ steps.released.outputs.version }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh issue create \
+            --repo "${REPO}" \
+            --label "new-version" \
+            --title "New Claude Desktop v${UPSTREAM} detected" \
+            --body "$(cat <<EOF
+          ## New upstream version detected
+
+          | | Version |
+          |---|---|
+          | **Upstream** | \`${UPSTREAM}\` |
+          | **Current release** | \`${RELEASED}\` |
+
+          ### Next steps
+
+          1. Check if patches still apply: \`./scripts/build-local.sh\`
+          2. If patches break, debug with: \`./scripts/validate-patches.sh\`
+          3. Once working, trigger the build workflow:
+
+          **[▶ Trigger build manually](https://github.com/${REPO}/actions/workflows/update-aur.yml)**
+
+          Or via CLI:
+          \`\`\`bash
+          gh workflow run update-aur.yml
+          \`\`\`
+
+          ---
+          *Auto-detected by [version-check workflow](https://github.com/${REPO}/actions/workflows/version-check.yml)*
+          EOF
+          )"
+
+          echo "::notice::Created issue for new version v${UPSTREAM}"

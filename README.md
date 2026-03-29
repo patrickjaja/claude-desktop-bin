@@ -247,42 +247,42 @@ See **[themes/README.md](themes/README.md)** for the full theming guide: CSS var
 
 The package applies several patches to make Claude Desktop work on Linux. Each patch is isolated in `patches/` for easy maintenance:
 
-| Patch | Purpose | Break risk | Debug pattern |
-|-------|---------|------------|---------------|
-| `add_feature_custom_themes.py` | Custom CSS theme injection via `insertCSS()` — 6 built-in themes (sweet, nord, catppuccin-*) | VERY LOW | Prepended IIFE, no regex on app code |
-| `claude-native.js` | Linux-compatible native module (replaces Windows-only `@anthropic/claude-native`) | LOW | Static file, no regex |
-| `enable_local_agent_mode.py` | Enables Local Agent Mode (chillingSlothFeat) on Linux for git worktrees and agent sessions | HIGH | `rg -o 'function \w+\(\)\{return process\.platform.*status' index.js` |
-| `fix_0_node_host.py` | Fixes MCP server node host path for Linux (uses `app.getAppPath()`) | LOW | `rg -o 'nodeHostPath.{0,50}' index.js` |
-| `fix_app_quit.py` | Fixes app not quitting after cleanup on Linux (uses `app.exit(0)` instead of `app.quit()`) | LOW | Uses `app.quit()` literal |
-| `fix_browser_tools_linux.py` | Enables Chrome browser tools on Linux: redirects native host binary to Claude Code's `~/.claude/chrome/chrome-native-host`, adds Linux NativeMessagingHosts paths for 6 browsers | LOW | `rg -o '"Helpers".{0,50}' index.js` |
-| `fix_browse_files_linux.py` | Enables `openDirectory` in browseFiles dialog on Linux (Electron supports it, upstream only enabled for macOS) | LOW | `rg -o 'openDirectory.{0,60}' index.js` |
-| `fix_claude_code.py` | Enables Claude Code CLI integration by detecting system-installed claude binary | MED | `rg -o 'async getStatus\(\)\{.{0,200}' index.js` |
-| `fix_computer_use_linux.py` | Enables Computer Use on Linux: removes 3 platform gates, provides xdotool/scrot executor, bypasses macOS permission model | MED | `rg -o 'process.platform.*darwin.*t7r' index.js` |
-| `fix_computer_use_tcc.py` | Registers no-op IPC handlers for macOS TCC permission checks — prevents repeated error logs | LOW | Uses eipc UUID extraction |
-| `fix_cowork_error_message.py` | Replaces Windows VM errors with Linux-friendly guidance for claude-cowork-service | LOW | Uses string literals |
-| `fix_cowork_linux.py` | Enables Cowork on Linux: VM client loader, Unix socket path, bundle config, claude binary resolution | HIGH | `rg -o '.{0,50}vmClient.{0,50}' index.js` |
-| `fix_cowork_spaces.py` | Stubs CoworkSpaces eipc handlers on Linux (getAllSpaces, createSpace, etc.) | LOW | `rg -o 'CoworkSpaces' index.js` |
-| `fix_cross_device_rename.py` | Fixes EXDEV errors when moving VM bundles across filesystems (tmpfs to ext4) | LOW | Uses `.rename(` literal |
-| `fix_detected_projects_linux.py` | Enable detected projects on Linux (VSCode/Cursor/Zed path mapping) | MED | `rg -o 'detectedProjects.{0,50}' index.js` |
-| `fix_disable_autoupdate.py` | Disables auto-updater on Linux (no Windows installer available) | MED | `rg -o '.{0,40}isInstalled.{0,40}' index.js` |
-| `fix_dispatch_linux.py` | Enables Dispatch (remote task orchestration from mobile) — forces bridge init, bypasses remote control gate, adds Linux platform label, transforms text→SendUserMessage | MED | `rg -o 'sessions-bridge.*init' index.js` |
-| `fix_dock_bounce.py` | Prevents taskbar attention-stealing on KDE Plasma/Linux — intercepts `flashFrame`, `focus`, `show`, `moveTop`, and `WebContents.focus()` | LOW | Prepended IIFE, no regex on app code |
-| `fix_locale_paths.py` | Redirects locale file paths to Linux install location | LOW | Uses `process.resourcesPath` literal |
-| `fix_enterprise_config_linux.py` | Reads enterprise config from `/etc/claude-desktop/enterprise.json` on Linux (disableAutoUpdates, custom3p, DXT flags, etc.) | LOW | `rg -o 'enterprise.json' index.js` |
-| `fix_marketplace_linux.py` | Forces CCD mode for marketplace plugin operations on Linux (no VM, use host-local paths) | MED | `rg -o 'function \w+\(\w+\)\{return\(\w+==null.*mode.*ccd' index.js` |
-| `fix_native_frame.py` | Uses native window frames on Linux/XFCE while preserving Quick Entry transparency | MED | `rg -o 'titleBarStyle.{0,30}' index.js` |
-| `fix_office_addin_linux.py` | Enables Office Addin MCP server on Linux — extends `(ui\|\|as)` platform gate in isEnabled, init block, and file detection | LOW | `rg -o '.{0,30}louderPenguinEnabled.{0,30}' index.js` |
-| `fix_process_argv_renderer.py` | Injects `process.argv=[]` in renderer preload to prevent TypeError on `.includes()` calls | LOW | `rg -o '.{0,30}\.argv.{0,30}' mainView.js` |
-| `fix_quick_entry_position.py` | Spawns Quick Entry window on the monitor where the cursor is located | MED | `rg -o 'getPrimaryDisplay.{0,50}' index.js` |
-| `fix_read_terminal_linux.py` | Enables `read_terminal` built-in MCP server on Linux (was hardcoded darwin-only) | LOW | `rg -o 'read_terminal.{0,100}' index.js` |
-| `fix_startup_settings.py` | Skips startup settings on Linux to avoid validation errors | LOW | `rg -o 'isStartupOnLoginEnabled.{0,50}' index.js` |
-| `fix_tray_dbus.py` | Prevents DBus race conditions with mutex guard and cleanup delay | HIGH | `rg -o 'menuBarEnabled.*function' index.js` |
-| `fix_tray_icon_theme.py` | Uses theme-aware tray icon selection (light/dark) on Linux | LOW | `rg -o 'nativeTheme.{0,50}tray' index.js` |
-| `fix_tray_path.py` | Redirects tray icon path to package directory on Linux | MED | `rg -o 'function \w+\(\)\{return \w+\.app\.isPackaged' index.js` |
-| `fix_updater_state_linux.py` | Adds `version`/`versionNumber` to idle updater state to prevent `.includes()` TypeError | LOW | `rg -o 'status:"idle".{0,50}' index.js` |
-| `fix_utility_process_kill.py` | Uses SIGKILL as fallback when UtilityProcess doesn't exit gracefully | LOW | Uses `.kill(` literal |
-| `fix_vm_session_handlers.py` | Global uncaught exception handler for VM session safety | LOW | `rg -o 'uncaughtException.{0,50}' index.js` |
-| `fix_window_bounds.py` | Fixes child view bounds on maximize/KWin snap, ready-to-show layout jiggle, Quick Entry blur-before-hide | LOW | Injected IIFE, no regex on app code |
+| Patch | Purpose | Debug pattern |
+|-------|---------|---------------|
+| `add_feature_custom_themes.py` | CSS theme injection — 6 built-in themes (sweet, nord, catppuccin-*) | Prepended IIFE, no regex |
+| `claude-native.js` | Linux stubs for `@anthropic/claude-native` (Windows-only module) | Static file, no regex |
+| `enable_local_agent_mode.py` | Removes platform gates for Code/Cowork features, spoofs UA | `rg -o 'function \w+\(\)\{return process\.platform.*status' index.js` |
+| `fix_0_node_host.py` | Fixes MCP node host and shell worker paths for Linux | `rg -o 'nodeHostPath.{0,50}' index.js` |
+| `fix_app_quit.py` | Uses `app.exit(0)` to prevent hang on exit | `rg -o '.{0,50}app\.quit.{0,50}' index.js` |
+| `fix_browse_files_linux.py` | Enables `openDirectory` in file dialog (upstream macOS-only) | `rg -o 'openDirectory.{0,60}' index.js` |
+| `fix_browser_tools_linux.py` | Enables Chrome browser tools — redirects native host to Claude Code's wrapper | `rg -o '"Helpers".{0,50}' index.js` |
+| `fix_claude_code.py` | Detects system-installed Claude Code binary | `rg -o 'async getStatus\(\)\{.{0,200}' index.js` |
+| `fix_computer_use_linux.py` | Enables Computer Use — removes platform gates, injects Linux executor (xdotool/scrot/Wayland) | `rg -o 'process.platform.*darwin.*t7r' index.js` |
+| `fix_computer_use_tcc.py` | Stubs macOS TCC permission handlers to prevent error logs | Prepended IIFE, UUID extraction |
+| `fix_cowork_error_message.py` | Replaces Windows VM errors with Linux-friendly guidance | String literal match |
+| `fix_cowork_linux.py` | Enables Cowork — VM client, Unix socket, bundle config, binary resolution | `rg -o '.{0,50}vmClient.{0,50}' index.js` |
+| `fix_cowork_spaces.py` | File-based CoworkSpaces service (CRUD, file ops, events) | `rg -o 'CoworkSpaces' index.js` |
+| `fix_cross_device_rename.py` | EXDEV fallback for cross-filesystem file moves | Uses `.rename(` literal |
+| `fix_detected_projects_linux.py` | Enables detected projects with Linux IDE paths (VSCode, Cursor, Zed) | `rg -o 'detectedProjects.{0,50}' index.js` |
+| `fix_disable_autoupdate.py` | Disables auto-updater (no Linux installer) | `rg -o '.{0,40}isInstalled.{0,40}' index.js` |
+| `fix_dispatch_linux.py` | Enables Dispatch — forces bridge init, bypasses platform gate, forwards responses natively | `rg -o 'sessions-bridge.*init' index.js` |
+| `fix_dock_bounce.py` | Suppresses taskbar attention-stealing on KDE/Wayland | Prepended IIFE, no regex |
+| `fix_enterprise_config_linux.py` | Reads enterprise config from `/etc/claude-desktop/enterprise.json` | `rg -o 'enterprise.json' index.js` |
+| `fix_locale_paths.py` | Redirects locale file paths to Linux install location | Global string replace on `process.resourcesPath` |
+| `fix_marketplace_linux.py` | Forces host-local mode for plugin operations (no VM) | `rg -o 'function \w+\(\w+\)\{return\(\w+==null.*mode.*ccd' index.js` |
+| `fix_native_frame.py` | Native window frames on Linux, preserves Quick Entry transparency | `rg -o 'titleBarStyle.{0,30}' index.js` |
+| `fix_office_addin_linux.py` | Extends Office Addin MCP server to include Linux | `rg -o '.{0,30}louderPenguinEnabled.{0,30}' index.js` |
+| `fix_process_argv_renderer.py` | Injects `process.argv=[]` in renderer preload to prevent TypeError | `rg -o '.{0,30}\.argv.{0,30}' mainView.js` |
+| `fix_quick_entry_position.py` | Quick Entry opens on cursor's monitor (multi-monitor) | `rg -o 'getPrimaryDisplay.{0,50}' index.js` |
+| `fix_read_terminal_linux.py` | Enables `read_terminal` MCP server on Linux (was macOS-only) | `rg -o 'read_terminal.{0,100}' index.js` |
+| `fix_startup_settings.py` | Skips startup/login settings to avoid validation errors | `rg -o 'isStartupOnLoginEnabled.{0,50}' index.js` |
+| `fix_tray_dbus.py` | Prevents DBus race conditions with mutex and cleanup delay | `rg -o 'menuBarEnabled.*function' index.js` |
+| `fix_tray_icon_theme.py` | Theme-aware tray icon (light/dark) | `rg -o 'nativeTheme.{0,50}tray' index.js` |
+| `fix_tray_path.py` | Redirects tray icon path to package directory | `rg -o 'function \w+\(\)\{return \w+\.app\.isPackaged' index.js` |
+| `fix_updater_state_linux.py` | Adds version fields to idle updater state to prevent TypeError | `rg -o 'status:"idle".{0,50}' index.js` |
+| `fix_utility_process_kill.py` | SIGKILL fallback when UtilityProcess doesn't exit gracefully | `rg -o 'Killing utiltiy proccess' index.js` |
+| `fix_vm_session_handlers.py` | Global exception handler for VM session safety | Prepended IIFE with fallbacks |
+| `fix_window_bounds.py` | Fixes BrowserView bounds on maximize/snap, Quick Entry blur | Injected IIFE, minimal regex |
 
 When Claude Desktop updates break a patch, only the specific patch file needs updating. The **debug pattern** column shows the `rg` command to find the relevant code in the new version's `index.js`.
 
