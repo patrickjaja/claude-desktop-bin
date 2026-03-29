@@ -365,7 +365,7 @@ CLAUDE_DEV_TOOLS=detach ELECTRON_ENABLE_LOGGING=1 claude-desktop 2>&1 | tee /tmp
 
 Dispatch lets you send tasks from the Claude mobile app to your Linux desktop. It's fully native — no VM, no emulation.
 
-![Dispatch on Android](android_dispatch_feature.png)
+<img src="android_dispatch_feature.png" alt="Dispatch on Android" width="300">
 
 Claude Desktop spawns a long-running **dispatch orchestrator agent** (Anthropic internally calls it "Ditto"). This agent receives messages from your phone, delegates work to child sessions, and sends responses back via `SendUserMessage`.
 
