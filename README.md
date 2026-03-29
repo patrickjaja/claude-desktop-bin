@@ -133,13 +133,13 @@ Claude Desktop works without these — features degrade gracefully when tools ar
 
 | Feature | Packages | Notes |
 |---------|----------|-------|
-| **Computer Use** | See table below | Auto-detected per session type — install the packages for your setup |
+| **Computer Use** | See table below | Install manually for your session type (X11 or Wayland) — the app auto-detects which tools to call at runtime |
 | **Cowork & Dispatch** | [`claude-cowork-service`](https://github.com/patrickjaja/claude-cowork-service) | Agentic workspace and mobile→desktop task orchestration |
 | **Claude Code CLI** | [`claude`](https://code.claude.com/docs/en/setup) | Required for Code integration, Cowork, and Dispatch |
 | **Browser Tools** | [Claude in Chrome extension](https://chromewebstore.google.com/detail/claude-code/fcoeoabgfenejglbffodgkkbkcdhcgfn) | Uses Claude Code's native host (`~/.claude/chrome/chrome-native-host`). Claude Code CLI must be installed |
 | **Custom MCP Servers** | `nodejs` | Only needed for third-party MCP servers requiring system Node.js |
 
-**Computer Use packages** — install only what matches your session. The app auto-detects which tools to use.
+**Computer Use packages** — check your session type (`echo $XDG_SESSION_TYPE`) and install the matching packages. At runtime, the app auto-detects your session type and calls the correct tools.
 
 | Operation | X11 / XWayland | Wayland (Sway, Hyprland) | Hyprland extras |
 |-----------|---------------|--------------------------|-----------------|
