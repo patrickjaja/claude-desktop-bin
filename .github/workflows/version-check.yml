@@ -188,6 +188,41 @@ jobs:
           BADGE_EOF
           fi
 
+          # Seed AppImage/Nix badges from GitHub release assets (if not yet present)
+          if [ ! -f "$REPO_DIR/badges/appimage.json" ] || [ ! -f "$REPO_DIR/badges/nix.json" ]; then
+            ASSETS=$(curl -sf "https://api.github.com/repos/${{ github.repository }}/releases/latest" | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          for a in data.get('assets', []):
+              print(a['name'])
+          " 2>/dev/null || true)
+
+            if [ ! -f "$REPO_DIR/badges/appimage.json" ] && echo "$ASSETS" | grep -q '\.AppImage$'; then
+              APPIMAGE_ARCHS=""
+              echo "$ASSETS" | grep -q 'x86_64\.AppImage$' && APPIMAGE_ARCHS="x86_64"
+              echo "$ASSETS" | grep -q 'aarch64\.AppImage$' && APPIMAGE_ARCHS="${APPIMAGE_ARCHS:+$APPIMAGE_ARCHS, }aarch64"
+              cat > "$REPO_DIR/badges/appimage.json" <<BADGE_EOF
+          {
+            "schemaVersion": 1,
+            "label": "AppImage",
+            "message": "v${RELEASED} (${APPIMAGE_ARCHS})",
+            "color": "blue"
+          }
+          BADGE_EOF
+            fi
+
+            if [ ! -f "$REPO_DIR/badges/nix.json" ]; then
+              cat > "$REPO_DIR/badges/nix.json" <<BADGE_EOF
+          {
+            "schemaVersion": 1,
+            "label": "Nix flake",
+            "message": "v${RELEASED}",
+            "color": "blue"
+          }
+          BADGE_EOF
+            fi
+          fi
+
           cd "$REPO_DIR"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"

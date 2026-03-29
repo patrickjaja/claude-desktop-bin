@@ -951,6 +951,29 @@ jobs:
           }
           BADGE_EOF
 
+          # AppImage badge — detect from release-files
+          APPIMAGE_ARCHS=""
+          ls release-files/Claude_Desktop-*-x86_64.AppImage >/dev/null 2>&1 && APPIMAGE_ARCHS="x86_64"
+          ls release-files/Claude_Desktop-*-aarch64.AppImage >/dev/null 2>&1 && APPIMAGE_ARCHS="${APPIMAGE_ARCHS:+$APPIMAGE_ARCHS, }aarch64"
+          cat > "$REPO_DIR/badges/appimage.json" <<BADGE_EOF
+          {
+            "schemaVersion": 1,
+            "label": "AppImage",
+            "message": "v${VERSION} (${APPIMAGE_ARCHS:-none})",
+            "color": "blue"
+          }
+          BADGE_EOF
+
+          # Nix flake badge — always built if we got here
+          cat > "$REPO_DIR/badges/nix.json" <<BADGE_EOF
+          {
+            "schemaVersion": 1,
+            "label": "Nix flake",
+            "message": "v${VERSION}",
+            "color": "blue"
+          }
+          BADGE_EOF
+
           for DEB_FILE in "$DEB_FILE_AMD64" "$DEB_FILE_ARM64"; do
             if [ -f "$DEB_FILE" ]; then
               bash packaging/apt/update-apt-repo.sh "$DEB_FILE" "$REPO_DIR" "$GPG_KEY_ID"
