@@ -24,7 +24,7 @@ These files embed assumptions about upstream internals and **must be challenged 
 
 ## CI-Managed Files (Do NOT Edit Manually)
 
-- **README.md install command version numbers** (`.deb`, `.rpm`, `.AppImage` filenames) — updated automatically by the `release` job in `.github/workflows/update-aur.yml` via `sed`. Manual edits will cause merge conflicts with the CI commit.
+- **README.md install command version numbers** (`.deb`, `.rpm`, `.AppImage` filenames) — updated automatically by the `release` job in `.github/workflows/build-and-release.yml` via `sed`. Manual edits will cause merge conflicts with the CI commit.
 
 ## Update Workflow
 

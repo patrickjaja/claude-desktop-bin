@@ -1,4 +1,4 @@
-name: Check for New Claude Desktop Version
+name: Version Check
 
 on:
   schedule:
@@ -108,11 +108,11 @@ jobs:
           2. If patches break, debug with: \`./scripts/validate-patches.sh\`
           3. Once working, trigger the build workflow:
 
-          **[▶ Trigger build manually](https://github.com/${REPO}/actions/workflows/update-aur.yml)**
+          **[▶ Trigger build manually](https://github.com/${REPO}/actions/workflows/build-and-release.yml)**
 
           Or via CLI:
           \`\`\`bash
-          gh workflow run update-aur.yml
+          gh workflow run build-and-release.yml
           \`\`\`
 
           ---

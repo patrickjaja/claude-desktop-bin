@@ -1,4 +1,4 @@
-name: Update AUR Package
+name: Build & Release
 
 on:
   workflow_dispatch:  # Manual trigger only (version-check.yml notifies of new versions)
