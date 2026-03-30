@@ -14,7 +14,8 @@ Four-part patch:
 3. mC() merger patch: Override features at the async merger layer.
    Enables quietPenguin/louderPenguin (Code tab, bypasses QL gate),
    chillingSlothFeat/chillingSlothLocal/yukonSilver/yukonSilverGems (Cowork),
-   and ccdPlugins (Plugin UI) with {status:"supported"}.
+   ccdPlugins (Plugin UI), and computerUse (Computer Use on Linux)
+   with {status:"supported"}.
 4. Preferences defaults patch: Change louderPenguinEnabled and
    quietPenguinEnabled defaults from false to true so the renderer
    (claude.ai web content) enables the Code tab UI.
@@ -92,8 +93,8 @@ def patch_local_agent_mode(filepath):
     #     unsupportedCode:"unsupported_platform"
     #   The formatMessage 'id' field was added in v1.1.4328; the regex uses an
     #   optional group (?:,id:"[^"]*")? to handle both variants.
-    nh_pattern_old = rb'(function \w+\(\)\{)(const (\w+)=process\.platform;if\(\3!=="darwin"&&\3!=="win32"\)return\{status:"unsupported",reason:`Unsupported platform: \$\{\3\}`\})'
-    nh_pattern_new = rb'(function \w+\(\)\{)(const (\w+)=process\.platform;if\(\3!=="darwin"&&\3!=="win32"\)return\{status:"unsupported",reason:\w+\.formatMessage\(\{defaultMessage:"Cowork is not currently supported on \{platform\}"(?:,id:"[^"]*")?\},\{platform:\w+\(\)\}\),unsupportedCode:"unsupported_platform"\};)'
+    nh_pattern_old = rb'(function [\w$]+\(\)\{)(const (\w+)=process\.platform;if\(\3!=="darwin"&&\3!=="win32"\)return\{status:"unsupported",reason:`Unsupported platform: \$\{\3\}`\})'
+    nh_pattern_new = rb'(function [\w$]+\(\)\{)(const (\w+)=process\.platform;if\(\3!=="darwin"&&\3!=="win32"\)return\{status:"unsupported",reason:\w+\.formatMessage\(\{defaultMessage:"Cowork is not currently supported on \{platform\}"(?:,id:"[^"]*")?\},\{platform:\w+\(\)\}\),unsupportedCode:"unsupported_platform"\};)'
 
     def nh_replacement(m):
         return m.group(1) + b'if(process.platform==="linux")return{status:"supported"};' + m.group(2)
@@ -125,11 +126,12 @@ def patch_local_agent_mode(filepath):
     # - chillingSlothFeat/chillingSlothLocal → "supported" (Cowork tab, needs daemon)
     # - yukonSilver/yukonSilverGems → "supported" (VM features, needs daemon)
     # - ccdPlugins → "supported" (Plugin UI, defensive override for future gating)
+    # - computerUse → "supported" (Computer Use feature flag, new in v1.1.9669)
     #
     # Format varies across versions:
     #   Old (≤v1.1.9310): const X=async()=>({...Oh(),...,louderPenguin:await fwt()})
     #   New (≥v1.1.9493): const X=async()=>{...;return{...vw(),louderPenguin:t,operon:e}};
-    overrides = b',quietPenguin:{status:"supported"},louderPenguin:{status:"supported"},chillingSlothFeat:{status:"supported"},chillingSlothLocal:{status:"supported"},yukonSilver:{status:"supported"},yukonSilverGems:{status:"supported"},ccdPlugins:{status:"supported"}'
+    overrides = b',quietPenguin:{status:"supported"},louderPenguin:{status:"supported"},chillingSlothFeat:{status:"supported"},chillingSlothLocal:{status:"supported"},yukonSilver:{status:"supported"},yukonSilverGems:{status:"supported"},ccdPlugins:{status:"supported"},computerUse:{status:"supported"}'
 
     # New format: return{...FUNC(),...props}};
     pattern3_new = rb"(return\{\.\.\.(\w+)\(\),[^}]+)(\}\};)"
@@ -140,14 +142,14 @@ def patch_local_agent_mode(filepath):
         count3 = 1
 
     if count3 >= 1:
-        print(f"  [OK] mC() feature merger: 7 features overridden ({count3} match)")
+        print(f"  [OK] mC() feature merger: 8 features overridden ({count3} match)")
     else:
         # Fallback: old format const X=async()=>({...Oh(),...,await fn()})
         pattern3_old = rb"(const [\w$]+=async\(\)=>\(\{\.\.\.[\w$]+\(\),[^}]+)(await [\w$]+\(\))\}\)"
         replacement3_old = rb"\1\2" + overrides + rb"})"
         content, count3 = re.subn(pattern3_old, replacement3_old, content)
         if count3 >= 1:
-            print(f"  [OK] mC() feature merger: 7 features overridden (old format, {count3} match)")
+            print(f"  [OK] mC() feature merger: 8 features overridden (old format, {count3} match)")
         else:
             print("  [FAIL] mC() feature merger: 0 matches, expected 1")
             failed = True

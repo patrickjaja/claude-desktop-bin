@@ -2,6 +2,26 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-03-31 (v1.1.9669)
+
+### Changed
+- **Version bump to v1.1.9669** — New upstream release with structural changes to feature flag system.
+- **New `computerUse` feature flag** added to static registry (`jun()`, darwin-only). Added override to `enable_local_agent_mode.py` merger patch (8 features now overridden, up from 7).
+- **`chillingSlothFeat` darwin gate re-introduced** — Was removed upstream in v1.1.9134, now back. Our Patch 1 regex already handles it.
+
+### Fixed
+- **enable_local_agent_mode.py**: Fixed `yukonSilver` regex — function name `$un()` contains `$` which `\w+` doesn't match. Updated pattern to use `[\w$]+` for function names.
+
+### Docs
+- **CLAUDE_FEATURE_FLAGS.md**: Updated for v1.1.9669 — 18 features (was 17), new function names, new GrowthBook flags (`3691521536` stealth updater, `3190506572` Chrome perms), remote orchestrator flag `4201169164` removed.
+- **CLAUDE_BUILT_IN_MCP.md**: Updated for v1.1.9669 — registration function renamed `Pee()`→`Are()`.
+
+### New Upstream (not patched — not needed)
+- **Stealth updater** (flag `3691521536`) — nudges updates when no sessions active. Works on Linux as-is.
+- **Epitaxy route** (flag `1585356617`) — new CCD session URL routing with `spawn_task` tool. Not platform-gated.
+- **Org plugins path** — returns `null` on Linux (graceful no-op). Only needed for enterprise deployments.
+- **Remote orchestrator (manta)** — hardcoded off (`Qhn=!1`). Flag `4201169164` removed from GrowthBook.
+
 ## 2026-03-29 (v1.1.9493)
 
 ### Changed

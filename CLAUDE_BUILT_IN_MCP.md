@@ -1,8 +1,8 @@
-# Built-in MCP Servers — Claude Desktop v1.1.9493
+# Built-in MCP Servers — Claude Desktop v1.1.9669
 
 Claude Desktop registers internal MCP servers via a two-layer architecture:
 
-1. **Renderer-facing layer (`Pee()`)** — servers accessible from the BrowserView via Electron `MessageChannelMain` ports
+1. **Renderer-facing layer (`Are()`)** — servers accessible from the BrowserView via Electron `MessageChannelMain` ports
 2. **Backend/session layer (`zZr`/`VZr`)** — servers providing tools to CCD/Cowork sessions
 
 A server may appear in both layers (e.g., Chrome, mcp-registry) or only one.
@@ -10,14 +10,14 @@ A server may appear in both layers (e.g., Chrome, mcp-registry) or only one.
 ## Registration System
 
 ```
-Pee(serverName, displayLabel, factoryFn)
+Are(serverName, displayLabel, factoryFn)
 ```
 
 - Lazy singleton factory per server name
 - UUID display label sent to renderer for identification
 - Server list and instantiation managed via helper functions
 
-## Renderer-Facing Servers (via `IM()`)
+## Renderer-Facing Servers (via `Are()`)
 
 ### 1. Claude in Chrome
 
@@ -61,7 +61,7 @@ Communicates with the Chrome browser extension via Unix socket at `/tmp/claude-m
 | Platform | All |
 | Gating | Always enabled |
 
-The `Pee()` registration is a **stub returning no tools**. Actual tools are provided via the backend session layer.
+The `Are()` registration is a **stub returning no tools**. Actual tools are provided via the backend session layer.
 
 **Tools (via P8t):**
 
@@ -92,7 +92,7 @@ Communicates via WebSocket to `wss://localhost:8766` (configurable via `OFFICE_A
 | `open_office_file` | Open an Office file and the Claude add-in panel |
 | `close_office_file` | Close a currently open Office file |
 
-## Backend-Only Servers (via `zZr`/`VZr`, not `Pee()`)
+## Backend-Only Servers (via `zZr`/`VZr`, not `Are()`)
 
 These are accessible to CCD/Cowork sessions but not directly from the renderer.
 
@@ -231,7 +231,7 @@ The `spawn_task` tool requires desktop approval card injection — cannot be aut
 
 ## Per-Session Dynamic MCP Servers (SDK-type)
 
-Claude Desktop creates 4 additional MCP servers **dynamically per cowork/dispatch session**. These are NOT registered via `Pee()` — they are created inline in the session manager and passed to the Claude Code CLI via `sdkMcpServers` in `--mcp-config`.
+Claude Desktop creates 4 additional MCP servers **dynamically per cowork/dispatch session**. These are NOT registered via `Are()` — they are created inline in the session manager and passed to the Claude Code CLI via `sdkMcpServers` in `--mcp-config`.
 
 **Communication:** SDK-type servers use `MessagePort` bridges. On Mac/Windows, the VM SDK daemon (`nodeHost.js`) provides this bridge via vsock. On Linux native, `cowork-svc-linux` now **passes `--mcp-config` through unchanged** (since commit `d1dfc3b`). The CLI sends `control_request` messages on stdout, which flow through the event stream to Claude Desktop. Desktop's session manager intercepts them and sends `control_response` back via writeStdin — identical to VM mode on Mac/Windows.
 
@@ -362,6 +362,8 @@ disallowedTools: ["AskUserQuestion", "mcp__cowork__allow_cowork_file_delete",
 
 **Background:** Computer-use was previously a separate `computer-use-server.js` file in the app root (removed in v1.1.7714). As of v1.1.8359, it's fully integrated into `index.js` as an internal MCP server. In v1.1.9134, 5 new tools were added (multi-monitor, batch actions, teach mode).
 
+**Feature flag (v1.1.9669):** `computerUse` is now also a feature flag in the static registry (`jun()`, darwin-only), meaning computer use is gated by both MCP server registration AND the feature flag. Our `enable_local_agent_mode.py` Patch 3 overrides it to `{status:"supported"}` on Linux, bypassing both gates.
+
 **Tools (27):**
 
 | Tool | Description |
@@ -451,6 +453,7 @@ Gated behind GrowthBook flag `1306813456` — currently **unavailable** on all p
 
 | Version | Changes |
 |---------|---------|
+| v1.1.9669 | Registration function renamed `Are()` (was `Pee()`). **New `computerUse` feature flag** in static registry (`jun()`, darwin-only) — computer use now gated by both MCP server registration AND feature flag. No new MCP servers or tools. `chillingSlothFeat` darwin gate re-introduced (was removed in v1.1.9134). Remote orchestrator (`4201169164`) removed from GrowthBook. Same 3 renderer-facing servers (Chrome, mcp-registry, office-addin) and same backend servers. Variable renames only. |
 | v1.1.9493 | Metadata-only re-release of v1.1.9310. JS bundles identical — no new MCP servers, tools, or IPC changes. Async feature merger restructured (`Promise.all` pattern). |
 | v1.1.9134 | **New MCP server: `ccd_session`** (`spawn_task` tool for parallel session spawning). **5 new computer-use tools** (`switch_display`, `computer_batch`, `request_teach_access`, `teach_step`, `teach_batch` — 22→27 total). Registration function renamed `IM()`→`Pee()`. Operon expanded from 18→28 sub-interfaces (9 new: `OperonAgentConfig`, `OperonAnalytics`, `OperonAssembly`, `OperonHostAccessProvider`, `OperonImageProvider`, `OperonQuitHandler`, `OperonServices`, `OperonSessionManager`, `OperonSkillsSync`). Computer-use constant renamed `zxt`→`p6t`. |
 | v1.1.8359 | Visualize server factory renamed to `p3n()` via `getImagineServerDef` (same interface). Operon IPC system added (not MCP). No new MCP servers — all 14 unchanged. |
