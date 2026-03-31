@@ -188,7 +188,7 @@ which claude  # e.g. ~/.local/bin/claude, /usr/bin/claude, /usr/local/bin/claude
 
 The patch auto-detects claude in `/usr/bin`, `~/.local/bin`, and `/usr/local/bin`.
 
-## Cowork Integration (Experimental)
+## Cowork Integration
 
 Cowork is Claude Desktop's agentic workspace feature. This package patches it to work on Linux using a native backend daemon instead of the macOS/Windows VM.
 
