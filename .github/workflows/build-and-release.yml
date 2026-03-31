@@ -991,77 +991,6 @@ jobs:
             git push --force origin gh-pages
           }
 
-  # ================================================================
-  # RPM Repository — runs on Fedora for native rpm-sign support
-  # ================================================================
-  deploy-rpm-repo:
-    needs: [check-version, release]
-    if: needs.check-version.outputs.should_build == 'true'
-    runs-on: ubuntu-latest
-    container: fedora:40
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install RPM tooling
-        run: dnf install -y rpm-sign createrepo_c gnupg2 git
-
-      - name: Download RPM artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: rpm-*
-          path: rpm-files/
-          merge-multiple: true
-
-      - name: Sign RPMs and deploy repository
-        env:
-          GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ needs.check-version.outputs.version }}
-          REPO: ${{ github.repository }}
-        run: |
-          if [ -z "$GPG_PRIVATE_KEY" ]; then
-            echo "::warning::APT_GPG_PRIVATE_KEY secret not set — skipping RPM repo deploy"
-            exit 0
-          fi
-
-          # Import GPG key
-          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
-          GPG_KEY_ID=$(echo "$GPG_PRIVATE_KEY" | gpg --show-keys --with-colons 2>/dev/null \
-            | grep '^sec:' | head -1 | cut -d: -f5)
-          gpg --armor --export "$GPG_KEY_ID" > /tmp/gpg-key.asc
-
-          # Clone gh-pages (includes APT repo from release job)
-          REPO_DIR="/tmp/gh-pages-repo"
-          rm -rf "$REPO_DIR"
-          REMOTE="https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO}.git"
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          if git ls-remote --heads "$REMOTE" gh-pages | grep -q gh-pages; then
-            git clone --depth 1 --branch gh-pages "$REMOTE" "$REPO_DIR"
-          else
-            mkdir -p "$REPO_DIR" && cd "$REPO_DIR"
-            git init && git checkout -b gh-pages && git remote add origin "$REMOTE"
-            cd -
-          fi
-
-          # Copy GPG public key
-          cp /tmp/gpg-key.asc "$REPO_DIR/gpg-key.asc"
-
-          # Sign and add each RPM to the repository
-          for RPM_FILE in rpm-files/*.rpm; do
-            [ -f "$RPM_FILE" ] || continue
-            bash packaging/rpm/update-rpm-repo.sh "$RPM_FILE" "$REPO_DIR" "$GPG_KEY_ID"
-          done
-
-          # Commit and push
-          cd "$REPO_DIR"
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git diff --staged --quiet || {
-            git commit -m "Update RPM repo: claude-desktop ${VERSION}"
-            git push origin gh-pages
-          }
-
       - name: Verify release tarball download
         env:
           TAG: ${{ needs.check-version.outputs.tag }}
@@ -1210,6 +1139,77 @@ jobs:
         if: always()
         run: |
           rm -rf release-files artifacts ~/.ssh/aur
+
+  # ================================================================
+  # RPM Repository — runs on Fedora for native rpm-sign support
+  # ================================================================
+  deploy-rpm-repo:
+    needs: [check-version, release]
+    if: needs.check-version.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
+    container: fedora:40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install RPM tooling
+        run: dnf install -y rpm-sign createrepo_c gnupg2 git
+
+      - name: Download RPM artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: rpm-*
+          path: rpm-files/
+          merge-multiple: true
+
+      - name: Sign RPMs and deploy repository
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.check-version.outputs.version }}
+          REPO: ${{ github.repository }}
+        run: |
+          if [ -z "$GPG_PRIVATE_KEY" ]; then
+            echo "::warning::APT_GPG_PRIVATE_KEY secret not set — skipping RPM repo deploy"
+            exit 0
+          fi
+
+          # Import GPG key
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+          GPG_KEY_ID=$(echo "$GPG_PRIVATE_KEY" | gpg --show-keys --with-colons 2>/dev/null \
+            | grep '^sec:' | head -1 | cut -d: -f5)
+          gpg --armor --export "$GPG_KEY_ID" > /tmp/gpg-key.asc
+
+          # Clone gh-pages (includes APT repo from release job)
+          REPO_DIR="/tmp/gh-pages-repo"
+          rm -rf "$REPO_DIR"
+          REMOTE="https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO}.git"
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          if git ls-remote --heads "$REMOTE" gh-pages | grep -q gh-pages; then
+            git clone --depth 1 --branch gh-pages "$REMOTE" "$REPO_DIR"
+          else
+            mkdir -p "$REPO_DIR" && cd "$REPO_DIR"
+            git init && git checkout -b gh-pages && git remote add origin "$REMOTE"
+            cd -
+          fi
+
+          # Copy GPG public key
+          cp /tmp/gpg-key.asc "$REPO_DIR/gpg-key.asc"
+
+          # Sign and add each RPM to the repository
+          for RPM_FILE in rpm-files/*.rpm; do
+            [ -f "$RPM_FILE" ] || continue
+            bash packaging/rpm/update-rpm-repo.sh "$RPM_FILE" "$REPO_DIR" "$GPG_KEY_ID"
+          done
+
+          # Commit and push
+          cd "$REPO_DIR"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --staged --quiet || {
+            git commit -m "Update RPM repo: claude-desktop ${VERSION}"
+            git push origin gh-pages
+          }
 
   # ================================================================
   # Job 5: Validate Nix package builds from GitHub Releases
