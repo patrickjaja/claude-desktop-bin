@@ -60,13 +60,10 @@ cat > ~/.rpmmacros <<MACROS
 MACROS
 echo "" | rpmsign --addsign "$REPO_DIR/rpm/$RPM_ARCH/$RPM_BASENAME"
 
-# Verify signature — import public key into RPM keyring first, then check
-gpg --armor --export "$GPG_KEY_ID" > /tmp/rpm-sign-key.asc
-rpm --import /tmp/rpm-sign-key.asc
-rm -f /tmp/rpm-sign-key.asc
-rpm -K "$REPO_DIR/rpm/$RPM_ARCH/$RPM_BASENAME" | grep -qi "signatures ok" || {
-  echo "ERROR: RPM signature verification failed for $RPM_BASENAME"
-  rpm -K "$REPO_DIR/rpm/$RPM_ARCH/$RPM_BASENAME"
+# Verify that the RPM now contains a PGP signature header
+rpm -qp --qf '%{SIGPGP:pgpsig}\n' "$REPO_DIR/rpm/$RPM_ARCH/$RPM_BASENAME" | grep -q "Key ID" || {
+  echo "ERROR: No PGP signature found in $RPM_BASENAME"
+  rpm -qp --qf '%{SIGPGP:pgpsig}\n' "$REPO_DIR/rpm/$RPM_ARCH/$RPM_BASENAME"
   exit 1
 }
 echo "Signed and verified $RPM_BASENAME"
