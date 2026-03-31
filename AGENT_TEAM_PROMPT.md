@@ -33,7 +33,7 @@ You coordinate 3 teammates and own the update strategy:
 - Maintain the big picture: what's compatible, what's broken, what's next.
 - Assign tasks via the shared task list. Break work into clear, self-contained units.
 - Relay findings between teammates when they need each other's context.
-- After the audit cycle, suggest improvements to the update automation (see `update-prompt.md`, `UPDATE-PROMT-CC-INPUT-MANUAL.md`). SUGGEST only — do not implement without the user's approval.
+- After the audit cycle, suggest improvements to the update automation (see `update-prompt.md`, `UPDATE-PROMPT-CC-INPUT-MANUAL.md`). SUGGEST only — do not implement without the user's approval.
 - Any agent can ask the user questions directly when they need decisions or input.
 
 ## Teammates to Spawn

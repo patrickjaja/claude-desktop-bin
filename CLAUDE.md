@@ -40,7 +40,7 @@ Quick start:
 ./scripts/build-local.sh --install
 ```
 
-See also: [validate_and_fix_claude-setup-x64.md](validate_and_fix_claude-setup-x64.md) for step-by-step patch debugging, and [UPDATE-PROMT-CC-INPUT-MANUAL.md](UPDATE-PROMT-CC-INPUT-MANUAL.md) for the one-liner to kick off the process.
+See also: [validate_and_fix_claude-setup-x64.md](validate_and_fix_claude-setup-x64.md) for step-by-step patch debugging, and [UPDATE-PROMPT-CC-INPUT-MANUAL.md](UPDATE-PROMPT-CC-INPUT-MANUAL.md) for the one-liner to kick off the process.
 
 ## Debugging Patch Failures
 
