@@ -1,17 +1,18 @@
 #!/bin/bash
-# update-rpm-repo.sh — Build RPM repository metadata from .rpm files
+# update-rpm-repo.sh — Sign RPM and build repository metadata
 #
 # Usage: update-rpm-repo.sh <rpm_file> <repo_dir> <gpg_key_id>
 #
-# Multi-arch support: the architecture is auto-detected from the .rpm filename.
-# The script places packages in rpm/<arch>/ subdirectories. createrepo_c is run
-# on the rpm/ parent directory, which natively handles multi-arch repos.
+# IMPORTANT: This script must run inside a Fedora/RHEL container (or host)
+# where rpm-sign and createrepo_c are native packages. Do NOT run on Ubuntu.
 #
 # 1. Auto-detects arch from .rpm filename (x86_64 or aarch64)
 # 2. Copies new .rpm into repo_dir/rpm/<arch>/
-# 3. Prunes old versions per arch (keeps latest 1)
-# 4. Runs createrepo_c to generate repodata/
-# 5. GPG-signs repodata/repomd.xml (detached armored signature)
+# 3. GPG-signs the RPM package (rpmsign --addsign)
+# 4. Verifies the signature (rpm -K)
+# 5. Prunes old versions per arch (keeps latest 1)
+# 6. Runs createrepo_c to generate repodata/
+# 7. GPG-signs repodata/repomd.xml (detached armored signature)
 
 set -euo pipefail
 
@@ -47,23 +48,18 @@ cp "$RPM_FILE" "$REPO_DIR/rpm/$RPM_ARCH/"
 echo "Copied $RPM_BASENAME to rpm/$RPM_ARCH/"
 
 # Sign the RPM package (gpgcheck=1 in repo config requires this)
-# Configure GPG for non-interactive CI use (no TTY available)
-# Reference: https://github.com/rpm-software-management/rpm/discussions/3827
-export GPG_TTY=""
-mkdir -p ~/.gnupg && chmod 700 ~/.gnupg
-echo "allow-loopback-pinentry" > ~/.gnupg/gpg-agent.conf
-gpgconf --kill gpg-agent 2>/dev/null || true
 cat > ~/.rpmmacros <<MACROS
 %_gpg_name $GPG_KEY_ID
-%__gpg /usr/bin/gpg
-%__gpg_sign_cmd %{__gpg} --batch --verbose --no-armor --pinentry-mode loopback --passphrase-fd 0 --no-secmem-warning -u "%{_gpg_name}" -sbo %{__signature_filename} --digest-algo sha256 %{__plaintext_filename}
+%__gpg_sign_cmd %{__gpg} --batch --verbose --no-armor --no-secmem-warning -u "%{_gpg_name}" -sbo %{__signature_filename} --digest-algo sha256 %{__plaintext_filename}
 MACROS
-echo "" | rpmsign --addsign "$REPO_DIR/rpm/$RPM_ARCH/$RPM_BASENAME"
+rpmsign --addsign "$REPO_DIR/rpm/$RPM_ARCH/$RPM_BASENAME"
 
-# Verify that the RPM now contains a PGP signature header
-rpm -qp --qf '%{SIGPGP:pgpsig}\n' "$REPO_DIR/rpm/$RPM_ARCH/$RPM_BASENAME" | grep -q "Key ID" || {
-  echo "ERROR: No PGP signature found in $RPM_BASENAME"
-  rpm -qp --qf '%{SIGPGP:pgpsig}\n' "$REPO_DIR/rpm/$RPM_ARCH/$RPM_BASENAME"
+# Verify signature with rpm -K (works natively on Fedora)
+gpg --armor --export "$GPG_KEY_ID" > /tmp/rpm-verify-key.asc
+rpm --import /tmp/rpm-verify-key.asc
+rpm -K "$REPO_DIR/rpm/$RPM_ARCH/$RPM_BASENAME" | grep -qi "signatures ok" || {
+  echo "ERROR: RPM signature verification failed for $RPM_BASENAME"
+  rpm -K "$REPO_DIR/rpm/$RPM_ARCH/$RPM_BASENAME"
   exit 1
 }
 echo "Signed and verified $RPM_BASENAME"
