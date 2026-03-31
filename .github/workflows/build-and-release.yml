@@ -1148,6 +1148,8 @@ jobs:
     if: needs.check-version.outputs.should_build == 'true'
     runs-on: ubuntu-latest
     container: fedora:40
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
