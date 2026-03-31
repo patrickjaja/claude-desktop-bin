@@ -891,7 +891,7 @@ jobs:
             exit 0
           fi
 
-          sudo apt-get install -y dpkg-dev apt-utils createrepo-c
+          sudo apt-get install -y dpkg-dev apt-utils createrepo-c rpm
 
           echo "$GPG_PRIVATE_KEY" | gpg --batch --import
           GPG_KEY_ID=$(echo "$GPG_PRIVATE_KEY" | gpg --show-keys --with-colons 2>/dev/null \
