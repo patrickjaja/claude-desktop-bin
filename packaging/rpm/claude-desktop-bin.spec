@@ -22,21 +22,25 @@ Requires:       libdrm
 Requires:       mesa-libgbm
 Requires:       alsa-lib
 Requires:       libnotify
-# Computer Use — X11/XWayland (install these if running X11 or XWayland session)
+# Computer Use — X11/XWayland
 Suggests:       xdotool
 Suggests:       scrot
 Suggests:       xclip
+Suggests:       xsel
+Suggests:       ImageMagick
 Suggests:       wmctrl
 Suggests:       xrandr
 # Computer Use — Wayland/wlroots (Sway, Hyprland)
 Suggests:       ydotool
 Suggests:       grim
-Suggests:       slurp
 Suggests:       wl-clipboard
 Suggests:       wlr-randr
-# Computer Use — KDE Plasma Wayland (spectacle is pre-installed on KDE)
+Suggests:       jq
+# Computer Use — KDE Plasma Wayland
 Suggests:       spectacle
-# Computer Use — GNOME Wayland: no extra packages needed (uses built-in D-Bus for screenshots)
+# Computer Use — GNOME Wayland
+Suggests:       glib2
+Suggests:       gnome-screenshot
 # Computer Use — Hyprland-specific
 Suggests:       hyprland
 # Cowork socket health check

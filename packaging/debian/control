@@ -11,7 +11,7 @@ Package: claude-desktop-bin
 Architecture: amd64
 Depends: ${shlibs:Depends}, ${misc:Depends}, electron | electron-bin | electron33
 Recommends: libnotify-bin
-Suggests: xdotool, scrot, xclip, wmctrl, x11-xserver-utils, socat, hyprland, ydotool, grim, slurp, wl-clipboard, wlr-randr, kde-spectacle, nodejs
+Suggests: xdotool, scrot, xclip, xsel, imagemagick, wmctrl, x11-xserver-utils, socat, hyprland, ydotool, grim, wl-clipboard, wlr-randr, jq, kde-spectacle, libglib2.0-bin, gnome-screenshot, nodejs
 Description: Claude AI Desktop Application
  Claude is an AI assistant created by Anthropic to be helpful,
  harmless, and honest. This desktop application provides native
@@ -27,23 +27,30 @@ Description: Claude AI Desktop Application
   * xdotool - Input automation + Quick Entry cursor positioning
   * scrot - Screenshot capture
   * xclip - Clipboard access
+  * xsel - Clipboard fallback
+  * imagemagick - Screenshot fallback (import) and crop (convert)
   * wmctrl - Running app detection
   * x11-xserver-utils - Display enumeration (xrandr)
  .
  Optional dependencies for Computer Use (Wayland — wlroots: Sway, Hyprland):
   * ydotool - Input automation (requires ydotoold daemon running)
   * grim - Screenshot capture
-  * slurp - Region selection
   * wl-clipboard - Clipboard access
   * wlr-randr - Display enumeration
+  * jq - Window queries on Sway (used with swaymsg)
   * hyprland - Cursor positioning and window queries (Hyprland only)
  .
  Optional dependencies for Computer Use (Wayland — KDE Plasma):
-  * kde-spectacle - Screenshot capture (pre-installed on KDE)
   * xdotool - Input automation (via XWayland)
+  * kde-spectacle - Screenshot capture
+  * imagemagick - Multi-monitor screenshot crop (convert)
+  * wl-clipboard - Clipboard access
  .
- Note: GNOME Wayland needs no extra screenshot packages (uses built-in D-Bus).
- Install xdotool for input automation (via XWayland) on GNOME/KDE.
+ Optional dependencies for Computer Use (Wayland — GNOME):
+  * xdotool - Input automation (via XWayland)
+  * libglib2.0-bin - Screenshot capture (gdbus for D-Bus)
+  * gnome-screenshot - Screenshot fallback
+  * wl-clipboard - Clipboard access
  .
  Other optional dependencies:
   * socat - Cowork socket health check in launcher
