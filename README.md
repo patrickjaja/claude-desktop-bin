@@ -358,7 +358,7 @@ The package applies several patches to make Claude Desktop work on Linux. Each p
 | `fix_office_addin_linux.py` | Extends Office Addin MCP server to include Linux | `rg -o '.{0,30}louderPenguinEnabled.{0,30}' index.js` |
 | `fix_process_argv_renderer.py` | Injects `process.argv=[]` in renderer preload to prevent TypeError | `rg -o '.{0,30}\.argv.{0,30}' mainView.js` |
 | `fix_quick_entry_position.py` | Quick Entry opens on cursor's monitor (multi-monitor) | `rg -o 'getPrimaryDisplay.{0,50}' index.js` |
-| `fix_read_terminal_linux.py` | Enables `read_terminal` MCP server on Linux (was macOS-only) | `rg -o 'read_terminal.{0,100}' index.js` |
+| ~~`fix_read_terminal_linux.py`~~ | **Removed in v1.2.234** — upstream now natively supports Linux | N/A |
 | `fix_startup_settings.py` | Skips startup/login settings to avoid validation errors | `rg -o 'isStartupOnLoginEnabled.{0,50}' index.js` |
 | `fix_tray_dbus.py` | Prevents DBus race conditions with mutex and cleanup delay | `rg -o 'menuBarEnabled.*function' index.js` |
 | `fix_tray_icon_theme.py` | Theme-aware tray icon (light/dark) | `rg -o 'nativeTheme.{0,50}tray' index.js` |
@@ -462,6 +462,7 @@ The Ctrl+Alt+Space global hotkey works on X11, KDE, and Hyprland. On **Sway** an
 
 ## Tips
 - Press **Alt** to toggle the app menu bar (Electron default)
+
 
 ## See Also
 

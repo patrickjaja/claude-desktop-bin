@@ -2,6 +2,25 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-01 (v1.2.234)
+
+### Changed
+- **Version bump to v1.2.234** — Major upstream release. Feature flag registry unchanged (same 18 features), but internal function names renamed across the board.
+- **fix_computer_use_linux.py**: Platform gate changed from inline `process.platform==="darwin"` to Set-based `ese = new Set(["darwin","win32"])` with `vee()` checker. Updated patch to add `"linux"` to the Set instead of removing individual gates. This single change fixes all computer-use platform checks (server push, chicagoEnabled, overlay init). handleToolCall regex updated for new code structure (Y5e opted-out block before dispatcher).
+- **read_terminal MCP server**: Upstream now natively supports Linux (`LRe = isDarwin || isWin32 || isLinux`). **Removed `fix_read_terminal_linux.py`** — patch no longer needed.
+
+### Upstream Changes
+- **Computer use**: Platform gate now uses a Set (`ese`) gating `vee()` function, adding Windows support alongside macOS. Linux still requires our patch to add to the Set.
+- **Terminal server**: Now natively supports Linux (variable `LRe` includes all three platforms).
+- **Registration function renamed**: `Are()` → `One()` for internal MCP server registration.
+- **Feature flag function renames**: Static registry `_b()` → `Uw()`, async merger `Cie` → `Lse`, production gate `fve()` → `I_e()`.
+- **GrowthBook expansion**: 38+ flag IDs now in use (was ~33 in v1.1.9669). New flags for floatingAtoll state sync (`1985802636`).
+- **Operon**: Static entry now unconditionally returns `{status:"unavailable"}` (`$gn()`). Async override introduces 5-second delay before GrowthBook check.
+
+### Docs
+- **CLAUDE_FEATURE_FLAGS.md**: Updated for v1.2.234 — new function names (`Uw`, `Lse`, `I_e`), same 18 features.
+- **CLAUDE_BUILT_IN_MCP.md**: Updated for v1.2.234 — registration function `Are()` → `One()`, terminal server now natively supports Linux.
+
 ## 2026-04-01 (v1.1.9669)
 
 ### Changed

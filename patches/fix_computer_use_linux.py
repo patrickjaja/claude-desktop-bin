@@ -4,15 +4,15 @@
 """
 Make computer-use work on Linux by removing platform gates and providing a Linux executor.
 
-Upstream has 3 platform gates that block computer-use on non-macOS:
-  1. b7r(): process.platform==="darwin" && t.push(await t7r())
-  2. ZM():  process.platform==="darwin" && featureFlag && chicagoEnabled
-  3. L4r(): throws if process.platform !== "darwin" (createDarwinExecutor)
+Upstream has platform gates that block computer-use on non-macOS/Windows:
+  1. ese = new Set(["darwin","win32"]) — vee() checks this set, gating the push
+     of the CU server def and the chicagoEnabled check (rj())
+  2. createDarwinExecutor: throws if process.platform !== "darwin"
 
 This patch:
-  1. Removes the darwin gate in b7r() so t7r() runs on all platforms
-  2. Extends ZM() to also return true on Linux
-  3. Replaces L4r() (createDarwinExecutor) to return a Linux executor on Linux
+  1. Adds "linux" to the ese Set so vee()/rj() accept Linux
+  2. (Removed — handled by Set fix)
+  3. Replaces createDarwinExecutor to return a Linux executor on Linux
      using xdotool (input), scrot (screenshots), Electron API (displays, clipboard)
      with Wayland auto-detection: ydotool (input), grim (screenshots),
      hyprctl/swaymsg (window info), desktopCapturer (screenshot fallback)
@@ -527,40 +527,21 @@ def patch_computer_use_linux(filepath):
         print('  [FAIL] app.on("ready") pattern: 0 matches')
         return False
 
-    # Patch 2: Remove darwin gate in b7r() — let t7r() run on all platforms
-    # Original: process.platform==="darwin"&&t.push(await t7r())
-    # New: always push t7r()
-    darwin_gate = rb'process\.platform==="darwin"&&(\w+)\.push\(await (\w+)\(\)\)'
+    # Patch 2: Add "linux" to the computer-use platform Set
+    # Original: new Set(["darwin","win32"])  (gates vee(), rj(), and other CU checks)
+    # New: new Set(["darwin","win32","linux"])
+    # This single change makes vee() return true on Linux, enabling the CU server push,
+    # chicagoEnabled gate, overlay init, and all other ese.has() checks.
+    set_pattern = rb'new Set\(\["darwin","win32"\]\)'
+    set_replacement = b'new Set(["darwin","win32","linux"])'
 
-    def always_push(m):
-        arr_var = m.group(1).decode("utf-8")
-        fn_var = m.group(2).decode("utf-8")
-        return f"{arr_var}.push(await {fn_var}())".encode("utf-8")
-
-    content, count = re.subn(darwin_gate, always_push, content, count=1)
+    content, count = re.subn(set_pattern, set_replacement, content, count=1)
     if count >= 1:
-        print(f"  [OK] b7r() gate: removed darwin-only ({count} match)")
+        print(f"  [OK] ese Set: added linux ({count} match)")
         changes += count
     else:
-        print("  [FAIL] b7r() darwin gate: 0 matches")
+        print("  [FAIL] ese Set pattern: 0 matches")
         return False
-
-    # Patch 3: Extend ZM() to include Linux — bypass feature flag + preference on Linux
-    # Original: function ZM(){return process.platform==="darwin"&&_2e()&&jr("chicagoEnabled")}
-    # New: On Linux, return true unconditionally (feature flag _2e() and chicagoEnabled
-    #      are controlled by Anthropic's server; on Linux we enable it ourselves).
-    #      On macOS, keep the original behavior.
-    zm_pattern = rb'(function \w+\(\)\{return )(process\.platform==="darwin"&&\w+\(\)&&\w+\("chicagoEnabled"\))'
-
-    def extend_zm(m):
-        return m.group(1) + b'(process.platform==="linux"?!0:' + m.group(2) + b")"
-
-    content, count = re.subn(zm_pattern, extend_zm, content, count=1)
-    if count >= 1:
-        print(f"  [OK] ZM(): Linux always-on, macOS unchanged ({count} match)")
-        changes += count
-    else:
-        print("  [WARN] ZM() pattern: 0 matches (may need manual check)")
 
     # Patch 4: Patch createDarwinExecutor (L4r) to return Linux executor on Linux
     # Original: function L4r(t){if(process.platform!=="darwin")throw new Error(...)
@@ -595,73 +576,65 @@ def patch_computer_use_linux(filepath):
         print("  [WARN] ensureOsPermissions pattern: 0 matches")
 
     # Patch 6: Hybrid handleToolCall — inject early-return block at the top
-    # The upstream handleToolCall calls EZr(r) to get a session-cached permission
-    # dispatcher. On Linux, we inject an early-return block that:
+    # The upstream handleToolCall calls a session-cached dispatcher. On Linux, we
+    # inject an early-return block that:
     #   - For teach tools: falls through to the upstream chain (uses __linuxExecutor
     #     via sub-patch 4, auto-grants via sub-patch 5, teach overlay works natively)
     #   - For normal tools: fast direct dispatch to __linuxExecutor, skipping macOS
     #     app tiers, allowlists, CU lock, and permission dialogs
     #
-    # Pattern: VARNAME={isEnabled:FN,handleToolCall:async(t,e,r)=>{...const n=DISPATCHER(r),...
-    # There may be variable declarations between { and const (e.g. var u,d,f,p,h,y;).
-    # Inject: LINUX_HANDLER_INJECTION after the opening brace, before any existing code.
-    dwe_pattern = rb"((\w+)=\{isEnabled:\w+=>\w+\(\),handleToolCall:async\((\w+),(\w+),(\w+)\)=>\{)([^}]{0,100}const \w+=(\w+)\(\5\))"
+    # Two-step approach:
+    #   Step A: Find the handleToolCall start and capture object name + session param
+    #   Step B: Find the dispatcher function name (const n=DISPATCHER(session_param))
+    #   Then inject LINUX_HANDLER_INJECTION after the opening brace.
 
-    def patch_dwe_handler(m):
-        prefix = m.group(1)  # e.g. nnt={isEnabled:t=>JL(),handleToolCall:async(t,e,r)=>{
-        obj_name = m.group(2).decode("utf-8")  # e.g. nnt
-        dispatcher = m.group(7).decode("utf-8")  # e.g. EZr
-        original_code = m.group(6)  # var u,d,f,p,h,y;const n=EZr(r)
-        handler_js = LINUX_HANDLER_INJECTION_JS.strip()
-        handler_js = handler_js.replace("__SELF__", obj_name)
-        handler_js = handler_js.replace("__DISPATCHER__", dispatcher)
-        return prefix + handler_js.encode("utf-8") + original_code
+    # Step A: Match the handleToolCall start
+    htc_start = rb"((\w+)=\{isEnabled:\w+=>\w+\(\),handleToolCall:async\((\w+),(\w+),(\w+)\)=>\{)"
+    htc_match = re.search(htc_start, content)
 
-    content, count = re.subn(dwe_pattern, patch_dwe_handler, content, count=1)
-    if count >= 1:
-        print(f"  [OK] handleToolCall: hybrid dispatch (teach→upstream, rest→direct) ({count} match)")
-        changes += count
+    if htc_match:
+        obj_name = htc_match.group(2).decode("utf-8")
+        session_param = htc_match.group(5).decode("utf-8")
+        inject_pos = htc_match.end()  # position right after the opening {
+
+        # Step B: Find the dispatcher in the code after the opening brace
+        # It appears as: const n=DISPATCHER(SESSION_PARAM),{save_to_disk:
+        after_brace = content[inject_pos : inject_pos + 2000]
+        dispatcher_match = re.search(
+            rb"const \w+=(\w+)\(" + session_param.encode("utf-8") + rb"\),\{save_to_disk:",
+            after_brace,
+        )
+
+        if dispatcher_match:
+            dispatcher = dispatcher_match.group(1).decode("utf-8")
+            handler_js = LINUX_HANDLER_INJECTION_JS.strip()
+            handler_js = handler_js.replace("__SELF__", obj_name)
+            handler_js = handler_js.replace("__DISPATCHER__", dispatcher)
+            content = content[:inject_pos] + handler_js.encode("utf-8") + content[inject_pos:]
+            print("  [OK] handleToolCall: hybrid dispatch (teach→upstream, rest→direct) (1 match)")
+            changes += 1
+        else:
+            print("  [FAIL] handleToolCall dispatcher not found")
+            return False
     else:
         print("  [FAIL] handleToolCall pattern: 0 matches")
         return False
 
-    # Patch 7: Initialize teach overlay controller on Linux
-    # The main window init has a ternary: process.platform==="darwin" ? (darwin-only setup) : (stub)
-    # The darwin branch calls RUn(r,t) which initializes the teach overlay controller,
-    # QDr() for escape-key handling, FUn() for side-panel, and mUn() for nav/focus.
-    # On Linux, none of these run — so the teach overlay BrowserWindow is never created,
-    # the IPC handlers for cu-teach:next/exit are never registered, and teach_step hangs.
-    #
-    # Fix: Find the else-branch stub (rIt.for(WEBCONTENTS).setImplementation({...})) and
-    # inject the essential overlay calls AFTER it. We capture the session manager and main
-    # window variable names from the darwin branch pattern.
-    #
-    # Pattern: RUn(MGR,WIN),...  (in the darwin branch)
-    # Then after the else stub: inject RUn(MGR,WIN) + QDr + FUn for Linux
-    overlay_pattern = rb'(\w+)\((\w+),(\w+)\),(\w+)\((\w+)=>\{[^}]*\},\3\),\2\.on\("cuSelectedDisplayChanged"'
-
-    overlay_match = re.search(overlay_pattern, content)
-    if overlay_match:
-        run_fn = overlay_match.group(1).decode("utf-8")  # RUn
-        mgr_var = overlay_match.group(2).decode("utf-8")  # r (session manager)
-        win_var = overlay_match.group(3).decode("utf-8")  # t (main window)
-
-        # Find the else-branch stub and inject RUn as a comma expression
-        # The else branch is: (rIt.for(...).setImplementation({...}),fY.for(...),...)
-        # We add RUn(r,t) as another comma-separated expression inside it.
-        # Pattern: listInstalledApps:()=>[]}) — end of the TCC stub, followed by comma
-        stub_end = rb"listInstalledApps:\(\)=>\[\]\}\)"
-        stub_match = re.search(stub_end, content)
-        if stub_match:
-            inject_pos = stub_match.end()
-            inject_js = f',process.platform==="linux"&&{run_fn}({mgr_var},{win_var})'.encode("utf-8")
-            content = content[:inject_pos] + inject_js + content[inject_pos:]
-            print(f"  [OK] teach overlay controller: {run_fn}({mgr_var},{win_var}) injected for Linux (1 match)")
-            changes += 1
+    # Patch 7: Teach overlay controller init on Linux
+    # In v1.2.234+, the overlay init is gated by vee() which we patched via the Set fix.
+    # The code `vee()&&(Sti(t),...)` will now run on Linux automatically.
+    # No explicit injection needed — just verify the pattern exists.
+    stub_end = rb"listInstalledApps:\(\)=>\[\]\}\)"
+    stub_match = re.search(stub_end, content)
+    if stub_match:
+        # Check that vee() gate follows the stub (meaning overlay init is Set-gated)
+        after_stub = content[stub_match.end() : stub_match.end() + 50]
+        if b"vee()" in after_stub:
+            print("  [OK] teach overlay controller: vee() gate found (handled by Set fix)")
         else:
-            print("  [WARN] teach overlay: TCC stub end pattern not found")
+            print("  [WARN] teach overlay: vee() gate not found after TCC stub — may need manual check")
     else:
-        print("  [WARN] teach overlay: RUn pattern not found in darwin branch")
+        print("  [WARN] teach overlay: TCC stub pattern not found")
 
     # Patch 8: Fix teach overlay mouse events on Linux
     # On macOS, setIgnoreMouseEvents(true, {forward: true}) makes transparent areas

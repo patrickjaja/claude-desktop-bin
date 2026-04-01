@@ -1,8 +1,8 @@
-# Built-in MCP Servers — Claude Desktop v1.1.9669
+# Built-in MCP Servers — Claude Desktop v1.2.234
 
 Claude Desktop registers internal MCP servers via a two-layer architecture:
 
-1. **Renderer-facing layer (`Are()`)** — servers accessible from the BrowserView via Electron `MessageChannelMain` ports
+1. **Renderer-facing layer (`One()`)** — servers accessible from the BrowserView via Electron `MessageChannelMain` ports
 2. **Backend/session layer (`zZr`/`VZr`)** — servers providing tools to CCD/Cowork sessions
 
 A server may appear in both layers (e.g., Chrome, mcp-registry) or only one.
@@ -10,7 +10,7 @@ A server may appear in both layers (e.g., Chrome, mcp-registry) or only one.
 ## Registration System
 
 ```
-Are(serverName, displayLabel, factoryFn)
+One(serverName, displayLabel, factoryFn)
 ```
 
 - Lazy singleton factory per server name
@@ -61,7 +61,7 @@ Communicates with the Chrome browser extension via Unix socket at `/tmp/claude-m
 | Platform | All |
 | Gating | Always enabled |
 
-The `Are()` registration is a **stub returning no tools**. Actual tools are provided via the backend session layer.
+The `One()` registration is a **stub returning no tools**. Actual tools are provided via the backend session layer.
 
 **Tools (via P8t):**
 
@@ -185,8 +185,8 @@ Browser interaction (30-second timeout each):
 | Field | Value |
 |-------|-------|
 | Server name | `"terminal"` |
-| Platform | macOS only |
-| Gating | CCD session + macOS + server flag `397125142` |
+| Platform | **All** (macOS, Windows, Linux) — natively cross-platform since v1.2.234 (`LRe = isDarwin \|\| isWin32 \|\| isLinux`) |
+| Gating | CCD session + `LRe` platform check + server flag `397125142` |
 
 | Tool | Description |
 |------|-------------|
@@ -356,13 +356,13 @@ disallowedTools: ["AskUserQuestion", "mcp__cowork__allow_cowork_file_delete",
 | Server name | `"computer-use"` (constant `p6t`) |
 | Tool prefix | `mcp__computer-use__` |
 | Platform | macOS (native), **Linux (patched)** |
-| Gating (macOS) | Triple gate: `process.platform==="darwin" && featureFlagEnabled && chicagoEnabled` preference |
-| Gating (Linux) | Always enabled (feature flag and preference bypassed) |
+| Gating (macOS/Windows) | Set-based: `vee()` checks `ese = new Set(["darwin","win32"])` + `chicagoEnabled` preference |
+| Gating (Linux) | Enabled via Set modification (add "linux" to `ese`) + feature flag and preference bypassed |
 | Internal codename | "chicago" |
 
 **Background:** Computer-use was previously a separate `computer-use-server.js` file in the app root (removed in v1.1.7714). As of v1.1.8359, it's fully integrated into `index.js` as an internal MCP server. In v1.1.9134, 5 new tools were added (multi-monitor, batch actions, teach mode).
 
-**Feature flag (v1.1.9669):** `computerUse` is now also a feature flag in the static registry (`jun()`, darwin-only), meaning computer use is gated by both MCP server registration AND the feature flag. Our `enable_local_agent_mode.py` Patch 3 overrides it to `{status:"supported"}` on Linux, bypassing both gates.
+**Feature flag (v1.2.234):** `computerUse` is a feature flag in the static registry (`kgn()`, `vee()`-gated), meaning computer use is gated by both MCP server registration AND the feature flag. Our `fix_computer_use_linux.py` adds "linux" to the `ese` Set, and `enable_local_agent_mode.py` Patch 3 overrides it to `{status:"supported"}` on Linux, bypassing both gates.
 
 **Tools (27):**
 
@@ -402,16 +402,18 @@ Uses `createDarwinExecutor()` → `@ant/claude-swift` native module for screen c
 
 #### Linux executor (`fix_computer_use_linux.py`)
 
-`fix_computer_use_linux.py` applies 6 sub-patches:
+`fix_computer_use_linux.py` applies 8 sub-patches:
 
 | # | Sub-patch | What it does |
 |---|-----------|-------------|
 | 1 | Inject `__linuxExecutor` | Linux executor using xdotool/scrot/Electron APIs at `app.on("ready")` |
-| 2 | Remove `b7r()` gate | Let `t7r()` register the server on all platforms (was darwin-only) |
-| 3 | Extend `ZM()` | Return `true` on Linux (bypass feature flag + `chicagoEnabled` preference) |
-| 4 | Patch `createDarwinExecutor` | Return `__linuxExecutor` on Linux instead of throwing |
-| 5 | Patch `ensureOsPermissions` | Return `{granted: true}` on Linux (skip macOS TCC checks) |
-| 6 | Bypass permission model | Direct tool dispatch on Linux, skip `rvr()` allowlist/tier system |
+| 2 | Add "linux" to `ese` Set | `new Set(["darwin","win32"])` → `new Set(["darwin","win32","linux"])` — fixes all `vee()` gates (server push, chicagoEnabled, overlay init) |
+| 3 | Patch `createDarwinExecutor` | Return `__linuxExecutor` on Linux instead of throwing |
+| 4 | Patch `ensureOsPermissions` | Return `{granted: true}` on Linux (skip macOS TCC checks) |
+| 5 | Bypass permission model | Direct tool dispatch on Linux, skip allowlist/tier system |
+| 6 | Teach overlay controller | Verify `vee()` gate runs on Linux (handled by Set fix) |
+| 7 | Teach overlay mouse polling | Tooltip-bounds polling for Linux (X11 {forward:true} not supported) |
+| 8 | Neutralize setIgnoreMouseEvents | Prevent upstream resets from fighting with polling |
 
 **Linux tools used:**
 
@@ -438,7 +440,7 @@ Uses `createDarwinExecutor()` → `@ant/claude-swift` native module for screen c
 
 - **Claude in Chrome**: Works on Linux via `fix_browser_tools_linux.py` — redirects native host binary to Claude Code's `~/.claude/chrome/chrome-native-host` and installs NativeMessagingHosts manifests for 6 Linux browsers (Chrome, Chromium, Brave, Edge, Vivaldi, Opera). Requires Claude Code CLI and the [Claude in Chrome](https://chromewebstore.google.com/detail/claude-code/fcoeoabgfenejglbffodgkkbkcdhcgfn) extension.
 - **Office Add-in**: Platform-gated to macOS/Windows. Patched to enable on Linux via `fix_office_addin_linux.py`.
-- **Terminal**: macOS only. Patched to enable on Linux via `fix_read_terminal_linux.py`.
+- **Terminal**: Natively supports all platforms since v1.2.234 (`LRe` includes Linux). No patch needed.
 - **Computer Use**: Works on Linux via `fix_computer_use_linux.py` — uses xdotool/scrot + Electron built-in APIs (clipboard, screen, desktopCapturer) instead of `@ant/claude-swift`. Available in Cowork and Code sessions.
 - **MCP Registry / Plugins / Visualize / Scheduled Tasks**: Cross-platform, work on Linux.
 
@@ -454,6 +456,7 @@ Gated behind GrowthBook flag `1306813456` — currently **unavailable** on all p
 
 | Version | Changes |
 |---------|---------|
+| v1.2.234 | Registration function renamed `One()` (was `Are()`). **Terminal server now natively supports Linux** — `LRe = isDarwin \|\| isWin32 \|\| isLinux`, `fix_read_terminal_linux.py` patch removed. Computer-use platform gate changed to Set-based (`ese = new Set(["darwin","win32"])`) with `vee()` function. No new MCP servers or tools. Variable renames only. |
 | v1.1.9669 | Registration function renamed `Are()` (was `Pee()`). **New `computerUse` feature flag** in static registry (`jun()`, darwin-only) — computer use now gated by both MCP server registration AND feature flag. No new MCP servers or tools. `chillingSlothFeat` darwin gate re-introduced (was removed in v1.1.9134). Remote orchestrator (`4201169164`) removed from GrowthBook. Same 3 renderer-facing servers (Chrome, mcp-registry, office-addin) and same backend servers. Variable renames only. |
 | v1.1.9493 | Metadata-only re-release of v1.1.9310. JS bundles identical — no new MCP servers, tools, or IPC changes. Async feature merger restructured (`Promise.all` pattern). |
 | v1.1.9134 | **New MCP server: `ccd_session`** (`spawn_task` tool for parallel session spawning). **5 new computer-use tools** (`switch_display`, `computer_batch`, `request_teach_access`, `teach_step`, `teach_batch` — 22→27 total). Registration function renamed `IM()`→`Pee()`. Operon expanded from 18→28 sub-interfaces (9 new: `OperonAgentConfig`, `OperonAnalytics`, `OperonAssembly`, `OperonHostAccessProvider`, `OperonImageProvider`, `OperonQuitHandler`, `OperonServices`, `OperonSessionManager`, `OperonSkillsSync`). Computer-use constant renamed `zxt`→`p6t`. |
