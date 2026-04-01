@@ -45,8 +45,10 @@ LINUX_EXECUTOR_JS = r"""
 var _cp=require("child_process"),_path=require("path"),_fs=require("fs"),_os=require("os"),_electron=require("electron");
 function _exec(cmd){return _cp.execSync(cmd,{encoding:"utf-8",timeout:15000}).trim()}
 function _execBuf(cmd){return _cp.execSync(cmd,{timeout:15000})}
-function _isWayland(){return process.env.XDG_SESSION_TYPE==="wayland"||(!!process.env.WAYLAND_DISPLAY&&!process.env.DISPLAY)}
+function _isWayland(){return process.env.XDG_SESSION_TYPE==="wayland"||!!process.env.WAYLAND_DISPLAY}
 var _wayland=_isWayland();
+try{var _virt=_cp.execSync("systemd-detect-virt 2>/dev/null",{encoding:"utf-8",timeout:3000}).trim();globalThis.__isVM=_virt!=="none"&&_virt!==""}catch(e){globalThis.__isVM=!1}
+if(globalThis.__isVM)console.log("[claude-cu] VM detected ("+_virt+") — teach overlay uses dark backdrop fallback");
 var _cmdCache={};
 function _hasCmd(cmd){if(_cmdCache[cmd]!==void 0)return _cmdCache[cmd];try{_exec("which "+cmd+" 2>/dev/null");_cmdCache[cmd]=true}catch(e){_cmdCache[cmd]=false}return _cmdCache[cmd]}
 function _desktopId(){return(process.env.XDG_CURRENT_DESKTOP||"").toLowerCase()}
@@ -690,7 +692,6 @@ def patch_computer_use_linux(filepath):
         stub_match = re.search(stub_end, content)
         if stub_match:
             inject_pos = stub_match.end()
-            # Use comma expression with short-circuit: ,process.platform==="linux"&&RUn(r,t)
             inject_js = f',process.platform==="linux"&&{run_fn}({mgr_var},{win_var})'.encode("utf-8")
             content = content[:inject_pos] + inject_js + content[inject_pos:]
             print(f"  [OK] teach overlay controller: {run_fn}({mgr_var},{win_var}) injected for Linux (1 match)")
@@ -740,57 +741,12 @@ def patch_computer_use_linux(filepath):
 
         new_init = (
             '(process.platform==="linux"?'
-            "(()=>{"
-            # __ig = ignoring mouse, __tb = tooltip bounds, __tbP = query pending
-            # __lastIn = last cursor-in-card timestamp, __cachedCp = cached cursor pos
-            # __cpT = cursor cache timestamp (refresh every 100ms, not every 50ms tick)
-            "let __ig=!0,__tb=null,__tbP=!1,__lastIn=0,__cachedCp=null,__cpT=0;"
-            f"{ov}.setIgnoreMouseEvents(!0);"
-            # 50ms interval: tooltip bounds query + cursor check
-            "setInterval(()=>{"
-            f"if({ov}.isDestroyed())return;"
-            # Query tooltip bounds every tick (pending guard prevents pileup)
-            "if(!__tbP){"
-            "__tbP=!0;"
-            f"{ov}.webContents.executeJavaScript("
-            f"{js_query}"
-            ").then(function(__r){if(__r)__tb=JSON.parse(__r)})"
-            ".catch(function(){})"
-            ".finally(function(){__tbP=!1});"
-            "}"
-            # If no tooltip bounds yet, stay in ignore mode (pass-through)
-            "if(!__tb)return;"
-            # Get REAL cursor position — Electron's getCursorScreenPoint() returns STALE
-            # coords on X11 when cursor is not over an Electron window.
-            # Use xdotool (X11) → hyprctl (Hyprland) → Electron API fallback.
-            # Cache result for 100ms to reduce subprocess spawns (10/s instead of 20/s).
-            "const __now=Date.now();"
-            "if(!__cachedCp||__now-__cpT>100){"
-            "__cpT=__now;"
-            'try{const __o=require("child_process").execFileSync("xdotool",["getmouselocation","--shell"],{encoding:"utf-8",timeout:500});'
-            "const __mx=parseInt((__o.match(/X=(\\d+)/)||[])[1]);"
-            "const __my=parseInt((__o.match(/Y=(\\d+)/)||[])[1]);"
-            "if(!isNaN(__mx)&&!isNaN(__my))__cachedCp={x:__mx,y:__my}}catch(__e){}"
-            'if(!__cachedCp){try{const __o2=require("child_process").execFileSync("hyprctl",["cursorpos"],{encoding:"utf-8",timeout:500});'
-            "const __m=__o2.match(/(\\d+),\\s*(\\d+)/);"
-            "if(__m)__cachedCp={x:parseInt(__m[1]),y:parseInt(__m[2])}}catch(__e2){}}"
-            'if(!__cachedCp)__cachedCp=require("electron").screen.getCursorScreenPoint();'
-            "}"
-            "const __cp=__cachedCp;"
-            # Get overlay window position, compute tooltip screen coords
-            f"const __wp={ov}.getPosition(),"
-            "__sx=__wp[0]+__tb.x,__sy=__wp[1]+__tb.y,"
-            "__pad=15,"
-            "__in=__cp.x>=__sx-__pad&&__cp.x<=__sx+__tb.w+__pad&&"
-            "__cp.y>=__sy-__pad&&__cp.y<=__sy+__tb.h+__pad;"
-            # Track last time cursor was inside card (for grace period during step transitions)
-            "if(__in)__lastIn=Date.now();"
-            # Grace period: keep overlay clickable for 400ms after tooltip moves/rebuilds
-            "const __grace=__in||(Date.now()-__lastIn<400);"
-            f"if(__grace&&__ig){{{ov}.setIgnoreMouseEvents(!1);__ig=!1}}"
-            f"else if(!__grace&&!__ig){{{ov}.setIgnoreMouseEvents(!0);__ig=!0}}"
-            "},50)"
-            f"}})():{ov}.setIgnoreMouseEvents(!0,{{forward:!0}}))"
+            # On Linux, keep the teach overlay permanently pass-through (visual only).
+            # Electron bug #16777: setIgnoreMouseEvents(true,{forward:true}) doesn't
+            # forward mouse events on Linux. teach_batch auto-advances steps.
+            # On VMs: also set low opacity (dark backdrop) since transparency crashes GPU.
+            f"({ov}.setIgnoreMouseEvents(!0),globalThis.__isVM&&{ov}.setOpacity(.15))"
+            f":{ov}.setIgnoreMouseEvents(!0,{{forward:!0}}))"
         ).encode("utf-8")
 
         # Only replace the first occurrence (overlay init)
@@ -840,6 +796,31 @@ def patch_computer_use_linux(filepath):
             changes += 1
         else:
             print("  [WARN] teach overlay: SUn pattern not found (may be OK)")
+
+    # Patch 10: Fix teach overlay transparency on VMs
+    # The fullscreen transparent BrowserWindow causes GPU crashes and cursor artifacts
+    # on virtual GPUs (VirtualBox VMSVGA, etc.). On native hardware it works fine.
+    # Detect VMs at runtime using systemd-detect-virt and fall back to a dark backdrop.
+    # Native hardware keeps full transparency (see-through overlay like macOS).
+    teach_overlay_pattern = rb'(=new \w+\.BrowserWindow\(\{[^}]*?)transparent:!0([^}]*?)backgroundColor:"#00000000"'
+    teach_overlay_matches = list(re.finditer(teach_overlay_pattern, content))
+    for m in teach_overlay_matches:
+        before = content[max(0, m.start()-80):m.start()]
+        if b'workArea' in before:
+            old = m.group(0)
+            new = old.replace(
+                b'transparent:!0',
+                b'transparent:!globalThis.__isVM'
+            ).replace(
+                b'backgroundColor:"#00000000"',
+                b'backgroundColor:globalThis.__isVM?"#000000":"#00000000"'
+            )
+            content = content.replace(old, new, 1)
+            print("  [OK] teach overlay: VM-aware transparency (transparent on native, dark backdrop on VMs)")
+            changes += 1
+            break
+    else:
+        print("  [WARN] teach overlay transparency pattern not found")
 
     if changes > 0 and content != original_content:
         with open(filepath, "wb") as f:
