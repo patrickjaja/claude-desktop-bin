@@ -23,10 +23,8 @@ yay -S claude-desktop-bin
 sudo pacman -S --needed xdotool scrot imagemagick wmctrl
 # Wayland (wlroots — Sway, Hyprland):
 sudo pacman -S --needed ydotool grim jq
-# Wayland (KDE Plasma):
-sudo pacman -S --needed ydotool xdotool spectacle imagemagick
-# Wayland (GNOME):
-sudo pacman -S --needed ydotool xdotool glib2 gnome-screenshot
+# Wayland (KDE Plasma / GNOME):
+sudo pacman -S --needed ydotool xdotool spectacle imagemagick glib2 gnome-screenshot
 ```
 On Wayland, the `ydotoold` daemon must be running — see [ydotool setup](#ydotool-setup-wayland).
 
@@ -45,10 +43,8 @@ sudo apt install claude-desktop-bin
 sudo apt install xdotool scrot imagemagick wmctrl
 # Wayland (wlroots — Sway, Hyprland):
 sudo apt install ydotool grim jq
-# Wayland (KDE Plasma):
-sudo apt install ydotool xdotool kde-spectacle imagemagick
-# Wayland (GNOME):
-sudo apt install ydotool xdotool libglib2.0-bin gnome-screenshot
+# Wayland (KDE Plasma / GNOME):
+sudo apt install ydotool xdotool kde-spectacle imagemagick libglib2.0-bin gnome-screenshot
 ```
 
 > **Wayland users:** Computer Use requires ydotool v1.0+, but Ubuntu/Debian ship v0.1.8 which is **too old**. Run the [ydotool setup script](#ydotool-setup-wayland) — without this, clicks will not work.
@@ -77,10 +73,8 @@ sudo dnf install claude-desktop-bin
 sudo dnf install xdotool scrot ImageMagick wmctrl
 # Wayland (wlroots — Sway, Hyprland):
 sudo dnf install ydotool grim jq
-# Wayland (KDE Plasma):
-sudo dnf install ydotool xdotool spectacle ImageMagick
-# Wayland (GNOME):
-sudo dnf install ydotool xdotool glib2 gnome-screenshot
+# Wayland (KDE Plasma / GNOME):
+sudo dnf install ydotool xdotool spectacle ImageMagick glib2 gnome-screenshot
 ```
 On Wayland, the `ydotoold` daemon must be running — see [ydotool setup](#ydotool-setup-wayland).
 
@@ -112,11 +106,9 @@ claude-desktop.override {
   imagemagick = pkgs.imagemagick; wmctrl = pkgs.wmctrl;
   # Wayland (wlroots — Sway, Hyprland):
   # ydotool = pkgs.ydotool; grim = pkgs.grim; jq = pkgs.jq;
-  # Wayland (KDE Plasma):
+  # Wayland (KDE Plasma / GNOME):
   # ydotool = pkgs.ydotool; xdotool = pkgs.xdotool;
   # spectacle = pkgs.kdePackages.spectacle; imagemagick = pkgs.imagemagick;
-  # Wayland (GNOME):
-  # ydotool = pkgs.ydotool; xdotool = pkgs.xdotool;
   # gnome-screenshot = pkgs.gnome-screenshot;
 }
 ```
