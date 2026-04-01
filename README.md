@@ -24,9 +24,9 @@ sudo pacman -S --needed xdotool scrot xclip xsel imagemagick wmctrl xorg-xrandr
 # Wayland (wlroots — Sway, Hyprland):
 sudo pacman -S --needed ydotool grim wl-clipboard wlr-randr jq
 # Wayland (KDE Plasma):
-sudo pacman -S --needed xdotool spectacle imagemagick wl-clipboard
+sudo pacman -S --needed xdotool spectacle imagemagick wl-clipboard xclip
 # Wayland (GNOME):
-sudo pacman -S --needed xdotool glib2 gnome-screenshot wl-clipboard
+sudo pacman -S --needed xdotool glib2 gnome-screenshot wl-clipboard xclip
 ```
 Updates arrive through your AUR helper (e.g. `yay -Syu`).
 
@@ -44,9 +44,9 @@ sudo apt install xdotool scrot xclip xsel imagemagick wmctrl x11-xserver-utils
 # Wayland (wlroots — Sway, Hyprland):
 sudo apt install ydotool grim wl-clipboard wlr-randr jq
 # Wayland (KDE Plasma):
-sudo apt install xdotool kde-spectacle imagemagick wl-clipboard
+sudo apt install xdotool kde-spectacle imagemagick wl-clipboard xclip
 # Wayland (GNOME):
-sudo apt install xdotool libglib2.0-bin gnome-screenshot wl-clipboard
+sudo apt install xdotool libglib2.0-bin gnome-screenshot wl-clipboard xclip
 ```
 Updates are automatic via `sudo apt update && sudo apt upgrade`.
 
@@ -73,9 +73,9 @@ sudo dnf install xdotool scrot xclip xsel ImageMagick wmctrl xrandr
 # Wayland (wlroots — Sway, Hyprland):
 sudo dnf install ydotool grim wl-clipboard wlr-randr jq
 # Wayland (KDE Plasma):
-sudo dnf install xdotool spectacle ImageMagick wl-clipboard
+sudo dnf install xdotool spectacle ImageMagick wl-clipboard xclip
 # Wayland (GNOME):
-sudo dnf install xdotool glib2 gnome-screenshot wl-clipboard
+sudo dnf install xdotool glib2 gnome-screenshot wl-clipboard xclip
 ```
 Updates are automatic via `sudo dnf upgrade`.
 
