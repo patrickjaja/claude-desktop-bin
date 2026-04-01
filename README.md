@@ -17,6 +17,14 @@ Unofficial Linux packages for Claude Desktop AI assistant with automated updates
 ### Arch Linux / Manjaro (AUR)
 ```bash
 yay -S claude-desktop-bin
+
+# Optional: Computer Use dependencies (pick your session type)
+# X11/XWayland:
+sudo pacman -S --needed xdotool scrot xclip wmctrl xorg-xrandr
+# Wayland (wlroots — Sway, Hyprland):
+sudo pacman -S --needed ydotool grim wl-clipboard wlr-randr
+# Wayland (KDE/GNOME): screenshots work out of the box, just add input:
+sudo pacman -S --needed xdotool
 ```
 Updates arrive through your AUR helper (e.g. `yay -Syu`).
 
@@ -27,6 +35,14 @@ curl -fsSL https://patrickjaja.github.io/claude-desktop-bin/install.sh | sudo ba
 
 # Install
 sudo apt install claude-desktop-bin
+
+# Optional: Computer Use dependencies (pick your session type)
+# X11/XWayland:
+sudo apt install xdotool scrot xclip wmctrl x11-xserver-utils
+# Wayland (wlroots — Sway, Hyprland):
+sudo apt install ydotool grim wl-clipboard wlr-randr
+# Wayland (KDE/GNOME): screenshots work out of the box, just add input:
+sudo apt install xdotool
 ```
 Updates are automatic via `sudo apt update && sudo apt upgrade`.
 
@@ -46,6 +62,14 @@ curl -fsSL https://patrickjaja.github.io/claude-desktop-bin/install-rpm.sh | sud
 
 # Install
 sudo dnf install claude-desktop-bin
+
+# Optional: Computer Use dependencies (pick your session type)
+# X11/XWayland:
+sudo dnf install xdotool scrot xclip wmctrl xrandr
+# Wayland (wlroots — Sway, Hyprland):
+sudo dnf install ydotool grim wl-clipboard wlr-randr
+# Wayland (KDE/GNOME): screenshots work out of the box, just add input:
+sudo dnf install xdotool
 ```
 Updates are automatic via `sudo dnf upgrade`.
 
@@ -65,6 +89,20 @@ nix run github:patrickjaja/claude-desktop-bin
 
 # Or add to flake.nix
 nix profile install github:patrickjaja/claude-desktop-bin
+```
+
+For Computer Use, pass optional dependencies via override (pick your session type):
+```nix
+claude-desktop.override {
+  # X11/XWayland:
+  xdotool = pkgs.xdotool; scrot = pkgs.scrot; xclip = pkgs.xclip;
+  wmctrl = pkgs.wmctrl; xrandr = pkgs.xorg.xrandr;
+  # Wayland (wlroots — Sway, Hyprland):
+  # ydotool = pkgs.ydotool; grim = pkgs.grim;
+  # wl-clipboard = pkgs.wl-clipboard; wlr-randr = pkgs.wlr-randr;
+  # Wayland (KDE): spectacle = pkgs.kdePackages.spectacle;
+  # Wayland (KDE/GNOME): just xdotool for input (screenshots are built-in)
+}
 ```
 
 <details>
@@ -98,6 +136,8 @@ wget https://github.com/patrickjaja/claude-desktop-bin/releases/latest/download/
 chmod +x Claude_Desktop-*-x86_64.AppImage
 ./Claude_Desktop-*-x86_64.AppImage
 ```
+
+> **Computer Use:** Install optional dependencies using your distro's package manager — see the [Computer Use packages table](#optional-dependencies). On KDE/GNOME Wayland, only `xdotool` is needed (screenshots are built-in).
 
 > **Update:** AppImage supports delta updates via [appimageupdatetool](https://github.com/AppImageCommunity/AppImageUpdate). Only changed blocks are downloaded.
 > ```bash
