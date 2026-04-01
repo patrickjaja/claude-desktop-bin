@@ -220,7 +220,7 @@ Claude Desktop works without these — features degrade gracefully when tools ar
 <a id="ydotool-setup-wayland"></a>
 ### ydotool setup (Wayland — all compositors)
 
-Computer Use needs `ydotool` **v1.0+** and the `ydotoold` daemon for mouse/keyboard input on Wayland. Without it, clicks won't reach native Wayland windows.
+Computer Use needs `ydotool` **v1.0+** and the `ydotoold` daemon for mouse/keyboard input on Wayland. Without it, clicks won't reach native Wayland windows. Tested on KDE Plasma and GNOME.
 
 **Arch Linux / Fedora** — ydotool v1.x ships in the repos:
 ```bash
@@ -235,6 +235,12 @@ sudo dnf install ydotool && sudo systemctl enable --now ydotool
 ```bash
 curl -fsSL https://raw.githubusercontent.com/patrickjaja/claude-desktop-bin/master/scripts/setup-ydotool.sh | sudo bash
 ```
+
+**GNOME users** — also set flat mouse acceleration for accurate cursor positioning:
+```bash
+gsettings set org.gnome.desktop.peripherals.mouse accel-profile flat
+```
+> Note: this changes acceleration for all mice, not just ydotool. KDE handles this per-device automatically.
 
 Restart Claude Desktop after setup.
 

@@ -74,6 +74,15 @@ EOF
 systemctl daemon-reload
 systemctl enable --now ydotoold
 
+# --- GNOME: flat mouse acceleration ---
+
+DESKTOP=$(sudo -u "$REAL_USER" bash -c 'echo "${XDG_CURRENT_DESKTOP:-}"' 2>/dev/null || true)
+if echo "$DESKTOP" | grep -qi gnome; then
+    sudo -u "$REAL_USER" DBUS_SESSION_BUS_ADDRESS="unix:path=${RUNTIME_DIR}/bus" \
+        gsettings set org.gnome.desktop.peripherals.mouse accel-profile flat 2>/dev/null && \
+        echo "GNOME: set flat mouse acceleration for accurate cursor positioning." || true
+fi
+
 # --- Verify ---
 
 sleep 1

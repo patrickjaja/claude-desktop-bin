@@ -2,7 +2,20 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
-## 2026-04-01 (v1.2.234)
+## 2026-04-01 (v1.2.234) — Computer Use Wayland fix
+
+### Fixed
+- **fix_computer_use_linux.py**: Computer Use now works on all Wayland compositors (tested KDE Plasma + GNOME on Ubuntu). Three bugs fixed:
+  1. **Window click-through** — Added `setIgnoreMouseEvents` wrapper so clicks pass through Claude's window to the target app.
+  2. **Cursor positioning** — Split ydotool `--absolute` into origin-reset + delay + relative move (single-command was too fast for libinput).
+  3. **Keyboard input** — `_mapKeyWayland()` returns raw Linux numeric keycodes. ydotool v1.0.4 `key` only accepts numeric codes, not names.
+
+### Added
+- **scripts/setup-ydotool.sh**: One-command setup for Ubuntu/Debian Wayland users. Builds ydotool v1.0.4 from source, configures uinput permissions, starts daemon. Also sets flat mouse acceleration on GNOME.
+  Usage: `curl -fsSL https://raw.githubusercontent.com/patrickjaja/claude-desktop-bin/master/scripts/setup-ydotool.sh | sudo bash`
+
+### Docs
+- **README.md**: All Wayland compositors need ydotool for input (not just wlroots). Added ydotool setup section with `curl | sudo bash` for Ubuntu/Debian, one-liners for Arch/Fedora, and GNOME flat acceleration note.
 
 ### Changed
 - **Version bump to v1.2.234** — Major upstream release. Feature flag registry unchanged (same 18 features), but internal function names renamed across the board.
