@@ -153,7 +153,7 @@ chmod +x Claude_Desktop-*-x86_64.AppImage
 ./Claude_Desktop-*-x86_64.AppImage
 ```
 
-> **Computer Use:** Install optional dependencies using your distro's package manager — see the [Computer Use packages table](#optional-dependencies). On KDE/GNOME Wayland, only `xdotool` is needed (screenshots are built-in).
+> **Computer Use:** Install optional dependencies using your distro's package manager — see the [Computer Use packages table](#optional-dependencies). On Wayland, `ydotool` v1.0+ is required — see [ydotool setup](#ydotool-setup-wayland).
 
 > **Update:** AppImage supports delta updates via [appimageupdatetool](https://github.com/AppImageCommunity/AppImageUpdate). Only changed blocks are downloaded.
 > ```bash
