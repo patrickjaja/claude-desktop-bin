@@ -30,8 +30,9 @@ Suggests:       xsel
 Suggests:       ImageMagick
 Suggests:       wmctrl
 Suggests:       xrandr
-# Computer Use — Wayland/wlroots (Sway, Hyprland)
+# Computer Use — all Wayland compositors (input automation)
 Suggests:       ydotool
+# Computer Use — Wayland/wlroots (Sway, Hyprland)
 Suggests:       grim
 Suggests:       wl-clipboard
 Suggests:       wlr-randr

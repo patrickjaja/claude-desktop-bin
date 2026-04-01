@@ -129,7 +129,7 @@ function _findMon(displayId){
 }
 function _moveMouse(x,y){
   if(_wayland&&_checkYdotool()){
-    try{_exec("ydotool mousemove --absolute "+Math.round(x)+" "+Math.round(y));return}catch(e){try{_exec("ydotool mousemove -a "+Math.round(x)+" "+Math.round(y));return}catch(e2){console.warn("[claude-cu] ydotool mousemove failed, falling back to xdotool: "+e2.message)}}
+    try{_exec("ydotool mousemove --absolute 0 0");_cp.execSync("sleep 0.05");_exec("ydotool mousemove "+Math.round(x)+" "+Math.round(y));return}catch(e){console.warn("[claude-cu] ydotool mousemove failed, falling back to xdotool: "+e.message)}
   }else{
     if(_wayland&&!_checkYdotool())console.warn("[claude-cu] ydotool not available on Wayland, falling back to xdotool via XWayland");
   }
@@ -154,26 +154,24 @@ function _mapKey(k){
   return k.trim();
 }
 function _mapKeyWayland(k){
+  var _kmap={"ctrl":29,"control":29,"leftctrl":29,"rightctrl":97,
+    "alt":56,"leftalt":56,"rightalt":100,"shift":42,"leftshift":42,"rightshift":54,
+    "super":125,"meta":125,"cmd":125,"command":125,"leftmeta":125,"rightmeta":126,
+    "enter":28,"return":28,"backspace":14,"delete":111,"escape":1,"esc":1,"tab":15,
+    "space":57,"up":103,"down":108,"left":105,"right":106,
+    "home":102,"end":107,"pageup":104,"pagedown":109,"insert":110,
+    "capslock":58,"numlock":69,"scrolllock":70,"pause":119,"sysrq":99,
+    "f1":59,"f2":60,"f3":61,"f4":62,"f5":63,"f6":64,
+    "f7":65,"f8":66,"f9":67,"f10":68,"f11":87,"f12":88,
+    "a":30,"b":48,"c":46,"d":32,"e":18,"f":33,"g":34,"h":35,"i":23,"j":36,
+    "k":37,"l":38,"m":50,"n":49,"o":24,"p":25,"q":16,"r":19,"s":31,"t":20,
+    "u":22,"v":47,"w":17,"x":45,"y":21,"z":44,
+    "1":2,"2":3,"3":4,"4":5,"5":6,"6":7,"7":8,"8":9,"9":10,"0":11,
+    "minus":12,"equal":13,"leftbrace":26,"rightbrace":27,
+    "semicolon":39,"apostrophe":40,"grave":41,"backslash":43,
+    "comma":51,"dot":52,"slash":53,"kpasterisk":55,"kpminus":74,"kpplus":78};
   var l=k.trim().toLowerCase();
-  if(l==="ctrl"||l==="control")return"leftctrl";
-  if(l==="alt")return"leftalt";if(l==="shift")return"leftshift";
-  if(l==="super"||l==="meta"||l==="cmd"||l==="command")return"leftmeta";
-  if(l==="enter"||l==="return")return"enter";
-  if(l==="backspace")return"backspace";
-  if(l==="delete")return"delete";
-  if(l==="escape"||l==="esc")return"esc";
-  if(l==="tab")return"tab";
-  if(l==="space"||l===" ")return"space";
-  if(l==="up")return"up";if(l==="down")return"down";
-  if(l==="left")return"left";if(l==="right")return"right";
-  if(l==="home")return"home";if(l==="end")return"end";
-  if(l==="pageup")return"pageup";if(l==="pagedown")return"pagedown";
-  if(l==="capslock")return"capslock";
-  if(l==="f1")return"f1";if(l==="f2")return"f2";if(l==="f3")return"f3";
-  if(l==="f4")return"f4";if(l==="f5")return"f5";if(l==="f6")return"f6";
-  if(l==="f7")return"f7";if(l==="f8")return"f8";if(l==="f9")return"f9";
-  if(l==="f10")return"f10";if(l==="f11")return"f11";if(l==="f12")return"f12";
-  return k.trim().toLowerCase();
+  return String(_kmap[l]||l);
 }
 function _screenshotMon(mon){return _captureRegion(mon.originX,mon.originY,mon.width,mon.height)}
 function _getActiveWindowWayland(){
@@ -390,7 +388,7 @@ globalThis.__linuxExecutor={
     if(start)_moveMouse(start.x,start.y);
     if(_wayland&&_checkYdotool()){
       _exec("ydotool click 0x40");
-      _exec("ydotool mousemove --absolute "+Math.round(end.x)+" "+Math.round(end.y));
+      _exec("ydotool mousemove --absolute 0 0");_cp.execSync("sleep 0.05");_exec("ydotool mousemove "+Math.round(end.x)+" "+Math.round(end.y));
       _cp.execSync("sleep 0.05");
       _exec("ydotool click 0x80");
     }else{
@@ -505,9 +503,9 @@ var __lxTeachTools=["request_teach_access","teach_step","teach_batch","request_a
 if(__lxTeachTools.indexOf(t)>=0){const __n=__DISPATCHER__(r);const{save_to_disk:__sd,...__s}=e;return await __n(t,__s)}
 var ex=globalThis.__linuxExecutor;
 if(!ex)return{content:[{type:"text",text:"Linux executor not initialized"}],isError:!0};
-try{switch(t){
-case"screenshot":{var __did=globalThis.__cuPinnedDisplay!==void 0?globalThis.__cuPinnedDisplay:(e.display_number||e.display_id||0);var __ss=await ex.screenshot({displayId:__did});return{content:[{type:"image",data:__ss.base64,mimeType:"image/png"}]}}
-case"zoom":{var __zc=e.coordinate||[960,540],__sz=e.size||400,__hf=Math.floor(__sz/2),__zr=await ex.zoom({x:Math.max(0,__zc[0]-__hf),y:Math.max(0,__zc[1]-__hf),w:__sz,h:__sz},1,0);return{content:[{type:"image",data:__zr.base64,mimeType:"image/png"}]}}
+var __actionTools=new Set(["left_click","right_click","double_click","triple_click","middle_click","left_click_drag","mouse_move","scroll","key","type","hold_key","left_mouse_down","left_mouse_up","computer_batch"]);
+async function __hideWindows(fn){var __bws=require("electron").BrowserWindow.getAllWindows().filter(function(w){return!w.isDestroyed()});for(var __i=0;__i<__bws.length;__i++)__bws[__i].setIgnoreMouseEvents(true);try{await new Promise(function(r){setTimeout(r,50)});return await fn()}finally{for(var __i=0;__i<__bws.length;__i++){if(!__bws[__i].isDestroyed())__bws[__i].setIgnoreMouseEvents(false)}}}
+if(__actionTools.has(t)){return await __hideWindows(async function(){switch(t){
 case"left_click":{var __lc=e.coordinate||[e.x,e.y];await ex.click(__lc[0],__lc[1],"left",1);return{content:[{type:"text",text:"Clicked at ("+__lc[0]+","+__lc[1]+")"}]}}
 case"right_click":{var __rc=e.coordinate||[e.x,e.y];await ex.click(__rc[0],__rc[1],"right",1);return{content:[{type:"text",text:"Right clicked"}]}}
 case"double_click":{var __dc=e.coordinate||[e.x,e.y];await ex.click(__dc[0],__dc[1],"left",2);return{content:[{type:"text",text:"Double clicked"}]}}
@@ -516,19 +514,24 @@ case"middle_click":{var __mc=e.coordinate||[e.x,e.y];await ex.click(__mc[0],__mc
 case"type":{await ex.type(e.text||"",{viaClipboard:!1});return{content:[{type:"text",text:"Typed text"}]}}
 case"key":{await ex.key(e.key||e.text||"",e.count||1);return{content:[{type:"text",text:"Pressed key: "+(e.key||e.text)}]}}
 case"scroll":{var __sc=e.coordinate||[e.x||0,e.y||0],__dir=e.scroll_direction||e.direction||"down",__amt=e.scroll_amount||e.amount||3,__sv=__dir==="down"?__amt:__dir==="up"?-__amt:0,__sh=__dir==="right"?__amt:__dir==="left"?-__amt:0;await ex.scroll(__sc[0],__sc[1],__sh,__sv);return{content:[{type:"text",text:"Scrolled "+__dir}]}}
-case"cursor_position":{var __cp=await ex.getCursorPosition();return{content:[{type:"text",text:"("+__cp.x+", "+__cp.y+")"}]}}
-case"wait":{var __ws=Math.min(e.duration||e.seconds||1,30);await new Promise(function(__rv){setTimeout(__rv,__ws*1000)});return{content:[{type:"text",text:"Waited "+__ws+"s"}]}}
 case"left_click_drag":{var __dsc=e.start_coordinate,__den=e.coordinate;await ex.drag(__dsc?{x:__dsc[0],y:__dsc[1]}:void 0,{x:__den[0],y:__den[1]});return{content:[{type:"text",text:"Dragged"}]}}
 case"mouse_move":{var __mv=e.coordinate||[e.x,e.y];await ex.moveMouse(__mv[0],__mv[1]);return{content:[{type:"text",text:"Moved to ("+__mv[0]+","+__mv[1]+")"}]}}
 case"hold_key":{await ex.holdKey(e.key||"",e.duration||.5);return{content:[{type:"text",text:"Held key"}]}}
 case"left_mouse_down":{await ex.mouseDown();return{content:[{type:"text",text:"Mouse down"}]}}
 case"left_mouse_up":{await ex.mouseUp();return{content:[{type:"text",text:"Mouse up"}]}}
+case"computer_batch":{var __actions=e.actions||[],__completed=[],__failIdx=-1,__failErr;for(var __bi=0;__bi<__actions.length;__bi++){var __ba=__actions[__bi];try{var __br=await __SELF__.handleToolCall(__ba.action||__ba.type,__ba,r);__completed.push({type:__ba.action||__ba.type,result:__br})}catch(__be){__failIdx=__bi;__failErr=__be.message;break}}var __resp={completed:__completed};if(__failIdx>=0){__resp.failed={index:__failIdx,action:__actions[__failIdx].action||__actions[__failIdx].type,error:__failErr};__resp.remaining=__actions.slice(__failIdx+1).map(function(a){return a.action||a.type})}return{content:[{type:"text",text:JSON.stringify(__resp)}]}}
+default:return{content:[{type:"text",text:"Unknown action tool: "+t}],isError:!0}
+}})}
+try{switch(t){
+case"screenshot":{var __did=globalThis.__cuPinnedDisplay!==void 0?globalThis.__cuPinnedDisplay:(e.display_number||e.display_id||0);var __ss=await ex.screenshot({displayId:__did});return{content:[{type:"image",data:__ss.base64,mimeType:"image/png"}]}}
+case"zoom":{var __zc=e.coordinate||[960,540],__sz=e.size||400,__hf=Math.floor(__sz/2),__zr=await ex.zoom({x:Math.max(0,__zc[0]-__hf),y:Math.max(0,__zc[1]-__hf),w:__sz,h:__sz},1,0);return{content:[{type:"image",data:__zr.base64,mimeType:"image/png"}]}}
+case"cursor_position":{var __cp=await ex.getCursorPosition();return{content:[{type:"text",text:"("+__cp.x+", "+__cp.y+")"}]}}
+case"wait":{var __ws=Math.min(e.duration||e.seconds||1,30);await new Promise(function(__rv){setTimeout(__rv,__ws*1000)});return{content:[{type:"text",text:"Waited "+__ws+"s"}]}}
 case"open_application":{await ex.openApp(e.app||e.application||"");return{content:[{type:"text",text:"Opened app"}]}}
 case"switch_display":{var __displays=await ex.listDisplays();var __target=e.display;if(__target==="auto"||!__target){globalThis.__cuPinnedDisplay=void 0;return{content:[{type:"text",text:"Display mode set to auto (follows cursor). Available: "+__displays.map(function(d){return d.label+" ("+d.width+"x"+d.height+")"}).join(", ")}]}}var __found=__displays.find(function(d){return d.label===__target||String(d.displayId)===String(__target)});if(__found){globalThis.__cuPinnedDisplay=__found.displayId;return{content:[{type:"text",text:"Switched to display: "+__found.label+" ("+__found.width+"x"+__found.height+")"}]}}return{content:[{type:"text",text:"Display '"+__target+"' not found. Available: "+__displays.map(function(d){return d.label}).join(", ")}]}}
 case"list_granted_applications":{return{content:[{type:"text",text:"All applications are accessible on Linux (no grants needed)"}]}}
 case"read_clipboard":{var cb=await ex.readClipboard();return{content:[{type:"text",text:cb}]}}
 case"write_clipboard":{await ex.writeClipboard(e.text||"");return{content:[{type:"text",text:"Written to clipboard"}]}}
-case"computer_batch":{var __actions=e.actions||[],__completed=[],__failIdx=-1,__failErr;for(var __bi=0;__bi<__actions.length;__bi++){var __ba=__actions[__bi];try{var __br=await __SELF__.handleToolCall(__ba.action||__ba.type,__ba,r);__completed.push({type:__ba.action||__ba.type,result:__br})}catch(__be){__failIdx=__bi;__failErr=__be.message;break}}var __resp={completed:__completed};if(__failIdx>=0){__resp.failed={index:__failIdx,action:__actions[__failIdx].action||__actions[__failIdx].type,error:__failErr};__resp.remaining=__actions.slice(__failIdx+1).map(function(a){return a.action||a.type})}return{content:[{type:"text",text:JSON.stringify(__resp)}]}}
 default:return{content:[{type:"text",text:"Unknown tool: "+t}],isError:!0}
 }}catch(err){return{content:[{type:"text",text:"Error: "+err.message}],isError:!0}}
 }"""

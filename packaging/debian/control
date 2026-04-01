@@ -41,13 +41,15 @@ Description: Claude AI Desktop Application
   * hyprland - Cursor positioning and window queries (Hyprland only)
  .
  Optional dependencies for Computer Use (Wayland — KDE Plasma):
-  * xdotool - Input automation (via XWayland)
+  * ydotool - Input automation (requires ydotoold daemon; v1.0+ needed)
+  * xdotool - Cursor position reading and XWayland fallback
   * kde-spectacle - Screenshot capture
   * imagemagick - Multi-monitor screenshot crop (convert)
   * wl-clipboard - Clipboard access
  .
  Optional dependencies for Computer Use (Wayland — GNOME):
-  * xdotool - Input automation (via XWayland)
+  * ydotool - Input automation (requires ydotoold daemon; v1.0+ needed)
+  * xdotool - Cursor position reading and XWayland fallback
   * libglib2.0-bin - Screenshot capture (gdbus for D-Bus)
   * gnome-screenshot - Screenshot fallback
   * wl-clipboard - Clipboard access

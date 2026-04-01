@@ -5,13 +5,20 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 ## 2026-04-01 (v1.1.9669)
 
 ### Fixed
+- **fix_computer_use_linux.py**: Computer Use clicks now work on all Wayland compositors (KDE, GNOME, wlroots). Three bugs fixed:
+  1. **Window hiding before actions** — Added `setIgnoreMouseEvents` wrapper (matching upstream macOS `lB()` behavior) so clicks pass through Claude Desktop's window to the target app behind it.
+  2. **ydotool absolute positioning** — Split `mousemove --absolute X Y` into two commands with 50ms delay (origin reset + relative move). The single-command approach sent both events too fast for libinput to process correctly, causing the cursor to land at (0,0).
+  3. **ydotool keyboard input** — `_mapKeyWayland()` now returns raw Linux numeric keycodes (e.g. 29 for Ctrl, 56 for Alt) instead of symbolic names. ydotool v1.0.4 `key` command parses names as `strtol()` = 0, silently dropping all key events.
 - **fix_computer_use_linux.py**: Screenshot support on non-wlroots Wayland compositors (GNOME, KDE). New fallback chain: `COWORK_SCREENSHOT_CMD` env override → grim (wlroots) → GNOME Shell D-Bus `ScreenshotArea` → spectacle + crop (KDE) → gnome-screenshot → scrot → import. Fixes [claude-cowork-service#13](https://github.com/patrickjaja/claude-cowork-service/issues/13).
-- **fix_computer_use_linux.py**: ydotool robustness — `_checkYdotool()` verifies ydotoold daemon is running before attempting ydotool commands. Falls back to xdotool via XWayland if daemon not found. Removed `--repeat` flag from click commands (use loop instead) for compatibility with older ydotool versions.
-- **fix_computer_use_linux.py**: ydotool `--absolute` flag fallback — `_moveMouse()` tries `--absolute`, then `-a`, then falls back to xdotool for maximum compatibility.
+- **fix_computer_use_linux.py**: ydotool robustness — `_checkYdotool()` verifies ydotoold daemon is running before attempting ydotool commands. Falls back to xdotool via XWayland if daemon not found.
+
+### Added
+- **scripts/setup-ydotool.sh**: One-command ydotool v1.0.4 setup for Ubuntu/Debian Wayland users. Builds from source, configures uinput permissions, and creates a systemd service. Ubuntu/Debian ship ydotool 0.1.8 which has incompatible command syntax. Usage: `curl -fsSL https://raw.githubusercontent.com/patrickjaja/claude-desktop-bin/master/scripts/setup-ydotool.sh | sudo bash`
 
 ### Docs
-- **README.md**: Updated Computer Use optional dependencies table with GNOME Wayland (built-in D-Bus) and KDE Plasma Wayland (spectacle) columns. Added `COWORK_SCREENSHOT_CMD` env var documentation.
-- **Packaging**: Added `spectacle` (KDE) as optional dependency across all formats (PKGBUILD, deb, rpm, nix). Added GNOME/KDE notes.
+- **README.md**: Fixed Computer Use dependencies — all Wayland compositors (KDE, GNOME, wlroots) require `ydotool` for input automation, not just wlroots. The `xdotool (XWayland)` fallback cannot click native Wayland windows.
+- **README.md**: Added `ydotool setup` section with one-liner for Arch/Fedora and `curl | sudo bash` setup script for Ubuntu/Debian.
+- **Packaging**: Updated optional dependency descriptions across all formats (PKGBUILD, deb control, rpm spec, nix) to reflect ydotool requirement for all Wayland compositors.
 
 ## 2026-03-31 (v1.1.9669)
 

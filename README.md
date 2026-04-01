@@ -24,10 +24,12 @@ sudo pacman -S --needed xdotool scrot xclip xsel imagemagick wmctrl xorg-xrandr
 # Wayland (wlroots — Sway, Hyprland):
 sudo pacman -S --needed ydotool grim wl-clipboard wlr-randr jq
 # Wayland (KDE Plasma):
-sudo pacman -S --needed xdotool spectacle imagemagick wl-clipboard xclip
+sudo pacman -S --needed ydotool xdotool spectacle imagemagick wl-clipboard xclip
 # Wayland (GNOME):
-sudo pacman -S --needed xdotool glib2 gnome-screenshot wl-clipboard xclip
+sudo pacman -S --needed ydotool xdotool glib2 gnome-screenshot wl-clipboard xclip
 ```
+On Wayland, the `ydotoold` daemon must be running — see [ydotool setup](#ydotool-setup-wayland).
+
 Updates arrive through your AUR helper (e.g. `yay -Syu`).
 
 ### Debian / Ubuntu (APT Repository)
@@ -44,10 +46,13 @@ sudo apt install xdotool scrot xclip xsel imagemagick wmctrl x11-xserver-utils
 # Wayland (wlroots — Sway, Hyprland):
 sudo apt install ydotool grim wl-clipboard wlr-randr jq
 # Wayland (KDE Plasma):
-sudo apt install xdotool kde-spectacle imagemagick wl-clipboard xclip
+sudo apt install ydotool xdotool kde-spectacle imagemagick wl-clipboard xclip
 # Wayland (GNOME):
-sudo apt install xdotool libglib2.0-bin gnome-screenshot wl-clipboard xclip
+sudo apt install ydotool xdotool libglib2.0-bin gnome-screenshot wl-clipboard xclip
 ```
+
+> **Wayland users:** Computer Use requires ydotool v1.0+, but Ubuntu/Debian ship v0.1.8 which is **too old**. Run the [ydotool setup script](#ydotool-setup-wayland) — without this, clicks will not work.
+
 Updates are automatic via `sudo apt update && sudo apt upgrade`.
 
 <details>
@@ -73,10 +78,12 @@ sudo dnf install xdotool scrot xclip xsel ImageMagick wmctrl xrandr
 # Wayland (wlroots — Sway, Hyprland):
 sudo dnf install ydotool grim wl-clipboard wlr-randr jq
 # Wayland (KDE Plasma):
-sudo dnf install xdotool spectacle ImageMagick wl-clipboard xclip
+sudo dnf install ydotool xdotool spectacle ImageMagick wl-clipboard xclip
 # Wayland (GNOME):
-sudo dnf install xdotool glib2 gnome-screenshot wl-clipboard xclip
+sudo dnf install ydotool xdotool glib2 gnome-screenshot wl-clipboard xclip
 ```
+On Wayland, the `ydotoold` daemon must be running — see [ydotool setup](#ydotool-setup-wayland).
+
 Updates are automatic via `sudo dnf upgrade`.
 
 <details>
@@ -109,10 +116,12 @@ claude-desktop.override {
   # wl-clipboard = pkgs.wl-clipboard; wlr-randr = pkgs.wlr-randr;
   # jq = pkgs.jq;
   # Wayland (KDE Plasma):
-  # xdotool = pkgs.xdotool; spectacle = pkgs.kdePackages.spectacle;
+  # ydotool = pkgs.ydotool; xdotool = pkgs.xdotool;
+  # spectacle = pkgs.kdePackages.spectacle;
   # imagemagick = pkgs.imagemagick; wl-clipboard = pkgs.wl-clipboard;
   # Wayland (GNOME):
-  # xdotool = pkgs.xdotool; gnome-screenshot = pkgs.gnome-screenshot;
+  # ydotool = pkgs.ydotool; xdotool = pkgs.xdotool;
+  # gnome-screenshot = pkgs.gnome-screenshot;
   # wl-clipboard = pkgs.wl-clipboard;
 }
 ```
@@ -200,20 +209,39 @@ Claude Desktop works without these — features degrade gracefully when tools ar
 
 | Operation | X11 / XWayland | Wayland — wlroots (Sway, Hyprland) | Wayland — GNOME | Wayland — KDE Plasma |
 |-----------|---------------|-------------------------------------|-----------------|----------------------|
-| Input automation | `xdotool` | `ydotool` (+ `ydotoold` running) | `xdotool` (XWayland) | `xdotool` (XWayland) |
+| Input automation | `xdotool` | `ydotool` (+ `ydotoold` running) | `ydotool` (+ `ydotoold` running) | `ydotool` (+ `ydotoold` running) |
 | Screenshots | `scrot`, `imagemagick` | `grim` | `gdbus` (glib2), `gnome-screenshot` | `spectacle`, `imagemagick` |
 | Clipboard | `xclip`, `xsel` | `wl-clipboard` | `wl-clipboard` | `wl-clipboard` |
 | Display info | `xrandr` | `wlr-randr` | Electron API | Electron API |
 | Window queries | `wmctrl` | `swaymsg` (Sway), `jq` | — | — |
-| Cursor positioning | `xdotool` | Electron API | `xdotool` (XWayland) | `xdotool` (XWayland) |
+| Cursor positioning | `xdotool` | `ydotool` | `xdotool` (read), `ydotool` (move) | `xdotool` (read), `ydotool` (move) |
 
-> **Note:** `slurp` is NOT used — it was listed previously but no patch invokes it.
+> **GNOME:** `gdbus` (from glib2/libglib2.0-bin) provides the `org.gnome.Shell.Screenshot` D-Bus interface. `gnome-screenshot` is a fallback if D-Bus fails.
 >
-> **GNOME:** `gdbus` (from glib2/libglib2.0-bin) provides the `org.gnome.Shell.Screenshot` D-Bus interface. `gnome-screenshot` is a fallback if D-Bus fails. `wl-clipboard` for clipboard access.
->
-> **KDE:** `spectacle` captures screenshots. `imagemagick` (`convert`) crops to monitor region on multi-monitor setups. `wl-clipboard` for clipboard access.
+> **KDE:** `spectacle` captures screenshots. `imagemagick` (`convert`) crops to monitor region on multi-monitor setups.
 >
 > **Custom screenshot command:** Set `COWORK_SCREENSHOT_CMD` to override the auto-detection. Use placeholders `{FILE}` (output path), `{X}`, `{Y}`, `{W}`, `{H}` (region). Example: `COWORK_SCREENSHOT_CMD='spectacle -b -n -r -o {FILE}'`
+
+<a id="ydotool-setup-wayland"></a>
+### ydotool setup (Wayland — all compositors)
+
+Computer Use needs `ydotool` **v1.0+** and the `ydotoold` daemon for mouse/keyboard input on Wayland. Without it, clicks won't reach native Wayland windows.
+
+**Arch Linux / Fedora** — ydotool v1.x ships in the repos:
+```bash
+# Arch
+sudo pacman -S ydotool && sudo systemctl enable --now ydotool
+
+# Fedora
+sudo dnf install ydotool && sudo systemctl enable --now ydotool
+```
+
+**Ubuntu / Debian** — the repo ships v0.1.8 which is **incompatible**. Run the setup script to build and configure v1.0.4:
+```bash
+curl -fsSL https://raw.githubusercontent.com/patrickjaja/claude-desktop-bin/master/scripts/setup-ydotool.sh | sudo bash
+```
+
+Restart Claude Desktop after setup.
 
 ## Features
 - Native Linux support (Arch, Debian/Ubuntu, Fedora/RHEL, NixOS, AppImage) — **x86_64 and ARM64**, X11 and Wayland
