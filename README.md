@@ -23,7 +23,9 @@ yay -S claude-desktop-bin
 sudo pacman -S --needed xdotool scrot xclip wmctrl xorg-xrandr
 # Wayland (wlroots — Sway, Hyprland):
 sudo pacman -S --needed ydotool grim wl-clipboard wlr-randr
-# Wayland (KDE/GNOME): screenshots work out of the box, just add input:
+# Wayland (KDE Plasma):
+sudo pacman -S --needed xdotool spectacle
+# Wayland (GNOME): screenshots use built-in D-Bus, just add input:
 sudo pacman -S --needed xdotool
 ```
 Updates arrive through your AUR helper (e.g. `yay -Syu`).
@@ -41,7 +43,9 @@ sudo apt install claude-desktop-bin
 sudo apt install xdotool scrot xclip wmctrl x11-xserver-utils
 # Wayland (wlroots — Sway, Hyprland):
 sudo apt install ydotool grim wl-clipboard wlr-randr
-# Wayland (KDE/GNOME): screenshots work out of the box, just add input:
+# Wayland (KDE Plasma):
+sudo apt install xdotool kde-spectacle
+# Wayland (GNOME): screenshots use built-in D-Bus, just add input:
 sudo apt install xdotool
 ```
 Updates are automatic via `sudo apt update && sudo apt upgrade`.
@@ -68,7 +72,9 @@ sudo dnf install claude-desktop-bin
 sudo dnf install xdotool scrot xclip wmctrl xrandr
 # Wayland (wlroots — Sway, Hyprland):
 sudo dnf install ydotool grim wl-clipboard wlr-randr
-# Wayland (KDE/GNOME): screenshots work out of the box, just add input:
+# Wayland (KDE Plasma):
+sudo dnf install xdotool spectacle
+# Wayland (GNOME): screenshots use built-in D-Bus, just add input:
 sudo dnf install xdotool
 ```
 Updates are automatic via `sudo dnf upgrade`.
@@ -100,8 +106,10 @@ claude-desktop.override {
   # Wayland (wlroots — Sway, Hyprland):
   # ydotool = pkgs.ydotool; grim = pkgs.grim;
   # wl-clipboard = pkgs.wl-clipboard; wlr-randr = pkgs.wlr-randr;
-  # Wayland (KDE): spectacle = pkgs.kdePackages.spectacle;
-  # Wayland (KDE/GNOME): just xdotool for input (screenshots are built-in)
+  # Wayland (KDE Plasma):
+  # xdotool = pkgs.xdotool; spectacle = pkgs.kdePackages.spectacle;
+  # Wayland (GNOME): screenshots use built-in D-Bus, just add input:
+  # xdotool = pkgs.xdotool;
 }
 ```
 
@@ -195,7 +203,9 @@ Claude Desktop works without these — features degrade gracefully when tools ar
 | Window queries | `wmctrl` | `swaymsg` (Sway) | — | — |
 | Cursor positioning | `xdotool` | Electron API | `xdotool` (XWayland) | `xdotool` (XWayland) |
 
-> **GNOME/KDE note:** Screenshots work out of the box — GNOME uses its built-in `org.gnome.Shell.Screenshot` D-Bus interface, KDE uses `spectacle` (pre-installed). No extra packages needed for screenshots. For input automation, install `xdotool` (works via XWayland) or `ydotool` (native Wayland, requires `ydotoold` daemon running).
+> **GNOME note:** Screenshots work out of the box via the built-in `org.gnome.Shell.Screenshot` D-Bus interface — no extra packages needed. Just install `xdotool` for input automation.
+>
+> **KDE note:** Screenshots use `spectacle` — install it if not already present (e.g. `sudo apt install kde-spectacle` on Debian/Ubuntu). Full Kubuntu installs include it by default. Install `xdotool` for input automation.
 >
 > **Custom screenshot command:** Set `COWORK_SCREENSHOT_CMD` to override the auto-detection. Use placeholders `{FILE}` (output path), `{X}`, `{Y}`, `{W}`, `{H}` (region). Example: `COWORK_SCREENSHOT_CMD='spectacle -b -n -r -o {FILE}'`
 
