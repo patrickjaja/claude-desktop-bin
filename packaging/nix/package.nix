@@ -11,13 +11,16 @@
 , xclip ? null          # clipboard access
 , wmctrl ? null         # running app detection
 , xrandr ? null         # display enumeration
-# Computer Use — Wayland session (Sway, Hyprland, etc.)
-, ydotool ? null        # input automation
+# Computer Use — Wayland session (Sway, Hyprland — wlroots compositors)
+, ydotool ? null        # input automation (requires ydotoold daemon)
 , grim ? null           # screenshot capture (wlroots)
 , slurp ? null          # region selection
 , wl-clipboard ? null   # clipboard access
 , wlr-randr ? null      # display enumeration (wlroots)
 , hyprland ? null       # cursor positioning (Hyprland only)
+# Computer Use — KDE Plasma Wayland (spectacle is pre-installed on KDE)
+, spectacle ? null      # screenshot capture (KDE Plasma)
+# Computer Use — GNOME Wayland: no extra packages (uses built-in D-Bus for screenshots)
 # Claude Code CLI — required for Cowork, Dispatch, and Code integration
 , claude-code ? null    # auto-resolved by callPackage if in nixpkgs
 # Other optional
@@ -83,6 +86,7 @@ stdenvNoCC.mkDerivation {
       ${lib.optionalString (ydotool != null) "--prefix PATH : ${ydotool}/bin"} \
       ${lib.optionalString (grim != null) "--prefix PATH : ${grim}/bin"} \
       ${lib.optionalString (slurp != null) "--prefix PATH : ${slurp}/bin"} \
+      ${lib.optionalString (spectacle != null) "--prefix PATH : ${spectacle}/bin"} \
       ${lib.optionalString (wl-clipboard != null) "--prefix PATH : ${wl-clipboard}/bin"} \
       ${lib.optionalString (wlr-randr != null) "--prefix PATH : ${wlr-randr}/bin"} \
       ${lib.optionalString (nodejs != null) "--prefix PATH : ${nodejs}/bin"} \

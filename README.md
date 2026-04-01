@@ -144,16 +144,20 @@ Claude Desktop works without these — features degrade gracefully when tools ar
 | **Browser Tools** | [Claude in Chrome extension](https://chromewebstore.google.com/detail/claude-code/fcoeoabgfenejglbffodgkkbkcdhcgfn) | Uses Claude Code's native host (`~/.claude/chrome/chrome-native-host`). Claude Code CLI must be installed |
 | **Custom MCP Servers** | `nodejs` | Only needed for third-party MCP servers requiring system Node.js |
 
-**Computer Use packages** — check your session type (`echo $XDG_SESSION_TYPE`) and install the matching packages. At runtime, the app auto-detects your session type and calls the correct tools.
+**Computer Use packages** — check your session type (`echo $XDG_SESSION_TYPE`) and desktop (`echo $XDG_CURRENT_DESKTOP`), then install the matching packages. At runtime, the app auto-detects your compositor and calls the correct tools.
 
-| Operation | X11 / XWayland | Wayland (Sway, Hyprland) | Hyprland extras |
-|-----------|---------------|--------------------------|-----------------|
-| Input automation | `xdotool` | `ydotool` | — |
-| Screenshots | `scrot` | `grim`, `slurp` | — |
-| Clipboard | `xclip` | `wl-clipboard` | — |
-| Display info | `xrandr` | `wlr-randr` | — |
-| Window queries | `wmctrl` | `swaymsg` (Sway) | `hyprctl` (included) |
-| Cursor positioning | `xdotool` | Electron API | `hyprctl` (included) |
+| Operation | X11 / XWayland | Wayland — wlroots (Sway, Hyprland) | Wayland — GNOME | Wayland — KDE Plasma |
+|-----------|---------------|-------------------------------------|-----------------|----------------------|
+| Input automation | `xdotool` | `ydotool` (+ `ydotoold` running) | `xdotool` (XWayland) | `xdotool` (XWayland) |
+| Screenshots | `scrot` | `grim` | *built-in* (D-Bus) | *built-in* (`spectacle`) |
+| Clipboard | `xclip` | `wl-clipboard` | `wl-clipboard` or `xclip` | `wl-clipboard` or `xclip` |
+| Display info | `xrandr` | `wlr-randr` | Electron API | Electron API |
+| Window queries | `wmctrl` | `swaymsg` (Sway) | — | — |
+| Cursor positioning | `xdotool` | Electron API | `xdotool` (XWayland) | `xdotool` (XWayland) |
+
+> **GNOME/KDE note:** Screenshots work out of the box — GNOME uses its built-in `org.gnome.Shell.Screenshot` D-Bus interface, KDE uses `spectacle` (pre-installed). No extra packages needed for screenshots. For input automation, install `xdotool` (works via XWayland) or `ydotool` (native Wayland, requires `ydotoold` daemon running).
+>
+> **Custom screenshot command:** Set `COWORK_SCREENSHOT_CMD` to override the auto-detection. Use placeholders `{FILE}` (output path), `{X}`, `{Y}`, `{W}`, `{H}` (region). Example: `COWORK_SCREENSHOT_CMD='spectacle -b -n -r -o {FILE}'`
 
 ## Features
 - Native Linux support (Arch, Debian/Ubuntu, Fedora/RHEL, NixOS, AppImage) — **x86_64 and ARM64**, X11 and Wayland
@@ -258,7 +262,7 @@ The package applies several patches to make Claude Desktop work on Linux. Each p
 | `fix_browse_files_linux.py` | Enables `openDirectory` in file dialog (upstream macOS-only) | `rg -o 'openDirectory.{0,60}' index.js` |
 | `fix_browser_tools_linux.py` | Enables Chrome browser tools — redirects native host to Claude Code's wrapper | `rg -o '"Helpers".{0,50}' index.js` |
 | `fix_claude_code.py` | Detects system-installed Claude Code binary | `rg -o 'async getStatus\(\)\{.{0,200}' index.js` |
-| `fix_computer_use_linux.py` | Enables Computer Use — removes platform gates, injects Linux executor (xdotool/scrot/Wayland) | `rg -o 'process.platform.*darwin.*t7r' index.js` |
+| `fix_computer_use_linux.py` | Enables Computer Use — removes platform gates, injects Linux executor (grim/GNOME D-Bus/spectacle/scrot, xdotool/ydotool) | `rg -o 'process.platform.*darwin.*t7r' index.js` |
 | `fix_computer_use_tcc.py` | Stubs macOS TCC permission handlers to prevent error logs | Prepended IIFE, UUID extraction |
 | `fix_cowork_error_message.py` | Replaces Windows VM errors with Linux-friendly guidance | String literal match |
 | `fix_cowork_linux.py` | Enables Cowork — VM client, Unix socket, bundle config, binary resolution | `rg -o '.{0,50}vmClient.{0,50}' index.js` |

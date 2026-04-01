@@ -28,12 +28,15 @@ Suggests:       scrot
 Suggests:       xclip
 Suggests:       wmctrl
 Suggests:       xrandr
-# Computer Use — Wayland (install these if running native Wayland, e.g. Sway, Hyprland)
+# Computer Use — Wayland/wlroots (Sway, Hyprland)
 Suggests:       ydotool
 Suggests:       grim
 Suggests:       slurp
 Suggests:       wl-clipboard
 Suggests:       wlr-randr
+# Computer Use — KDE Plasma Wayland (spectacle is pre-installed on KDE)
+Suggests:       spectacle
+# Computer Use — GNOME Wayland: no extra packages needed (uses built-in D-Bus for screenshots)
 # Computer Use — Hyprland-specific
 Suggests:       hyprland
 # Cowork socket health check

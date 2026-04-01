@@ -2,6 +2,17 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-01 (v1.1.9669)
+
+### Fixed
+- **fix_computer_use_linux.py**: Screenshot support on non-wlroots Wayland compositors (GNOME, KDE). New fallback chain: `COWORK_SCREENSHOT_CMD` env override → grim (wlroots) → GNOME Shell D-Bus `ScreenshotArea` → spectacle + crop (KDE) → gnome-screenshot → scrot → import. Fixes [claude-cowork-service#13](https://github.com/patrickjaja/claude-cowork-service/issues/13).
+- **fix_computer_use_linux.py**: ydotool robustness — `_checkYdotool()` verifies ydotoold daemon is running before attempting ydotool commands. Falls back to xdotool via XWayland if daemon not found. Removed `--repeat` flag from click commands (use loop instead) for compatibility with older ydotool versions.
+- **fix_computer_use_linux.py**: ydotool `--absolute` flag fallback — `_moveMouse()` tries `--absolute`, then `-a`, then falls back to xdotool for maximum compatibility.
+
+### Docs
+- **README.md**: Updated Computer Use optional dependencies table with GNOME Wayland (built-in D-Bus) and KDE Plasma Wayland (spectacle) columns. Added `COWORK_SCREENSHOT_CMD` env var documentation.
+- **Packaging**: Added `spectacle` (KDE) as optional dependency across all formats (PKGBUILD, deb, rpm, nix). Added GNOME/KDE notes.
+
 ## 2026-03-31 (v1.1.9669)
 
 ### Changed

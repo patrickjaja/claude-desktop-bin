@@ -11,7 +11,7 @@ Package: claude-desktop-bin
 Architecture: amd64
 Depends: ${shlibs:Depends}, ${misc:Depends}, electron | electron-bin | electron33
 Recommends: libnotify-bin
-Suggests: xdotool, scrot, xclip, wmctrl, x11-xserver-utils, socat, hyprland, ydotool, grim, slurp, wl-clipboard, wlr-randr, nodejs
+Suggests: xdotool, scrot, xclip, wmctrl, x11-xserver-utils, socat, hyprland, ydotool, grim, slurp, wl-clipboard, wlr-randr, kde-spectacle, nodejs
 Description: Claude AI Desktop Application
  Claude is an AI assistant created by Anthropic to be helpful,
  harmless, and honest. This desktop application provides native
@@ -30,13 +30,20 @@ Description: Claude AI Desktop Application
   * wmctrl - Running app detection
   * x11-xserver-utils - Display enumeration (xrandr)
  .
- Optional dependencies for Computer Use (Wayland sessions):
-  * ydotool - Input automation
-  * grim - Screenshot capture (wlroots compositors)
+ Optional dependencies for Computer Use (Wayland — wlroots: Sway, Hyprland):
+  * ydotool - Input automation (requires ydotoold daemon running)
+  * grim - Screenshot capture
   * slurp - Region selection
   * wl-clipboard - Clipboard access
-  * wlr-randr - Display enumeration (wlroots compositors)
+  * wlr-randr - Display enumeration
   * hyprland - Cursor positioning and window queries (Hyprland only)
+ .
+ Optional dependencies for Computer Use (Wayland — KDE Plasma):
+  * kde-spectacle - Screenshot capture (pre-installed on KDE)
+  * xdotool - Input automation (via XWayland)
+ .
+ Note: GNOME Wayland needs no extra screenshot packages (uses built-in D-Bus).
+ Install xdotool for input automation (via XWayland) on GNOME/KDE.
  .
  Other optional dependencies:
   * socat - Cowork socket health check in launcher
