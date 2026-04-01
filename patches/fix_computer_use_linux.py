@@ -13,9 +13,9 @@ This patch:
   1. Removes the darwin gate in b7r() so t7r() runs on all platforms
   2. Extends ZM() to also return true on Linux
   3. Replaces L4r() (createDarwinExecutor) to return a Linux executor on Linux
-     using xdotool (input), scrot (screenshots), xrandr (displays), xclip (clipboard)
+     using xdotool (input), scrot (screenshots), Electron API (displays, clipboard)
      with Wayland auto-detection: ydotool (input), grim (screenshots),
-     wl-clipboard (clipboard), hyprctl/swaymsg (window info), Electron API (displays)
+     hyprctl/swaymsg (window info), desktopCapturer (screenshot fallback)
   4. Patches ensureOsPermissions to return granted:true on Linux (skip TCC)
   5. Hybrid handleToolCall: injects an early-return block at the top.
      - Teach tools (request_teach_access, teach_step, teach_batch) fall through
@@ -55,7 +55,7 @@ function _desktopId(){return(process.env.XDG_CURRENT_DESKTOP||"").toLowerCase()}
 var _ydotoolOk=null;
 function _checkYdotool(){if(_ydotoolOk!==null)return _ydotoolOk;if(!_hasCmd("ydotool")){_ydotoolOk=false;return false}try{_cp.execSync("pgrep -x ydotoold",{timeout:2000,stdio:"pipe"});_ydotoolOk=true}catch(e){var sock=(process.env.YDOTOOL_SOCKET||"")||((process.env.XDG_RUNTIME_DIR||"/tmp")+"/.ydotool_socket");try{_fs.accessSync(sock);_ydotoolOk=true}catch(se){console.warn("[claude-cu] ydotool found but ydotoold not running — falling back to xdotool");_ydotoolOk=false}}return _ydotoolOk}
 function _readClean(f){var buf=_fs.readFileSync(f);try{_fs.unlinkSync(f)}catch(e){}return buf.toString("base64")}
-function _captureRegion(x,y,w,h){
+async function _captureRegion(x,y,w,h){
   var tmp=_path.join(_os.tmpdir(),"claude-cu-"+Date.now()+"-"+Math.random().toString(36).slice(2)+".png");
   if(process.env.COWORK_SCREENSHOT_CMD){
     try{var cmd=process.env.COWORK_SCREENSHOT_CMD.replace(/\{FILE\}/g,tmp).replace(/\{X\}/g,x).replace(/\{Y\}/g,y).replace(/\{W\}/g,w).replace(/\{H\}/g,h);
@@ -78,49 +78,22 @@ function _captureRegion(x,y,w,h){
     try{_cp.execSync('gnome-screenshot -f "'+tmp+'"',{timeout:10000});if(_fs.existsSync(tmp))return _readClean(tmp)}catch(e){console.warn("[claude-cu] gnome-screenshot failed: "+e.message)}
   }
   try{_cp.execSync("scrot -a "+x+","+y+","+w+","+h+' -o "'+tmp+'"',{timeout:10000});return _readClean(tmp)}catch(e){}
-  try{_cp.execSync('import -window root -crop '+w+"x"+h+"+"+x+"+"+y+' "'+tmp+'"',{timeout:10000});return _readClean(tmp)}catch(e2){throw new Error("Screenshot failed — install grim (wlroots), or ensure GNOME Shell / spectacle (KDE) available, or set COWORK_SCREENSHOT_CMD env var. Error: "+e2.message)}
+  try{_cp.execSync('import -window root -crop '+w+"x"+h+"+"+x+"+"+y+' "'+tmp+'"',{timeout:10000});return _readClean(tmp)}catch(e2){}
+  try{var _sources=await _electron.desktopCapturer.getSources({types:["screen"],thumbnailSize:{width:w+x,height:h+y}});if(_sources&&_sources.length>0){var _img=_sources[0].thumbnail;if(_img&&!_img.isEmpty()){var _cropped=_img.crop({x:x,y:y,width:w,height:h});_fs.writeFileSync(tmp,_cropped.toPNG());return _readClean(tmp)}}}catch(dce){console.warn("[claude-cu] desktopCapturer fallback failed: "+dce.message)}
+  throw new Error("Screenshot failed — install grim (wlroots), or ensure GNOME Shell / spectacle (KDE) available, or set COWORK_SCREENSHOT_CMD env var.")
 }
 if(_wayland){console.log("[claude-cu] Wayland session detected — using native Wayland tools")}
 var _defaultMon={displayId:0,width:1920,height:1080,originX:0,originY:0,scaleFactor:1,isPrimary:true,label:"default"};
 function _getMonitors(){
-  if(_wayland){
-    try{
-      var displays=_electron.screen.getAllDisplays();
-      if(displays&&displays.length>0){
-        var primary=_electron.screen.getPrimaryDisplay();
-        var primaryId=primary?primary.id:displays[0].id;
-        return displays.map(function(d,idx){return{displayId:idx,width:d.size.width,height:d.size.height,originX:d.bounds.x,originY:d.bounds.y,scaleFactor:d.scaleFactor||1,isPrimary:d.id===primaryId,label:d.label||("display-"+idx)}});
-      }
-    }catch(ee){}
-    try{
-      if(_hasCmd("wlr-randr")){
-        var out=_exec("wlr-randr --json 2>/dev/null");
-        var data=JSON.parse(out);
-        var mons=[],id=0;
-        for(var i=0;i<data.length;i++){
-          var o=data[i];if(!o.enabled)continue;
-          var mode=o.modes&&o.modes.find(function(m){return m.current});
-          if(!mode)continue;
-          mons.push({displayId:id++,width:mode.width,height:mode.height,originX:o.x||0,originY:o.y||0,scaleFactor:o.scale||1,isPrimary:id===1,label:o.name||("display-"+id)});
-        }
-        if(mons.length>0)return mons;
-      }
-    }catch(we){}
-  }
   try{
-    var out=_exec("xrandr --current 2>/dev/null");
-    var mons=[],id=0;
-    var lines=out.split("\n");
-    for(var i=0;i<lines.length;i++){
-      var line=lines[i];
-      if(line.indexOf(" connected")===-1)continue;
-      var m=line.match(/(\d+)x(\d+)\+(\d+)\+(\d+)/);
-      if(!m)continue;
-      var label=line.split(" ")[0];
-      mons.push({displayId:id++,width:+m[1],height:+m[2],originX:+m[3],originY:+m[4],scaleFactor:1,isPrimary:line.indexOf("primary")!==-1,label:label});
+    var displays=_electron.screen.getAllDisplays();
+    if(displays&&displays.length>0){
+      var primary=_electron.screen.getPrimaryDisplay();
+      var primaryId=primary?primary.id:displays[0].id;
+      return displays.map(function(d,idx){return{displayId:idx,width:d.size.width,height:d.size.height,originX:d.bounds.x,originY:d.bounds.y,scaleFactor:d.scaleFactor||1,isPrimary:d.id===primaryId,label:d.label||("display-"+idx)}});
     }
-    return mons.length>0?mons:[_defaultMon];
-  }catch(e){return[_defaultMon]}
+  }catch(ee){}
+  return[_defaultMon];
 }
 function _findMon(displayId){
   var mons=_getMonitors();
@@ -173,7 +146,7 @@ function _mapKeyWayland(k){
   var l=k.trim().toLowerCase();
   return String(_kmap[l]||l);
 }
-function _screenshotMon(mon){return _captureRegion(mon.originX,mon.originY,mon.width,mon.height)}
+async function _screenshotMon(mon){return await _captureRegion(mon.originX,mon.originY,mon.width,mon.height)}
 function _getActiveWindowWayland(){
   try{
     if(process.env.HYPRLAND_INSTANCE_SIGNATURE&&_hasCmd("hyprctl")){
@@ -237,17 +210,17 @@ globalThis.__linuxExecutor={
   },
   async screenshot(opts){
     var mon=_findMon(opts&&opts.displayId);
-    var b64=_screenshotMon(mon);
+    var b64=await _screenshotMon(mon);
     return{base64:b64};
   },
   async resolvePrepareCapture(opts){
     var did=opts&&opts.preferredDisplayId;
     var mon=_findMon(did);
-    var b64=_screenshotMon(mon);
+    var b64=await _screenshotMon(mon);
     return{base64:b64,width:mon.width,height:mon.height,displayWidth:mon.width,displayHeight:mon.height,displayId:mon.displayId,originX:mon.originX,originY:mon.originY,hidden:[]};
   },
   async zoom(rect,scale,displayId){
-    var b64=_captureRegion(rect.x,rect.y,rect.w,rect.h);
+    var b64=await _captureRegion(rect.x,rect.y,rect.w,rect.h);
     return{base64:b64};
   },
   async prepareForAction(bundleIds,displayId){return[]},
@@ -442,10 +415,7 @@ globalThis.__linuxExecutor={
   async type(text,opts){
     if(_wayland&&_checkYdotool()){
       if(opts&&opts.viaClipboard){
-        var proc=_cp.spawnSync("wl-copy",[],{input:text,timeout:5000});
-        if(proc.status!==0){
-          proc=_cp.spawnSync("xclip",["-selection","clipboard"],{input:text,timeout:5000});
-        }
+        _electron.clipboard.writeText(text,"clipboard");
         if(_checkYdotool()){
           _exec("ydotool key leftctrl:1 v:1 v:0 leftctrl:0");
         }else{
@@ -456,8 +426,7 @@ globalThis.__linuxExecutor={
       }
     }else{
       if(opts&&opts.viaClipboard){
-        var proc=_cp.spawnSync("xclip",["-selection","clipboard"],{input:text,timeout:5000});
-        if(proc.status!==0){_cp.spawnSync("xsel",["--clipboard","--input"],{input:text,timeout:5000})}
+        _electron.clipboard.writeText(text,"clipboard");
         _exec("xdotool key --clearmodifiers ctrl+v");
       }else{
         _cp.execSync("xdotool type --clearmodifiers -- "+JSON.stringify(text),{timeout:15000});
@@ -465,21 +434,11 @@ globalThis.__linuxExecutor={
     }
   },
   async readClipboard(){
-    if(_wayland&&_hasCmd("wl-paste")){
-      try{return _exec("wl-paste --no-newline 2>/dev/null")}
-      catch(e){try{return _exec("xclip -selection clipboard -o 2>/dev/null")}catch(e2){return""}}
-    }
-    try{return _exec("xclip -selection clipboard -o 2>/dev/null||xsel --clipboard --output 2>/dev/null")}
+    try{return _electron.clipboard.readText("clipboard")||""}
     catch(e){return""}
   },
   async writeClipboard(text){
-    if(_wayland&&_hasCmd("wl-copy")){
-      var proc=_cp.spawnSync("wl-copy",[],{input:text,timeout:5000});
-      if(proc.status===0)return;
-      console.warn("[claude-cu] wl-copy failed, falling back to xclip");
-    }
-    var proc=_cp.spawnSync("xclip",["-selection","clipboard"],{input:text,timeout:5000});
-    if(proc.status!==0){_cp.spawnSync("xsel",["--clipboard","--input"],{input:text,timeout:5000})}
+    _electron.clipboard.writeText(text||"","clipboard");
   }
 };
 })();
@@ -733,15 +692,6 @@ def patch_computer_use_linux(filepath):
         # Replace the initial setIgnoreMouseEvents on the overlay with Linux tooltip-bounds polling
         old_init = f"{ov}.setIgnoreMouseEvents(!0,{{forward:!0}})".encode("utf-8")
 
-        # Build the executeJavaScript query string separately to avoid f-string escaping hell
-        # This JS runs in the overlay renderer to get the tooltip card's bounding rect
-        js_query = (
-            '\'(function(){var t=document.querySelector(".tooltip");'
-            "if(t&&t.offsetWidth>0){var r=t.getBoundingClientRect();"
-            "return JSON.stringify({x:r.left,y:r.top,w:r.width,h:r.height})}"
-            "return null})()'"
-        )
-
         new_init = (
             '(process.platform==="linux"?'
             # On Linux, keep the teach overlay permanently pass-through (visual only).
@@ -808,16 +758,10 @@ def patch_computer_use_linux(filepath):
     teach_overlay_pattern = rb'(=new \w+\.BrowserWindow\(\{[^}]*?)transparent:!0([^}]*?)backgroundColor:"#00000000"'
     teach_overlay_matches = list(re.finditer(teach_overlay_pattern, content))
     for m in teach_overlay_matches:
-        before = content[max(0, m.start()-80):m.start()]
-        if b'workArea' in before:
+        before = content[max(0, m.start() - 80) : m.start()]
+        if b"workArea" in before:
             old = m.group(0)
-            new = old.replace(
-                b'transparent:!0',
-                b'transparent:!globalThis.__isVM'
-            ).replace(
-                b'backgroundColor:"#00000000"',
-                b'backgroundColor:globalThis.__isVM?"#000000":"#00000000"'
-            )
+            new = old.replace(b"transparent:!0", b"transparent:!globalThis.__isVM").replace(b'backgroundColor:"#00000000"', b'backgroundColor:globalThis.__isVM?"#000000":"#00000000"')
             content = content.replace(old, new, 1)
             print("  [OK] teach overlay: VM-aware transparency (transparent on native, dark backdrop on VMs)")
             changes += 1

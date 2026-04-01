@@ -11,7 +11,7 @@ Package: claude-desktop-bin
 Architecture: amd64
 Depends: ${shlibs:Depends}, ${misc:Depends}, electron | electron-bin | electron33
 Recommends: libnotify-bin
-Suggests: xdotool, scrot, xclip, xsel, imagemagick, wmctrl, x11-xserver-utils, socat, hyprland, ydotool, grim, wl-clipboard, wlr-randr, jq, kde-spectacle, libglib2.0-bin, gnome-screenshot, nodejs
+Suggests: xdotool, scrot, imagemagick, wmctrl, socat, hyprland, ydotool, grim, jq, kde-spectacle, libglib2.0-bin, gnome-screenshot, nodejs
 Description: Claude AI Desktop Application
  Claude is an AI assistant created by Anthropic to be helpful,
  harmless, and honest. This desktop application provides native
@@ -26,17 +26,12 @@ Description: Claude AI Desktop Application
  Optional dependencies for Computer Use (X11/XWayland sessions):
   * xdotool - Input automation + Quick Entry cursor positioning
   * scrot - Screenshot capture
-  * xclip - Clipboard access
-  * xsel - Clipboard fallback
   * imagemagick - Screenshot fallback (import) and crop (convert)
   * wmctrl - Running app detection
-  * x11-xserver-utils - Display enumeration (xrandr)
  .
  Optional dependencies for Computer Use (Wayland — wlroots: Sway, Hyprland):
   * ydotool - Input automation (requires ydotoold daemon running)
   * grim - Screenshot capture
-  * wl-clipboard - Clipboard access
-  * wlr-randr - Display enumeration
   * jq - Window queries on Sway (used with swaymsg)
   * hyprland - Cursor positioning and window queries (Hyprland only)
  .
@@ -45,14 +40,12 @@ Description: Claude AI Desktop Application
   * xdotool - Cursor position reading and XWayland fallback
   * kde-spectacle - Screenshot capture
   * imagemagick - Multi-monitor screenshot crop (convert)
-  * wl-clipboard - Clipboard access
  .
  Optional dependencies for Computer Use (Wayland — GNOME):
   * ydotool - Input automation (requires ydotoold daemon; v1.0+ needed)
   * xdotool - Cursor position reading and XWayland fallback
   * libglib2.0-bin - Screenshot capture (gdbus for D-Bus)
   * gnome-screenshot - Screenshot fallback
-  * wl-clipboard - Clipboard access
  .
  Other optional dependencies:
   * socat - Cowork socket health check in launcher

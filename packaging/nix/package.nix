@@ -8,16 +8,11 @@
 # Computer Use — X11/XWayland session
 , xdotool ? null       # input automation + Quick Entry positioning
 , scrot ? null          # screenshot capture
-, xclip ? null          # clipboard access
-, xsel ? null           # clipboard fallback
 , imagemagick ? null    # screenshot fallback (import) and crop (convert)
 , wmctrl ? null         # running app detection
-, xrandr ? null         # display enumeration
 # Computer Use — Wayland session (Sway, Hyprland — wlroots compositors)
 , ydotool ? null        # input automation (requires ydotoold daemon)
 , grim ? null           # screenshot capture (wlroots)
-, wl-clipboard ? null   # clipboard access
-, wlr-randr ? null      # display enumeration (wlroots)
 , jq ? null             # window queries on Sway (used with swaymsg)
 , hyprland ? null       # cursor positioning (Hyprland only)
 # Computer Use — KDE Plasma Wayland
@@ -81,11 +76,8 @@ stdenvNoCC.mkDerivation {
       --add-flags "--disable-features=CustomTitlebar" \
       ${lib.optionalString (xdotool != null) "--prefix PATH : ${xdotool}/bin"} \
       ${lib.optionalString (scrot != null) "--prefix PATH : ${scrot}/bin"} \
-      ${lib.optionalString (xclip != null) "--prefix PATH : ${xclip}/bin"} \
-      ${lib.optionalString (xsel != null) "--prefix PATH : ${xsel}/bin"} \
       ${lib.optionalString (imagemagick != null) "--prefix PATH : ${imagemagick}/bin"} \
       ${lib.optionalString (wmctrl != null) "--prefix PATH : ${wmctrl}/bin"} \
-      ${lib.optionalString (xrandr != null) "--prefix PATH : ${xrandr}/bin"} \
       ${lib.optionalString (socat != null) "--prefix PATH : ${socat}/bin"} \
       ${lib.optionalString (hyprland != null) "--prefix PATH : ${hyprland}/bin"} \
       ${lib.optionalString (ydotool != null) "--prefix PATH : ${ydotool}/bin"} \
@@ -93,8 +85,6 @@ stdenvNoCC.mkDerivation {
       ${lib.optionalString (jq != null) "--prefix PATH : ${jq}/bin"} \
       ${lib.optionalString (spectacle != null) "--prefix PATH : ${spectacle}/bin"} \
       ${lib.optionalString (gnome-screenshot != null) "--prefix PATH : ${gnome-screenshot}/bin"} \
-      ${lib.optionalString (wl-clipboard != null) "--prefix PATH : ${wl-clipboard}/bin"} \
-      ${lib.optionalString (wlr-randr != null) "--prefix PATH : ${wlr-randr}/bin"} \
       ${lib.optionalString (nodejs != null) "--prefix PATH : ${nodejs}/bin"} \
       ${lib.optionalString (claude-code != null && extraSessionPaths == []) "--prefix PATH : ${claude-code}/bin"} \
       ${lib.concatMapStringsSep " \\\n      " (p:

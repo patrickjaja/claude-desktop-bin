@@ -74,7 +74,7 @@ Your responsibilities:
   - Always verify with `node --check` after patching.
   - Document break risk and debug `rg` patterns (see README.md patches table).
 - Check built-in MCP servers (see `CLAUDE_BUILT_IN_MCP.md`). Are they all functional on Linux? Do they need Linux-specific binaries?
-  - Computer Use MCP needs: xdotool, scrot, xclip, wmctrl (already handled).
+  - Computer Use MCP needs: xdotool, scrot, wmctrl (already handled). Clipboard and display info use Electron built-in APIs.
   - Check for any NEW built-in MCP servers that might need Linux equivalents.
 - Handle third-party dependencies carefully. Any new binary dependency must be added to ALL packaging configs:
   - `PKGBUILD.template` (Arch)

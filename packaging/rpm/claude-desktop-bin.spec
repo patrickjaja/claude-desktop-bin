@@ -25,17 +25,12 @@ Requires:       libnotify
 # Computer Use — X11/XWayland
 Suggests:       xdotool
 Suggests:       scrot
-Suggests:       xclip
-Suggests:       xsel
 Suggests:       ImageMagick
 Suggests:       wmctrl
-Suggests:       xrandr
 # Computer Use — all Wayland compositors (input automation)
 Suggests:       ydotool
 # Computer Use — Wayland/wlroots (Sway, Hyprland)
 Suggests:       grim
-Suggests:       wl-clipboard
-Suggests:       wlr-randr
 Suggests:       jq
 # Computer Use — KDE Plasma Wayland
 Suggests:       spectacle

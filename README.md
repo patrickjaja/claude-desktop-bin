@@ -20,13 +20,13 @@ yay -S claude-desktop-bin
 
 # Optional: Computer Use dependencies (pick your session type)
 # X11/XWayland:
-sudo pacman -S --needed xdotool scrot xclip xsel imagemagick wmctrl xorg-xrandr
+sudo pacman -S --needed xdotool scrot imagemagick wmctrl
 # Wayland (wlroots — Sway, Hyprland):
-sudo pacman -S --needed ydotool grim wl-clipboard wlr-randr jq
+sudo pacman -S --needed ydotool grim jq
 # Wayland (KDE Plasma):
-sudo pacman -S --needed ydotool xdotool spectacle imagemagick wl-clipboard xclip
+sudo pacman -S --needed ydotool xdotool spectacle imagemagick
 # Wayland (GNOME):
-sudo pacman -S --needed ydotool xdotool glib2 gnome-screenshot wl-clipboard xclip
+sudo pacman -S --needed ydotool xdotool glib2 gnome-screenshot
 ```
 On Wayland, the `ydotoold` daemon must be running — see [ydotool setup](#ydotool-setup-wayland).
 
@@ -42,13 +42,13 @@ sudo apt install claude-desktop-bin
 
 # Optional: Computer Use dependencies (pick your session type)
 # X11/XWayland:
-sudo apt install xdotool scrot xclip xsel imagemagick wmctrl x11-xserver-utils
+sudo apt install xdotool scrot imagemagick wmctrl
 # Wayland (wlroots — Sway, Hyprland):
-sudo apt install ydotool grim wl-clipboard wlr-randr jq
+sudo apt install ydotool grim jq
 # Wayland (KDE Plasma):
-sudo apt install ydotool xdotool kde-spectacle imagemagick wl-clipboard xclip
+sudo apt install ydotool xdotool kde-spectacle imagemagick
 # Wayland (GNOME):
-sudo apt install ydotool xdotool libglib2.0-bin gnome-screenshot wl-clipboard xclip
+sudo apt install ydotool xdotool libglib2.0-bin gnome-screenshot
 ```
 
 > **Wayland users:** Computer Use requires ydotool v1.0+, but Ubuntu/Debian ship v0.1.8 which is **too old**. Run the [ydotool setup script](#ydotool-setup-wayland) — without this, clicks will not work.
@@ -74,13 +74,13 @@ sudo dnf install claude-desktop-bin
 
 # Optional: Computer Use dependencies (pick your session type)
 # X11/XWayland:
-sudo dnf install xdotool scrot xclip xsel ImageMagick wmctrl xrandr
+sudo dnf install xdotool scrot ImageMagick wmctrl
 # Wayland (wlroots — Sway, Hyprland):
-sudo dnf install ydotool grim wl-clipboard wlr-randr jq
+sudo dnf install ydotool grim jq
 # Wayland (KDE Plasma):
-sudo dnf install ydotool xdotool spectacle ImageMagick wl-clipboard xclip
+sudo dnf install ydotool xdotool spectacle ImageMagick
 # Wayland (GNOME):
-sudo dnf install ydotool xdotool glib2 gnome-screenshot wl-clipboard xclip
+sudo dnf install ydotool xdotool glib2 gnome-screenshot
 ```
 On Wayland, the `ydotoold` daemon must be running — see [ydotool setup](#ydotool-setup-wayland).
 
@@ -108,21 +108,16 @@ For Computer Use, pass optional dependencies via override (pick your session typ
 ```nix
 claude-desktop.override {
   # X11/XWayland:
-  xdotool = pkgs.xdotool; scrot = pkgs.scrot; xclip = pkgs.xclip;
-  xsel = pkgs.xsel; imagemagick = pkgs.imagemagick;
-  wmctrl = pkgs.wmctrl; xrandr = pkgs.xorg.xrandr;
+  xdotool = pkgs.xdotool; scrot = pkgs.scrot;
+  imagemagick = pkgs.imagemagick; wmctrl = pkgs.wmctrl;
   # Wayland (wlroots — Sway, Hyprland):
-  # ydotool = pkgs.ydotool; grim = pkgs.grim;
-  # wl-clipboard = pkgs.wl-clipboard; wlr-randr = pkgs.wlr-randr;
-  # jq = pkgs.jq;
+  # ydotool = pkgs.ydotool; grim = pkgs.grim; jq = pkgs.jq;
   # Wayland (KDE Plasma):
   # ydotool = pkgs.ydotool; xdotool = pkgs.xdotool;
-  # spectacle = pkgs.kdePackages.spectacle;
-  # imagemagick = pkgs.imagemagick; wl-clipboard = pkgs.wl-clipboard;
+  # spectacle = pkgs.kdePackages.spectacle; imagemagick = pkgs.imagemagick;
   # Wayland (GNOME):
   # ydotool = pkgs.ydotool; xdotool = pkgs.xdotool;
   # gnome-screenshot = pkgs.gnome-screenshot;
-  # wl-clipboard = pkgs.wl-clipboard;
 }
 ```
 
@@ -211,8 +206,8 @@ Claude Desktop works without these — features degrade gracefully when tools ar
 |-----------|---------------|-------------------------------------|-----------------|----------------------|
 | Input automation | `xdotool` | `ydotool` (+ `ydotoold` running) | `ydotool` (+ `ydotoold` running) | `ydotool` (+ `ydotoold` running) |
 | Screenshots | `scrot`, `imagemagick` | `grim` | `gdbus` (glib2), `gnome-screenshot` | `spectacle`, `imagemagick` |
-| Clipboard | `xclip`, `xsel` | `wl-clipboard` | `wl-clipboard` | `wl-clipboard` |
-| Display info | `xrandr` | `wlr-randr` | Electron API | Electron API |
+| Clipboard | Electron API (built-in) | Electron API (built-in) | Electron API (built-in) | Electron API (built-in) |
+| Display info | Electron API (built-in) | Electron API (built-in) | Electron API (built-in) | Electron API (built-in) |
 | Window queries | `wmctrl` | `swaymsg` (Sway), `jq` | — | — |
 | Cursor positioning | `xdotool` | `ydotool` | `xdotool` (read), `ydotool` (move) | `xdotool` (read), `ydotool` (move) |
 

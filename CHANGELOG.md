@@ -4,6 +4,12 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 
 ## 2026-04-01 (v1.1.9669)
 
+### Changed
+- **fix_computer_use_linux.py**: Replaced external clipboard tools (`xclip`, `xsel`, `wl-clipboard`) with Electron's built-in `clipboard` API. Clipboard read/write and type-via-clipboard now use `electron.clipboard.readText()`/`writeText()` directly — no external packages needed.
+- **fix_computer_use_linux.py**: Replaced external display enumeration tools (`xrandr`, `wlr-randr`) with Electron's built-in `screen.getAllDisplays()` API for both X11 and Wayland. Eliminates 2 optional dependencies.
+- **fix_computer_use_linux.py**: Added `desktopCapturer` + `nativeImage.crop()` as last-resort screenshot fallback before the error throw. Helps on exotic Wayland compositors where no CLI screenshot tool is available.
+- **Packaging**: Removed `xclip`, `xsel`, `wl-clipboard`, `wlr-randr`, `xorg-xrandr` from optional dependencies across all formats (PKGBUILD, deb, rpm). 5 fewer packages to install.
+
 ### Fixed
 - **fix_computer_use_linux.py**: Computer Use clicks now work on all Wayland compositors (KDE, GNOME, wlroots). Three bugs fixed:
   1. **Window hiding before actions** — Added `setIgnoreMouseEvents` wrapper (matching upstream macOS `lB()` behavior) so clicks pass through Claude Desktop's window to the target app behind it.

@@ -406,7 +406,7 @@ Uses `createDarwinExecutor()` → `@ant/claude-swift` native module for screen c
 
 | # | Sub-patch | What it does |
 |---|-----------|-------------|
-| 1 | Inject `__linuxExecutor` | Linux executor using xdotool/scrot/xclip at `app.on("ready")` |
+| 1 | Inject `__linuxExecutor` | Linux executor using xdotool/scrot/Electron APIs at `app.on("ready")` |
 | 2 | Remove `b7r()` gate | Let `t7r()` register the server on all platforms (was darwin-only) |
 | 3 | Extend `ZM()` | Return `true` on Linux (bypass feature flag + `chicagoEnabled` preference) |
 | 4 | Patch `createDarwinExecutor` | Return `__linuxExecutor` on Linux instead of throwing |
@@ -420,9 +420,10 @@ Uses `createDarwinExecutor()` → `@ant/claude-swift` native module for screen c
 | `xdotool` | `xdotool` | Mouse, keyboard, window info |
 | `scrot` | `scrot` | Screenshots (with `-a` for per-monitor capture) |
 | `import` | `imagemagick` | Fallback screenshots, zoom/crop |
-| `xrandr` | `xorg-xrandr` | Display/monitor enumeration |
-| `xclip` | `xclip` | Clipboard read/write |
 | `wmctrl` | `wmctrl` | Running application detection |
+| Electron `clipboard` | built-in | Clipboard read/write |
+| Electron `screen` | built-in | Display/monitor enumeration |
+| Electron `desktopCapturer` | built-in | Screenshot fallback (last resort) |
 
 **Key differences from macOS:**
 - No TCC permissions — all tools work immediately without `request_access`
@@ -438,7 +439,7 @@ Uses `createDarwinExecutor()` → `@ant/claude-swift` native module for screen c
 - **Claude in Chrome**: Works on Linux via `fix_browser_tools_linux.py` — redirects native host binary to Claude Code's `~/.claude/chrome/chrome-native-host` and installs NativeMessagingHosts manifests for 6 Linux browsers (Chrome, Chromium, Brave, Edge, Vivaldi, Opera). Requires Claude Code CLI and the [Claude in Chrome](https://chromewebstore.google.com/detail/claude-code/fcoeoabgfenejglbffodgkkbkcdhcgfn) extension.
 - **Office Add-in**: Platform-gated to macOS/Windows. Patched to enable on Linux via `fix_office_addin_linux.py`.
 - **Terminal**: macOS only. Patched to enable on Linux via `fix_read_terminal_linux.py`.
-- **Computer Use**: Works on Linux via `fix_computer_use_linux.py` — uses xdotool/scrot/xclip instead of `@ant/claude-swift`. Available in Cowork and Code sessions.
+- **Computer Use**: Works on Linux via `fix_computer_use_linux.py` — uses xdotool/scrot + Electron built-in APIs (clipboard, screen, desktopCapturer) instead of `@ant/claude-swift`. Available in Cowork and Code sessions.
 - **MCP Registry / Plugins / Visualize / Scheduled Tasks**: Cross-platform, work on Linux.
 
 ## Operon IPC System (v1.1.9134)
