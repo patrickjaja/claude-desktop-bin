@@ -2,6 +2,14 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-02 (v1.2.234) — Session-aware Computer Use tool selection
+
+### Fixed
+- **fix_computer_use_linux.py**: Tool selection now uses session type and compositor detection instead of binary existence. Prevents wrong tools on wrong sessions (e.g., grim on KDE Wayland, scrot on Wayland, gnome-screenshot on Wayland GNOME 42+).
+- **fix_computer_use_linux.py**: `_isWayland()` now trusts `XDG_SESSION_TYPE` over `WAYLAND_DISPLAY` — fixes false positive when XWayland sets `WAYLAND_DISPLAY` on X11 sessions.
+- **fix_computer_use_linux.py**: grim restricted to wlroots compositors (`SWAYSOCK`/`HYPRLAND_INSTANCE_SIGNATURE`), scrot/import/gnome-screenshot restricted to X11.
+- **fix_computer_use_linux.py**: Fixed `type()` redundant `_checkYdotool()` that could fall back to xdotool on Wayland if daemon crashed mid-operation.
+
 ## 2026-04-02 (v1.2.234) — Nix build fix, docs & packaging improvements
 
 ### Fixed

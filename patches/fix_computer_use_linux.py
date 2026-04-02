@@ -14,7 +14,10 @@ This patch:
   2. (Removed — handled by Set fix)
   3. Replaces createDarwinExecutor to return a Linux executor on Linux
      using xdotool (input), scrot (screenshots), Electron API (displays, clipboard)
-     with Wayland auto-detection: ydotool (input), grim (screenshots),
+     with session-aware detection: XDG_SESSION_TYPE for X11/Wayland,
+     SWAYSOCK/HYPRLAND_INSTANCE_SIGNATURE for wlroots compositors,
+     XDG_CURRENT_DESKTOP for KDE/GNOME. Tools: ydotool (Wayland input),
+     grim (wlroots screenshots), spectacle (KDE), gdbus (GNOME Wayland),
      hyprctl/swaymsg (window info), desktopCapturer (screenshot fallback)
   4. Patches ensureOsPermissions to return granted:true on Linux (skip TCC)
   5. Hybrid handleToolCall: injects an early-return block at the top.
@@ -45,8 +48,9 @@ LINUX_EXECUTOR_JS = r"""
 var _cp=require("child_process"),_path=require("path"),_fs=require("fs"),_os=require("os"),_electron=require("electron");
 function _exec(cmd){return _cp.execSync(cmd,{encoding:"utf-8",timeout:15000}).trim()}
 function _execBuf(cmd){return _cp.execSync(cmd,{timeout:15000})}
-function _isWayland(){return process.env.XDG_SESSION_TYPE==="wayland"||!!process.env.WAYLAND_DISPLAY}
+function _isWayland(){var st=(process.env.XDG_SESSION_TYPE||"").toLowerCase();if(st==="wayland")return true;if(st==="x11")return false;return!!process.env.WAYLAND_DISPLAY}
 var _wayland=_isWayland();
+function _isWlroots(){return!!process.env.SWAYSOCK||!!process.env.HYPRLAND_INSTANCE_SIGNATURE}
 try{var _virt=_cp.execSync("systemd-detect-virt 2>/dev/null",{encoding:"utf-8",timeout:3000}).trim();globalThis.__isVM=_virt!=="none"&&_virt!==""}catch(e){globalThis.__isVM=!1}
 if(globalThis.__isVM)console.log("[claude-cu] VM detected ("+_virt+") — teach overlay uses dark backdrop fallback");
 var _cmdCache={};
@@ -62,7 +66,7 @@ async function _captureRegion(x,y,w,h){
     try{var cmd=process.env.COWORK_SCREENSHOT_CMD.replace(/\{FILE\}/g,tmp).replace(/\{X\}/g,x).replace(/\{Y\}/g,y).replace(/\{W\}/g,w).replace(/\{H\}/g,h);
     _cp.execSync(cmd,{timeout:15000});return _readClean(tmp)}catch(e){console.warn("[claude-cu] COWORK_SCREENSHOT_CMD failed: "+e.message)}
   }
-  if(_wayland&&_hasCmd("grim")){
+  if(_wayland&&_isWlroots()&&_hasCmd("grim")){
     try{_cp.execSync('grim -g "'+x+","+y+" "+w+"x"+h+'" "'+tmp+'"',{timeout:10000});return _readClean(tmp)}catch(e){console.warn("[claude-cu] grim failed: "+e.message)}
   }
   if(_wayland&&_de.indexOf("gnome")>=0&&_hasCmd("gdbus")){
@@ -75,13 +79,13 @@ async function _captureRegion(x,y,w,h){
     if(_fs.existsSync(stmp)){try{_cp.execSync('convert "'+stmp+'" -crop '+w+"x"+h+"+"+x+"+"+y+' +repage "'+tmp+'"',{timeout:5000});try{_fs.unlinkSync(stmp)}catch(e){}return _readClean(tmp)}catch(ce){try{_fs.renameSync(stmp,tmp)}catch(re){}return _readClean(tmp)}}
     }catch(e){console.warn("[claude-cu] spectacle failed: "+e.message)}
   }
-  if(_de.indexOf("gnome")>=0&&_hasCmd("gnome-screenshot")){
+  if(!_wayland&&_de.indexOf("gnome")>=0&&_hasCmd("gnome-screenshot")){
     try{_cp.execSync('gnome-screenshot -f "'+tmp+'"',{timeout:10000});if(_fs.existsSync(tmp))return _readClean(tmp)}catch(e){console.warn("[claude-cu] gnome-screenshot failed: "+e.message)}
   }
-  if(_hasCmd("scrot")){
+  if(!_wayland&&_hasCmd("scrot")){
     try{_cp.execSync("scrot -a "+x+","+y+","+w+","+h+' -o "'+tmp+'"',{timeout:10000});return _readClean(tmp)}catch(e){console.warn("[claude-cu] scrot failed: "+e.message)}
   }
-  try{_cp.execSync('import -window root -crop '+w+"x"+h+"+"+x+"+"+y+' "'+tmp+'"',{timeout:10000});return _readClean(tmp)}catch(e2){}
+  if(!_wayland){try{_cp.execSync('import -window root -crop '+w+"x"+h+"+"+x+"+"+y+' "'+tmp+'"',{timeout:10000});return _readClean(tmp)}catch(e2){}}
   try{var _sources=await _electron.desktopCapturer.getSources({types:["screen"],thumbnailSize:{width:w+x,height:h+y}});if(_sources&&_sources.length>0){var _img=_sources[0].thumbnail;if(_img&&!_img.isEmpty()){var _cropped=_img.crop({x:x,y:y,width:w,height:h});_fs.writeFileSync(tmp,_cropped.toPNG());return _readClean(tmp)}}}catch(dce){console.warn("[claude-cu] desktopCapturer fallback failed: "+dce.message)}
   throw new Error("Screenshot failed — install scrot (X11), grim (Wayland wlroots), or set COWORK_SCREENSHOT_CMD env var.")
 }
@@ -450,11 +454,7 @@ globalThis.__linuxExecutor={
     if(_wayland&&_checkYdotool()){
       if(opts&&opts.viaClipboard){
         _electron.clipboard.writeText(text,"clipboard");
-        if(_checkYdotool()){
-          _exec("ydotool key leftctrl:1 v:1 v:0 leftctrl:0");
-        }else{
-          _exec("xdotool key --clearmodifiers ctrl+v");
-        }
+        _exec("ydotool key 29:1 47:1 47:0 29:0");
       }else{
         _cp.execSync("ydotool type -- "+JSON.stringify(text),{timeout:15000});
       }
