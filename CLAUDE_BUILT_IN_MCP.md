@@ -362,7 +362,7 @@ disallowedTools: ["AskUserQuestion", "mcp__cowork__allow_cowork_file_delete",
 
 **Background:** Computer-use was previously a separate `computer-use-server.js` file in the app root (removed in v1.1.7714). As of v1.1.8359, it's fully integrated into `index.js` as an internal MCP server. In v1.1.9134, 5 new tools were added (multi-monitor, batch actions, teach mode).
 
-**Feature flag (v1.2.234):** `computerUse` is a feature flag in the static registry (`kgn()`, `vee()`-gated), meaning computer use is gated by both MCP server registration AND the feature flag. Our `fix_computer_use_linux.py` adds "linux" to the `ese` Set, and `enable_local_agent_mode.py` Patch 3 overrides it to `{status:"supported"}` on Linux, bypassing both gates.
+**Feature flag (v1.2.234):** Computer-use has a **triple gate**: (1) `ese` Set platform check (`vee()`), (2) static registry `computerUse` flag (`status` key, checked by `kgn()`), and (3) runtime enabled check (`Rse()`/`rj()` reading GrowthBook `chicago_config.enabled` + `chicagoEnabled` preference). Our patches bypass all three: `fix_computer_use_linux.py` adds "linux" to `ese` (gate 1), forces `mVt()` true on Linux (registration gate), and forces `rj()` true on Linux (runtime gate — bypasses both GrowthBook and the `chicagoEnabled` preference). `enable_local_agent_mode.py` Patch 3 overrides `computerUse` to `{status:"supported"}` (gate 2). The Settings toggle for CU is rendered server-side by claude.ai's web UI and hidden on Linux — `rj()` bypass means no toggle is needed.
 
 **Tools (27):**
 
@@ -402,7 +402,7 @@ Uses `createDarwinExecutor()` → `@ant/claude-swift` native module for screen c
 
 #### Linux executor (`fix_computer_use_linux.py`)
 
-`fix_computer_use_linux.py` applies 8 sub-patches:
+`fix_computer_use_linux.py` applies 12 sub-patches:
 
 | # | Sub-patch | What it does |
 |---|-----------|-------------|
@@ -414,6 +414,9 @@ Uses `createDarwinExecutor()` → `@ant/claude-swift` native module for screen c
 | 6 | Teach overlay controller | Verify `vee()` gate runs on Linux (handled by Set fix) |
 | 7 | Teach overlay mouse polling | Tooltip-bounds polling for Linux (X11 {forward:true} not supported) |
 | 8 | Neutralize setIgnoreMouseEvents | Prevent upstream resets from fighting with polling |
+| 9 | VM-aware teach transparency | Dark backdrop on VMs, full transparency on native hardware |
+| 10 | Force `mVt()` isEnabled on Linux | Bypass GrowthBook `enabled:false` — tools registered for ALL session types (CCD, cowork, dispatch) |
+| 11 | Force `rj()` true on Linux | Bypass both GrowthBook `enabled:false` AND `chicagoEnabled` preference — `isDisabled()` returns false, no config entry needed. The Settings toggle is rendered by claude.ai's web UI (server-side, not patchable), so on Linux CU is always enabled |
 
 **Linux tools used:**
 

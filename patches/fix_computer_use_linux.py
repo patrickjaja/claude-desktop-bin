@@ -57,6 +57,7 @@ function _checkYdotool(){if(_ydotoolOk!==null)return _ydotoolOk;if(!_hasCmd("ydo
 function _readClean(f){var buf=_fs.readFileSync(f);try{_fs.unlinkSync(f)}catch(e){}return buf.toString("base64")}
 async function _captureRegion(x,y,w,h){
   var tmp=_path.join(_os.tmpdir(),"claude-cu-"+Date.now()+"-"+Math.random().toString(36).slice(2)+".png");
+  var _de=_desktopId();
   if(process.env.COWORK_SCREENSHOT_CMD){
     try{var cmd=process.env.COWORK_SCREENSHOT_CMD.replace(/\{FILE\}/g,tmp).replace(/\{X\}/g,x).replace(/\{Y\}/g,y).replace(/\{W\}/g,w).replace(/\{H\}/g,h);
     _cp.execSync(cmd,{timeout:15000});return _readClean(tmp)}catch(e){console.warn("[claude-cu] COWORK_SCREENSHOT_CMD failed: "+e.message)}
@@ -64,23 +65,25 @@ async function _captureRegion(x,y,w,h){
   if(_wayland&&_hasCmd("grim")){
     try{_cp.execSync('grim -g "'+x+","+y+" "+w+"x"+h+'" "'+tmp+'"',{timeout:10000});return _readClean(tmp)}catch(e){console.warn("[claude-cu] grim failed: "+e.message)}
   }
-  if(_wayland&&_desktopId().indexOf("gnome")>=0&&_hasCmd("gdbus")){
+  if(_wayland&&_de.indexOf("gnome")>=0&&_hasCmd("gdbus")){
     try{_cp.execSync("gdbus call --session --dest org.gnome.Shell.Screenshot --object-path /org/gnome/Shell/Screenshot --method org.gnome.Shell.Screenshot.ScreenshotArea "+x+" "+y+" "+w+" "+h+" false '"+tmp+"'",{timeout:10000});
     if(_fs.existsSync(tmp))return _readClean(tmp)}catch(e){console.warn("[claude-cu] GNOME D-Bus screenshot failed: "+e.message)}
   }
-  if(_hasCmd("spectacle")){
+  if(_de.indexOf("kde")>=0&&_hasCmd("spectacle")){
     try{var stmp=_path.join(_os.tmpdir(),"claude-cu-spectacle-"+Date.now()+".png");
     _cp.execSync('spectacle -b -n -f -o "'+stmp+'"',{timeout:10000});
     if(_fs.existsSync(stmp)){try{_cp.execSync('convert "'+stmp+'" -crop '+w+"x"+h+"+"+x+"+"+y+' +repage "'+tmp+'"',{timeout:5000});try{_fs.unlinkSync(stmp)}catch(e){}return _readClean(tmp)}catch(ce){try{_fs.renameSync(stmp,tmp)}catch(re){}return _readClean(tmp)}}
     }catch(e){console.warn("[claude-cu] spectacle failed: "+e.message)}
   }
-  if(_hasCmd("gnome-screenshot")){
+  if(_de.indexOf("gnome")>=0&&_hasCmd("gnome-screenshot")){
     try{_cp.execSync('gnome-screenshot -f "'+tmp+'"',{timeout:10000});if(_fs.existsSync(tmp))return _readClean(tmp)}catch(e){console.warn("[claude-cu] gnome-screenshot failed: "+e.message)}
   }
-  try{_cp.execSync("scrot -a "+x+","+y+","+w+","+h+' -o "'+tmp+'"',{timeout:10000});return _readClean(tmp)}catch(e){}
+  if(_hasCmd("scrot")){
+    try{_cp.execSync("scrot -a "+x+","+y+","+w+","+h+' -o "'+tmp+'"',{timeout:10000});return _readClean(tmp)}catch(e){console.warn("[claude-cu] scrot failed: "+e.message)}
+  }
   try{_cp.execSync('import -window root -crop '+w+"x"+h+"+"+x+"+"+y+' "'+tmp+'"',{timeout:10000});return _readClean(tmp)}catch(e2){}
   try{var _sources=await _electron.desktopCapturer.getSources({types:["screen"],thumbnailSize:{width:w+x,height:h+y}});if(_sources&&_sources.length>0){var _img=_sources[0].thumbnail;if(_img&&!_img.isEmpty()){var _cropped=_img.crop({x:x,y:y,width:w,height:h});_fs.writeFileSync(tmp,_cropped.toPNG());return _readClean(tmp)}}}catch(dce){console.warn("[claude-cu] desktopCapturer fallback failed: "+dce.message)}
-  throw new Error("Screenshot failed — install grim (wlroots), or ensure GNOME Shell / spectacle (KDE) available, or set COWORK_SCREENSHOT_CMD env var.")
+  throw new Error("Screenshot failed — install scrot (X11), grim (Wayland wlroots), or set COWORK_SCREENSHOT_CMD env var.")
 }
 if(_wayland){console.log("[claude-cu] Wayland session detected — using native Wayland tools")}
 var _defaultMon={displayId:0,width:1920,height:1080,originX:0,originY:0,scaleFactor:1,isPrimary:true,label:"default"};
@@ -97,7 +100,12 @@ function _getMonitors(){
 }
 function _findMon(displayId){
   var mons=_getMonitors();
-  if(displayId!=null){for(var i=0;i<mons.length;i++){if(mons[i].displayId===displayId)return mons[i]}}
+  if(displayId!=null){
+    for(var i=0;i<mons.length;i++){if(mons[i].displayId===displayId)return mons[i]}
+    var displays=_electron.screen.getAllDisplays();
+    for(var i=0;i<displays.length;i++){if(displays[i].id===displayId&&i<mons.length)return mons[i]}
+  }
+  for(var i=0;i<mons.length;i++){if(mons[i].isPrimary)return mons[i]}
   return mons[0];
 }
 function _moveMouse(x,y){
@@ -206,7 +214,7 @@ globalThis.__linuxExecutor={
   async listDisplays(){return _getMonitors()},
   async getDisplaySize(displayId){
     var m=_findMon(displayId);
-    return{width:m.width,height:m.height,scaleFactor:m.scaleFactor};
+    return{width:m.width,height:m.height,scaleFactor:m.scaleFactor,originX:m.originX||0,originY:m.originY||0};
   },
   async screenshot(opts){
     var mon=_findMon(opts&&opts.displayId);
@@ -311,12 +319,38 @@ globalThis.__linuxExecutor={
   },
   async getAppIcon(appPath){return null},
   async openApp(name){
+    function _resolveApp(n){
+      var dirs=["/usr/share/applications",_path.join(_os.homedir(),".local/share/applications"),"/var/lib/flatpak/exports/share/applications",_path.join(_os.homedir(),".local/share/flatpak/exports/share/applications")];
+      var nl=n.toLowerCase();
+      for(var d=0;d<dirs.length;d++){
+        try{
+          var files=_fs.readdirSync(dirs[d]);
+          for(var i=0;i<files.length;i++){
+            if(files[i].indexOf(".desktop")===-1)continue;
+            try{
+              var content=_fs.readFileSync(_path.join(dirs[d],files[i]),"utf-8");
+              var nameMatch=content.match(/^Name=(.+)$/m);
+              var execMatch=content.match(/^Exec=(\S+)/m);
+              if(nameMatch&&execMatch){
+                var dname=nameMatch[1].trim().toLowerCase();
+                var dfn=files[i].replace(/\.desktop$/,"").toLowerCase();
+                var execCmd=execMatch[1].replace(/%.*/,"").trim();
+                if(dname===nl||dfn===nl||_path.basename(execCmd).toLowerCase()===nl)return execCmd;
+              }
+            }catch(fe){}
+          }
+        }catch(de){}
+      }
+      return null;
+    }
+    var resolved=_resolveApp(name);
+    var cmd=resolved||name;
     try{
-      _cp.exec("setsid "+name+" >/dev/null 2>&1");
+      _cp.exec("setsid "+JSON.stringify(cmd)+" >/dev/null 2>&1");
     }catch(e){
       try{
-        _cp.exec("setsid xdg-open "+name+" >/dev/null 2>&1");
-      }catch(e2){throw new Error("Could not open "+name)}
+        _cp.exec("setsid xdg-open "+JSON.stringify(name)+" >/dev/null 2>&1");
+      }catch(e2){throw new Error("Could not open "+name+(resolved?" (resolved to "+resolved+")":""))}
     }
   },
   async moveMouse(x,y){_moveMouse(x,y)},
@@ -448,33 +482,40 @@ globalThis.__linuxExecutor={
 # Linux hybrid handler — injected at the top of handleToolCall as an early-return block.
 #
 # Architecture:
-#   - Teach tools (request_teach_access, teach_step, teach_batch) and request_access
-#     fall through to the UPSTREAM chain. Sub-patches 2-5 ensure the upstream chain
-#     uses __linuxExecutor and auto-grants permissions. The teach overlay (BrowserWindow
+#   - Teach tools (request_teach_access, teach_step, teach_batch) fall through
+#     to the UPSTREAM chain. Sub-patches 2-5 ensure the upstream chain uses
+#     __linuxExecutor and auto-grants permissions. The teach overlay (BrowserWindow
 #     + IPC) works on Linux natively since it's pure Electron.
+#   - request_access: handled directly on Linux — grants ALL requested apps at
+#     full tier (no click-only/type restrictions). The upstream handler applies
+#     macOS app tiers that restrict IDEs/terminals to "click" tier.
 #   - Normal CU tools use a FAST DIRECT handler dispatching to __linuxExecutor,
 #     skipping the macOS app tiers, allowlists, and permission dialogs.
 #
 # __DISPATCHER__ is replaced at patch time with the actual session dispatcher function
 # name (e.g. EZr). __SELF__ is replaced with the object name (e.g. nnt).
 LINUX_HANDLER_INJECTION_JS = r"""if(process.platform==="linux"){
-var __lxTeachTools=["request_teach_access","teach_step","teach_batch","request_access"];
+var __lxTeachTools=["request_teach_access","teach_step","teach_batch"];
 if(__lxTeachTools.indexOf(t)>=0){const __n=__DISPATCHER__(r);const{save_to_disk:__sd,...__s}=e;return await __n(t,__s)}
+if(t==="request_access"){var __apps=e.apps||[];var __granted=__apps.map(function(a){return{bundleId:a,displayName:a,grantedAt:Date.now(),tier:"full"}});return{content:[{type:"text",text:JSON.stringify({granted:__granted,denied:[],screenshotFiltering:"none"})}]}}
 var ex=globalThis.__linuxExecutor;
 if(!ex)return{content:[{type:"text",text:"Linux executor not initialized"}],isError:!0};
+globalThis.__cuActiveOrigin=globalThis.__cuActiveOrigin||{x:0,y:0};
+function __txC(c){var o=globalThis.__cuActiveOrigin;return[(c[0]||0)+(o?o.x:0),(c[1]||0)+(o?o.y:0)]}
+function __untxC(x,y){var o=globalThis.__cuActiveOrigin;return[(x||0)-(o?o.x:0),(y||0)-(o?o.y:0)]}
 var __actionTools=new Set(["left_click","right_click","double_click","triple_click","middle_click","left_click_drag","mouse_move","scroll","key","type","hold_key","left_mouse_down","left_mouse_up","computer_batch"]);
 async function __hideWindows(fn){var __bws=require("electron").BrowserWindow.getAllWindows().filter(function(w){return!w.isDestroyed()});for(var __i=0;__i<__bws.length;__i++)__bws[__i].setIgnoreMouseEvents(true);try{await new Promise(function(r){setTimeout(r,50)});return await fn()}finally{for(var __i=0;__i<__bws.length;__i++){if(!__bws[__i].isDestroyed())__bws[__i].setIgnoreMouseEvents(false)}}}
 if(__actionTools.has(t)){return await __hideWindows(async function(){switch(t){
-case"left_click":{var __lc=e.coordinate||[e.x,e.y];await ex.click(__lc[0],__lc[1],"left",1);return{content:[{type:"text",text:"Clicked at ("+__lc[0]+","+__lc[1]+")"}]}}
-case"right_click":{var __rc=e.coordinate||[e.x,e.y];await ex.click(__rc[0],__rc[1],"right",1);return{content:[{type:"text",text:"Right clicked"}]}}
-case"double_click":{var __dc=e.coordinate||[e.x,e.y];await ex.click(__dc[0],__dc[1],"left",2);return{content:[{type:"text",text:"Double clicked"}]}}
-case"triple_click":{var __tc=e.coordinate||[e.x,e.y];await ex.click(__tc[0],__tc[1],"left",3);return{content:[{type:"text",text:"Triple clicked"}]}}
-case"middle_click":{var __mc=e.coordinate||[e.x,e.y];await ex.click(__mc[0],__mc[1],"middle",1);return{content:[{type:"text",text:"Middle clicked"}]}}
+case"left_click":{var __lc=__txC(e.coordinate||[e.x,e.y]);await ex.click(__lc[0],__lc[1],"left",1);return{content:[{type:"text",text:"Clicked at ("+__lc[0]+","+__lc[1]+")"}]}}
+case"right_click":{var __rc=__txC(e.coordinate||[e.x,e.y]);await ex.click(__rc[0],__rc[1],"right",1);return{content:[{type:"text",text:"Right clicked"}]}}
+case"double_click":{var __dc=__txC(e.coordinate||[e.x,e.y]);await ex.click(__dc[0],__dc[1],"left",2);return{content:[{type:"text",text:"Double clicked"}]}}
+case"triple_click":{var __tc=__txC(e.coordinate||[e.x,e.y]);await ex.click(__tc[0],__tc[1],"left",3);return{content:[{type:"text",text:"Triple clicked"}]}}
+case"middle_click":{var __mc=__txC(e.coordinate||[e.x,e.y]);await ex.click(__mc[0],__mc[1],"middle",1);return{content:[{type:"text",text:"Middle clicked"}]}}
 case"type":{await ex.type(e.text||"",{viaClipboard:!1});return{content:[{type:"text",text:"Typed text"}]}}
 case"key":{await ex.key(e.key||e.text||"",e.count||1);return{content:[{type:"text",text:"Pressed key: "+(e.key||e.text)}]}}
-case"scroll":{var __sc=e.coordinate||[e.x||0,e.y||0],__dir=e.scroll_direction||e.direction||"down",__amt=e.scroll_amount||e.amount||3,__sv=__dir==="down"?__amt:__dir==="up"?-__amt:0,__sh=__dir==="right"?__amt:__dir==="left"?-__amt:0;await ex.scroll(__sc[0],__sc[1],__sh,__sv);return{content:[{type:"text",text:"Scrolled "+__dir}]}}
-case"left_click_drag":{var __dsc=e.start_coordinate,__den=e.coordinate;await ex.drag(__dsc?{x:__dsc[0],y:__dsc[1]}:void 0,{x:__den[0],y:__den[1]});return{content:[{type:"text",text:"Dragged"}]}}
-case"mouse_move":{var __mv=e.coordinate||[e.x,e.y];await ex.moveMouse(__mv[0],__mv[1]);return{content:[{type:"text",text:"Moved to ("+__mv[0]+","+__mv[1]+")"}]}}
+case"scroll":{var __sc=__txC(e.coordinate||[e.x||0,e.y||0]),__dir=e.scroll_direction||e.direction||"down",__amt=e.scroll_amount||e.amount||3,__sv=__dir==="down"?__amt:__dir==="up"?-__amt:0,__sh=__dir==="right"?__amt:__dir==="left"?-__amt:0;await ex.scroll(__sc[0],__sc[1],__sh,__sv);return{content:[{type:"text",text:"Scrolled "+__dir}]}}
+case"left_click_drag":{var __dsc=e.start_coordinate?__txC(e.start_coordinate):null,__den=__txC(e.coordinate);await ex.drag(__dsc?{x:__dsc[0],y:__dsc[1]}:void 0,{x:__den[0],y:__den[1]});return{content:[{type:"text",text:"Dragged"}]}}
+case"mouse_move":{var __mv=__txC(e.coordinate||[e.x,e.y]);await ex.moveMouse(__mv[0],__mv[1]);return{content:[{type:"text",text:"Moved to ("+__mv[0]+","+__mv[1]+")"}]}}
 case"hold_key":{await ex.holdKey(e.key||"",e.duration||.5);return{content:[{type:"text",text:"Held key"}]}}
 case"left_mouse_down":{await ex.mouseDown();return{content:[{type:"text",text:"Mouse down"}]}}
 case"left_mouse_up":{await ex.mouseUp();return{content:[{type:"text",text:"Mouse up"}]}}
@@ -482,12 +523,12 @@ case"computer_batch":{var __actions=e.actions||[],__completed=[],__failIdx=-1,__
 default:return{content:[{type:"text",text:"Unknown action tool: "+t}],isError:!0}
 }})}
 try{switch(t){
-case"screenshot":{var __did=globalThis.__cuPinnedDisplay!==void 0?globalThis.__cuPinnedDisplay:(e.display_number||e.display_id||0);var __ss=await ex.screenshot({displayId:__did});return{content:[{type:"image",data:__ss.base64,mimeType:"image/png"}]}}
-case"zoom":{var __zc=e.coordinate||[960,540],__sz=e.size||400,__hf=Math.floor(__sz/2),__zr=await ex.zoom({x:Math.max(0,__zc[0]-__hf),y:Math.max(0,__zc[1]-__hf),w:__sz,h:__sz},1,0);return{content:[{type:"image",data:__zr.base64,mimeType:"image/png"}]}}
-case"cursor_position":{var __cp=await ex.getCursorPosition();return{content:[{type:"text",text:"("+__cp.x+", "+__cp.y+")"}]}}
+case"screenshot":{var __dlist=await ex.listDisplays();var __primaryIdx=0;for(var __pi=0;__pi<__dlist.length;__pi++){if(__dlist[__pi].isPrimary){__primaryIdx=__dlist[__pi].displayId;break}}var __did=globalThis.__cuPinnedDisplay!==void 0?globalThis.__cuPinnedDisplay:(e.display_number||e.display_id||__primaryIdx);var __actMon=__dlist.find(function(d){return d.displayId===__did})||__dlist[0]||{originX:0,originY:0};globalThis.__cuActiveOrigin={x:__actMon.originX||0,y:__actMon.originY||0};var __ss=await ex.screenshot({displayId:__did});return{content:[{type:"image",data:__ss.base64,mimeType:"image/png"}]}}
+case"zoom":{var __zc=__txC(e.coordinate||[960,540]),__sz=e.size||400,__hf=Math.floor(__sz/2),__zr=await ex.zoom({x:Math.max(0,__zc[0]-__hf),y:Math.max(0,__zc[1]-__hf),w:__sz,h:__sz},1,0);return{content:[{type:"image",data:__zr.base64,mimeType:"image/png"}]}}
+case"cursor_position":{var __cp=await ex.getCursorPosition();var __cpr=__untxC(__cp.x,__cp.y);return{content:[{type:"text",text:"("+__cpr[0]+", "+__cpr[1]+")"}]}}
 case"wait":{var __ws=Math.min(e.duration||e.seconds||1,30);await new Promise(function(__rv){setTimeout(__rv,__ws*1000)});return{content:[{type:"text",text:"Waited "+__ws+"s"}]}}
 case"open_application":{await ex.openApp(e.app||e.application||"");return{content:[{type:"text",text:"Opened app"}]}}
-case"switch_display":{var __displays=await ex.listDisplays();var __target=e.display;if(__target==="auto"||!__target){globalThis.__cuPinnedDisplay=void 0;return{content:[{type:"text",text:"Display mode set to auto (follows cursor). Available: "+__displays.map(function(d){return d.label+" ("+d.width+"x"+d.height+")"}).join(", ")}]}}var __found=__displays.find(function(d){return d.label===__target||String(d.displayId)===String(__target)});if(__found){globalThis.__cuPinnedDisplay=__found.displayId;return{content:[{type:"text",text:"Switched to display: "+__found.label+" ("+__found.width+"x"+__found.height+")"}]}}return{content:[{type:"text",text:"Display '"+__target+"' not found. Available: "+__displays.map(function(d){return d.label}).join(", ")}]}}
+case"switch_display":{var __displays=await ex.listDisplays();var __target=e.display;if(__target==="auto"||!__target){globalThis.__cuPinnedDisplay=void 0;return{content:[{type:"text",text:"Display mode set to auto (follows cursor). Available: "+__displays.map(function(d){return d.label+" ("+d.width+"x"+d.height+")"}).join(", ")}]}}var __found=__displays.find(function(d){return d.label===__target||String(d.displayId)===String(__target)});if(__found){globalThis.__cuPinnedDisplay=__found.displayId;globalThis.__cuActiveOrigin={x:__found.originX||0,y:__found.originY||0};return{content:[{type:"text",text:"Switched to display: "+__found.label+" ("+__found.width+"x"+__found.height+")"}]}}return{content:[{type:"text",text:"Display '"+__target+"' not found. Available: "+__displays.map(function(d){return d.label}).join(", ")}]}}
 case"list_granted_applications":{return{content:[{type:"text",text:"All applications are accessible on Linux (no grants needed)"}]}}
 case"read_clipboard":{var cb=await ex.readClipboard();return{content:[{type:"text",text:cb}]}}
 case"write_clipboard":{await ex.writeClipboard(e.text||"");return{content:[{type:"text",text:"Written to clipboard"}]}}
@@ -643,17 +684,12 @@ def patch_computer_use_linux(filepath):
     # The overlay becomes fully click-through and NEVER receives mouseenter, so the
     # tooltip buttons (Next/Exit) remain unclickable forever.
     #
-    # Previous fix (broken): Polled cursor against overlay.getContentBounds() — but
-    # the overlay is FULLSCREEN, so cursor was always "inside" → setIgnoreMouseEvents(false)
-    # permanently → entire screen blocked.
-    #
-    # Current fix: Poll cursor against the TOOLTIP CARD bounds (not the overlay window
-    # bounds). Uses executeJavaScript to query the .tooltip element's bounding rect
-    # from the renderer every 200ms, then checks cursor position against those card
-    # bounds every 50ms. When cursor is over the card → clickable. Otherwise → pass-through.
-    #
-    # Works on X11 and XWayland. Wayland fallback: if getPosition() returns (0,0) and
-    # tooltip bounds are available, assumes the overlay fills the workArea and adjusts.
+    # Fix: Override setIgnoreMouseEvents to a no-op on the teach overlay window.
+    # This keeps the overlay permanently interactive so tooltip buttons work.
+    # Trade-off: users can't click through to apps behind the overlay during
+    # the teach session — acceptable for a guided tour. The no-op also prevents
+    # the upstream mouse-leave IPC handler and step transition functions (yJt/SUn)
+    # from setting the window back to pass-through.
 
     # Find the overlay variable name from: OVERLAYVAR.setAlwaysOnTop(!0,"screen-saver"),OVERLAYVAR.setFullScreenable(!1),OVERLAYVAR.setIgnoreMouseEvents(!0,{forward:!0})
     overlay_var_pattern = rb'(\w+)\.setAlwaysOnTop\(!0,"screen-saver"\),\1\.setFullScreenable\(!1\),\1\.setIgnoreMouseEvents\(!0,\{forward:!0\}\)'
@@ -667,11 +703,17 @@ def patch_computer_use_linux(filepath):
 
         new_init = (
             '(process.platform==="linux"?'
-            # On Linux, keep the teach overlay permanently pass-through (visual only).
-            # Electron bug #16777: setIgnoreMouseEvents(true,{forward:true}) doesn't
-            # forward mouse events on Linux. teach_batch auto-advances steps.
-            # On VMs: also set low opacity (dark backdrop) since transparency crashes GPU.
-            f"({ov}.setIgnoreMouseEvents(!0),globalThis.__isVM&&{ov}.setOpacity(.15))"
+            # On Linux, override setIgnoreMouseEvents to a no-op so the teach overlay
+            # stays interactive throughout its lifetime. Electron bug #16777 means
+            # {forward:true} doesn't work on Linux/X11 — the overlay would become
+            # permanently pass-through with no way back. By keeping it interactive,
+            # users can click Next/Exit buttons. The trade-off: users can't click
+            # through to apps behind the overlay during teach — acceptable for a
+            # guided tour. The upstream mouse-leave IPC handler and yJt/SUn step
+            # transitions all call setIgnoreMouseEvents on this window — the no-op
+            # prevents them from breaking interactivity.
+            f"({ov}.setIgnoreMouseEvents=function(){{}},"  # no-op override
+            f"globalThis.__isVM&&{ov}.setOpacity(.15))"
             f":{ov}.setIgnoreMouseEvents(!0,{{forward:!0}}))"
         ).encode("utf-8")
 
@@ -688,9 +730,9 @@ def patch_computer_use_linux(filepath):
     # Patch 9: Neutralize setIgnoreMouseEvents resets in yJt/SUn on Linux
     # The upstream code calls setIgnoreMouseEvents(true,{forward:true}) in two places
     # during step transitions: yJt() (show step) and SUn() (working state).
-    # On macOS, {forward:true} allows the overlay to still receive mouse-enter events.
-    # On Linux, it just becomes setIgnoreMouseEvents(true) which fights with our polling.
-    # Fix: wrap these calls so on Linux they're no-ops (our polling handles the state).
+    # Patch 8's no-op override already catches these on the teach overlay window.
+    # This patch is a belt-and-suspenders safety net for cases where the function
+    # parameter differs from the global overlay variable (yJt receives it as a param).
     #
     # Pattern in yJt: OVERLAYVAR.setIgnoreMouseEvents(!0,{forward:!0}),OVERLAYVAR.webContents.send("cu-teach:show"
     # Pattern in SUn: OVERLAYVAR.setIgnoreMouseEvents(!0,{forward:!0}),OVERLAYVAR.webContents.send("cu-teach:working"
@@ -741,6 +783,70 @@ def patch_computer_use_linux(filepath):
             break
     else:
         print("  [WARN] teach overlay transparency pattern not found")
+
+    # Patch 10b: Force teach overlay display to primary monitor on Linux
+    # The xlr() function resolves which display to use for the glow and teach overlay
+    # windows. On macOS, autoTargetDisplay + findWindowDisplays determines the correct
+    # display. On Linux, these fall back to the Claude Desktop window's display, which
+    # may be a non-primary monitor. We simplify: on Linux, always use the primary
+    # monitor for teach overlays. This avoids fragile xdotool-based window detection
+    # that only works on X11 and keeps the teach experience consistent across distros.
+    # Pattern: function xlr(PARAM){return PARAM===null?ELECTRON.screen.getPrimaryDisplay():...}
+    xlr_pattern = rb"(function \w+\((\w+)\)\{)(return \2===null\?\w+\.screen\.getPrimaryDisplay\(\):\w+\.screen\.getAllDisplays\(\)\.find)"
+
+    def patch_xlr(m):
+        param = m.group(2).decode("utf-8")
+        return m.group(1) + f'if(process.platform==="linux"){param}=null;'.encode("utf-8") + m.group(3)
+
+    content, count = re.subn(xlr_pattern, patch_xlr, content, count=1)
+    if count >= 1:
+        print(f"  [OK] teach overlay display: forced to primary monitor on Linux ({count} match)")
+        changes += count
+    else:
+        print("  [WARN] xlr display resolver pattern: 0 matches (teach may appear on wrong monitor)")
+
+    # Patch 11: Force mVt() (computer-use isEnabled gate) to return true on Linux
+    # The mVt() function gates whether the computer-use MCP server is enabled for
+    # ALL session types (CCD, cowork, dispatch). It checks:
+    #   fn(serverFlag) ? ese.has(platform) && Rse() : rj()
+    # Both branches call Rse(), which reads the "enabled" key from GrowthBook's
+    # chicago_config. Anthropic's server returns enabled:false, so mVt() returns
+    # false even though our other patches (Set fix, executor, permissions) are working.
+    # Our enable_local_agent_mode.py only overrides {status:"supported"} in the
+    # static registry — it doesn't affect the GrowthBook "enabled" key.
+    # Fix: inject an early return true on Linux before the original logic.
+    mVt_pattern = rb"(function \w+\(\)\{)return \w+\(\w+\)\?\w+\.has\(process\.platform\)&&\w+\(\):\w+\(\)\}"
+
+    def patch_mVt(m):
+        return m.group(1) + b'if(process.platform==="linux")return!0;' + m.group(0)[len(m.group(1)) :]
+
+    content, count = re.subn(mVt_pattern, patch_mVt, content, count=1)
+    if count >= 1:
+        print(f"  [OK] mVt isEnabled: force true on Linux ({count} match)")
+        changes += count
+    else:
+        print("  [WARN] mVt isEnabled pattern: 0 matches (computer-use may not work in cowork/CCD)")
+
+    # Patch 12: Force rj() to return true on Linux (bypass chicagoEnabled + GrowthBook)
+    # rj() is the single function that feeds BOTH runtime gates:
+    #   - isDisabled() = !rj()  → blocks tool calls when false
+    #   - hasComputerUse = rj() → controls system prompt CU instructions
+    # Original: rj() = ese.has(platform) ? Rse() && Rr("chicagoEnabled") : false
+    # Rse() reads GrowthBook enabled:false, Rr reads chicagoEnabled preference (default false).
+    # Both fail → rj()=false → tools blocked. The Settings toggle (claude.ai web UI)
+    # is server-rendered and hidden on Linux regardless of our main-process patches.
+    # Fix: return true unconditionally on Linux — no config entry needed.
+    rj_pattern = rb'(function \w+\(\)\{)return \w+\.has\(process\.platform\)\?\w+\(\)&&\w+\("chicagoEnabled"\):!1\}'
+
+    def patch_rj(m):
+        return m.group(1) + b'if(process.platform==="linux")return!0;' + m.group(0)[len(m.group(1)) :]
+
+    content, count = re.subn(rj_pattern, patch_rj, content, count=1)
+    if count >= 1:
+        print(f"  [OK] rj chicagoEnabled bypass: force true on Linux ({count} match)")
+        changes += count
+    else:
+        print("  [WARN] rj pattern: 0 matches (computer-use tool calls may be blocked)")
 
     if changes > 0 and content != original_content:
         with open(filepath, "wb") as f:

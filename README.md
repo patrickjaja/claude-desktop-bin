@@ -303,7 +303,9 @@ Example prompt: *"Can you use computer use MCP to explain me the PhpStorm applic
 
 **App discovery** for the teach/learn overlay scans `.desktop` files from `/usr/share/applications`, `~/.local/share/applications`, and Flatpak directories. Each app is registered with multiple name variants (full name, first word, exec basename, icon name, .desktop filename) so the model can match apps flexibly (e.g., "Thunar" matches "Thunar File Manager").
 
-**Teach overlay on Linux:** The overlay BrowserWindow and IPC handlers (`cu-teach:next`, `cu-teach:exit`) initialize on Linux via an injected `process.platform==="linux"&&RUn(mgr,win)` call. Since Electron's `setIgnoreMouseEvents(true, {forward: true})` is [broken on X11](https://github.com/electron/electron/issues/16777), a 50ms polling loop queries the tooltip card's bounding rect and cursor position (via `xdotool getmouselocation` → `hyprctl cursorpos` → Electron API fallback) to toggle click-through dynamically.
+**Multi-monitor limitation:** Computer Use on Linux is limited to the **primary monitor** only. Screenshots, clicks, and the teach overlay all target the primary display. On multi-monitor setups, coordinates are translated from display-relative to absolute screen space automatically. Use `switch_display` if you need to target a different monitor for screenshots/clicks, but the teach overlay always appears on primary.
+
+**Teach overlay on Linux:** Since Electron's `setIgnoreMouseEvents(true, {forward: true})` is [broken on X11](https://github.com/electron/electron/issues/16777), the teach overlay stays fully interactive (buttons are clickable) but blocks clicks to apps behind it during the guided tour. The tooltip repositions between steps via `anchorLogical` coordinates pointing to UI elements.
 
 See [CLAUDE_BUILT_IN_MCP.md](CLAUDE_BUILT_IN_MCP.md#14-computer-use) for the full tool reference and [Optional Dependencies](#optional-dependencies) for required packages.
 

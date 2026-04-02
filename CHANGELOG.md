@@ -2,6 +2,21 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-02 (v1.2.234) — Computer Use multi-monitor & teach overlay fixes
+
+### Fixed
+- **fix_computer_use_linux.py**: Multi-monitor coordinate translation — clicks used display-relative coordinates directly with xdotool (absolute). Added `__txC()`/`__untxC()` to translate using the active display's origin offset.
+- **fix_computer_use_linux.py**: Teach overlay spawned on wrong monitor — patched `xlr()` to always resolve to primary display on Linux.
+- **fix_computer_use_linux.py**: Teach overlay buttons (Next/Exit) unclickable (Electron bug #16777) — override `setIgnoreMouseEvents` to no-op so overlay stays interactive.
+- **fix_computer_use_linux.py**: Teach tooltip stuck in upper-left — `getDisplaySize()` missing `originX`/`originY`, `_findMon()` didn't match Electron native display IDs.
+
+### Changed
+- **fix_computer_use_linux.py**: Default screenshot display → primary (was displayId=0). Now 12 sub-patches (was 8).
+
+### Docs
+- **README.md**: Documented multi-monitor limitation (primary monitor only) and teach overlay behavior.
+- **CLAUDE_BUILT_IN_MCP.md**: Updated sub-patch table (8→12), expanded feature flag docs.
+
 ## 2026-04-01 (v1.2.234) — Computer Use Wayland fix
 
 ### Fixed
