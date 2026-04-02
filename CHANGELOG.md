@@ -2,6 +2,16 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-02 (v1.2.234) — Nix build fix, docs & packaging improvements
+
+### Fixed
+- **flake.nix**: Pass `claude-code = null` to avoid pulling yanked npm tarballs from nixpkgs (e.g. `@anthropic-ai/claude-code@2.1.88` → 404). Users can still override.
+
+### Changed
+- **README.md**: Split KDE Plasma / GNOME install commands into separate lines, added socat as optional dependency, improved session-type guidance.
+- **packaging/nix/package.nix**: Added `glib` optional dependency for GNOME `gsettings` (flat mouse acceleration).
+- **patches/fix_computer_use_linux.py**: Updated doc comment (switch_display uses Electron screen API, not xrandr).
+
 ## 2026-04-02 (v1.2.234) — Computer Use multi-monitor & teach overlay fixes
 
 ### Fixed

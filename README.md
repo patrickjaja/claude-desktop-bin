@@ -18,13 +18,18 @@ Unofficial Linux packages for Claude Desktop AI assistant with automated updates
 ```bash
 yay -S claude-desktop-bin
 
-# Optional: Computer Use dependencies (pick your session type)
+# Optional: Computer Use dependencies
+# Pick the line matching your session type (echo $XDG_SESSION_TYPE and echo $XDG_CURRENT_DESKTOP):
 # X11/XWayland:
 sudo pacman -S --needed xdotool scrot imagemagick wmctrl
 # Wayland (wlroots — Sway, Hyprland):
-sudo pacman -S --needed ydotool grim jq
-# Wayland (KDE Plasma / GNOME):
-sudo pacman -S --needed ydotool xdotool spectacle imagemagick glib2 gnome-screenshot
+sudo pacman -S --needed ydotool grim jq hyprland
+# Wayland (KDE Plasma):
+sudo pacman -S --needed ydotool xdotool spectacle imagemagick
+# Wayland (GNOME):
+sudo pacman -S --needed ydotool xdotool glib2 gnome-screenshot
+# Optional: socat (cowork socket health checks, has fallback)
+# sudo pacman -S --needed socat
 ```
 On Wayland, the `ydotoold` daemon must be running — see [ydotool setup](#ydotool-setup-wayland).
 
@@ -38,13 +43,18 @@ curl -fsSL https://patrickjaja.github.io/claude-desktop-bin/install.sh | sudo ba
 # Install
 sudo apt install claude-desktop-bin
 
-# Optional: Computer Use dependencies (pick your session type)
+# Optional: Computer Use dependencies
+# Pick the line matching your session type (echo $XDG_SESSION_TYPE and echo $XDG_CURRENT_DESKTOP):
 # X11/XWayland:
 sudo apt install xdotool scrot imagemagick wmctrl
 # Wayland (wlroots — Sway, Hyprland):
-sudo apt install ydotool grim jq
-# Wayland (KDE Plasma / GNOME):
-sudo apt install ydotool xdotool kde-spectacle imagemagick libglib2.0-bin gnome-screenshot
+sudo apt install ydotool grim jq hyprland
+# Wayland (KDE Plasma):
+sudo apt install ydotool xdotool kde-spectacle imagemagick
+# Wayland (GNOME):
+sudo apt install ydotool xdotool libglib2.0-bin gnome-screenshot
+# Optional: socat (cowork socket health checks, has fallback)
+# sudo apt install socat
 ```
 
 > **Wayland users:** Computer Use requires ydotool v1.0+, but Ubuntu/Debian ship v0.1.8 which is **too old**. Run the [ydotool setup script](#ydotool-setup-wayland) — without this, clicks will not work.
@@ -68,13 +78,18 @@ curl -fsSL https://patrickjaja.github.io/claude-desktop-bin/install-rpm.sh | sud
 # Install
 sudo dnf install claude-desktop-bin
 
-# Optional: Computer Use dependencies (pick your session type)
+# Optional: Computer Use dependencies
+# Pick the line matching your session type (echo $XDG_SESSION_TYPE and echo $XDG_CURRENT_DESKTOP):
 # X11/XWayland:
 sudo dnf install xdotool scrot ImageMagick wmctrl
 # Wayland (wlroots — Sway, Hyprland):
-sudo dnf install ydotool grim jq
-# Wayland (KDE Plasma / GNOME):
-sudo dnf install ydotool xdotool spectacle ImageMagick glib2 gnome-screenshot
+sudo dnf install ydotool grim jq hyprland
+# Wayland (KDE Plasma):
+sudo dnf install ydotool xdotool spectacle ImageMagick
+# Wayland (GNOME):
+sudo dnf install ydotool xdotool glib2 gnome-screenshot
+# Optional: socat (cowork socket health checks, has fallback)
+# sudo dnf install socat
 ```
 On Wayland, the `ydotoold` daemon must be running — see [ydotool setup](#ydotool-setup-wayland).
 
@@ -98,7 +113,7 @@ nix run github:patrickjaja/claude-desktop-bin
 nix profile install github:patrickjaja/claude-desktop-bin
 ```
 
-For Computer Use, pass optional dependencies via override (pick your session type):
+For Computer Use, pass optional dependencies via override. Pick the block matching your session type (`echo $XDG_SESSION_TYPE` and `echo $XDG_CURRENT_DESKTOP`):
 ```nix
 claude-desktop.override {
   # X11/XWayland:
@@ -106,10 +121,15 @@ claude-desktop.override {
   imagemagick = pkgs.imagemagick; wmctrl = pkgs.wmctrl;
   # Wayland (wlroots — Sway, Hyprland):
   # ydotool = pkgs.ydotool; grim = pkgs.grim; jq = pkgs.jq;
-  # Wayland (KDE Plasma / GNOME):
+  # hyprland = pkgs.hyprland;
+  # Wayland (KDE Plasma):
   # ydotool = pkgs.ydotool; xdotool = pkgs.xdotool;
   # spectacle = pkgs.kdePackages.spectacle; imagemagick = pkgs.imagemagick;
-  # gnome-screenshot = pkgs.gnome-screenshot;
+  # Wayland (GNOME):
+  # ydotool = pkgs.ydotool; xdotool = pkgs.xdotool;
+  # glib = pkgs.glib; gnome-screenshot = pkgs.gnome-screenshot;
+  # Optional: socat (cowork socket health checks, has fallback)
+  # socat = pkgs.socat;
 }
 ```
 

@@ -16,7 +16,12 @@
       in
       {
         packages = {
-          claude-desktop = pkgs.callPackage ./packaging/nix/package.nix { };
+          claude-desktop = pkgs.callPackage ./packaging/nix/package.nix {
+            # Avoid pulling claude-code from nixpkgs — its npm tarball is
+            # frequently yanked between releases, breaking the build.
+            # Users can override: claude-desktop.override { claude-code = pkgs.claude-code; }
+            claude-code = null;
+          };
           default = self.packages.${system}.claude-desktop;
         };
       }

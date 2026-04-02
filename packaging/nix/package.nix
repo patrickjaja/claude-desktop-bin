@@ -19,6 +19,7 @@
 , spectacle ? null      # screenshot capture (KDE Plasma)
 # Computer Use — GNOME Wayland
 , gnome-screenshot ? null  # screenshot fallback (GNOME)
+, glib ? null              # gsettings (flat mouse acceleration)
 # Claude Code CLI — required for Cowork, Dispatch, and Code integration
 , claude-code ? null    # auto-resolved by callPackage if in nixpkgs
 # Other optional
@@ -85,6 +86,7 @@ stdenvNoCC.mkDerivation {
       ${lib.optionalString (jq != null) "--prefix PATH : ${jq}/bin"} \
       ${lib.optionalString (spectacle != null) "--prefix PATH : ${spectacle}/bin"} \
       ${lib.optionalString (gnome-screenshot != null) "--prefix PATH : ${gnome-screenshot}/bin"} \
+      ${lib.optionalString (glib != null) "--prefix PATH : ${glib}/bin"} \
       ${lib.optionalString (nodejs != null) "--prefix PATH : ${nodejs}/bin"} \
       ${lib.optionalString (claude-code != null && extraSessionPaths == []) "--prefix PATH : ${claude-code}/bin"} \
       ${lib.concatMapStringsSep " \\\n      " (p:

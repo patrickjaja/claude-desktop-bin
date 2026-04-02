@@ -24,7 +24,7 @@ This patch:
        Electron BrowserWindow + IPC — works on Linux natively.
      - Normal CU tools use a fast direct handler dispatching to __linuxExecutor,
        skipping the macOS app tiers, allowlists, and permission dialogs.
-     - switch_display: real implementation using xrandr display enumeration
+     - switch_display: real implementation using Electron screen API
      - computer_batch: structured {completed, failed, remaining} return format
 
 Usage: python3 fix_computer_use_linux.py <path_to_index.js>
