@@ -108,6 +108,11 @@ fi
 if command -v gtk-update-icon-cache &>/dev/null; then
     gtk-update-icon-cache /usr/share/icons/hicolor || true
 fi
+# Ensure repo config has metadata_expire for timely updates
+REPO_FILE="/etc/yum.repos.d/claude-desktop.repo"
+if [ -f "$REPO_FILE" ] && ! grep -q '^metadata_expire=' "$REPO_FILE"; then
+    echo 'metadata_expire=300' >> "$REPO_FILE"
+fi
 
 %postun
 if command -v update-desktop-database &>/dev/null; then
