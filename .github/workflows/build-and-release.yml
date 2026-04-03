@@ -1220,8 +1220,9 @@ jobs:
           mkdir -p "$REPO_DIR"
           tar -xzf /tmp/gh-pages-content.tar.gz -C "$REPO_DIR"
 
-          # Initialize git repo for the push
+          # Initialize a fresh git repo for the push (remove any .git from artifact)
           REMOTE="https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO}.git"
+          rm -rf "$REPO_DIR/.git"
           cd "$REPO_DIR"
           git config --global --add safe.directory "$REPO_DIR"
           git init
