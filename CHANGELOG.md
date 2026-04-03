@@ -2,6 +2,12 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-03 (v1.2.234) — Fix workspace trust dialog showing "app.asar" (#24)
+
+### Fixed
+- **fix_asar_workspace_cwd.py** (new): On first launch, the workspace trust dialog could show "Allow Claude to change files in 'app.asar'?" because the web app resolved `app.getAppPath()` as the default workspace. The new patch injects a `__cdb_sanitizeCwd()` helper that redirects any workspace path containing `app.asar` to `os.homedir()` on Linux. Patches 5 IPC bridge functions: `checkTrust`, `saveTrust`, `start`, and both `startCodeSession` handlers.
+- **.desktop files**: Added `Path=%h` across all packaging formats (Arch, RPM, DEB, AppImage) so the working directory defaults to `$HOME` when launching from the app menu, preventing the desktop environment from inheriting an arbitrary cwd.
+
 ## 2026-04-02 (v1.2.234) — Session-aware Computer Use tool selection
 
 ### Fixed

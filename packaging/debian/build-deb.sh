@@ -128,6 +128,7 @@ cat > "$DEB_ROOT/usr/share/applications/claude-desktop.desktop" << EOF
 Name=Claude
 Comment=Claude AI Desktop Application
 Exec=claude-desktop %u
+Path=%h
 Icon=claude-desktop
 Type=Application
 Terminal=false
