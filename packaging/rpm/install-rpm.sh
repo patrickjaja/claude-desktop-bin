@@ -29,6 +29,7 @@ enabled=1
 gpgcheck=1
 gpgkey=$REPO_URL/gpg-key.asc
 repo_gpgcheck=1
+metadata_expire=300
 EOF
 echo "  Repository added to $REPO_FILE"
 
