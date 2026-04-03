@@ -134,7 +134,8 @@ def patch_local_agent_mode(filepath):
     overrides = b',quietPenguin:{status:"supported"},louderPenguin:{status:"supported"},chillingSlothFeat:{status:"supported"},chillingSlothLocal:{status:"supported"},yukonSilver:{status:"supported"},yukonSilverGems:{status:"supported"},ccdPlugins:{status:"supported"},computerUse:{status:"supported"}'
 
     # New format: return{...FUNC(),...props}};
-    pattern3_new = rb"(return\{\.\.\.(\w+)\(\),[^}]+)(\}\};)"
+    # Note: [\w$]+ because minified names can start with $ (e.g. $w)
+    pattern3_new = rb"(return\{\.\.\.([\w$]+)\(\),[^}]+)(\}\};)"
     count3 = 0
     match3 = re.search(pattern3_new, content)
     if match3:

@@ -668,12 +668,14 @@ def patch_computer_use_linux(filepath):
     stub_end = rb"listInstalledApps:\(\)=>\[\]\}\)"
     stub_match = re.search(stub_end, content)
     if stub_match:
-        # Check that vee() gate follows the stub (meaning overlay init is Set-gated)
+        # Check that the Set-based CU gate follows the stub (meaning overlay init is gated)
+        # The gate function name changes every release (vee→MX→...) but always calls
+        # <name>.has(process.platform) on the ese/gie Set we already patched.
         after_stub = content[stub_match.end() : stub_match.end() + 50]
-        if b"vee()" in after_stub:
-            print("  [OK] teach overlay controller: vee() gate found (handled by Set fix)")
+        if b".has(process.platform)" in after_stub or b"vee()" in after_stub or b"MX()" in after_stub:
+            print("  [OK] teach overlay controller: CU gate found (handled by Set fix)")
         else:
-            print("  [WARN] teach overlay: vee() gate not found after TCC stub — may need manual check")
+            print("  [WARN] teach overlay: CU gate not found after TCC stub — may need manual check")
     else:
         print("  [WARN] teach overlay: TCC stub pattern not found")
 

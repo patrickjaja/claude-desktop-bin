@@ -2,6 +2,23 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-03 (v1.569.0) — Upstream version bump, patch regex fix
+
+### Fixed
+- **enable_local_agent_mode.py**: Async feature merger regex failed because the static registry function was renamed to `$w()` — the `$` character isn't matched by `\w`. Changed regex from `\w+` to `[\w$]+` to handle `$`-prefixed minified names.
+
+### Added
+- **fix_dispatch_linux.py**: Force-enable GrowthBook flag `1143815894` (hostLoopMode / non-VM cowork) on Linux. Since Linux has no VM infrastructure and uses native cowork via the Go daemon, host-loop mode is semantically correct — it tells the Electron side to skip VM path translations and use native host paths directly.
+
+### Changed
+- **Version bump to v1.569.0** — upstream switched from 4-part versioning (v1.2.234) to 3-part (v1.569.0). All 31 patches apply cleanly. Same 18 feature flags, no structural changes.
+- Function renames: `Uw()`→`$w()` (static registry), `Lse`→`tse` (async merger), `I_e()`→`V0e()` (production gate), `fn()`→`Sn()` (flag reader).
+- 3 new GrowthBook flags: `286376943`, `1434290056`, `2392971184`. Flag `1143815894` re-added.
+
+### Docs
+- **CLAUDE_FEATURE_FLAGS.md**: Updated all function names, version history table, GrowthBook catalog for v1.569.0.
+- **CLAUDE_BUILT_IN_MCP.md**: Updated version header.
+
 ## 2026-04-03 (v1.2.234) — Fix workspace trust dialog showing "app.asar" (#24)
 
 ### Fixed

@@ -27,11 +27,16 @@ D. Include Linux in the Xqe telemetry gate.
    Without Linux, dispatch telemetry events silently drop. We extend the
    check to include Linux.
 
-E. Override Jr() to force-enable dispatch agent name flag.
-   Flag "3558849738" controls Lv() which determines if the Dispatch agent
-   name feature is active. When false, sessionsBridgeStatusStore reports
-   agentNameEnabled:false and the web frontend hides the Dispatch tab.
-   We inject a check at the top of Jr() to return true for this flag ID.
+E. Override Jr() for Linux-critical GrowthBook flags.
+   Two flags are force-enabled on Linux:
+   - "3558849738": Controls Lv() → agentNameEnabled in the bridge status
+     store. When false, the web frontend hides Dispatch entirely.
+   - "1143815894": Controls hostLoopMode (non-VM cowork). When true,
+     sessions run the CLI directly on the host instead of in a VM. Linux
+     has no VM infrastructure — we always use native cowork via the Go
+     daemon, so host-loop mode is semantically correct and avoids
+     unnecessary VM path translations.
+   We inject checks at the top of Jr() to return true for both flags.
 
 F. Fix sessions-bridge event filter to forward text responses.
    The rjt() function in the sessions-bridge determines which assistant
@@ -209,9 +214,15 @@ def patch_dispatch_linux(filepath):
     # Pattern uses \w+ for all minified names. The unique anchor is the
     # Cl[t] lookup + nullish coalescing chain.
 
-    jr_already = b'if(t==="3558849738")return!0;'
+    jr_already = b'if(t==="3558849738"||t==="1143815894")return!0;'
+    jr_old_single = b'if(t==="3558849738")return!0;'
     if jr_already in content:
         print("  [OK] Jr() dispatch flag override: already patched (skipped)")
+        patches_applied += 1
+    elif jr_old_single in content:
+        # Upgrade from old single-flag override to include hostLoopMode flag
+        content = content.replace(jr_old_single, jr_already, 1)
+        print("  [OK] Jr() dispatch flag override: upgraded to include hostLoopMode")
         patches_applied += 1
     else:
         # Match: function Jr(t){const e=Cl[t];return(e==null?void 0:e.on)??!1}
@@ -223,7 +234,7 @@ def patch_dispatch_linux(filepath):
 
         def jr_replacement(m):
             param = m.group(4)
-            return m.group(1) + m.group(2) + m.group(3) + m.group(4) + m.group(5) + b"if(" + param + b'==="3558849738")return!0;' + m.group(6)
+            return m.group(1) + m.group(2) + m.group(3) + m.group(4) + m.group(5) + b"if(" + param + b'==="3558849738"||' + param + b'==="1143815894")return!0;' + m.group(6)
 
         content, count_e = re.subn(jr_pattern, jr_replacement, content)
         if count_e >= 1:

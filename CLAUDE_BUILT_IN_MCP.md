@@ -1,4 +1,4 @@
-# Built-in MCP Servers — Claude Desktop v1.2.234
+# Built-in MCP Servers — Claude Desktop v1.569.0
 
 Claude Desktop registers internal MCP servers via a two-layer architecture:
 
