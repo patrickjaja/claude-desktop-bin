@@ -252,6 +252,32 @@ jobs:
           fi
           echo "All scripts passed shellcheck"
 
+      - name: Validate .desktop files
+        run: |
+          sudo apt-get install -y desktop-file-utils
+          echo "=== Validating .desktop entries ==="
+          FAILED=false
+          # Extract .desktop from PKGBUILD.template
+          sed -n '/^\[Desktop Entry\]/,/^EOF$/p' PKGBUILD.template | head -n -1 > /tmp/claude.desktop
+          if desktop-file-validate /tmp/claude.desktop 2>&1 | grep -q "warning:"; then
+            echo "::error::PKGBUILD.template .desktop has warnings:"
+            desktop-file-validate /tmp/claude.desktop 2>&1 | grep "warning:"
+            FAILED=true
+          fi
+          # Also validate standalone .desktop files
+          for f in packaging/debian/*.desktop; do
+            [ -f "$f" ] || continue
+            if desktop-file-validate "$f" 2>&1 | grep -q "warning:"; then
+              echo "::error::$f has warnings:"
+              desktop-file-validate "$f" 2>&1 | grep "warning:"
+              FAILED=true
+            fi
+          done
+          if [ "$FAILED" = true ]; then
+            exit 1
+          fi
+          echo "All .desktop files passed validation"
+
       - name: Run ruff on Python patches
         run: |
           pip install ruff

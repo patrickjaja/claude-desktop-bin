@@ -237,6 +237,26 @@ else
     log_warn "shellcheck not installed — skipping launcher validation"
 fi
 
+# Validate .desktop entry from PKGBUILD.template
+# The .desktop file is generated at install time by PKGBUILD, not shipped in the tarball.
+# We extract and validate it here to catch spec violations (like invalid Path= values)
+# before they reach users.
+if command -v desktop-file-validate &>/dev/null; then
+    DESKTOP_TMP="$WORK_DIR/claude-desktop.desktop"
+    sed -n '/^\[Desktop Entry\]/,/^EOF$/p' "$PROJECT_DIR/PKGBUILD.template" | head -n -1 > "$DESKTOP_TMP"
+    DESKTOP_WARNINGS=$(desktop-file-validate "$DESKTOP_TMP" 2>&1 | grep -c "warning:" || true)
+    if [ "$DESKTOP_WARNINGS" -gt 0 ]; then
+        log_error ".desktop file has validation warnings:"
+        desktop-file-validate "$DESKTOP_TMP" 2>&1 | grep "warning:" >&2
+        rm -f "$DESKTOP_TMP"
+        exit 1
+    fi
+    rm -f "$DESKTOP_TMP"
+    log_info ".desktop file passed validation"
+else
+    log_warn "desktop-file-validate not installed — skipping .desktop validation"
+fi
+
 # Extract icon
 if [ -f "$WORK_DIR/extract/setupIcon.ico" ]; then
     icotool -x -o "$TARBALL_DIR/icons/" "$WORK_DIR/extract/setupIcon.ico"
