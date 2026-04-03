@@ -81,7 +81,6 @@ cat > %{buildroot}/usr/share/applications/claude-desktop.desktop << 'DESKTOP'
 Name=Claude
 Comment=Claude AI Desktop Application
 Exec=claude-desktop %u
-Path=%h
 Icon=claude-desktop
 Type=Application
 Terminal=false

@@ -2,6 +2,11 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-03 (v1.569.0) — Fix app menu launch, upstream version bump
+
+### Fixed
+- **Desktop files**: Remove `Path=%h` from all .desktop files (#26). `%h` is a field code only valid in the `Exec` key — in `Path` it's treated as a literal string, causing desktop environments (Cinnamon, others) to fail silently when launching from the app menu. The `fix_asar_workspace_cwd.py` patch already handles cwd sanitization in JS, so the .desktop `Path` was unnecessary.
+
 ## 2026-04-03 (v1.569.0) — Upstream version bump, patch regex fix
 
 ### Fixed
