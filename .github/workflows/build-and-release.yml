@@ -1208,17 +1208,36 @@ jobs:
           gpg --armor --export "$GPG_KEY_ID" > /tmp/gpg-key.asc
 
           # Clone gh-pages (includes APT repo from release job)
+          # The release job force-pushes gh-pages just before this job runs.
+          # Wait briefly and verify we have the current commit to avoid racing
+          # the GitHub CDN and triggering a second Pages deployment with stale content.
           REPO_DIR="/tmp/gh-pages-repo"
           rm -rf "$REPO_DIR"
           REMOTE="https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO}.git"
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          if git ls-remote --heads "$REMOTE" gh-pages | grep -q gh-pages; then
-            git clone --depth 1 --branch gh-pages "$REMOTE" "$REPO_DIR"
-          else
-            mkdir -p "$REPO_DIR" && cd "$REPO_DIR"
-            git init && git checkout -b gh-pages && git remote add origin "$REMOTE"
-            cd -
-          fi
+
+          # Get the expected HEAD of gh-pages (what the release job just pushed)
+          EXPECTED_SHA=$(git ls-remote "$REMOTE" refs/heads/gh-pages | cut -f1)
+          echo "Expected gh-pages HEAD: $EXPECTED_SHA"
+
+          for attempt in 1 2 3 4 5; do
+            rm -rf "$REPO_DIR"
+            if git ls-remote --heads "$REMOTE" gh-pages | grep -q gh-pages; then
+              git clone --depth 1 --branch gh-pages "$REMOTE" "$REPO_DIR"
+            else
+              mkdir -p "$REPO_DIR" && cd "$REPO_DIR"
+              git init && git checkout -b gh-pages && git remote add origin "$REMOTE"
+              cd -
+              break
+            fi
+            CLONED_SHA=$(git -C "$REPO_DIR" rev-parse HEAD)
+            if [ "$CLONED_SHA" = "$EXPECTED_SHA" ]; then
+              echo "Clone is up to date (attempt $attempt)"
+              break
+            fi
+            echo "Clone is stale ($CLONED_SHA != $EXPECTED_SHA), retrying in 15s (attempt $attempt)..."
+            sleep 15
+          done
 
           # Copy GPG public key
           cp /tmp/gpg-key.asc "$REPO_DIR/gpg-key.asc"
@@ -1230,14 +1249,14 @@ jobs:
             bash packaging/rpm/update-rpm-repo.sh "$RPM_FILE" "$REPO_DIR" "$GPG_KEY_ID"
           done
 
-          # Commit and push
+          # Commit and push (force-push to ensure we replace gh-pages atomically)
           cd "$REPO_DIR"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -A
           git diff --staged --quiet || {
             git commit -m "Update RPM repo: claude-desktop ${VERSION}"
-            git push origin gh-pages
+            git push --force origin gh-pages
           }
 
   # ================================================================
