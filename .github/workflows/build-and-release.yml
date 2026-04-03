@@ -1223,6 +1223,7 @@ jobs:
           # Initialize git repo for the push
           REMOTE="https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO}.git"
           cd "$REPO_DIR"
+          git config --global --add safe.directory "$REPO_DIR"
           git init
           git checkout -b gh-pages
           git remote add origin "$REMOTE"
