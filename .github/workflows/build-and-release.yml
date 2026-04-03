@@ -1005,17 +1005,17 @@ jobs:
             fi
           done
 
-          cd "$REPO_DIR"
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git checkout --orphan new-gh-pages
-          git add -A
-          git diff --staged --quiet || {
-            git commit -m "Update APT repo + static files: claude-desktop ${VERSION}"
-            git branch -D gh-pages 2>/dev/null || true
-            git branch -m gh-pages
-            git push --force origin gh-pages
-          }
+          # Package the gh-pages content as an artifact for the RPM job to finalize.
+          # Do NOT push here — the deploy-rpm-repo job will add RPMs and do the
+          # single push, avoiding two Pages deployments and CDN race conditions.
+          tar -czf /tmp/gh-pages-content.tar.gz -C "$REPO_DIR" .
+
+      - name: Upload gh-pages content
+        uses: actions/upload-artifact@v4
+        with:
+          name: gh-pages-content
+          path: /tmp/gh-pages-content.tar.gz
+          retention-days: 1
 
       - name: Verify release tarball download
         env:
@@ -1189,6 +1189,12 @@ jobs:
           path: rpm-files/
           merge-multiple: true
 
+      - name: Download gh-pages content from release job
+        uses: actions/download-artifact@v4
+        with:
+          name: gh-pages-content
+          path: /tmp/
+
       - name: Sign RPMs and deploy repository
         env:
           GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
@@ -1207,37 +1213,22 @@ jobs:
             | grep '^sec:' | head -1 | cut -d: -f5)
           gpg --armor --export "$GPG_KEY_ID" > /tmp/gpg-key.asc
 
-          # Clone gh-pages (includes APT repo from release job)
-          # The release job force-pushes gh-pages just before this job runs.
-          # Wait briefly and verify we have the current commit to avoid racing
-          # the GitHub CDN and triggering a second Pages deployment with stale content.
+          # Restore gh-pages content from release job (APT repo + static files)
+          # This avoids cloning gh-pages and eliminates the double-push race condition.
           REPO_DIR="/tmp/gh-pages-repo"
           rm -rf "$REPO_DIR"
+          mkdir -p "$REPO_DIR"
+          tar -xzf /tmp/gh-pages-content.tar.gz -C "$REPO_DIR"
+
+          # Initialize git repo for the push
           REMOTE="https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO}.git"
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-
-          # Get the expected HEAD of gh-pages (what the release job just pushed)
-          EXPECTED_SHA=$(git ls-remote "$REMOTE" refs/heads/gh-pages | cut -f1)
-          echo "Expected gh-pages HEAD: $EXPECTED_SHA"
-
-          for attempt in 1 2 3 4 5; do
-            rm -rf "$REPO_DIR"
-            if git ls-remote --heads "$REMOTE" gh-pages | grep -q gh-pages; then
-              git clone --depth 1 --branch gh-pages "$REMOTE" "$REPO_DIR"
-            else
-              mkdir -p "$REPO_DIR" && cd "$REPO_DIR"
-              git init && git checkout -b gh-pages && git remote add origin "$REMOTE"
-              cd -
-              break
-            fi
-            CLONED_SHA=$(git -C "$REPO_DIR" rev-parse HEAD)
-            if [ "$CLONED_SHA" = "$EXPECTED_SHA" ]; then
-              echo "Clone is up to date (attempt $attempt)"
-              break
-            fi
-            echo "Clone is stale ($CLONED_SHA != $EXPECTED_SHA), retrying in 15s (attempt $attempt)..."
-            sleep 15
-          done
+          cd "$REPO_DIR"
+          git init
+          git checkout -b gh-pages
+          git remote add origin "$REMOTE"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          cd -
 
           # Copy GPG public key
           cp /tmp/gpg-key.asc "$REPO_DIR/gpg-key.asc"
@@ -1249,15 +1240,11 @@ jobs:
             bash packaging/rpm/update-rpm-repo.sh "$RPM_FILE" "$REPO_DIR" "$GPG_KEY_ID"
           done
 
-          # Commit and push (force-push to ensure we replace gh-pages atomically)
+          # Single atomic push — this is the ONLY push to gh-pages in the entire pipeline
           cd "$REPO_DIR"
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -A
-          git diff --staged --quiet || {
-            git commit -m "Update RPM repo: claude-desktop ${VERSION}"
-            git push --force origin gh-pages
-          }
+          git commit -m "Deploy repos: claude-desktop ${VERSION} (APT + RPM)"
+          git push --force origin gh-pages
 
   # ================================================================
   # Job 5: Validate Nix package builds from GitHub Releases
