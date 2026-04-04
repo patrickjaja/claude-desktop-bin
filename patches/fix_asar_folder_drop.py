@@ -76,11 +76,7 @@ def patch_asar_folder_drop(filepath):
 
     def repl_noe(m):
         arg = m.group(2)
-        return (
-            m.group(1) + arg + m.group(3) +
-            arg + rb"=" + arg + rb'.filter(f=>!/\.asar/.test(f));if(!' + arg + rb".length)return;" +
-            m.group(4)
-        )
+        return m.group(1) + arg + m.group(3) + arg + rb"=" + arg + rb".filter(f=>!/\.asar/.test(f));if(!" + arg + rb".length)return;" + m.group(4)
 
     content, count = re.subn(pat_noe, repl_noe, content, count=1)
 
@@ -110,10 +106,7 @@ def patch_asar_folder_drop(filepath):
 
     def repl_argv(m):
         var = m.group(2)
-        return (
-            m.group(1) + var + m.group(3) +
-            m.group(4) + rb"!/\.asar/.test(" + var + rb")&&" + m.group(5)
-        )
+        return m.group(1) + var + m.group(3) + m.group(4) + rb"!/\.asar/.test(" + var + rb")&&" + m.group(5)
 
     content, count = re.subn(pat_argv, repl_argv, content, count=1)
 
