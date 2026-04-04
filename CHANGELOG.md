@@ -2,6 +2,11 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-05 (v1.569.0) — Fix Quick Entry focus on X11/XWayland
+
+### Fixed
+- **fix_quick_entry_position.py**: Quick Entry window opened but didn't receive keyboard focus on X11 — typing, Escape, and click-outside-to-dismiss all failed until manually clicking inside. Root cause: X11 WMs ignore Electron's `_NET_ACTIVE_WINDOW` focus request due to focus-stealing prevention. Fix uses `xdotool windowactivate` on X11/XWayland (detected via `XDG_SESSION_TYPE` and `--ozone-platform=x11` argv) with graceful fallback to Electron APIs. Wayland path uses pure Electron `focus()` + `focusOnWebView()` via `xdg_activation_v1`. Retries at 50/150/300ms for async WM processing.
+
 ## 2026-04-05 (v1.569.0) — Fix Quick Entry global shortcut on Wayland
 
 ### Fixed

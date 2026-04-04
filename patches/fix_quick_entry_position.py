@@ -13,9 +13,12 @@ Patches:
    fallback for Wayland/macOS/Windows or if xdotool is unavailable.
 2. (Optional) Fallback display lookup — same xdotool-based cursor fix.
 3. Override position-save/restore to always use cursor's display.
-4. On Linux: show() + setBounds() retries to counter WM smart-placement,
-   plus webContents.focus() and executeJavaScript to focus #prompt-input
-   (which only auto-focuses on initial page load, not on re-show).
+4. On Linux: show() + setBounds() retries to counter WM smart-placement.
+   Session-type aware focus: on X11/XWayland uses xdotool windowactivate
+   to bypass WM focus-stealing prevention (graceful fallback if missing);
+   on Wayland uses pure Electron APIs (moveTop + focus + focusOnWebView).
+   Both paths finish with webContents.focus() + executeJavaScript to
+   focus #prompt-input. Retries at 50/150/300ms for async WM processing.
 
 Usage: python3 fix_quick_entry_position.py <path_to_index.js>
 """
@@ -125,7 +128,7 @@ def patch_quick_entry_position(filepath):
     else:
         print("  [INFO] position restore override: 0 matches (older version without saved position)")
 
-    # Patch 4: Fix show/positioning + focus on Linux — pure Electron APIs
+    # Patch 4: Fix show/positioning + focus on Linux
     # On macOS, type:"panel" auto-focuses and the WM respects position hints.
     # On Linux/X11, show() triggers WM smart-placement which can override
     # our position. We counter this with setBounds() retries.
@@ -136,12 +139,16 @@ def patch_quick_entry_position(filepath):
     # executeJavaScript since webContents.focus() only focuses the renderer
     # process, not the DOM input element.
     #
-    # Strategy:
-    # 1. Pre-position with setBounds() while hidden
-    # 2. show() for proper window activation and focus
-    # 3. Immediate setBounds() to counter WM placement
-    # 4. setBounds() retries at 50/150ms as safety net
-    # 5. webContents.focus() + executeJavaScript to focus #prompt-input
+    # Focus strategy (session-type aware):
+    # X11/XWayland: Electron's focus() can't bypass WM focus-stealing
+    #   prevention (WMs ignore _NET_ACTIVE_WINDOW with stale timestamps).
+    #   We use xdotool windowactivate which sends the message with a valid
+    #   timestamp. xdotool is already a soft dependency (Patch 1 uses it for
+    #   cursor position). Graceful fallback to Electron APIs if unavailable.
+    # Wayland: Compositors are more permissive with focus for always-on-top
+    #   windows. Pure Electron APIs (focus + focusOnWebView) work here.
+    # Detection: XDG_SESSION_TYPE env var, --ozone-platform=x11 in argv
+    #   (covers XWayland mode), with WAYLAND_DISPLAY as fallback.
     #
     # Pattern: WIN.show()}return WIN.setPosition(Math.round(VAR.x),Math.round(VAR.y)),!0}
     # Window var changes between versions (ai, Js, etc.), so capture it dynamically.
@@ -155,24 +162,40 @@ def patch_quick_entry_position(filepath):
             f"const _b={{x:Math.round({v}.x),y:Math.round({v}.y),"
             f"width:{w}.getBounds().width,height:{w}.getBounds().height}};"
             f"const _r=()=>{{{w}.isDestroyed()||{w}.setBounds(_b)}};"
-            # Pre-position, show, immediate re-position
-            f"{w}.setBounds(_b);"
-            f"{w}.show();"
-            f"_r();"
-            # Focus: window (OS-level) → webContents (renderer) → DOM input
-            f"{w}.focus();"
+            # Helper: Electron-only focus chain (sufficient on Wayland)
+            f"const _ef=()=>{{if({w}.isDestroyed())return;"
+            f"{w}.moveTop();{w}.focus();{w}.focusOnWebView();"
             f"{w}.webContents.focus();"
             f"{w}.webContents.executeJavaScript("
             f"'document.getElementById(\"prompt-input\")?.focus()'"
-            f").catch(()=>{{}});"
-            # Safety retries — counter async WM placement + re-assert focus
-            f"setTimeout(()=>{{if(!{w}.isDestroyed()){{"
-            f"_r();{w}.focus();{w}.webContents.focus();"
-            f"{w}.webContents.executeJavaScript("
-            f"'document.getElementById(\"prompt-input\")?.focus()'"
-            f").catch(()=>{{}})"
-            f"}}}},50);"
-            f"setTimeout(_r,150)"
+            f").catch(()=>{{}})}};"
+            # Detect X11: true if native X11 session OR XWayland mode
+            # (launcher passes --ozone-platform=x11 for XWayland, so
+            # process.argv includes it even though XDG_SESSION_TYPE=wayland)
+            f'const _isX11=process.platform==="linux"&&('
+            f'process.env.XDG_SESSION_TYPE==="x11"'
+            f'||process.argv.some(a=>a==="--ozone-platform=x11")'
+            f"||(!process.env.XDG_SESSION_TYPE&&!process.env.WAYLAND_DISPLAY));"
+            f"const _xf=()=>{{if(!_isX11||{w}.isDestroyed())return;"
+            f"try{{"
+            f'const cp=require("child_process");'
+            f"const wid={w}.getNativeWindowHandle().readUInt32LE(0);"
+            f'cp.execFile("xdotool",["windowactivate","--sync",String(wid)],'
+            f"{{timeout:500}},(e)=>{{if(!{w}.isDestroyed()){{_ef()}}}});"
+            f"}}catch(e){{_ef()}}}};"
+            # Helper: combined focus — xdotool on X11, Electron-only otherwise
+            f"const _ff=()=>{{_ef();if(_isX11){{_xf()}}}};"
+            # Pre-position while still hidden
+            f"{w}.setBounds(_b);"
+            # Show the window
+            f"{w}.show();"
+            f"_r();"
+            # Immediate focus attempt
+            f"_ff();"
+            # Retries — WMs process MapRequest asynchronously
+            f"setTimeout(()=>{{if(!{w}.isDestroyed()){{_r();_ff()}}}},50);"
+            f"setTimeout(()=>{{if(!{w}.isDestroyed()){{_r();_ff()}}}},150);"
+            f"setTimeout(()=>{{if(!{w}.isDestroyed()){{_r();_ff()}}}},300)"
             f"}})()}}"
             f"return!0}}"
         ).encode("utf-8")
