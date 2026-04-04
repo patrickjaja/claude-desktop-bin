@@ -2,6 +2,11 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-04 (v1.569.0) — Fix app.asar Cowork file-drop on every launch (#24)
+
+### Fixed
+- **fix_asar_folder_drop.py**: Rewrote patch to filter `.asar` paths at the `noe()` function — the single convergence point for all file-drop dispatches to Cowork. The previous patch only guarded the `isDirectory` helper, but app.asar fell through to the `existsSync` check and got dispatched as a file instead of a folder. Also guards the second-instance argv parser (`KXn`) as defense-in-depth. Credit: @dvolonnino for identifying the fix.
+
 ## 2026-04-03 (v1.569.0) — Fix app menu launch, upstream version bump
 
 ### Fixed
