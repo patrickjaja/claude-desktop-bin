@@ -2,6 +2,18 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-05 (v1.569.0) — Fix Quick Entry global shortcut on Wayland
+
+### Fixed
+- **fix_quick_entry_ready_wayland.py** (new): Quick Entry overlay never appeared on native Wayland even though the global shortcut fired correctly. Root cause: Electron's `ready-to-show` event never fires for transparent frameless BrowserWindows on Wayland, and Claude's code awaits it indefinitely. Fix adds a 200ms `Promise.race` timeout so the window proceeds to show.
+
+### Added
+- **scripts/build-fedora-local.sh**: Local build script for Fedora — downloads the latest exe, applies patches, and builds an installable RPM.
+- **wayland.md**: Troubleshooting guide for stale kglobalaccel entries that can block global shortcut registration on KDE Wayland.
+
+### Notes
+- Electron's native `GlobalShortcutsPortal` (`--enable-features=GlobalShortcutsPortal`) works correctly on KDE Wayland — no external D-Bus helper needed. On first launch KDE shows an approval dialog; the permission persists in `kglobalshortcutsrc` across restarts.
+
 ## 2026-04-04 (v1.569.0) — Fix app.asar Cowork file-drop on every launch (#24)
 
 ### Fixed
