@@ -2,23 +2,30 @@
 # @patch-target: app.asar.contents/.vite/build/index.js
 # @patch-type: python
 """
-Prevent app.asar from being treated as a folder drop on Linux.
+Prevent app.asar from being dispatched to Cowork on Linux.
 
-When Claude Desktop is re-launched (e.g. by an OAuth callback or
-claude:// URL handler), the second instance sends its argv to the
-running first instance via Electron's second-instance event. The
-argv contains "app.asar" as the first argument. The first instance's
-argument parser calls fs.statSync(path).isDirectory() on each arg —
-and because Electron's ASAR-aware fs layer treats .asar files as
-directories, app.asar passes the directory check and gets dispatched
-as a "folder drop" to the Cowork tab.
+When Claude Desktop is re-launched (e.g. by an OAuth callback,
+claude:// URL handler, or clicking the launcher while running), the
+second instance sends its argv to the running first instance via
+Electron's second-instance event. The argv contains the app.asar path.
 
-This triggers the "Allow Claude to change files in 'app.asar'?"
-permission dialog, confusing users on first launch.
+On Linux, Electron's ASAR-aware filesystem makes .asar files appear as
+valid paths via existsSync()/statSync(), so app.asar from process.argv
+passes through the existing filters and gets dispatched as a dropped
+file on every launch.
 
-Fix: patch the isDirectory helper (t$e) to reject paths containing
-"app.asar" on Linux before the statSync call.
+The existing __cdb_isAsarPath / __cdb_sanitizeCwd patches catch the CWD
+and isDirectory (folder detection) cases, but don't cover the file-drop
+path through noe().
 
+Fix (two layers):
+1. Filter .asar paths at the top of noe() — this is the single
+   convergence point for ALL file-drop code paths (second-instance,
+   startup argv, open-file events), so one guard catches everything.
+2. Guard the second-instance argv parser (KXn) to skip app.asar early,
+   preventing unnecessary processing.
+
+Credit: @dvolonnino for identifying the noe() convergence point.
 See: https://github.com/patrickjaja/claude-desktop-bin/issues/24
 
 Usage: python3 fix_asar_folder_drop.py <path_to_index.js>
@@ -30,7 +37,7 @@ import re
 
 
 def patch_asar_folder_drop(filepath):
-    """Filter app.asar paths from the folder-drop directory check."""
+    """Filter app.asar paths from file-drop dispatch."""
 
     print("=== Patch: fix_asar_folder_drop ===")
     print(f"  Target: {filepath}")
@@ -43,86 +50,77 @@ def patch_asar_folder_drop(filepath):
         content = f.read()
 
     # ── Idempotency check ────────────────────────────────────────────
-    if b"__cdb_isAsarPath" in content:
-        print("  [SKIP] Already patched (__cdb_isAsarPath found)")
+    # Check for the noe() .asar filter (primary fix)
+    if re.search(rb"function noe\(\w+\)\{\w+=\w+\.filter\(\w+=>!/\\\.asar/", content):
+        print("  [SKIP] Already patched (noe .asar filter found)")
         return True
 
     original_content = content
 
-    # ── Patch the isDirectory helper ─────────────────────────────────
+    # ── 1. Patch noe() — the file-drop convergence point ─────────────
+    #
+    # All file-drop code paths (second-instance argv, startup argv,
+    # open-file events) converge through noe(). Filter .asar paths
+    # here so nothing slips through.
     #
     # Before:
-    #   function t$e(t){try{return et.statSync(t).isDirectory()}catch{return!1}}
+    #   function noe(t){if(R.info(`Handling file drop: ${t.join(", ")}`),...
     #
     # After:
-    #   function t$e(t){try{return!__cdb_isAsarPath(t)&&et.statSync(t).isDirectory()}catch{return!1}}
-    #
-    # The variable names (t$e, et) change between versions, so we use
-    # flexible patterns.
+    #   function noe(t){t=t.filter(f=>!/\.asar/.test(f));if(!t.length)return;if(R.info(`Handling file drop: ${t.join(", ")}`),...
 
-    pat = (
-        rb"(function \w+\$?\w*\(\w+\)\{try\{return )"
-        rb"(\w+\.statSync\(\w+\)\.isDirectory\(\))"
-        rb"(\}catch\{return!1\}\})"
-        rb"(function \w+\(\w+,\w+,\w+\)\{)"
+    pat_noe = (
+        rb"(function noe\()(\w+)(\)\{)"
+        rb"(if\(\w+\.info\(`Handling file drop:)"
     )
 
-    def repl(m):
-        # Inject a guard: if path contains "app.asar", return false
-        # Extract the argument name from the function signature
-        func_head = m.group(1)
-        # Find the argument name (single char between parens)
-        arg_match = re.search(rb"\((\w+)\)", func_head)
-        if not arg_match:
-            return m.group(0)  # safety: don't patch if we can't find arg
-        arg = arg_match.group(1)
-        return func_head + b"!__cdb_isAsarPath(" + arg + b")&&" + m.group(2) + m.group(3) + m.group(4)
-
-    content, count = re.subn(pat, repl, content, count=1)
-
-    if count == 0:
-        print("  [WARN] isDirectory helper pattern: 0 matches")
-        # Fallback: try without the trailing function context
-        pat2 = (
-            rb"(function \w+\$?\w*\(\w+\)\{try\{return )"
-            rb"(\w+\.statSync\(\w+\)\.isDirectory\(\))"
-            rb"(\}catch\{return!1\}\})"
+    def repl_noe(m):
+        arg = m.group(2)
+        return (
+            m.group(1) + arg + m.group(3) +
+            arg + rb"=" + arg + rb'.filter(f=>!/\.asar/.test(f));if(!' + arg + rb".length)return;" +
+            m.group(4)
         )
 
-        def repl2(m):
-            func_head = m.group(1)
-            arg_match = re.search(rb"\((\w+)\)", func_head)
-            if not arg_match:
-                return m.group(0)
-            arg = arg_match.group(1)
-            return func_head + b"!__cdb_isAsarPath(" + arg + b")&&" + m.group(2) + m.group(3)
+    content, count = re.subn(pat_noe, repl_noe, content, count=1)
 
-        content, count = re.subn(pat2, repl2, content, count=1)
-        if count > 0:
-            print(f"  [OK] isDirectory helper (fallback pattern): {count} match(es)")
-        else:
-            print("  [FAIL] isDirectory helper: no pattern matched")
-            return False
+    if count > 0:
+        print(f"  [OK] noe() file-drop filter: {count} match(es)")
     else:
-        print(f"  [OK] isDirectory helper: {count} match(es)")
+        print("  [FAIL] noe() pattern: 0 matches")
+        return False
 
-    # ── Inject the helper function ───────────────────────────────────
+    # ── 2. Guard second-instance argv parser (defense-in-depth) ──────
     #
-    # Simple check: on Linux, reject any path containing "app.asar".
-    # Placed right before the patched function for locality.
+    # The KXn function (second-instance argv parser) iterates
+    # argv.slice(1) and dispatches paths. Unlike the first-instance
+    # startup code (VXn) which filters via `path.resolve(s) !== appPath`,
+    # KXn has no such filter.
+    #
+    # Before:
+    #   for(const n of t.slice(1))if(!GXn(n)){...
+    #
+    # After:
+    #   for(const n of t.slice(1))if(!/\.asar/.test(n)&&!GXn(n)){...
 
-    HELPER = b'var __cdb_isAsarPath=function(p){return process.platform==="linux"&&typeof p==="string"&&/app\\.asar/.test(p)};'
+    pat_argv = (
+        rb"(for\(const )(\w+)( of \w+\.slice\(1\)\))"
+        rb"(if\()(!\w+\(\2\))"
+    )
 
-    # Inject after "use strict"; (same strategy as fix_asar_workspace_cwd.py)
-    use_strict = b'"use strict";'
-    idx = content.find(use_strict)
-    if idx >= 0:
-        inject_point = idx + len(use_strict)
-        content = content[:inject_point] + HELPER + content[inject_point:]
-        print("  [OK] Injected __cdb_isAsarPath helper")
+    def repl_argv(m):
+        var = m.group(2)
+        return (
+            m.group(1) + var + m.group(3) +
+            m.group(4) + rb"!/\.asar/.test(" + var + rb")&&" + m.group(5)
+        )
+
+    content, count = re.subn(pat_argv, repl_argv, content, count=1)
+
+    if count > 0:
+        print(f"  [OK] Second-instance argv parser (KXn): {count} match(es)")
     else:
-        content = HELPER + content
-        print("  [OK] Injected __cdb_isAsarPath helper (at file start)")
+        print("  [WARN] Second-instance argv parser: 0 matches (noe filter is primary)")
 
     # ── Write back ───────────────────────────────────────────────────
     if content != original_content:
