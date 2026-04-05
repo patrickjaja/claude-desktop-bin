@@ -57,7 +57,7 @@ sudo apt install ydotool xdotool libglib2.0-bin gnome-screenshot
 # sudo apt install socat
 ```
 
-> **Wayland users:** Computer Use requires ydotool v1.0+, but Ubuntu/Debian ship v0.1.8 which is **too old**. Run the [ydotool setup script](#ydotool-setup-wayland) — without this, clicks will not work.
+> **Wayland users:** [Computer Use](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool) requires ydotool v1.0+, but Ubuntu/Debian ship v0.1.8 which is **too old**. Run the [ydotool setup script](#ydotool-setup-wayland) — without this, clicks will not work.
 
 Updates are automatic via `sudo apt update && sudo apt upgrade`.
 
