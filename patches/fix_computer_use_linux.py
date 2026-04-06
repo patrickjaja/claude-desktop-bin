@@ -59,6 +59,106 @@ function _desktopId(){return(process.env.XDG_CURRENT_DESKTOP||"").toLowerCase()}
 var _ydotoolOk=null;
 function _checkYdotool(){if(_ydotoolOk!==null)return _ydotoolOk;if(!_hasCmd("ydotool")){_ydotoolOk=false;return false}try{_cp.execSync("pgrep -x ydotoold",{timeout:2000,stdio:"pipe"});_ydotoolOk=true}catch(e){var sock=(process.env.YDOTOOL_SOCKET||"")||((process.env.XDG_RUNTIME_DIR||"/tmp")+"/.ydotool_socket");try{_fs.accessSync(sock);_ydotoolOk=true}catch(se){console.warn("[claude-cu] ydotool found but ydotoold not running — falling back to xdotool");_ydotoolOk=false}}return _ydotoolOk}
 function _readClean(f){var buf=_fs.readFileSync(f);try{_fs.unlinkSync(f)}catch(e){}return buf.toString("base64")}
+var _portalScriptDir=_path.join(_os.homedir(),".config","Claude");
+var _portalScriptPath=_path.join(_portalScriptDir,"gnome-portal-screenshot.py");
+var _portalScriptContent='#!/usr/bin/env python3\n\
+# XDG ScreenCast portal screenshot with PipeWire restore token.\n\
+import sys,os,signal,subprocess\n\
+TOKEN_FILE=os.path.expanduser("~/.config/Claude/pipewire-restore-token")\n\
+def main():\n\
+    if len(sys.argv)<2: return 1\n\
+    out=sys.argv[1]; crop=tuple(int(x) for x in sys.argv[2:6]) if len(sys.argv)>=6 else None\n\
+    try:\n\
+        import gi; gi.require_version("Gst","1.0")\n\
+        from gi.repository import GLib,Gio,Gst\n\
+    except (ImportError,ValueError) as e:\n\
+        print(f"[portal-screenshot] missing deps: {e}",file=sys.stderr); return 2\n\
+    Gst.init(None)\n\
+    tok=""\n\
+    try:\n\
+        with open(TOKEN_FILE) as f: tok=f.read().strip()\n\
+    except FileNotFoundError: pass\n\
+    bus=Gio.bus_get_sync(Gio.BusType.SESSION); loop=GLib.MainLoop()\n\
+    S={"nd":None,"tk":"","sess":"","err":None,"done":False}\n\
+    un=bus.get_unique_name().replace(".","_").replace(":",""); c=[0]\n\
+    def nt():\n\
+        c[0]+=1; return f"claude_{os.getpid()}_{c[0]}"\n\
+    def sub(hp,cb):\n\
+        sid=[None]\n\
+        def _h(cn,sn,p,i,sg,pr): bus.signal_unsubscribe(sid[0]); r,res=pr.unpack(); cb(r,res)\n\
+        sid[0]=bus.signal_subscribe("org.freedesktop.portal.Desktop","org.freedesktop.portal.Request","Response",hp,None,0,_h); return sid[0]\n\
+    def pcall(method,av):\n\
+        return bus.call_sync("org.freedesktop.portal.Desktop","/org/freedesktop/portal/desktop","org.freedesktop.portal.ScreenCast",method,av,None,0,15000,None)\n\
+    def fail(m): S["err"]=m; loop.quit() if loop.is_running() else None\n\
+    def do_start():\n\
+        ht=nt(); hp=f"/org/freedesktop/portal/desktop/request/{un}/{ht}"\n\
+        def _s(r,res):\n\
+            if r!=0: fail(f"Start rejected ({r})"); return\n\
+            st=res.get("streams",None); ntk=res.get("restore_token","")\n\
+            if ntk: S["tk"]=ntk\n\
+            if st:\n\
+                sl=st.unpack() if hasattr(st,"unpack") else st\n\
+                if sl: S["nd"]=sl[0][0] if isinstance(sl[0],tuple) else sl[0]\n\
+            S["done"]=True; loop.quit()\n\
+        sub(hp,_s); pcall("Start",GLib.Variant("(osa{sv})",(S["sess"],"",{"handle_token":GLib.Variant("s",ht)})))\n\
+    def do_select():\n\
+        ht=nt(); hp=f"/org/freedesktop/portal/desktop/request/{un}/{ht}"\n\
+        def _s(r,res):\n\
+            if r!=0: fail(f"SelectSources rejected ({r})"); return\n\
+            do_start()\n\
+        sub(hp,_s); opts={"handle_token":GLib.Variant("s",ht),"types":GLib.Variant("u",1),"multiple":GLib.Variant("b",False),"persist_mode":GLib.Variant("u",2)}\n\
+        if tok: opts["restore_token"]=GLib.Variant("s",tok)\n\
+        pcall("SelectSources",GLib.Variant("(oa{sv})",(S["sess"],opts)))\n\
+    def do_create():\n\
+        ht=nt(); st=f"claude_sess_{os.getpid()}"; hp=f"/org/freedesktop/portal/desktop/request/{un}/{ht}"\n\
+        def _c2(r,res):\n\
+            if r!=0: fail(f"CreateSession rejected ({r})"); return\n\
+            sh=res.get("session_handle","")\n\
+            if not sh: fail("No session handle"); return\n\
+            S["sess"]=sh; do_select()\n\
+        sub(hp,_c2); pcall("CreateSession",GLib.Variant("(a{sv})",({"handle_token":GLib.Variant("s",ht),"session_handle_token":GLib.Variant("s",st)},)))\n\
+    GLib.timeout_add_seconds(15,lambda:(fail("timeout") if not S["done"] else None,False)[-1])\n\
+    try: do_create(); loop.run()\n\
+    except Exception as e: fail(str(e))\n\
+    if S["err"]: print("[portal-screenshot] "+S["err"],file=sys.stderr); return 1\n\
+    if not S["nd"]: print("[portal-screenshot] no PipeWire node",file=sys.stderr); return 1\n\
+    if S["tk"]:\n\
+        try: os.makedirs(os.path.dirname(TOKEN_FILE),exist_ok=True); open(TOKEN_FILE,"w").write(S["tk"])\n\
+        except: pass\n\
+    nd=S["nd"]\n\
+    try:\n\
+        p=Gst.parse_launch(f\'pipewiresrc path={nd} num-buffers=3 ! videorate ! video/x-raw,framerate=1/1 ! videoconvert ! pngenc ! filesink location="{out}"\')\n\
+        p.set_state(Gst.State.PLAYING); gb=p.get_bus()\n\
+        msg=gb.timed_pop_filtered(10*Gst.SECOND,Gst.MessageType.EOS|Gst.MessageType.ERROR)\n\
+        if msg and msg.type==Gst.MessageType.ERROR: e,_=msg.parse_error(); print(f"[portal-screenshot] GStreamer: {e.message}",file=sys.stderr); p.set_state(Gst.State.NULL); return 1\n\
+        p.set_state(Gst.State.NULL)\n\
+    except Exception as e:\n\
+        print(f"[portal-screenshot] GStreamer failed: {e}",file=sys.stderr); return 1\n\
+    if not os.path.exists(out): return 1\n\
+    if crop:\n\
+        cx,cy,cw,ch=crop\n\
+        try:\n\
+            from gi.repository import GdkPixbuf\n\
+            pb=GdkPixbuf.Pixbuf.new_from_file(out); pw,ph=pb.get_width(),pb.get_height()\n\
+            cx=min(cx,pw-1);cy=min(cy,ph-1);cw=min(cw,pw-cx);ch=min(ch,ph-cy)\n\
+            cr=GdkPixbuf.Pixbuf.new(GdkPixbuf.Colorspace.RGB,pb.get_has_alpha(),8,cw,ch)\n\
+            pb.copy_area(cx,cy,cw,ch,cr,0,0); cr.savev(out,"png",[],[])\n\
+        except ImportError:\n\
+            try: subprocess.run(["convert",out,"-crop",f"{cw}x{ch}+{cx}+{cy}","+repage",out],timeout=5,check=True,capture_output=True)\n\
+            except: pass\n\
+    if S["sess"]:\n\
+        try: bus.call_sync("org.freedesktop.portal.Desktop",S["sess"],"org.freedesktop.portal.Session","Close",None,None,0,1000,None)\n\
+        except: pass\n\
+    return 0\n\
+if __name__=="__main__":\n\
+    signal.signal(signal.SIGALRM,lambda *_:sys.exit(1)); signal.alarm(20); sys.exit(main())\n';
+var _portalScriptReady=false;
+function _ensurePortalScript(){
+  if(_portalScriptReady)return true;
+  try{_fs.mkdirSync(_portalScriptDir,{recursive:true})}catch(e){}
+  try{_fs.writeFileSync(_portalScriptPath,_portalScriptContent,{mode:0o755});_portalScriptReady=true;return true}catch(e){console.warn("[claude-cu] could not write portal screenshot script: "+e.message);return false}
+}
+function _hasPortalDeps(){return _hasCmd("python3")&&_hasCmd("gst-launch-1.0")}
 async function _captureRegion(x,y,w,h){
   var tmp=_path.join(_os.tmpdir(),"claude-cu-"+Date.now()+"-"+Math.random().toString(36).slice(2)+".png");
   var _de=_desktopId();
@@ -68,6 +168,12 @@ async function _captureRegion(x,y,w,h){
   }
   if(_wayland&&_isWlroots()&&_hasCmd("grim")){
     try{_cp.execSync('grim -g "'+x+","+y+" "+w+"x"+h+'" "'+tmp+'"',{timeout:10000});console.log("[claude-cu] screenshot: captured via grim (wlroots)");return _readClean(tmp)}catch(e){console.warn("[claude-cu] grim failed: "+e.message)}
+  }
+  if(_wayland&&_de.indexOf("gnome")>=0&&_hasPortalDeps()&&_ensurePortalScript()){
+    try{var ret=_cp.spawnSync("python3",[_portalScriptPath,tmp,String(x),String(y),String(w),String(h)],{timeout:25000,stdio:["ignore","pipe","pipe"]});
+    if(ret.status===0&&_fs.existsSync(tmp)){console.log("[claude-cu] screenshot: captured via portal+pipewire (GNOME, restore token)");return _readClean(tmp)}
+    if(ret.status===2){console.warn("[claude-cu] portal screenshot: missing python deps (python3-gi, gstreamer)")}
+    else{console.warn("[claude-cu] portal screenshot failed (exit="+ret.status+"): "+(ret.stderr?ret.stderr.toString().trim():""))}}catch(e){console.warn("[claude-cu] portal screenshot error: "+e.message)}
   }
   if(_wayland&&_de.indexOf("gnome")>=0&&_hasCmd("gdbus")){
     try{_cp.execSync("gdbus call --session --dest org.gnome.Shell.Screenshot --object-path /org/gnome/Shell/Screenshot --method org.gnome.Shell.Screenshot.ScreenshotArea "+x+" "+y+" "+w+" "+h+" false '"+tmp+"'",{timeout:10000});
@@ -96,7 +202,7 @@ if(_wayland){console.log("[claude-cu] Wayland session detected — using native 
   var _isHypr=!!process.env.HYPRLAND_INSTANCE_SIGNATURE;var _isSway=!!process.env.SWAYSOCK;
   var _relevant=[];
   if(_wayland&&_wlr)_relevant.push("grim");
-  if(_wayland&&_isGnome)_relevant.push("gdbus");
+  if(_wayland&&_isGnome){_relevant.push("python3","gst-launch-1.0");_relevant.push("gdbus")}
   if(_isKde){_relevant.push("spectacle");_relevant.push("convert")}
   if(!_wayland&&_isGnome)_relevant.push("gnome-screenshot");
   if(!_wayland)_relevant.push("scrot","import");
@@ -120,6 +226,7 @@ if(_wayland){console.log("[claude-cu] Wayland session detected — using native 
   var order=[];
   if(process.env.COWORK_SCREENSHOT_CMD)order.push("COWORK_SCREENSHOT_CMD");
   if(_wayland&&_wlr&&_hasCmd("grim"))order.push("grim");
+  if(_wayland&&_isGnome&&_hasPortalDeps())order.push("portal+pipewire");
   if(_wayland&&_isGnome&&_hasCmd("gdbus"))order.push("gdbus");
   if(_isKde&&_hasCmd("spectacle"))order.push("spectacle");
   if(!_wayland&&_isGnome&&_hasCmd("gnome-screenshot"))order.push("gnome-screenshot");
@@ -127,6 +234,7 @@ if(_wayland){console.log("[claude-cu] Wayland session detected — using native 
   if(!_wayland&&_hasCmd("import"))order.push("import");
   order.push("desktopCapturer");
   console.log("[claude-cu] diagnostics: screenshot-cascade=["+order.join(" > ")+"]");
+  if(_wayland&&_isGnome){try{_fs.accessSync(_path.join(_os.homedir(),".config","Claude","pipewire-restore-token"));console.log("[claude-cu] diagnostics: pipewire-restore-token=found (portal screenshots will skip permission dialog)")}catch(e){console.log("[claude-cu] diagnostics: pipewire-restore-token=none (first portal screenshot will show permission dialog)")}}
 })();
 var _defaultMon={displayId:0,width:1920,height:1080,originX:0,originY:0,scaleFactor:1,isPrimary:true,label:"default"};
 function _getMonitors(){
