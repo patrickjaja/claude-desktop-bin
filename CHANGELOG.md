@@ -2,6 +2,18 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-06 (v1.569.0) — Linux-aware CU tool descriptions, gnome-screenshot priority
+
+### Added
+- **fix_computer_use_linux.py** sub-patch 13 (13a–13g): Fix computer-use tool descriptions for Linux. The upstream `V7r()` builder produces descriptions that tell the model "This computer is running macOS", reference Finder/bundle identifiers, and warn about allowlist gates that are bypassed on Linux. Seven sub-patches wrap key description strings in `process.platform` checks: (a) `Lf` allowlist gate suffix → empty on Linux, (b) `request_access` says "Linux" with correct file-manager info, (c–d) app identifiers use WM_CLASS not macOS bundle IDs, (e) `open_application` drops allowlist requirement, (f–g) `screenshot` removes allowlist references. Non-fatal — descriptions don't affect tool functionality.
+
+### Changed
+- **fix_computer_use_linux.py**: Reordered GNOME Wayland screenshot cascade — `gnome-screenshot` now takes priority over `gdbus` (GNOME Shell D-Bus). `gnome-screenshot` is more widely available (works on Ubuntu GNOME where the D-Bus interface may be absent), so it should be tried first with `gdbus` as fallback.
+
+### Docs
+- **CLAUDE_BUILT_IN_MCP.md**: Rewrote Computer Use tools table with verbatim upstream descriptions (v1.569.0) and platform-dependent notes showing what Linux patches change.
+- **CLAUDE.md**: Updated Wayland GNOME screenshot tool order, sub-patch count (12→13), added sub-patch 13 row.
+
 ## 2026-04-06 (v1.569.0) — Add gnome-screenshot fallback for Wayland GNOME, Ubuntu build script
 
 ### Fixed

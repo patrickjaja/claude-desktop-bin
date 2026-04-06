@@ -69,15 +69,15 @@ async function _captureRegion(x,y,w,h){
   if(_wayland&&_isWlroots()&&_hasCmd("grim")){
     try{_cp.execSync('grim -g "'+x+","+y+" "+w+"x"+h+'" "'+tmp+'"',{timeout:10000});console.log("[claude-cu] screenshot: captured via grim (wlroots)");return _readClean(tmp)}catch(e){console.warn("[claude-cu] grim failed: "+e.message)}
   }
-  if(_wayland&&_de.indexOf("gnome")>=0&&_hasCmd("gdbus")){
-    try{_cp.execSync("gdbus call --session --dest org.gnome.Shell.Screenshot --object-path /org/gnome/Shell/Screenshot --method org.gnome.Shell.Screenshot.ScreenshotArea "+x+" "+y+" "+w+" "+h+" false '"+tmp+"'",{timeout:10000});
-    if(_fs.existsSync(tmp)){console.log("[claude-cu] screenshot: captured via gdbus (GNOME Shell Screenshot D-Bus)");return _readClean(tmp)}}catch(e){console.warn("[claude-cu] GNOME D-Bus screenshot failed: "+e.message)}
-  }
   if(_wayland&&_de.indexOf("gnome")>=0&&_hasCmd("gnome-screenshot")){
     try{var _gstmp=_path.join(_os.tmpdir(),"claude-cu-gnome-"+Date.now()+".png");
     _cp.execSync('gnome-screenshot -f "'+_gstmp+'"',{timeout:10000});
     if(_fs.existsSync(_gstmp)){if(_hasCmd("convert")){try{_cp.execSync('convert "'+_gstmp+'" -crop '+w+"x"+h+"+"+x+"+"+y+' +repage "'+tmp+'"',{timeout:5000});try{_fs.unlinkSync(_gstmp)}catch(e){}console.log("[claude-cu] screenshot: captured via gnome-screenshot+convert (Wayland GNOME)");return _readClean(tmp)}catch(ce){try{_fs.renameSync(_gstmp,tmp)}catch(re){}console.log("[claude-cu] screenshot: captured via gnome-screenshot (Wayland GNOME, uncropped)");return _readClean(tmp)}}else{try{_fs.renameSync(_gstmp,tmp)}catch(re){}console.log("[claude-cu] screenshot: captured via gnome-screenshot (Wayland GNOME, uncropped)");return _readClean(tmp)}}
     }catch(e){console.warn("[claude-cu] gnome-screenshot (Wayland) failed: "+e.message)}
+  }
+  if(_wayland&&_de.indexOf("gnome")>=0&&_hasCmd("gdbus")){
+    try{_cp.execSync("gdbus call --session --dest org.gnome.Shell.Screenshot --object-path /org/gnome/Shell/Screenshot --method org.gnome.Shell.Screenshot.ScreenshotArea "+x+" "+y+" "+w+" "+h+" false '"+tmp+"'",{timeout:10000});
+    if(_fs.existsSync(tmp)){console.log("[claude-cu] screenshot: captured via gdbus (GNOME Shell Screenshot D-Bus)");return _readClean(tmp)}}catch(e){console.warn("[claude-cu] GNOME D-Bus screenshot failed: "+e.message)}
   }
   if(_de.indexOf("kde")>=0&&_hasCmd("spectacle")){
     try{var stmp=_path.join(_os.tmpdir(),"claude-cu-spectacle-"+Date.now()+".png");
@@ -102,7 +102,7 @@ if(_wayland){console.log("[claude-cu] Wayland session detected — using native 
   var _isHypr=!!process.env.HYPRLAND_INSTANCE_SIGNATURE;var _isSway=!!process.env.SWAYSOCK;
   var _relevant=[];
   if(_wayland&&_wlr)_relevant.push("grim");
-  if(_wayland&&_isGnome){_relevant.push("gdbus");_relevant.push("gnome-screenshot")}
+  if(_wayland&&_isGnome){_relevant.push("gnome-screenshot");_relevant.push("gdbus")}
   if(_isKde){_relevant.push("spectacle");_relevant.push("convert")}
   if(!_wayland&&_isGnome)_relevant.push("gnome-screenshot");
   if(!_wayland)_relevant.push("scrot","import");
@@ -126,8 +126,8 @@ if(_wayland){console.log("[claude-cu] Wayland session detected — using native 
   var order=[];
   if(process.env.COWORK_SCREENSHOT_CMD)order.push("COWORK_SCREENSHOT_CMD");
   if(_wayland&&_wlr&&_hasCmd("grim"))order.push("grim");
-  if(_wayland&&_isGnome&&_hasCmd("gdbus"))order.push("gdbus");
   if(_wayland&&_isGnome&&_hasCmd("gnome-screenshot"))order.push("gnome-screenshot");
+  if(_wayland&&_isGnome&&_hasCmd("gdbus"))order.push("gdbus");
   if(_isKde&&_hasCmd("spectacle"))order.push("spectacle");
   if(!_wayland&&_isGnome&&_hasCmd("gnome-screenshot"))order.push("gnome-screenshot");
   if(!_wayland&&_hasCmd("scrot"))order.push("scrot");
@@ -915,6 +915,162 @@ def patch_computer_use_linux(filepath):
         changes += count
     else:
         print("  [WARN] rj pattern: 0 matches (computer-use tool calls may be blocked)")
+
+    # ─── Patch 13: Linux-aware computer-use tool descriptions ───────────────
+    # V7r() builds CU tool definitions with descriptions that assume macOS or
+    # Windows. On Linux, the model sees wrong platform info ("macOS", "Finder"),
+    # irrelevant allowlist/permission warnings (bypassed by sub-patches 5-6),
+    # and macOS-specific bundle identifiers. Fix: wrap key description strings
+    # in platform checks. Non-fatal — tools work regardless of descriptions.
+
+    print("  --- Tool description patches (non-fatal) ---")
+    desc_changes = 0
+
+    # 13a: Lf (allowlist gate warning) — empty on Linux
+    # Lf is appended to 14+ tool descriptions via ${Lf} template literals.
+    # On Linux the allowlist is bypassed (sub-patch 6), so the warning is wrong.
+    lf_pat = rb'(\w+)="The frontmost application must be in the session allowlist at the time of this call, or this tool returns an error and does nothing\."'
+
+    def lf_repl(m):
+        v = m.group(1).decode("utf-8")
+        return (
+            f'{v}=process.platform==="linux"?"":"The frontmost application '
+            f"must be in the session allowlist at the time of this call, or "
+            f'this tool returns an error and does nothing."'
+        ).encode("utf-8")
+
+    content, count = re.subn(lf_pat, lf_repl, content, count=1)
+    if count:
+        print("  [OK] 13a Lf allowlist gate: empty on Linux")
+        desc_changes += 1
+    else:
+        print("  [WARN] 13a Lf: not found")
+
+    # 13b: request_access — "Linux" instead of "macOS"/"Finder"
+    # The ternary t.platform==="win32"?'Windows':'macOS' falls to macOS on
+    # Linux, telling the model "This computer is running macOS" — wrong.
+    _old_13b = b"""'This computer is running macOS. The file manager is "Finder". '"""
+    _new_13b = (
+        b"""(t.platform==="linux"?"""
+        b"""'This computer is running Linux. """
+        b"""On Linux, ALL applications are automatically accessible at full """
+        b"""tier without explicit permission grants. You do NOT need to call """
+        b"""request_access before using other tools. If called, it returns """
+        b"""synthetic grant confirmations. The file manager depends on the """
+        b"""desktop environment (e.g. Nautilus on GNOME, Dolphin on KDE, """
+        b"""Thunar on XFCE). '"""
+        b""":"""
+        b"""'This computer is running macOS. The file manager is "Finder". ')"""
+    )
+    if _old_13b in content:
+        content = content.replace(_old_13b, _new_13b, 1)
+        print("  [OK] 13b request_access: Linux platform prefix")
+        desc_changes += 1
+    else:
+        print("  [WARN] 13b request_access macOS prefix: not found")
+
+    # 13c: App identifier (request_access apps schema) — WM_CLASS for Linux
+    # macOS uses bundle identifiers (com.tinyspeck.slackmacgap) — N/A on Linux.
+    _old_13c = b"""'Application display names (e.g. "Slack", "Calendar") or bundle identifiers (e.g. "com.tinyspeck.slackmacgap"). Display names are resolved case-insensitively against installed apps.'"""
+    _new_13c = (
+        b"""(t.platform==="linux"?"""
+        b"""'Application names as shown in window titles, or WM_CLASS values """
+        b"""(e.g. "firefox", "org.gnome.Nautilus"). """
+        b"""On Linux all apps are auto-granted at full tier.'"""
+        b""":"""
+        b"""'Application display names (e.g. "Slack", "Calendar") or bundle """
+        b"""identifiers (e.g. "com.tinyspeck.slackmacgap"). Display names are """
+        b"""resolved case-insensitively against installed apps.')"""
+    )
+    if _old_13c in content:
+        content = content.replace(_old_13c, _new_13c, 1)
+        print("  [OK] 13c request_access apps: Linux identifiers")
+        desc_changes += 1
+    else:
+        print("  [WARN] 13c request_access apps: not found")
+
+    # 13d: App identifier (open_application app schema) — simplified for Linux
+    _old_13d = b"""'Display name (e.g. "Slack") or bundle identifier (e.g. "com.tinyspeck.slackmacgap").'"""
+    _new_13d = (
+        b"""(t.platform==="linux"?"""
+        b"""'Application name or WM_CLASS (e.g. "firefox", "nautilus").'"""
+        b""":"""
+        b"""'Display name (e.g. "Slack") or bundle identifier (e.g. "com.tinyspeck.slackmacgap").')"""
+    )
+    if _old_13d in content:
+        content = content.replace(_old_13d, _new_13d, 1)
+        print("  [OK] 13d open_application app: Linux identifiers")
+        desc_changes += 1
+    else:
+        print("  [WARN] 13d open_application app: not found")
+
+    # 13e: open_application — no allowlist on Linux
+    _old_13e = (
+        '"Bring an application to the front, launching it if necessary. '
+        'The target application must already be in the session allowlist '
+        '\u2014 call request_access first."'
+    ).encode("utf-8")
+    _new_13e = (
+        '(process.platform==="linux"?'
+        '"Bring an application to the front, launching it if necessary. '
+        'On Linux, all applications are directly accessible."'
+        ':'
+        '"Bring an application to the front, launching it if necessary. '
+        'The target application must already be in the session allowlist '
+        '\u2014 call request_access first.")'
+    ).encode("utf-8")
+    if _old_13e in content:
+        content = content.replace(_old_13e, _new_13e, 1)
+        print("  [OK] 13e open_application: no allowlist on Linux")
+        desc_changes += 1
+    else:
+        print("  [WARN] 13e open_application: not found")
+
+    # 13f: screenshot (none-filtering) — remove allowlist text on Linux
+    _old_13f = (
+        '"Take a screenshot of the primary display. On this platform, '
+        'screenshots are NOT filtered \u2014 all open windows are visible. '
+        'Input actions targeting apps not in the session allowlist are rejected."'
+    ).encode("utf-8")
+    _new_13f = (
+        '(process.platform==="linux"?'
+        '"Take a screenshot of the primary display. '
+        'All open windows are visible."'
+        ':'
+        '"Take a screenshot of the primary display. On this platform, '
+        'screenshots are NOT filtered \u2014 all open windows are visible. '
+        'Input actions targeting apps not in the session allowlist are rejected.")'
+    ).encode("utf-8")
+    if _old_13f in content:
+        content = content.replace(_old_13f, _new_13f, 1)
+        print("  [OK] 13f screenshot: clean description on Linux")
+        desc_changes += 1
+    else:
+        print("  [WARN] 13f screenshot: not found")
+
+    # 13g: screenshot suffix — remove "allowlist empty" error on Linux
+    ss_sfx_pat = rb'(\w+)\+" Returns an error if the allowlist is empty\. The returned image is what subsequent click coordinates are relative to\."'
+
+    def ss_sfx_repl(m):
+        v = m.group(1).decode("utf-8")
+        return (
+            f'{v}+(process.platform==="linux"'
+            f'?" The returned image is what subsequent click coordinates are relative to."'
+            f':" Returns an error if the allowlist is empty. The returned image is what subsequent click coordinates are relative to.")'
+        ).encode("utf-8")
+
+    content, count = re.subn(ss_sfx_pat, ss_sfx_repl, content, count=1)
+    if count:
+        print("  [OK] 13g screenshot suffix: no allowlist error on Linux")
+        desc_changes += 1
+    else:
+        print("  [WARN] 13g screenshot suffix: not found")
+
+    if desc_changes > 0:
+        changes += desc_changes
+        print(f"  [OK] {desc_changes}/7 description patches applied")
+    else:
+        print("  [WARN] No description patches applied (descriptions unchanged)")
 
     if changes > 0 and content != original_content:
         with open(filepath, "wb") as f:
