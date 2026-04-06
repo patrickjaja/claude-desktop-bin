@@ -24,7 +24,7 @@ This is an AUR package that repackages Claude Desktop (Windows) for Arch Linux. 
 | Wayland — KDE | KDE Plasma | `ydotool` (+`ydotoold`) | `spectacle`, `imagemagick` (crop) |
 | XWayland | Any Wayland compositor | `xdotool` (fallback) | depends on compositor |
 
-Patches emit `[claude-cu] diagnostics:` lines to `main.log` at startup showing detected session, available/missing tools, and screenshot cascade order. Ask users to share this when debugging.
+Patches emit `[claude-cu] diagnostics:` lines to **stderr/stdout** at startup showing detected session, available/missing tools, and screenshot cascade order. Visible when running `claude-desktop` from a terminal. Ask users to share this output when debugging.
 
 **Key constraint:** The upstream binary (`Claude-Setup-x64.exe`) is managed remotely by Anthropic and changes without notice. Every minified variable name, function signature, and feature flag can change between releases. This makes the project inherently fragile — patches and documentation must be re-validated on each upstream update.
 

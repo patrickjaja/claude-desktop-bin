@@ -5,14 +5,14 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 ## 2026-04-06 (v1.569.0) — Add runtime diagnostics logging for all patches
 
 ### Added
-- **fix_computer_use_linux.py**: Startup diagnostics IIFE logs session type, DE, available/missing tools, input backend, and screenshot cascade order to `main.log`. First-use logging for each input operation (mouse, click, key, type, scroll, drag) shows which backend handled it.
+- **fix_computer_use_linux.py**: Startup diagnostics IIFE logs session type, DE, available/missing tools, input backend, and screenshot cascade order to stdout/stderr (visible when running `claude-desktop` from a terminal). First-use logging for each input operation (mouse, click, key, type, scroll, drag) shows which backend handled it.
 - **fix_browser_tools_linux.py**: Logs native host presence and detected browser profiles at startup.
 - **fix_claude_code.py**: Logs which path the CLI binary was found at, or warns with install instructions if missing.
 - **fix_quick_entry_position.py**: One-time log for cursor positioning method (xdotool, hyprctl, or Electron fallback).
 - **CLAUDE.md**: Added supported distros and session managers reference table.
 
 ### Notes
-- All diagnostics use structured `[tag] category: detail` format. Debug with: `grep '\[claude-cu\]\|\[claude-code\]\|\[browser-tools\]\|\[quick-entry\]' ~/.config/Claude/logs/main.log`
+- All diagnostics use structured `[tag] category: detail` format. Visible when running `claude-desktop` from a terminal. Not written to `main.log` (that file uses Electron's structured logger).
 
 ## 2026-04-05 (v1.569.0) — Fix Quick Entry focus on X11/XWayland
 
