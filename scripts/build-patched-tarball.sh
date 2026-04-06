@@ -204,7 +204,9 @@ if [ -d "$WORK_DIR/extract/lib/net45/resources/claude-ssh" ]; then
 fi
 
 # Run Electron smoke test if dependencies are available
-if command -v electron &>/dev/null && command -v xvfb-run &>/dev/null; then
+if [ "${SKIP_SMOKE_TEST:-0}" = "1" ]; then
+    log_warn "Skipping smoke test (SKIP_SMOKE_TEST=1)"
+elif command -v electron &>/dev/null && command -v xvfb-run &>/dev/null; then
     log_info "Running Electron smoke test..."
     if ! "$SCRIPT_DIR/smoke-test.sh" "$WORK_DIR/app/app.asar"; then
         log_error "Smoke test FAILED - the patched app crashes on startup"

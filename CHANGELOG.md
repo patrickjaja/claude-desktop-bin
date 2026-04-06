@@ -2,6 +2,17 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-06 (v1.569.0) — Add gnome-screenshot fallback for Wayland GNOME, Ubuntu build script
+
+### Fixed
+- **fix_computer_use_linux.py**: `gnome-screenshot` was never tried on Wayland GNOME sessions — it was only in the X11 code path. If `gdbus` (GNOME Shell D-Bus) failed, screenshots fell through directly to the Electron `desktopCapturer` fallback. Added `gnome-screenshot` as a Wayland GNOME fallback (full capture + ImageMagick crop, with uncropped fallback). Updated diagnostics to include it in relevant-tools and cascade-order output.
+
+### Added
+- **scripts/build-ubuntu-local.sh**: Local build script for Ubuntu/Debian — downloads the latest exe, applies patches, and builds an installable `.deb`.
+
+### Changed
+- **scripts/build-patched-tarball.sh**: Added `SKIP_SMOKE_TEST=1` env var to allow skipping the Electron smoke test on systems without `electron`/`xvfb-run`.
+
 ## 2026-04-06 (v1.569.0) — Add runtime diagnostics logging for all patches
 
 ### Added

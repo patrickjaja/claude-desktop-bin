@@ -73,6 +73,12 @@ async function _captureRegion(x,y,w,h){
     try{_cp.execSync("gdbus call --session --dest org.gnome.Shell.Screenshot --object-path /org/gnome/Shell/Screenshot --method org.gnome.Shell.Screenshot.ScreenshotArea "+x+" "+y+" "+w+" "+h+" false '"+tmp+"'",{timeout:10000});
     if(_fs.existsSync(tmp)){console.log("[claude-cu] screenshot: captured via gdbus (GNOME Shell Screenshot D-Bus)");return _readClean(tmp)}}catch(e){console.warn("[claude-cu] GNOME D-Bus screenshot failed: "+e.message)}
   }
+  if(_wayland&&_de.indexOf("gnome")>=0&&_hasCmd("gnome-screenshot")){
+    try{var _gstmp=_path.join(_os.tmpdir(),"claude-cu-gnome-"+Date.now()+".png");
+    _cp.execSync('gnome-screenshot -f "'+_gstmp+'"',{timeout:10000});
+    if(_fs.existsSync(_gstmp)){if(_hasCmd("convert")){try{_cp.execSync('convert "'+_gstmp+'" -crop '+w+"x"+h+"+"+x+"+"+y+' +repage "'+tmp+'"',{timeout:5000});try{_fs.unlinkSync(_gstmp)}catch(e){}console.log("[claude-cu] screenshot: captured via gnome-screenshot+convert (Wayland GNOME)");return _readClean(tmp)}catch(ce){try{_fs.renameSync(_gstmp,tmp)}catch(re){}console.log("[claude-cu] screenshot: captured via gnome-screenshot (Wayland GNOME, uncropped)");return _readClean(tmp)}}else{try{_fs.renameSync(_gstmp,tmp)}catch(re){}console.log("[claude-cu] screenshot: captured via gnome-screenshot (Wayland GNOME, uncropped)");return _readClean(tmp)}}
+    }catch(e){console.warn("[claude-cu] gnome-screenshot (Wayland) failed: "+e.message)}
+  }
   if(_de.indexOf("kde")>=0&&_hasCmd("spectacle")){
     try{var stmp=_path.join(_os.tmpdir(),"claude-cu-spectacle-"+Date.now()+".png");
     _cp.execSync('spectacle -b -n -f -o "'+stmp+'"',{timeout:10000});
@@ -96,7 +102,7 @@ if(_wayland){console.log("[claude-cu] Wayland session detected — using native 
   var _isHypr=!!process.env.HYPRLAND_INSTANCE_SIGNATURE;var _isSway=!!process.env.SWAYSOCK;
   var _relevant=[];
   if(_wayland&&_wlr)_relevant.push("grim");
-  if(_wayland&&_isGnome)_relevant.push("gdbus");
+  if(_wayland&&_isGnome){_relevant.push("gdbus");_relevant.push("gnome-screenshot")}
   if(_isKde){_relevant.push("spectacle");_relevant.push("convert")}
   if(!_wayland&&_isGnome)_relevant.push("gnome-screenshot");
   if(!_wayland)_relevant.push("scrot","import");
@@ -121,6 +127,7 @@ if(_wayland){console.log("[claude-cu] Wayland session detected — using native 
   if(process.env.COWORK_SCREENSHOT_CMD)order.push("COWORK_SCREENSHOT_CMD");
   if(_wayland&&_wlr&&_hasCmd("grim"))order.push("grim");
   if(_wayland&&_isGnome&&_hasCmd("gdbus"))order.push("gdbus");
+  if(_wayland&&_isGnome&&_hasCmd("gnome-screenshot"))order.push("gnome-screenshot");
   if(_isKde&&_hasCmd("spectacle"))order.push("spectacle");
   if(!_wayland&&_isGnome&&_hasCmd("gnome-screenshot"))order.push("gnome-screenshot");
   if(!_wayland&&_hasCmd("scrot"))order.push("scrot");
