@@ -6,6 +6,26 @@ This is an AUR package that repackages Claude Desktop (Windows) for Arch Linux. 
 
 **Target platform:** Linux only. We do NOT need macOS or Windows compatibility — all patches target Linux exclusively (X11, Wayland, XWayland). Supported distros: Arch Linux (AUR primary), plus Fedora/Ubuntu via RPM/DEB packaging.
 
+**Supported distros & session managers:**
+
+| Distro | Packaging |
+|--------|-----------|
+| Arch Linux | AUR (`claude-desktop-bin`) |
+| Ubuntu / Debian | `.deb` |
+| Fedora / RHEL | `.rpm` |
+| NixOS | Nix flake |
+| Any (glibc) | `.AppImage` |
+
+| Session type | Compositors / DEs | Input backend | Screenshot tools |
+|-------------|-------------------|---------------|-----------------|
+| X11 | Any (GNOME, KDE, i3, …) | `xdotool` | `scrot`, `imagemagick`, `gnome-screenshot` |
+| Wayland — wlroots | Sway, Hyprland | `ydotool` (+`ydotoold`) | `grim` |
+| Wayland — GNOME | GNOME Shell | `ydotool` (+`ydotoold`) | `gdbus` (glib2), `gnome-screenshot` fallback |
+| Wayland — KDE | KDE Plasma | `ydotool` (+`ydotoold`) | `spectacle`, `imagemagick` (crop) |
+| XWayland | Any Wayland compositor | `xdotool` (fallback) | depends on compositor |
+
+Patches emit `[claude-cu] diagnostics:` lines to `main.log` at startup showing detected session, available/missing tools, and screenshot cascade order. Ask users to share this when debugging.
+
 **Key constraint:** The upstream binary (`Claude-Setup-x64.exe`) is managed remotely by Anthropic and changes without notice. Every minified variable name, function signature, and feature flag can change between releases. This makes the project inherently fragile — patches and documentation must be re-validated on each upstream update.
 
 ## Version-Sensitive Artifacts

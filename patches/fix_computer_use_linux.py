@@ -64,32 +64,70 @@ async function _captureRegion(x,y,w,h){
   var _de=_desktopId();
   if(process.env.COWORK_SCREENSHOT_CMD){
     try{var cmd=process.env.COWORK_SCREENSHOT_CMD.replace(/\{FILE\}/g,tmp).replace(/\{X\}/g,x).replace(/\{Y\}/g,y).replace(/\{W\}/g,w).replace(/\{H\}/g,h);
-    _cp.execSync(cmd,{timeout:15000});return _readClean(tmp)}catch(e){console.warn("[claude-cu] COWORK_SCREENSHOT_CMD failed: "+e.message)}
+    _cp.execSync(cmd,{timeout:15000});console.log("[claude-cu] screenshot: captured via COWORK_SCREENSHOT_CMD");return _readClean(tmp)}catch(e){console.warn("[claude-cu] COWORK_SCREENSHOT_CMD failed: "+e.message)}
   }
   if(_wayland&&_isWlroots()&&_hasCmd("grim")){
-    try{_cp.execSync('grim -g "'+x+","+y+" "+w+"x"+h+'" "'+tmp+'"',{timeout:10000});return _readClean(tmp)}catch(e){console.warn("[claude-cu] grim failed: "+e.message)}
+    try{_cp.execSync('grim -g "'+x+","+y+" "+w+"x"+h+'" "'+tmp+'"',{timeout:10000});console.log("[claude-cu] screenshot: captured via grim (wlroots)");return _readClean(tmp)}catch(e){console.warn("[claude-cu] grim failed: "+e.message)}
   }
   if(_wayland&&_de.indexOf("gnome")>=0&&_hasCmd("gdbus")){
     try{_cp.execSync("gdbus call --session --dest org.gnome.Shell.Screenshot --object-path /org/gnome/Shell/Screenshot --method org.gnome.Shell.Screenshot.ScreenshotArea "+x+" "+y+" "+w+" "+h+" false '"+tmp+"'",{timeout:10000});
-    if(_fs.existsSync(tmp))return _readClean(tmp)}catch(e){console.warn("[claude-cu] GNOME D-Bus screenshot failed: "+e.message)}
+    if(_fs.existsSync(tmp)){console.log("[claude-cu] screenshot: captured via gdbus (GNOME Shell Screenshot D-Bus)");return _readClean(tmp)}}catch(e){console.warn("[claude-cu] GNOME D-Bus screenshot failed: "+e.message)}
   }
   if(_de.indexOf("kde")>=0&&_hasCmd("spectacle")){
     try{var stmp=_path.join(_os.tmpdir(),"claude-cu-spectacle-"+Date.now()+".png");
     _cp.execSync('spectacle -b -n -f -o "'+stmp+'"',{timeout:10000});
-    if(_fs.existsSync(stmp)){try{_cp.execSync('convert "'+stmp+'" -crop '+w+"x"+h+"+"+x+"+"+y+' +repage "'+tmp+'"',{timeout:5000});try{_fs.unlinkSync(stmp)}catch(e){}return _readClean(tmp)}catch(ce){try{_fs.renameSync(stmp,tmp)}catch(re){}return _readClean(tmp)}}
+    if(_fs.existsSync(stmp)){try{_cp.execSync('convert "'+stmp+'" -crop '+w+"x"+h+"+"+x+"+"+y+' +repage "'+tmp+'"',{timeout:5000});try{_fs.unlinkSync(stmp)}catch(e){}console.log("[claude-cu] screenshot: captured via spectacle+convert (KDE)");return _readClean(tmp)}catch(ce){try{_fs.renameSync(stmp,tmp)}catch(re){}console.log("[claude-cu] screenshot: captured via spectacle (KDE, uncropped)");return _readClean(tmp)}}
     }catch(e){console.warn("[claude-cu] spectacle failed: "+e.message)}
   }
   if(!_wayland&&_de.indexOf("gnome")>=0&&_hasCmd("gnome-screenshot")){
-    try{_cp.execSync('gnome-screenshot -f "'+tmp+'"',{timeout:10000});if(_fs.existsSync(tmp))return _readClean(tmp)}catch(e){console.warn("[claude-cu] gnome-screenshot failed: "+e.message)}
+    try{_cp.execSync('gnome-screenshot -f "'+tmp+'"',{timeout:10000});if(_fs.existsSync(tmp)){console.log("[claude-cu] screenshot: captured via gnome-screenshot (X11)");return _readClean(tmp)}}catch(e){console.warn("[claude-cu] gnome-screenshot failed: "+e.message)}
   }
   if(!_wayland&&_hasCmd("scrot")){
-    try{_cp.execSync("scrot -a "+x+","+y+","+w+","+h+' -o "'+tmp+'"',{timeout:10000});return _readClean(tmp)}catch(e){console.warn("[claude-cu] scrot failed: "+e.message)}
+    try{_cp.execSync("scrot -a "+x+","+y+","+w+","+h+' -o "'+tmp+'"',{timeout:10000});console.log("[claude-cu] screenshot: captured via scrot (X11)");return _readClean(tmp)}catch(e){console.warn("[claude-cu] scrot failed: "+e.message)}
   }
-  if(!_wayland){try{_cp.execSync('import -window root -crop '+w+"x"+h+"+"+x+"+"+y+' "'+tmp+'"',{timeout:10000});return _readClean(tmp)}catch(e2){}}
-  try{var _sources=await _electron.desktopCapturer.getSources({types:["screen"],thumbnailSize:{width:w+x,height:h+y}});if(_sources&&_sources.length>0){var _img=_sources[0].thumbnail;if(_img&&!_img.isEmpty()){var _cropped=_img.crop({x:x,y:y,width:w,height:h});_fs.writeFileSync(tmp,_cropped.toPNG());return _readClean(tmp)}}}catch(dce){console.warn("[claude-cu] desktopCapturer fallback failed: "+dce.message)}
+  if(!_wayland){try{_cp.execSync('import -window root -crop '+w+"x"+h+"+"+x+"+"+y+' "'+tmp+'"',{timeout:10000});console.log("[claude-cu] screenshot: captured via import (ImageMagick, X11)");return _readClean(tmp)}catch(e2){console.warn("[claude-cu] import (ImageMagick) failed: "+(e2.message||e2))}}
+  try{var _sources=await _electron.desktopCapturer.getSources({types:["screen"],thumbnailSize:{width:w+x,height:h+y}});if(_sources&&_sources.length>0){var _img=_sources[0].thumbnail;if(_img&&!_img.isEmpty()){var _cropped=_img.crop({x:x,y:y,width:w,height:h});_fs.writeFileSync(tmp,_cropped.toPNG());console.log("[claude-cu] screenshot: captured via desktopCapturer (Electron fallback)");return _readClean(tmp)}}}catch(dce){console.warn("[claude-cu] desktopCapturer fallback failed: "+dce.message)}
   throw new Error("Screenshot failed — install scrot (X11), grim (Wayland wlroots), or set COWORK_SCREENSHOT_CMD env var.")
 }
 if(_wayland){console.log("[claude-cu] Wayland session detected — using native Wayland tools")}
+(function(){
+  var _de=_desktopId();var _wlr=_wayland?_isWlroots():false;
+  var _isGnome=_de.indexOf("gnome")>=0;var _isKde=_de.indexOf("kde")>=0;
+  var _isHypr=!!process.env.HYPRLAND_INSTANCE_SIGNATURE;var _isSway=!!process.env.SWAYSOCK;
+  var _relevant=[];
+  if(_wayland&&_wlr)_relevant.push("grim");
+  if(_wayland&&_isGnome)_relevant.push("gdbus");
+  if(_isKde){_relevant.push("spectacle");_relevant.push("convert")}
+  if(!_wayland&&_isGnome)_relevant.push("gnome-screenshot");
+  if(!_wayland)_relevant.push("scrot","import");
+  if(_wayland)_relevant.push("ydotool");
+  _relevant.push("xdotool");
+  if(!_wayland)_relevant.push("wmctrl");
+  if(_isHypr)_relevant.push("hyprctl");
+  if(_isSway){_relevant.push("swaymsg");_relevant.push("jq")}
+  _relevant.push("xdg-open");
+  var avail=_relevant.filter(function(t){return _hasCmd(t)});
+  var missing=_relevant.filter(function(t){return !_hasCmd(t)});
+  console.log("[claude-cu] diagnostics: session="+(_wayland?"wayland":"x11")+" de="+(_de||"unknown")+" wlroots="+_wlr+" vm="+!!globalThis.__isVM);
+  console.log("[claude-cu] diagnostics: available=["+avail.join(", ")+"]");
+  if(missing.length)console.warn("[claude-cu] diagnostics: missing=["+missing.join(", ")+"] (install for full functionality)");
+  if(_wayland){
+    var ydOk=_checkYdotool();
+    console.log("[claude-cu] diagnostics: input-backend="+(ydOk?"ydotool":"xdotool (XWayland fallback)"));
+  }else{
+    console.log("[claude-cu] diagnostics: input-backend=xdotool");
+  }
+  var order=[];
+  if(process.env.COWORK_SCREENSHOT_CMD)order.push("COWORK_SCREENSHOT_CMD");
+  if(_wayland&&_wlr&&_hasCmd("grim"))order.push("grim");
+  if(_wayland&&_isGnome&&_hasCmd("gdbus"))order.push("gdbus");
+  if(_isKde&&_hasCmd("spectacle"))order.push("spectacle");
+  if(!_wayland&&_isGnome&&_hasCmd("gnome-screenshot"))order.push("gnome-screenshot");
+  if(!_wayland&&_hasCmd("scrot"))order.push("scrot");
+  if(!_wayland&&_hasCmd("import"))order.push("import");
+  order.push("desktopCapturer");
+  console.log("[claude-cu] diagnostics: screenshot-cascade=["+order.join(" > ")+"]");
+})();
 var _defaultMon={displayId:0,width:1920,height:1080,originX:0,originY:0,scaleFactor:1,isPrimary:true,label:"default"};
 function _getMonitors(){
   try{
@@ -112,12 +150,15 @@ function _findMon(displayId){
   for(var i=0;i<mons.length;i++){if(mons[i].isPrimary)return mons[i]}
   return mons[0];
 }
+var _inputLogDone={mouse:false,click:false,key:false,type:false,scroll:false,drag:false,window:false,app:false};
+function _logFirstUse(op,backend){if(!_inputLogDone[op]){_inputLogDone[op]=true;console.log("[claude-cu] "+op+": using "+backend)}}
 function _moveMouse(x,y){
   if(_wayland&&_checkYdotool()){
-    try{_exec("ydotool mousemove --absolute 0 0");_cp.execSync("sleep 0.05");_exec("ydotool mousemove "+Math.round(x)+" "+Math.round(y));return}catch(e){console.warn("[claude-cu] ydotool mousemove failed, falling back to xdotool: "+e.message)}
+    try{_logFirstUse("mouse","ydotool");_exec("ydotool mousemove --absolute 0 0");_cp.execSync("sleep 0.05");_exec("ydotool mousemove "+Math.round(x)+" "+Math.round(y));return}catch(e){console.warn("[claude-cu] ydotool mousemove failed, falling back to xdotool: "+e.message)}
   }else{
     if(_wayland&&!_checkYdotool())console.warn("[claude-cu] ydotool not available on Wayland, falling back to xdotool via XWayland");
   }
+  _logFirstUse("mouse","xdotool");
   _exec("xdotool mousemove --sync "+Math.round(x)+" "+Math.round(y));
 }
 function _mapKey(k){
@@ -164,14 +205,14 @@ function _getActiveWindowWayland(){
     if(process.env.HYPRLAND_INSTANCE_SIGNATURE&&_hasCmd("hyprctl")){
       var out=_exec("hyprctl activewindow -j 2>/dev/null");
       var w=JSON.parse(out);
-      if(w&&(w.class||w.title))return{bundleId:w.class||w.title,displayName:w.title||w.class};
+      if(w&&(w.class||w.title)){_logFirstUse("window","hyprctl");return{bundleId:w.class||w.title,displayName:w.title||w.class}}
     }
   }catch(he){}
   try{
     if(process.env.SWAYSOCK&&_hasCmd("swaymsg")&&_hasCmd("jq")){
       var out=_exec("swaymsg -t get_tree 2>/dev/null|jq -r '.. | select(.focused? == true) | {app_id, name}'");
       var w=JSON.parse(out);
-      if(w&&(w.app_id||w.name))return{bundleId:w.app_id||w.name,displayName:w.name||w.app_id};
+      if(w&&(w.app_id||w.name)){_logFirstUse("window","swaymsg+jq");return{bundleId:w.app_id||w.name,displayName:w.name||w.app_id}}
     }
   }catch(se){}
   return null;
@@ -180,6 +221,7 @@ function _listRunningAppsWayland(){
   var apps=[],seen={};
   try{
     if(process.env.HYPRLAND_INSTANCE_SIGNATURE&&_hasCmd("hyprctl")){
+      console.log("[claude-cu] listRunningApps: using hyprctl clients");
       var out=_exec("hyprctl clients -j 2>/dev/null");
       var clients=JSON.parse(out);
       for(var i=0;i<clients.length;i++){
@@ -192,6 +234,7 @@ function _listRunningAppsWayland(){
   }catch(he){}
   try{
     if(process.env.SWAYSOCK&&_hasCmd("swaymsg")&&_hasCmd("jq")){
+      console.log("[claude-cu] listRunningApps: using swaymsg+jq");
       var out=_exec("swaymsg -t get_tree 2>/dev/null|jq -r '.. | select(.pid? > 0 and .visible? == true) | {app_id, name}'");
       var lines=out.split("\n");
       for(var i=0;i<lines.length;i++){
@@ -281,6 +324,7 @@ globalThis.__linuxExecutor={
     if(_wayland){return _listRunningAppsWayland()}
     var apps=[];
     try{
+      console.log("[claude-cu] listRunningApps: using wmctrl/xdotool (X11)");
       var out=_exec("wmctrl -l 2>/dev/null||xdotool search --onlyvisible --name \"\" getwindowname 2>/dev/null||true");
       var lines=out.split("\n");
       var seen={};
@@ -305,6 +349,7 @@ globalThis.__linuxExecutor={
   async getFrontmostApp(){
     if(_wayland){return _getActiveWindowWayland()}
     try{
+      _logFirstUse("window","xdotool");
       var wid=_exec("xdotool getactivewindow");
       return _getWinInfo(wid);
     }catch(e){return null}
@@ -350,9 +395,11 @@ globalThis.__linuxExecutor={
     var resolved=_resolveApp(name);
     var cmd=resolved||name;
     try{
+      console.log("[claude-cu] openApp: launching via setsid "+cmd);
       _cp.exec("setsid "+JSON.stringify(cmd)+" >/dev/null 2>&1");
     }catch(e){
       try{
+        console.log("[claude-cu] openApp: fallback to xdg-open "+name);
         _cp.exec("setsid xdg-open "+JSON.stringify(name)+" >/dev/null 2>&1");
       }catch(e2){throw new Error("Could not open "+name+(resolved?" (resolved to "+resolved+")":""))}
     }
@@ -362,6 +409,7 @@ globalThis.__linuxExecutor={
     _moveMouse(x,y);
     var rep=count||1;
     if(_wayland&&_checkYdotool()){
+      _logFirstUse("click","ydotool");
       var ybtn={left:"0xC0",right:"0xC1",middle:"0xC2"}[button]||"0xC0";
       if(holdKeys&&holdKeys.length>0){
         var downParts=[],upParts=[];
@@ -373,6 +421,7 @@ globalThis.__linuxExecutor={
         for(var _ri=0;_ri<rep;_ri++){if(_ri>0)_cp.execSync("sleep 0.05");_exec("ydotool click "+ybtn)}
       }
     }else{
+      _logFirstUse("click","xdotool");
       var btn={left:1,right:3,middle:2}[button]||1;
       if(holdKeys&&holdKeys.length>0){
         for(var i=0;i<holdKeys.length;i++)_exec("xdotool keydown "+_mapKey(holdKeys[i]));
@@ -384,8 +433,8 @@ globalThis.__linuxExecutor={
     }
   },
   async mouseDown(){
-    if(_wayland&&_checkYdotool()){_exec("ydotool click 0x40")}
-    else{_exec("xdotool mousedown 1")}
+    if(_wayland&&_checkYdotool()){_logFirstUse("drag","ydotool");_exec("ydotool click 0x40")}
+    else{_logFirstUse("drag","xdotool");_exec("xdotool mousedown 1")}
   },
   async mouseUp(){
     if(_wayland&&_checkYdotool()){_exec("ydotool click 0x80")}
@@ -398,11 +447,13 @@ globalThis.__linuxExecutor={
   async drag(start,end){
     if(start)_moveMouse(start.x,start.y);
     if(_wayland&&_checkYdotool()){
+      _logFirstUse("drag","ydotool");
       _exec("ydotool click 0x40");
       _exec("ydotool mousemove --absolute 0 0");_cp.execSync("sleep 0.05");_exec("ydotool mousemove "+Math.round(end.x)+" "+Math.round(end.y));
       _cp.execSync("sleep 0.05");
       _exec("ydotool click 0x80");
     }else{
+      _logFirstUse("drag","xdotool");
       _exec("xdotool mousedown 1");
       _exec("xdotool mousemove --sync "+Math.round(end.x)+" "+Math.round(end.y));
       _cp.execSync("sleep 0.05");
@@ -412,9 +463,11 @@ globalThis.__linuxExecutor={
   async scroll(x,y,horizontal,vertical){
     _moveMouse(x,y);
     if(_wayland&&_checkYdotool()){
+      _logFirstUse("scroll","ydotool");
       if(vertical&&vertical!==0){var vamt=-Math.round(vertical);_exec("ydotool mousemove -w -- 0 "+vamt)}
       if(horizontal&&horizontal!==0){var hamt=Math.round(horizontal);_exec("ydotool mousemove -w -- "+hamt+" 0")}
     }else{
+      _logFirstUse("scroll","xdotool");
       if(vertical&&vertical!==0){var vb=vertical>0?5:4;_exec("xdotool click --repeat "+Math.abs(Math.round(vertical))+" --delay 30 "+vb)}
       if(horizontal&&horizontal!==0){var hb=horizontal>0?7:6;_exec("xdotool click --repeat "+Math.abs(Math.round(horizontal))+" --delay 30 "+hb)}
     }
@@ -422,6 +475,7 @@ globalThis.__linuxExecutor={
   async key(combo,count){
     var n=count||1;
     if(_wayland&&_checkYdotool()){
+      _logFirstUse("key","ydotool");
       var parts=combo.split("+").map(_mapKeyWayland);
       if(parts.length===1){
         for(var i=0;i<n;i++){if(i>0)_cp.execSync("sleep 0.008");_exec("ydotool key "+parts[0]+":1 "+parts[0]+":0")}
@@ -432,6 +486,7 @@ globalThis.__linuxExecutor={
         for(var i=0;i<n;i++){if(i>0)_cp.execSync("sleep 0.008");_exec("ydotool key "+seq)}
       }
     }else{
+      _logFirstUse("key","xdotool");
       var mapped=combo.split("+").map(_mapKey).join("+");
       for(var i=0;i<n;i++){if(i>0)_cp.execSync("sleep 0.008");_exec("xdotool key --clearmodifiers "+mapped)}
     }
@@ -439,11 +494,13 @@ globalThis.__linuxExecutor={
   async holdKey(keyName,seconds){
     var secs=Math.min(seconds||0.5,10);
     if(_wayland&&_checkYdotool()){
+      _logFirstUse("key","ydotool");
       var k=_mapKeyWayland(keyName);
       _exec("ydotool key "+k+":1");
       _cp.execSync("sleep "+secs);
       _exec("ydotool key "+k+":0");
     }else{
+      _logFirstUse("key","xdotool");
       var k=_mapKey(keyName);
       _exec("xdotool keydown "+k);
       _cp.execSync("sleep "+secs);
@@ -452,6 +509,7 @@ globalThis.__linuxExecutor={
   },
   async type(text,opts){
     if(_wayland&&_checkYdotool()){
+      _logFirstUse("type","ydotool"+(opts&&opts.viaClipboard?" (clipboard)":""));
       if(opts&&opts.viaClipboard){
         _electron.clipboard.writeText(text,"clipboard");
         _exec("ydotool key 29:1 47:1 47:0 29:0");
@@ -459,6 +517,7 @@ globalThis.__linuxExecutor={
         _cp.execSync("ydotool type -- "+JSON.stringify(text),{timeout:15000});
       }
     }else{
+      _logFirstUse("type","xdotool"+(opts&&opts.viaClipboard?" (clipboard)":""));
       if(opts&&opts.viaClipboard){
         _electron.clipboard.writeText(text,"clipboard");
         _exec("xdotool key --clearmodifiers ctrl+v");

@@ -117,15 +117,21 @@ def patch_browser_tools_linux(filepath):
 
     linux_paths = (
         b':process.platform==="linux"?(()=>{'
-        b'const h=require("os").homedir(),p=require("path");'
-        b"return["
+        b'const h=require("os").homedir(),p=require("path"),fs=require("fs");'
+        b"const dirs=["
         b'{name:"Chrome",path:p.join(h,".config","google-chrome","NativeMessagingHosts")},'
         b'{name:"Chromium",path:p.join(h,".config","chromium","NativeMessagingHosts")},'
         b'{name:"Brave",path:p.join(h,".config","BraveSoftware","Brave-Browser","NativeMessagingHosts")},'
         b'{name:"Edge",path:p.join(h,".config","microsoft-edge","NativeMessagingHosts")},'
         b'{name:"Vivaldi",path:p.join(h,".config","vivaldi","NativeMessagingHosts")},'
         b'{name:"Opera",path:p.join(h,".config","opera","NativeMessagingHosts")}'
-        b"]})():[]"
+        b"];"
+        b'const nh=p.join(h,".claude","chrome","chrome-native-host");'
+        b"const nhOk=fs.existsSync(nh);"
+        b"const detected=dirs.filter(d=>{try{const pp=p.dirname(d.path);return fs.existsSync(pp)}catch(e){return false}}).map(d=>d.name);"
+        b'console.log("[browser-tools] diagnostics: native-host="+(nhOk?"found":"MISSING (install claude-code CLI)")+" browsers=["+detected.join(", ")+"]");'
+        b"return dirs"
+        b"})():[]"
     )
 
     already_b = rb'"ChromeNativeHost"\)\}\]:process\.platform==="linux"'

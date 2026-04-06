@@ -68,9 +68,10 @@ def patch_claude_code(filepath):
         b'for(const p of["/usr/bin/claude",'
         b'(process.env.HOME||"")+"/.local/bin/claude",'
         b'"/usr/local/bin/claude"])'
-        b"if(fs.existsSync(p))return p;"
-        b'return require("child_process").execSync("which claude",{encoding:"utf-8"}).trim()}'
-        b"catch(err){}}"
+        b'if(fs.existsSync(p)){console.log("[claude-code] binary: found at "+p);return p}'
+        b'const wp=require("child_process").execSync("which claude",{encoding:"utf-8"}).trim();'
+        b'console.log("[claude-code] binary: found via which at "+wp);return wp}'
+        b'catch(err){console.warn("[claude-code] binary: NOT FOUND - install claude-code CLI (npm i -g @anthropic-ai/claude-code)")}}'
     )
 
     def binary_replacement(m):

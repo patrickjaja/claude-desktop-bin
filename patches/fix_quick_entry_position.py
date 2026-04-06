@@ -60,15 +60,16 @@ def patch_quick_entry_position(filepath):
             f'{{timeout:200,encoding:"utf-8"}});'
             f"const x=parseInt(r.match(/X=(\\d+)/)?.[1]);"
             f"const y=parseInt(r.match(/Y=(\\d+)/)?.[1]);"
-            f"if(!isNaN(x)&&!isNaN(y))return{{x,y}}"
+            f'if(!isNaN(x)&&!isNaN(y)){{if(!globalThis.__qeCursorLogged){{globalThis.__qeCursorLogged=true;console.log("[quick-entry] cursor: using xdotool")}}return{{x,y}}}}'
             f"}}catch(e){{}}"
             # Try hyprctl for Hyprland on Wayland
             f"try{{"
             f'const r=cp.execFileSync("hyprctl",["cursorpos"],'
             f'{{timeout:200,encoding:"utf-8"}});'
             f"const m=r.match(/(\\d+),\\s*(\\d+)/);"
-            f"if(m)return{{x:parseInt(m[1]),y:parseInt(m[2])}}"
+            f'if(m){{if(!globalThis.__qeCursorLogged){{globalThis.__qeCursorLogged=true;console.log("[quick-entry] cursor: using hyprctl")}}return{{x:parseInt(m[1]),y:parseInt(m[2])}}}}'
             f"}}catch(e){{}}"
+            f'if(!globalThis.__qeCursorLogged){{globalThis.__qeCursorLogged=true;console.warn("[quick-entry] cursor: xdotool/hyprctl not available — falling back to Electron API (may show on wrong monitor)")}}'
             f"}}"
             f"return {electron_var}.screen.getCursorScreenPoint()"
             f"}})()"
