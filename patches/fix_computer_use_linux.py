@@ -933,11 +933,9 @@ def patch_computer_use_linux(filepath):
 
     def lf_repl(m):
         v = m.group(1).decode("utf-8")
-        return (
-            f'{v}=process.platform==="linux"?"":"The frontmost application '
-            f"must be in the session allowlist at the time of this call, or "
-            f'this tool returns an error and does nothing."'
-        ).encode("utf-8")
+        return (f'{v}=process.platform==="linux"?"":"The frontmost application must be in the session allowlist at the time of this call, or this tool returns an error and does nothing."').encode(
+            "utf-8"
+        )
 
     content, count = re.subn(lf_pat, lf_repl, content, count=1)
     if count:
@@ -971,7 +969,9 @@ def patch_computer_use_linux(filepath):
 
     # 13c: App identifier (request_access apps schema) — WM_CLASS for Linux
     # macOS uses bundle identifiers (com.tinyspeck.slackmacgap) — N/A on Linux.
-    _old_13c = b"""'Application display names (e.g. "Slack", "Calendar") or bundle identifiers (e.g. "com.tinyspeck.slackmacgap"). Display names are resolved case-insensitively against installed apps.'"""
+    _old_13c = (
+        b"""'Application display names (e.g. "Slack", "Calendar") or bundle identifiers (e.g. "com.tinyspeck.slackmacgap"). Display names are resolved case-insensitively against installed apps.'"""
+    )
     _new_13c = (
         b"""(t.platform==="linux"?"""
         b"""'Application names as shown in window titles, or WM_CLASS values """
@@ -1005,18 +1005,14 @@ def patch_computer_use_linux(filepath):
         print("  [WARN] 13d open_application app: not found")
 
     # 13e: open_application — no allowlist on Linux
-    _old_13e = (
-        '"Bring an application to the front, launching it if necessary. '
-        'The target application must already be in the session allowlist '
-        '\u2014 call request_access first."'
-    ).encode("utf-8")
+    _old_13e = ('"Bring an application to the front, launching it if necessary. The target application must already be in the session allowlist \u2014 call request_access first."').encode("utf-8")
     _new_13e = (
         '(process.platform==="linux"?'
         '"Bring an application to the front, launching it if necessary. '
         'On Linux, all applications are directly accessible."'
-        ':'
+        ":"
         '"Bring an application to the front, launching it if necessary. '
-        'The target application must already be in the session allowlist '
+        "The target application must already be in the session allowlist "
         '\u2014 call request_access first.")'
     ).encode("utf-8")
     if _old_13e in content:
@@ -1029,16 +1025,16 @@ def patch_computer_use_linux(filepath):
     # 13f: screenshot (none-filtering) — remove allowlist text on Linux
     _old_13f = (
         '"Take a screenshot of the primary display. On this platform, '
-        'screenshots are NOT filtered \u2014 all open windows are visible. '
+        "screenshots are NOT filtered \u2014 all open windows are visible. "
         'Input actions targeting apps not in the session allowlist are rejected."'
     ).encode("utf-8")
     _new_13f = (
         '(process.platform==="linux"?'
         '"Take a screenshot of the primary display. '
         'All open windows are visible."'
-        ':'
+        ":"
         '"Take a screenshot of the primary display. On this platform, '
-        'screenshots are NOT filtered \u2014 all open windows are visible. '
+        "screenshots are NOT filtered \u2014 all open windows are visible. "
         'Input actions targeting apps not in the session allowlist are rejected.")'
     ).encode("utf-8")
     if _old_13f in content:
