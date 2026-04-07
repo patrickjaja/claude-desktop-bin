@@ -27,7 +27,7 @@ sudo pacman -S --needed ydotool grim jq hyprland
 # Wayland (KDE Plasma):
 sudo pacman -S --needed ydotool xdotool spectacle imagemagick
 # Wayland (GNOME):
-sudo pacman -S --needed ydotool xdotool glib2 gnome-screenshot
+sudo pacman -S --needed ydotool xdotool glib2 gnome-screenshot python-gobject gst-plugin-pipewire
 # Optional: socat (cowork socket health checks, has fallback)
 # sudo pacman -S --needed socat
 ```
@@ -52,7 +52,7 @@ sudo apt install ydotool grim jq hyprland
 # Wayland (KDE Plasma):
 sudo apt install ydotool xdotool kde-spectacle imagemagick
 # Wayland (GNOME):
-sudo apt install ydotool xdotool libglib2.0-bin gnome-screenshot
+sudo apt install ydotool xdotool libglib2.0-bin gnome-screenshot python3-gi gstreamer1.0-pipewire
 # Optional: socat (cowork socket health checks, has fallback)
 # sudo apt install socat
 ```
@@ -87,7 +87,7 @@ sudo dnf install ydotool grim jq hyprland
 # Wayland (KDE Plasma):
 sudo dnf install ydotool xdotool spectacle ImageMagick
 # Wayland (GNOME):
-sudo dnf install ydotool xdotool glib2 gnome-screenshot
+sudo dnf install ydotool xdotool glib2 gnome-screenshot python3-gobject gstreamer1-plugin-pipewire
 # Optional: socat (cowork socket health checks, has fallback)
 # sudo dnf install socat
 ```
