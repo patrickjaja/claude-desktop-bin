@@ -1,4 +1,4 @@
-# Built-in MCP Servers — Claude Desktop v1.569.0
+# Built-in MCP Servers — Claude Desktop v1.1062.0
 
 Claude Desktop registers internal MCP servers via a two-layer architecture:
 
@@ -192,7 +192,23 @@ Browser interaction (30-second timeout each):
 |------|-------------|
 | `read_terminal` | Read terminal output |
 
-### 8. Dev Debug
+### 8. Cowork Onboarding
+
+| Field | Value |
+|-------|-------|
+| Server name | `"cowork-onboarding"` |
+| Gating | Cowork session + GrowthBook flag `2114777685` |
+| Added in | v1.1062.0 |
+
+Renders an interactive role-picker UI during Cowork onboarding so the user can select their job function and get a matching plugin installed.
+
+| Tool | Description |
+|------|-------------|
+| `show_onboarding_role_picker` | Render a clickable role-picker chip row during Cowork onboarding. Call this when asking the user what kind of work they do so they can pick their role and get a matching plugin installed. The role list is hardcoded in the frontend — call with no args. |
+
+**Restrictions:** Added to `BRIDGE_DISALLOWED_TOOLS` (disabled in dispatch-child sessions) and disabled for scheduled tasks.
+
+### 9. Dev Debug
 
 | Field | Value |
 |-------|-------|
@@ -203,7 +219,7 @@ Browser interaction (30-second timeout each):
 |------|-------------|
 | `get_roots` | Get MCP roots |
 
-### 9. Scheduled Tasks
+### 10. Scheduled Tasks
 
 Registered separately via `createScheduledTasksServer()`, injected directly into CCD and Cowork session managers.
 
@@ -213,7 +229,7 @@ Registered separately via `createScheduledTasksServer()`, injected directly into
 | `create_scheduled_task` | Create a new scheduled task |
 | `update_scheduled_task` | Update an existing scheduled task |
 
-### 10 (new). CCD Session
+### 11. CCD Session
 
 | Field | Value |
 |-------|-------|
@@ -235,7 +251,7 @@ Claude Desktop creates 4 additional MCP servers **dynamically per cowork/dispatc
 
 **Communication:** SDK-type servers use `MessagePort` bridges. On Mac/Windows, the VM SDK daemon (`nodeHost.js`) provides this bridge via vsock. On Linux native, `cowork-svc-linux` now **passes `--mcp-config` through unchanged** (since commit `d1dfc3b`). The CLI sends `control_request` messages on stdout, which flow through the event stream to Claude Desktop. Desktop's session manager intercepts them and sends `control_response` back via writeStdin — identical to VM mode on Mac/Windows.
 
-### 10. Dispatch
+### 12. Dispatch
 
 | Field | Value |
 |-------|-------|
@@ -256,7 +272,7 @@ Claude Desktop creates 4 additional MCP servers **dynamically per cowork/dispatc
 
 **Important:** `mcp__dispatch__send_message` is **NOT** a replacement for the built-in `SendUserMessage` CLI tool — they serve completely different purposes. `send_message` sends a follow-up message **to another session** (inter-session communication, takes `{session_id, message}`). `SendUserMessage` sends a response **to the human user** (renders on phone, takes `{message, attachments?}`). Since `SendUserMessage` is broken ([anthropics/claude-code#35076](https://github.com/anthropics/claude-code/issues/35076) — still open as of 2026-03-27, confirmed on v2.1.85), there is **no native tool** for the model to send user-facing responses. Patch I in `fix_dispatch_linux.py` compensates by transforming plain text assistant messages into synthetic `SendUserMessage` tool_use blocks, which the sessions API renders on phone.
 
-### 11. Cowork
+### 13. Cowork
 
 | Field | Value |
 |-------|-------|
@@ -275,7 +291,7 @@ Claude Desktop creates 4 additional MCP servers **dynamically per cowork/dispatc
 
 **Note:** `present_files`, `allow_cowork_file_delete`, and `launch_code_session` are added to `disallowedTools` for bridge/dispatch-child sessions (`rft` array). On Linux native, `cowork-svc-linux` removes `present_files` from `disallowedTools` as a workaround for file sharing.
 
-### 12. Session Info
+### 14. Session Info
 
 | Field | Value |
 |-------|-------|
@@ -290,7 +306,7 @@ Claude Desktop creates 4 additional MCP servers **dynamically per cowork/dispatc
 | `list_sessions` | `qdt` | List child sessions and all sessions |
 | `read_transcript` | `zdt` | Read transcript of a session |
 
-### 13. Workspace
+### 15. Workspace
 
 | Field | Value |
 |-------|-------|
@@ -349,7 +365,7 @@ disallowedTools: ["AskUserQuestion", "mcp__cowork__allow_cowork_file_delete",
                    "mcp__cowork__present_files", "mcp__cowork__launch_code_session"]
 ```
 
-### 14. Computer Use
+### 16. Computer Use
 
 | Field | Value |
 |-------|-------|

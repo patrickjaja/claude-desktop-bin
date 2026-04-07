@@ -185,7 +185,7 @@ def patch_local_agent_mode(filepath):
     # the admin page. We spoof the platform variable used in the header setup.
     # Pattern: e=Ma.platform,r=Ma.getSystemVersion();Ae.session...onBeforeSendHeaders
     # We replace: e=Ma.platform → e=process.platform==="linux"?"darwin":Ma.platform
-    header_pattern = rb"(const \w+=\w+\.app\.getVersion\(\),)(\w+)(=)(\w+)(\.platform,)(\w+)(=\4\.getSystemVersion\(\);)"
+    header_pattern = rb"(const \w+=\w+\.app\.getVersion\(\),)(\w+)(=)(\w+)(\.platform,)(\w+)(=\4\.getSystemVersion\(\)[;,])"
 
     def header_replacement(m):
         plat_var = m.group(2)  # e

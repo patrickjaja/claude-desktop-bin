@@ -51,26 +51,27 @@ def patch_asar_folder_drop(filepath):
 
     # ── Idempotency check ────────────────────────────────────────────
     # Check for the noe() .asar filter (primary fix)
-    if re.search(rb"function noe\(\w+\)\{\w+=\w+\.filter\(\w+=>!/\\\.asar/", content):
-        print("  [SKIP] Already patched (noe .asar filter found)")
+    if re.search(rb"function \w+\(\w+\)\{\w+=\w+\.filter\(\w+=>!/\\\.asar/", content):
+        print("  [SKIP] Already patched (.asar filter found)")
         return True
 
     original_content = content
 
-    # ── 1. Patch noe() — the file-drop convergence point ─────────────
+    # ── 1. Patch file-drop convergence point ─────────────────────────
     #
     # All file-drop code paths (second-instance argv, startup argv,
-    # open-file events) converge through noe(). Filter .asar paths
-    # here so nothing slips through.
+    # open-file events) converge through a single function (noe/Coe/etc,
+    # name changes each release). Filter .asar paths here so nothing
+    # slips through.
     #
     # Before:
-    #   function noe(t){if(R.info(`Handling file drop: ${t.join(", ")}`),...
+    #   function Coe(t){if(R.info(`Handling file drop: ${t.join(", ")}`),...
     #
     # After:
-    #   function noe(t){t=t.filter(f=>!/\.asar/.test(f));if(!t.length)return;if(R.info(`Handling file drop: ${t.join(", ")}`),...
+    #   function Coe(t){t=t.filter(f=>!/\.asar/.test(f));if(!t.length)return;if(R.info(`Handling file drop: ${t.join(", ")}`),...
 
     pat_noe = (
-        rb"(function noe\()(\w+)(\)\{)"
+        rb"(function \w+\()(\w+)(\)\{)"
         rb"(if\(\w+\.info\(`Handling file drop:)"
     )
 

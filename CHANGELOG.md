@@ -2,6 +2,23 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-07 (v1.1062.0) — Upstream update, fix 3 patches for minified name changes
+
+### Fixed
+- **enable_local_agent_mode.py**: HTTP header platform spoof pattern — upstream changed separator from `;` to `,` after `getSystemVersion()` (more declarations on same line). Updated regex to accept `[;,]`.
+- **fix_asar_folder_drop.py**: File-drop convergence function renamed (`noe` → `Coe`). Replaced hardcoded `noe` with `\w+` wildcard so the pattern survives future renames.
+- **fix_quick_entry_ready_wayland.py**: Ready-to-show variable names changed (`NEe` → `YEe`, `nK` → `AK`). Replaced hardcoded literal match with regex-based extraction of variable names.
+
+### Changed
+- Upstream version: v1.569.0 → v1.1062.0
+- Feature flag function renames: `$w()` → `Ow()`, `tse` → `xse`, `V0e()` → `m0e()`, `Sn()` → `rn()`
+- 2 new GrowthBook flags: `2114777685` (cowork session CU gate), `3371831021` (cuOnlyMode)
+- 6 dispatch-era GrowthBook flags removed upstream
+
+### Docs
+- **CLAUDE_FEATURE_FLAGS.md**: Updated all function names, GrowthBook catalog, version history table for v1.1062.0
+- **CLAUDE_BUILT_IN_MCP.md**: Added new `cowork-onboarding` MCP server (#8) with `show_onboarding_role_picker` tool (gated by GrowthBook `2114777685`); renumbered servers 9→16; version header updated
+
 ## 2026-04-06 (v1.569.0) — Linux-aware CU tool descriptions, gnome-screenshot priority
 
 ### Added
