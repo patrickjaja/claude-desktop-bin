@@ -11,7 +11,7 @@ Package: claude-desktop-bin
 Architecture: amd64
 Depends: ${shlibs:Depends}, ${misc:Depends}, electron | electron-bin | electron33
 Recommends: libnotify-bin
-Suggests: xdotool, scrot, imagemagick, wmctrl, socat, hyprland, ydotool, grim, jq, kde-spectacle, libglib2.0-bin, gnome-screenshot, nodejs
+Suggests: xdotool, scrot, imagemagick, wmctrl, socat, hyprland, ydotool, grim, jq, kde-spectacle, libglib2.0-bin, python3-gi, gstreamer1.0-pipewire, gnome-screenshot, nodejs
 Description: Claude AI Desktop Application
  Claude is an AI assistant created by Anthropic to be helpful,
  harmless, and honest. This desktop application provides native
@@ -44,6 +44,8 @@ Description: Claude AI Desktop Application
  Optional dependencies for Computer Use (Wayland — GNOME):
   * ydotool - Input automation (requires ydotoold daemon; v1.0+ needed)
   * xdotool - Cursor position reading and XWayland fallback
+  * python3-gi - Portal screenshots on GNOME 46+ (no repeated permission dialogs)
+  * gstreamer1.0-pipewire - PipeWire frame capture for portal screenshots
   * libglib2.0-bin - Screenshot capture (gdbus for D-Bus)
   * gnome-screenshot - Screenshot fallback
  .

@@ -36,6 +36,8 @@ Suggests:       jq
 Suggests:       spectacle
 # Computer Use — GNOME Wayland
 Suggests:       glib2
+Suggests:       python3-gobject
+Suggests:       gstreamer1-plugin-pipewire
 Suggests:       gnome-screenshot
 # Computer Use — Hyprland-specific
 Suggests:       hyprland

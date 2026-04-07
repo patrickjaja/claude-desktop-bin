@@ -2,6 +2,18 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-07 — Portal+PipeWire screenshots for GNOME Wayland 46+ (#28)
+
+### Added
+- **fix_computer_use_linux.py**: XDG ScreenCast portal screenshot method with PipeWire restore tokens for GNOME Wayland 46+. First screenshot shows a one-time permission dialog, all subsequent screenshots are silent. Token-aware cascade: if restore token exists, portal goes first (fast, silent); if not, `gnome-screenshot` is tried first (no dialog on older GNOME), with portal as fallback after `gdbus`. Fixes repeated permission dialogs on GNOME 46+ where `gnome-screenshot` and `gdbus ScreenshotArea` are both broken.
+- **PKGBUILD.template**: New optdepends `python-gobject` and `gst-plugin-pipewire` for portal screenshots.
+
+### Technical details
+- Python script embedded inline (spawned via `python3 -` stdin pipe), no extra files needed
+- GStreamer pipeline: single frame capture (`num-buffers=1`) — ~300ms per screenshot with restore token
+- Restore token persisted at `~/.config/Claude/pipewire-restore-token`
+- Graceful degradation: missing `python3-gi` returns exit code 2, cascade falls through to next method
+
 ## 2026-04-07 (v1.1062.0) — Upstream update, fix 3 patches for minified name changes
 
 ### Fixed
