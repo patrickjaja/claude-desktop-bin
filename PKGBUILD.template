@@ -22,6 +22,8 @@ optdepends=('nodejs: System Node.js for MCP extensions that require specific ver
             'jq: Computer Use window queries on Sway (used with swaymsg)'
             'spectacle: Computer Use screenshots (KDE Plasma Wayland)'
             'glib2: Computer Use screenshots on GNOME Wayland (gdbus for D-Bus)'
+            'python-gobject: Portal screenshots on GNOME Wayland — no repeated permission dialogs'
+            'gst-plugin-pipewire: Portal screenshot PipeWire frame capture on GNOME Wayland'
             'gnome-screenshot: Computer Use screenshot fallback (GNOME)'
             'hyprland: Quick Entry cursor positioning on Hyprland Wayland (hyprctl)'
             'socat: Cowork socket health check in launcher (fallback: age-based check)')

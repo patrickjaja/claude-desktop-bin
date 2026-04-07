@@ -20,7 +20,7 @@ This is an AUR package that repackages Claude Desktop (Windows) for Arch Linux. 
 |-------------|-------------------|---------------|-----------------|
 | X11 | Any (GNOME, KDE, i3, …) | `xdotool` | `scrot`, `imagemagick`, `gnome-screenshot` |
 | Wayland — wlroots | Sway, Hyprland | `ydotool` (+`ydotoold`) | `grim` |
-| Wayland — GNOME | GNOME Shell | `ydotool` (+`ydotoold`) | `gnome-screenshot`, `gdbus` (glib2) fallback |
+| Wayland — GNOME | GNOME Shell | `ydotool` (+`ydotoold`) | `portal+pipewire` (preferred), `gdbus` (glib2), `gnome-screenshot` fallback |
 | Wayland — KDE | KDE Plasma | `ydotool` (+`ydotoold`) | `spectacle`, `imagemagick` (crop) |
 | XWayland | Any Wayland compositor | `xdotool` (fallback) | depends on compositor |
 
