@@ -20,6 +20,9 @@
 # Computer Use — GNOME Wayland
 , gnome-screenshot ? null  # screenshot fallback (GNOME)
 , glib ? null              # gsettings (flat mouse acceleration)
+# Portal screenshots (GNOME 46+): needs python3 with gi module + gst-plugin-pipewire.
+# On NixOS GNOME, these are typically available system-wide.
+# To enable explicitly: python3.withPackages (ps: [ ps.pygobject3 ]) in systemPackages.
 # Claude Code CLI — required for Cowork, Dispatch, and Code integration
 , claude-code ? null    # auto-resolved by callPackage if in nixpkgs
 # Other optional
