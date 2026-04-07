@@ -2,6 +2,16 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-07 — Fix CU system prompt: model no longer misidentifies Linux as macOS
+
+### Fixed
+- **fix_computer_use_linux.py** sub-patch 14a: "Separate filesystems" system prompt paragraph replaced with "Same filesystem" on Linux — the CLI and desktop share the same machine, there is no sandbox
+- **fix_computer_use_linux.py** sub-patch 14b: macOS app names "Maps, Notes, Finder, Photos, System Settings" replaced with distro-generic terms "the file manager, image viewer, terminal emulator, system settings" (works across Arch, Ubuntu, Fedora, NixOS)
+- **fix_computer_use_linux.py** sub-patch 14c: File manager name "Finder" → "Files" on Linux in host filesystem guidance
+
+### Root cause
+The CU system prompt builder only distinguished Windows vs non-Windows, giving Linux sessions macOS-specific text ("Separate filesystems", "Finder", sandbox references). The model used these cues plus visual similarity to misidentify Linux desktops as macOS. The `.host-home` path examples (`/Users/alice/...`) were already skipped on Linux due to `hostLoopMode=true`.
+
 ## 2026-04-07 — Strict patch validation, `[\w$]+` regex hardening, built-in MCP/flag audit
 
 ### Fixed

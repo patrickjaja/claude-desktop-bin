@@ -665,7 +665,10 @@ def patch_computer_use_linux(filepath):
     #  13e= open_application description
     #  13f= screenshot description
     #  13g= screenshot suffix description
-    EXPECTED_PATCHES = 20
+    #  14a= CU system prompt: "Separate filesystems" → Linux-appropriate text (2 occurrences)
+    #  14b= CU system prompt: "Finder, Photos, System Settings" → generic Linux terms (1 occurrence)
+    #  14c= CU system prompt: File Explorer/Finder → Linux file manager (1 occurrence)
+    EXPECTED_PATCHES = 23
 
     # Patch 1: Inject Linux executor at app.on("ready")
     inject_js = LINUX_EXECUTOR_JS.strip().encode("utf-8")
@@ -1137,6 +1140,93 @@ def patch_computer_use_linux(filepath):
         print(f"  [OK] {desc_changes}/7 description patches applied")
     else:
         print("  [FAIL] No description patches applied (descriptions unchanged)")
+
+    # ── Sub-patch 14: Linux-aware CU system prompt ──────────────────────────
+    #
+    # The CU system prompt (injected into CCD and cuOnlyMode sessions) contains
+    # macOS-centric text that misleads the model on Linux:
+    #
+    # 14a: "Separate filesystems" paragraph says the CLI runs in a sandbox
+    #       separate from the user's machine. On Linux native (hostLoopMode),
+    #       there is no sandbox — CLI and desktop run on the same machine.
+    #       This appears in both Bfn() (cuOnlyMode) and the normal CCD if(h) block.
+    #
+    # 14b: "Finder, Photos, System Settings" — macOS app names in the tool
+    #       tier list. On Linux, use generic terms that work across all distros
+    #       (Arch, Ubuntu, Fedora, NixOS, etc.): "the file manager, image viewer,
+    #       system settings". Specific app names vary by DE (Nautilus/Dolphin/
+    #       Thunar, Eye of GNOME/Gwenview, GNOME Settings/KDE System Settings).
+    #
+    # 14c: "File Explorer":"Finder" — platform-conditional file manager name
+    #       in the host filesystem section. Needs Linux branch.
+
+    # 14a: Replace "Separate filesystems" paragraph (2 occurrences: Bfn + CCD)
+    _sep_old = b"**Separate filesystems.**"
+    _sep_new = (
+        b'**(process.platform==="linux"'
+        b'?"**Same filesystem.** Computer-use actions and your CLI tools operate on the same Linux machine. '
+        b"There is no sandbox \\u2014 files you create are directly accessible to desktop applications and vice versa."
+        b':"**Separate filesystems.** Computer-use actions (clicks, typing, clipboard writes) happen on the user\\u2019s '
+        b"real computer \\u2014 a different system from your sandbox."
+        b'")'
+    )
+    # This approach won't work because the text is inside a template literal, not JS code.
+    # Instead, we do a simple string replacement: replace the entire paragraph on Linux
+    # by wrapping with a runtime check injected AFTER the template is built.
+    #
+    # Better approach: replace the literal text with platform-conditional text using
+    # the same pattern as sub-patch 13 (inject ternary into the JS source).
+
+    # Actually, the cleanest approach: since this text is inside template literals
+    # (backtick strings), we replace the literal macOS-specific text with
+    # platform-conditional expressions using ${} interpolation.
+
+    _sep_old_full = b"**Separate filesystems.** Computer-use actions (clicks, typing, clipboard writes) happen on the user\\u2019s real computer \\u2014 a different system from your sandbox. "
+
+    # Check what the actual bytes are (the template literal uses real Unicode, not escapes)
+    _sep_old_full2 = b"**Separate filesystems.** Computer-use actions (clicks, typing, clipboard writes) happen on the user's real computer \xe2\x80\x94 a different system from your sandbox. "
+
+    _sep_count = content.count(_sep_old_full2)
+    if _sep_count >= 2:
+        _sep_new_full = (
+            b'${process.platform==="linux"'
+            b'?"**Same filesystem.** Computer-use actions and your CLI tools operate on the same Linux machine. '
+            b"There is no sandbox \\u2014 files you create are directly accessible to desktop applications and vice versa. "
+            b'"'
+            b':"**Separate filesystems.** Computer-use actions (clicks, typing, clipboard writes) '
+            b"happen on the user's real computer \xe2\x80\x94 a different system from your sandbox. "
+            b'"}'
+        )
+        content = content.replace(_sep_old_full2, _sep_new_full)
+        print(f"  [OK] 14a separate filesystems: replaced {_sep_count} occurrences with Linux-aware text")
+        changes += _sep_count
+        patches_applied += 1
+    else:
+        print(f"  [FAIL] 14a separate filesystems: expected 2 occurrences, found {_sep_count}")
+
+    # 14b: Replace macOS app names with generic Linux terms (1 occurrence in CCD template)
+    _apps_old = b"Maps, Notes, Finder, Photos, System Settings"
+    _apps_new = b'${process.platform==="linux"?"the file manager, image viewer, terminal emulator, system settings":"Maps, Notes, Finder, Photos, System Settings"}'
+
+    if _apps_old in content:
+        content = content.replace(_apps_old, _apps_new, 1)
+        print("  [OK] 14b app names: replaced macOS apps with Linux-generic terms")
+        changes += 1
+        patches_applied += 1
+    else:
+        print("  [FAIL] 14b app names: 'Maps, Notes, Finder, Photos, System Settings' not found")
+
+    # 14c: File manager name in host filesystem request_cowork_directory hint
+    _fm_old = b'"File Explorer":"Finder"'
+    _fm_new = b'"File Explorer":process.platform==="linux"?"Files":"Finder"'
+
+    if _fm_old in content:
+        content = content.replace(_fm_old, _fm_new, 1)
+        print("  [OK] 14c file manager name: added Linux branch")
+        changes += 1
+        patches_applied += 1
+    else:
+        print("  [FAIL] 14c file manager name: pattern not found")
 
     if patches_applied < EXPECTED_PATCHES:
         print(f"  [FAIL] Only {patches_applied}/{EXPECTED_PATCHES} patches applied — check [FAIL] messages above")

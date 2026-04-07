@@ -444,7 +444,7 @@ Uses `createDarwinExecutor()` → `@ant/claude-swift` native module for screen c
 
 #### Linux executor (`fix_computer_use_linux.py`)
 
-`fix_computer_use_linux.py` applies 13 sub-patches:
+`fix_computer_use_linux.py` applies 13 sub-patches + 3 system prompt fixes:
 
 | # | Sub-patch | What it does |
 |---|-----------|-------------|
@@ -460,6 +460,7 @@ Uses `createDarwinExecutor()` → `@ant/claude-swift` native module for screen c
 | 10 | Force `mVt()` isEnabled on Linux | Bypass GrowthBook `enabled:false` — tools registered for ALL session types (CCD, cowork, dispatch) |
 | 11 | Force `rj()` true on Linux | Bypass both GrowthBook `enabled:false` AND `chicagoEnabled` preference — `isDisabled()` returns false, no config entry needed. The Settings toggle is rendered by claude.ai's web UI (server-side, not patchable), so on Linux CU is always enabled |
 | 13 | Linux-aware tool descriptions | 7 sub-patches (13a–13g) fix tool descriptions for Linux: (a) `Lf` allowlist gate warning → empty on Linux, (b) `request_access` says "Linux" not "macOS"/"Finder", (c–d) app identifiers use WM_CLASS not bundle IDs, (e) `open_application` no allowlist needed, (f–g) `screenshot` removes allowlist references. Non-fatal — descriptions don't affect functionality |
+| 14 | Linux-aware CU system prompt | 3 sub-patches (14a–14c) fix the CU system prompt injected into CCD/cuOnlyMode sessions: (a) "Separate filesystems" → "Same filesystem" on Linux (no sandbox — CLI and desktop share the same machine), (b) macOS app names "Finder, Photos, System Settings" → generic "the file manager, image viewer, terminal emulator, system settings" (works across all distros: Arch, Ubuntu, Fedora, NixOS), (c) file manager name "Finder" → "Files" on Linux |
 
 **Linux tools used:**
 
