@@ -73,7 +73,7 @@ def patch_browser_tools_linux(filepath):
     # We add: else if(process.platform==="linux")return require("path").join(
     #           require("os").homedir(),".claude","chrome","chrome-native-host");
 
-    pattern_a = rb'"Helpers",\w+\)}else return \w+\.join\('
+    pattern_a = rb'"Helpers",[\w$]+\)}else return [\w$]+\.join\('
 
     linux_binary = b'"linux")return require("path").join(require("os").homedir(),".claude","chrome","chrome-native-host");'
 
@@ -155,12 +155,13 @@ def patch_browser_tools_linux(filepath):
 
     # ── Results ────────────────────────────────────────────────────────
 
-    if patches_applied == 0:
-        print("  [FAIL] No patches could be applied")
+    EXPECTED_PATCHES = 2
+    if patches_applied < EXPECTED_PATCHES:
+        print(f"  [FAIL] Only {patches_applied}/{EXPECTED_PATCHES} patches applied — check [WARN]/[FAIL] messages above")
         return False
 
     if content == original_content:
-        print("  [WARN] No changes made (patterns may have already been applied)")
+        print(f"  [OK] All {patches_applied} patches already applied (no changes needed)")
         return True
 
     # Verify patches didn't introduce a brace imbalance

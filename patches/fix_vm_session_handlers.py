@@ -42,7 +42,7 @@ def patch_vm_session_handlers(filepath):
     # Find the app initialization and add error handler
     # Look for XX.app.on("ready" pattern and add error suppression
     # Variable names change between versions (ce→oe)
-    app_ready_pattern = rb'(\w+)\.app\.on\("ready",async\(\)=>\{'
+    app_ready_pattern = rb'([\w$]+)\.app\.on\("ready",async\(\)=>\{'
 
     def app_ready_replacement(m):
         electron_var = m.group(1)
@@ -57,7 +57,7 @@ def patch_vm_session_handlers(filepath):
         patches_applied += 1
     else:
         # Try alternative pattern (non-async)
-        app_ready_pattern_alt = rb'(\w+)\.app\.on\("ready",\(\)=>\{'
+        app_ready_pattern_alt = rb'([\w$]+)\.app\.on\("ready",\(\)=>\{'
 
         def app_ready_replacement_alt(m):
             electron_var = m.group(1)

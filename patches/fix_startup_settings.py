@@ -49,11 +49,12 @@ def patch_startup_settings(filepath):
 
     # Pattern 2: setStartupOnLoginEnabled function - make it a no-op on Linux
     # Find the function and add early return for Linux
-    pattern2 = rb"setStartupOnLoginEnabled\((\w+)\)\{re\.debug\("
+    pattern2 = rb"setStartupOnLoginEnabled\(([\w$]+)\)\{([\w$]+)\.debug\("
 
     def replacement2_func(m):
         arg_var = m.group(1)
-        return b"setStartupOnLoginEnabled(" + arg_var + b'){if(process.platform==="linux")return;re.debug('
+        logger_var = m.group(2)
+        return b"setStartupOnLoginEnabled(" + arg_var + b'){if(process.platform==="linux")return;' + logger_var + b".debug("
 
     content, count2 = re.subn(pattern2, replacement2_func, content)
     if count2 > 0:
@@ -63,8 +64,9 @@ def patch_startup_settings(filepath):
         print("  [INFO] setStartupOnLoginEnabled: 0 matches (optional)")
 
     # Check results
-    if patches_applied == 0:
-        print("  [FAIL] No patterns matched")
+    EXPECTED_PATCHES = 2
+    if patches_applied < EXPECTED_PATCHES:
+        print(f"  [FAIL] Only {patches_applied}/{EXPECTED_PATCHES} patches applied — check [WARN]/[FAIL] messages above")
         return False
 
     # Write back if changed
@@ -74,7 +76,7 @@ def patch_startup_settings(filepath):
         print("  [PASS] Startup settings patched successfully")
         return True
     else:
-        print("  [WARN] No changes made")
+        print(f"  [WARN] No changes made ({patches_applied}/{EXPECTED_PATCHES} patterns matched but already applied)")
         return True
 
 

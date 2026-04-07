@@ -66,7 +66,7 @@ def patch_enterprise_config_linux(filepath):
     # doesn't exist or contains invalid JSON, catch returns {} (same as before).
     #
     # Variable names are minified and change between versions — use \w+.
-    pattern = rb'(case"win32":(\w+)=\w+\(\);break;default:)\2(=\{\};break)'
+    pattern = rb'(case"win32":([\w$]+)=[\w$]+\(\);break;default:)\2(=\{\};break)'
 
     def replacement(m):
         prefix = m.group(1)  # case"win32":Tb=ztr();break;default:

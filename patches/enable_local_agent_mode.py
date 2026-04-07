@@ -57,7 +57,7 @@ def patch_local_agent_mode(filepath):
     #   matches[1] = quietPenguin (e.g. ogt) — PATCH
     #
     # Use flexible pattern with \w+ to match any minified function name
-    pattern1 = rb'(function )(\w+)(\(\)\{return )process\.platform!=="darwin"\?\{status:"unavailable"\}:(\{status:"supported"\}\})'
+    pattern1 = rb'(function )([\w$]+)(\(\)\{return )process\.platform!=="darwin"\?\{status:"unavailable"\}:(\{status:"supported"\}\})'
 
     matches = list(re.finditer(pattern1, content))
     if len(matches) >= 2:
@@ -93,8 +93,8 @@ def patch_local_agent_mode(filepath):
     #     unsupportedCode:"unsupported_platform"
     #   The formatMessage 'id' field was added in v1.1.4328; the regex uses an
     #   optional group (?:,id:"[^"]*")? to handle both variants.
-    nh_pattern_old = rb'(function [\w$]+\(\)\{)(const (\w+)=process\.platform;if\(\3!=="darwin"&&\3!=="win32"\)return\{status:"unsupported",reason:`Unsupported platform: \$\{\3\}`\})'
-    nh_pattern_new = rb'(function [\w$]+\(\)\{)(const (\w+)=process\.platform;if\(\3!=="darwin"&&\3!=="win32"\)return\{status:"unsupported",reason:\w+\.formatMessage\(\{defaultMessage:"Cowork is not currently supported on \{platform\}"(?:,id:"[^"]*")?\},\{platform:\w+\(\)\}\),unsupportedCode:"unsupported_platform"\};)'
+    nh_pattern_old = rb'(function [\w$]+\(\)\{)(const ([\w$]+)=process\.platform;if\(\3!=="darwin"&&\3!=="win32"\)return\{status:"unsupported",reason:`Unsupported platform: \$\{\3\}`\})'
+    nh_pattern_new = rb'(function [\w$]+\(\)\{)(const ([\w$]+)=process\.platform;if\(\3!=="darwin"&&\3!=="win32"\)return\{status:"unsupported",reason:[\w$]+\.formatMessage\(\{defaultMessage:"Cowork is not currently supported on \{platform\}"(?:,id:"[^"]*")?\},\{platform:[\w$]+\(\)\}\),unsupportedCode:"unsupported_platform"\};)'
 
     def nh_replacement(m):
         return m.group(1) + b'if(process.platform==="linux")return{status:"supported"};' + m.group(2)
@@ -185,7 +185,7 @@ def patch_local_agent_mode(filepath):
     # the admin page. We spoof the platform variable used in the header setup.
     # Pattern: e=Ma.platform,r=Ma.getSystemVersion();Ae.session...onBeforeSendHeaders
     # We replace: e=Ma.platform → e=process.platform==="linux"?"darwin":Ma.platform
-    header_pattern = rb"(const \w+=\w+\.app\.getVersion\(\),)(\w+)(=)(\w+)(\.platform,)(\w+)(=\4\.getSystemVersion\(\)[;,])"
+    header_pattern = rb"(const [\w$]+=[\w$]+\.app\.getVersion\(\),)([\w$]+)(=)([\w$]+)(\.platform,)([\w$]+)(=\4\.getSystemVersion\(\)[;,])"
 
     def header_replacement(m):
         plat_var = m.group(2)  # e
@@ -205,7 +205,7 @@ def patch_local_agent_mode(filepath):
     # detection. Replace "X11; Linux ..." → "Macintosh; Intel Mac OS X 10_15_7" in the UA.
     # Pattern: let l=o;s.set("user-agent",l)  (the existing no-op UA passthrough)
     # The variable before .set() changes between versions (s, a, etc.)
-    ua_pattern2 = rb'(let )(\w+)(=)(\w+)(;)(\w+\.set\("user-agent",)\2(\))'
+    ua_pattern2 = rb'(let )([\w$]+)(=)([\w$]+)(;)([\w$]+\.set\("user-agent",)\2(\))'
 
     def ua_replacement2(m):
         var = m.group(2)  # l
@@ -269,7 +269,7 @@ def patch_local_agent_mode(filepath):
 
         # Pattern: ...Object.fromEntries(Object.entries(process).filter(([e])=>Na[e]));Oe.version=Ia().appVersion;
         # We inject: if(process.platform==="linux"){Oe.platform="win32"} after .appVersion;
-        mv_pattern = rb"(Object\.fromEntries\(Object\.entries\(process\)\.filter\(\(\[\w+\]\)=>[\w$]+\[[\w$]+\]\)\);)([\w$]+)(\.version=[\w$]+\(\)\.appVersion;)"
+        mv_pattern = rb"(Object\.fromEntries\(Object\.entries\(process\)\.filter\(\(\[[\w$]+\]\)=>[\w$]+\[[\w$]+\]\)\);)([\w$]+)(\.version=[\w$]+\(\)\.appVersion;)"
 
         def mv_replacement(m):
             proc_var = m.group(2)

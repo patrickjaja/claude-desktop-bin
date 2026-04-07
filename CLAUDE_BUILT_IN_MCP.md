@@ -29,7 +29,7 @@ One(serverName, displayLabel, factoryFn)
 
 Communicates with the Chrome browser extension via Unix socket at `/tmp/claude-mcp-browser-bridge-<username>/0.sock`.
 
-**Tools (18-19):**
+**Tools (20):**
 
 | Tool | Description |
 |------|-------------|
@@ -52,6 +52,7 @@ Communicates with the Chrome browser extension via Unix socket at `/tmp/claude-m
 | `tabs_context_mcp` | Get tab group context and tab IDs |
 | `tabs_create_mcp` | Create new tab in MCP tab group |
 | `tabs_close_mcp` | Close a tab in MCP tab group |
+| `update_plan` | Update a plan in the chat UI |
 
 ### 2. MCP Registry
 
@@ -119,6 +120,7 @@ These are accessible to CCD/Cowork sessions but not directly from the renderer.
 | Tool | Description |
 |------|-------------|
 | `show_widget` | Render a visual widget in the UI |
+| `read_me` | Returns CSS variables, colors, and theme context for widget rendering (read-only, `annotations:{readOnlyHint:true}`) |
 
 ### 6. Claude Preview
 
@@ -221,7 +223,11 @@ Renders an interactive role-picker UI during Cowork onboarding so the user can s
 
 ### 10. Scheduled Tasks
 
-Registered separately via `createScheduledTasksServer()`, injected directly into CCD and Cowork session managers.
+| Field | Value |
+|-------|-------|
+| Server name | `"scheduled-tasks"` (constant `qBe`, hyphenated) |
+| Registration | `createScheduledTasksServer()` (aliased `DHt`), injected per-session into CCD and Cowork session managers |
+| Tool prefix | `mcp__scheduled-tasks__` |
 
 | Tool | Description |
 |------|-------------|
@@ -344,6 +350,22 @@ Linux native (current, since cowork-svc commit d1dfc3b):
          (anthropics/claude-code#35076), sessions API only renders
          SendUserMessage blocks on phone
 ```
+
+### Dynamic Per-Artifact MCP Servers (`cowork-artifact-<id>`)
+
+When a Cowork session creates artifacts, Claude Desktop registers **dynamic** MCP servers named `cowork-artifact-<uuid>` for each artifact. These are NOT statically registered via `One()` — they are created inline per artifact. The `cowork-artifact` string also serves as an Electron custom protocol scheme (`cowork-artifact:`) for rendering artifact content in the UI.
+
+**Not a static server** — no tools to document. Calls route via `callRemoteTool("cowork-artifact-<id>", ...)`.
+
+### Anthropic API Built-in Tool: `web_search`
+
+| Field | Value |
+|-------|-------|
+| Type | `web_search_20250305` (Anthropic API built-in, like `computer_use`) |
+| Name | `web_search` |
+| Gating | `enable_web_search` feature flag |
+
+This is NOT a custom MCP tool — it's an Anthropic API built-in tool type passed directly in the API request as `{type:"web_search_20250305",name:"web_search"}`. Referenced in the `Nzn` exclusion set alongside compute tools.
 
 ### AllowedTools for Dispatch Sessions
 
@@ -470,11 +492,13 @@ Uses `createDarwinExecutor()` → `@ant/claude-swift` native module for screen c
 
 ## Operon IPC System (v1.1.9134)
 
-Not an MCP server, but a new internal IPC layer with 120+ endpoints across 28 sub-interfaces:
+Not an MCP server, but a new internal IPC layer with 120+ endpoints across 31 sub-interfaces (up from 28 in v1.1.9134):
 
-`OperonAgentConfig`, `OperonAgents`, `OperonAnalytics`, `OperonAnnotations`, `OperonApiKeys`, `OperonArtifactDownloads`, `OperonArtifacts`, `OperonAssembly`, `OperonAttachments`, `OperonBootstrap`, `OperonCloud`, `OperonConversations`, `OperonEvents`, `OperonFolders`, `OperonFrames`, `OperonHostAccess`, `OperonHostAccessProvider`, `OperonImageProvider`, `OperonMcp`, `OperonNotes`, `OperonPreferences`, `OperonProjects`, `OperonQuitHandler`, `OperonSecrets`, `OperonServices`, `OperonSessionManager`, `OperonSkills`, `OperonSkillsSync`, `OperonSystem`
+`OperonAgentConfig`, `OperonAgents`, `OperonAnalytics`, `OperonAnnotations`, `OperonApiKeys`, `OperonArtifactDownloads`, `OperonArtifacts`, `OperonAssembly`, `OperonAttachments`, `OperonBootstrap`, `OperonCloud`, `OperonConversations`, `OperonEvents`, `OperonExportBundle` (**new**), `OperonFolders`, `OperonFrames`, `OperonHostAccess`, `OperonHostAccessProvider`, `OperonImageProvider`, `OperonMcp`, `OperonNotes`, `OperonPreferences`, `OperonProjects`, `OperonQuitHandler`, `OperonReplay` (**new**), `OperonSDK` (**new**), `OperonSecrets`, `OperonServices`, `OperonSessionManager`, `OperonSkills`, `OperonSkillsSync`, `OperonSystem`
 
 Gated behind GrowthBook flag `1306813456` — currently **unavailable** on all platforms (not enabled server-side). Do NOT force-enable; requires VM infrastructure (Nest).
+
+When active, Operon provides 14 "brain tools" (multi-agent delegation, skills, dashboards, planning), 7 "compute tools" (bash, python, R, artifacts, packages), 1 dynamic tool (`skill`), and 4 internal LLM tools. See [CLAUDE_FEATURE_FLAGS.md — Operon Tool Inventory](CLAUDE_FEATURE_FLAGS.md#operon-tool-inventory-v11062) for the full catalog.
 
 ## Version Notes
 
@@ -483,5 +507,6 @@ Gated behind GrowthBook flag `1306813456` — currently **unavailable** on all p
 | v1.2.234 | Registration function renamed `One()` (was `Are()`). **Terminal server now natively supports Linux** — `LRe = isDarwin \|\| isWin32 \|\| isLinux`, `fix_read_terminal_linux.py` patch removed. Computer-use platform gate changed to Set-based (`ese = new Set(["darwin","win32"])`) with `vee()` function. No new MCP servers or tools. Variable renames only. |
 | v1.1.9669 | Registration function renamed `Are()` (was `Pee()`). **New `computerUse` feature flag** in static registry (`jun()`, darwin-only) — computer use now gated by both MCP server registration AND feature flag. No new MCP servers or tools. `chillingSlothFeat` darwin gate re-introduced (was removed in v1.1.9134). Remote orchestrator (`4201169164`) removed from GrowthBook. Same 3 renderer-facing servers (Chrome, mcp-registry, office-addin) and same backend servers. Variable renames only. |
 | v1.1.9493 | Metadata-only re-release of v1.1.9310. JS bundles identical — no new MCP servers, tools, or IPC changes. Async feature merger restructured (`Promise.all` pattern). |
-| v1.1.9134 | **New MCP server: `ccd_session`** (`spawn_task` tool for parallel session spawning). **5 new computer-use tools** (`switch_display`, `computer_batch`, `request_teach_access`, `teach_step`, `teach_batch` — 22→27 total). Registration function renamed `IM()`→`Pee()`. Operon expanded from 18→28 sub-interfaces (9 new: `OperonAgentConfig`, `OperonAnalytics`, `OperonAssembly`, `OperonHostAccessProvider`, `OperonImageProvider`, `OperonQuitHandler`, `OperonServices`, `OperonSessionManager`, `OperonSkillsSync`). Computer-use constant renamed `zxt`→`p6t`. |
+| v1.1.9134 | **New MCP server: `ccd_session`** (`spawn_task` tool for parallel session spawning). **5 new computer-use tools** (`switch_display`, `computer_batch`, `request_teach_access`, `teach_step`, `teach_batch` — 22→27 total). Registration function renamed `IM()`→`Pee()`. Operon expanded from 18→28 sub-interfaces. Computer-use constant renamed `zxt`→`p6t`. |
+| v1.1062.0 | Registration function renamed to `One()`. **New: `update_plan` Chrome tool** (20 total Chrome tools). **New: `read_me` widget MCP tool** in Visualize server. Scheduled Tasks server name constant `qBe="scheduled-tasks"` (hyphenated). `cowork-artifact-<id>` dynamic per-artifact servers. `web_search` Anthropic API built-in tool (`web_search_20250305`) gated by `enable_web_search`. Operon expanded to 31 sub-interfaces (3 new: `OperonExportBundle`, `OperonReplay`, `OperonSDK`). Operon tool inventory: 14 brain tools, 7 compute tools, 1 dynamic (`skill`), 4 internal LLM tools. Dashboard tools `render_dashboard`/`patch_dashboard` disabled pending sandbox hardening. |
 | v1.1.8359 | Visualize server factory renamed to `p3n()` via `getImagineServerDef` (same interface). Operon IPC system added (not MCP). No new MCP servers — all 14 unchanged. |

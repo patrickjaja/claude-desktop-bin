@@ -51,7 +51,7 @@ def patch_asar_folder_drop(filepath):
 
     # ── Idempotency check ────────────────────────────────────────────
     # Check for the noe() .asar filter (primary fix)
-    if re.search(rb"function \w+\(\w+\)\{\w+=\w+\.filter\(\w+=>!/\\\.asar/", content):
+    if re.search(rb"function [\w$]+\([\w$]+\)\{[\w$]+=[\w$]+\.filter\([\w$]+=>!/\\\.asar/", content):
         print("  [SKIP] Already patched (.asar filter found)")
         return True
 
@@ -71,8 +71,8 @@ def patch_asar_folder_drop(filepath):
     #   function Coe(t){t=t.filter(f=>!/\.asar/.test(f));if(!t.length)return;if(R.info(`Handling file drop: ${t.join(", ")}`),...
 
     pat_noe = (
-        rb"(function \w+\()(\w+)(\)\{)"
-        rb"(if\(\w+\.info\(`Handling file drop:)"
+        rb"(function [\w$]+\()([\w$]+)(\)\{)"
+        rb"(if\([\w$]+\.info\(`Handling file drop:)"
     )
 
     def repl_noe(m):
@@ -101,8 +101,8 @@ def patch_asar_folder_drop(filepath):
     #   for(const n of t.slice(1))if(!/\.asar/.test(n)&&!GXn(n)){...
 
     pat_argv = (
-        rb"(for\(const )(\w+)( of \w+\.slice\(1\)\))"
-        rb"(if\()(!\w+\(\2\))"
+        rb"(for\(const )([\w$]+)( of [\w$]+\.slice\(1\)\))"
+        rb"(if\()(![\w$]+\(\2\))"
     )
 
     def repl_argv(m):

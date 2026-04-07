@@ -94,13 +94,13 @@ def patch_dispatch_linux(filepath):
     # The backreference (\2) ensures the captured gate var matches the
     # one in the if-check.
 
-    gate_pattern = rb'(let (?:\w+=!1,)*)(\w+)(=)(!1)(;const \w+=async\(\)=>\{if\(!\2\)\{[\w$]+\.info\("\[sessions-bridge\] init skipped)'
+    gate_pattern = rb'(let (?:[\w$]+=!1,)*)([\w$]+)(=)(!1)(;const [\w$]+=async\(\)=>\{if\(!\2\)\{[\w$]+\.info\("\[sessions-bridge\] init skipped)'
 
     def gate_replacement(m):
         return m.group(1) + m.group(2) + m.group(3) + b"!0" + m.group(5)
 
     # Check if already patched (gate var=!0 instead of =!1)
-    gate_already = rb'let (?:\w+=!(?:0|1),)*\w+=!0;const \w+=async\(\)=>\{if\(!\w+\)\{[\w$]+\.info\("\[sessions-bridge\] init skipped'
+    gate_already = rb'let (?:[\w$]+=!(?:0|1),)*[\w$]+=!0;const [\w$]+=async\(\)=>\{if\(![\w$]+\)\{[\w$]+\.info\("\[sessions-bridge\] init skipped'
     if re.search(gate_already, content):
         print("  [OK] Sessions-bridge gate: already patched (skipped)")
         patches_applied += 1
@@ -127,7 +127,7 @@ def patch_dispatch_linux(filepath):
     #
     # Pattern uses \w+ for the Jr function name (minified, may change).
 
-    remote_pattern = rb'!\w+\("2216414644"\)'
+    remote_pattern = rb'![\w$]+\("2216414644"\)'
 
     # Check if already patched (no Jr("2216414644") calls remain)
     if not re.search(remote_pattern, content):
@@ -182,10 +182,10 @@ def patch_dispatch_linux(filepath):
     # Pattern captures the darwin/win32 variable names via backreferences
     # to ensure the same names appear in the combined expression.
 
-    telemetry_pattern = rb'(\w+)(=process\.platform==="darwin",)(\w+)(=process\.platform==="win32",)(\w+)=\1\|\|\3'
+    telemetry_pattern = rb'([\w$]+)(=process\.platform==="darwin",)([\w$]+)(=process\.platform==="win32",)([\w$]+)=\1\|\|\3'
 
     # Check if already patched (linux check already appended)
-    telemetry_already = rb'(\w+)(=process\.platform==="darwin",)(\w+)(=process\.platform==="win32",)(\w+)=\1\|\|\3\|\|process\.platform==="linux"'
+    telemetry_already = rb'([\w$]+)(=process\.platform==="darwin",)([\w$]+)(=process\.platform==="win32",)([\w$]+)=\1\|\|\3\|\|process\.platform==="linux"'
     if re.search(telemetry_already, content):
         print("  [OK] Telemetry gate: already patched (skipped)")
         patches_applied += 1
@@ -226,10 +226,10 @@ def patch_dispatch_linux(filepath):
         patches_applied += 1
     else:
         # Match: function Jr(t){const e=Cl[t];return(e==null?void 0:e.on)??!1}
-        jr_pattern = rb"(function )(\w+)(\()(\w+)(\)\{)(const \w+=\w+\[\4\];return\(\w+==null\?void 0:\w+\.on\)\?\?!1\})"
+        jr_pattern = rb"(function )([\w$]+)(\()([\w$]+)(\)\{)(const [\w$]+=[\w$]+\[\4\];return\([\w$]+==null\?void 0:[\w$]+\.on\)\?\?!1\})"
 
         # Remove stale blanket override if present from previous builds
-        blanket_marker = rb"(return!0;)(const \w+=\w+\[\w+\];return)"
+        blanket_marker = rb"(return!0;)(const [\w$]+=[\w$]+\[[\w$]+\];return)"
         content = re.sub(blanket_marker, rb"\2", content)
 
         def jr_replacement(m):
@@ -340,12 +340,13 @@ def patch_dispatch_linux(filepath):
 
     # ── Results ──────────────────────────────────────────────────────────
 
-    if patches_applied == 0:
-        print("  [FAIL] No patches could be applied")
+    EXPECTED_PATCHES = 7  # A, B, C, D, E, F, J — all must succeed or be already patched
+    if patches_applied < EXPECTED_PATCHES:
+        print(f"  [FAIL] Only {patches_applied}/{EXPECTED_PATCHES} patches applied — check [WARN]/[FAIL] messages above")
         return False
 
     if content == original_content:
-        print("  [WARN] No changes made (patterns may have already been applied)")
+        print(f"  [OK] All {patches_applied} patches already applied (no changes needed)")
         return True
 
     # Verify our patches didn't introduce a brace imbalance

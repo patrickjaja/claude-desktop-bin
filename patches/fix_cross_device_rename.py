@@ -51,7 +51,7 @@ def patch_cross_device_rename(filepath):
     #
     # Before: await ur.rename(x,y)
     # After:  await ur.rename(x,y).catch(async e=>{if(e.code==="EXDEV"){await ur.copyFile(x,y);await ur.unlink(x)}else throw e})
-    rename_pattern = rb"(?<!try\{)await (\w+)\.rename\((\w+),(\w+)\)"
+    rename_pattern = rb"(?<!try\{)await ([\w$]+)\.rename\(([\w$]+),([\w$]+)\)"
 
     def rename_replacement(m):
         mod = m.group(1)

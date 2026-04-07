@@ -47,11 +47,11 @@ def main():
     new_content, count = re.subn(pattern, replacement, content)
 
     if count == 0:
-        print("  [WARN] app.quit pattern: 0 matches (may need pattern update)")
+        print("  [FAIL] app.quit pattern: 0 matches (may need pattern update)")
         # Debug: check for any app.quit patterns
         if b".app.quit()" in content:
             print("  [INFO] Found '.app.quit()' in file but pattern didn't match")
-        sys.exit(0)
+        sys.exit(1)
 
     print(f"  [OK] app.quit -> app.exit: {count} match(es)")
 

@@ -39,7 +39,7 @@ def patch_quick_entry_ready(filepath):
     # We wrap this in Promise.race with a 200ms timeout.
     import re
 
-    pat = rb'(\w+)\|\|await\((\w+)==null\?void 0:\2\.catch\(\w+=>\{\w+\.error\("Quick Entry: Error waiting for ready %o",\{error:\w+\}\)\}\)\)'
+    pat = rb'([\w$]+)\|\|await\(([\w$]+)==null\?void 0:\2\.catch\([\w$]+=>\{[\w$]+\.error\("Quick Entry: Error waiting for ready %o",\{error:[\w$]+\}\)\}\)\)'
 
     match = re.search(pat, content)
     if match:

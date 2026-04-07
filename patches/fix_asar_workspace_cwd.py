@@ -77,7 +77,7 @@ def patch_asar_workspace(filepath):
     # Before: checkTrust(a){return X.info(`...`),e.checkWorkspaceTrust(a)}
     # After:  checkTrust(a){a=__cdb_sanitizeCwd(a);return X.info(`...`),e.checkWorkspaceTrust(a)}
 
-    pat_ct = rb"(checkTrust\()(\w+)(\)\{)(return [\w$]+\.info\()"
+    pat_ct = rb"(checkTrust\()([\w$]+)(\)\{)(return [\w$]+\.info\()"
 
     def repl_ct(m):
         arg = m.group(2)
@@ -95,7 +95,7 @@ def patch_asar_workspace(filepath):
     # Before: async saveTrust(a){X.info(`...`),await e.saveWorkspaceTrust(a)}
     # After:  async saveTrust(a){a=__cdb_sanitizeCwd(a);X.info(`...`),...}
 
-    pat_st = rb"(async saveTrust\()(\w+)(\)\{)([\w$]+\.info\()"
+    pat_st = rb"(async saveTrust\()([\w$]+)(\)\{)([\w$]+\.info\()"
 
     def repl_st(m):
         arg = m.group(2)
@@ -114,7 +114,7 @@ def patch_asar_workspace(filepath):
     # After:  async start(a){a.cwd=__cdb_sanitizeCwd(a.cwd);return ...
 
     pat_start = (
-        rb"(async start\()(\w+)"
+        rb"(async start\()([\w$]+)"
         rb'(\)\{)(return [\w$]+\.info\("LocalSessions\.start:"\))'
     )
 
@@ -138,8 +138,8 @@ def patch_asar_workspace(filepath):
     # After:   startCodeSession:X?async(De,ze,Ze,Ye)=>{De=__cdb_sanitizeCwd(De);...
 
     pat_scs = (
-        rb"(startCodeSession:\w+\?async\()(\w+)"
-        rb"(,\w+,\w+,\w+\)=>\{)"
+        rb"(startCodeSession:[\w$]+\?async\()([\w$]+)"
+        rb"(,[\w$]+,[\w$]+,[\w$]+\)=>\{)"
     )
 
     def repl_scs(m):
@@ -156,8 +156,8 @@ def patch_asar_workspace(filepath):
     # Also patch the dispatch startCodeSession (different signature)
     # Pattern: startCodeSession:async(V,q,j,W)=>{
     pat_scs2 = (
-        rb"(startCodeSession:async\()(\w+)"
-        rb"(,\w+,\w+,\w+\)=>\{)"
+        rb"(startCodeSession:async\()([\w$]+)"
+        rb"(,[\w$]+,[\w$]+,[\w$]+\)=>\{)"
     )
 
     def repl_scs2(m):
@@ -172,17 +172,19 @@ def patch_asar_workspace(filepath):
         print("  [WARN] dispatch startCodeSession: 0 matches")
 
     # ── Write back ───────────────────────────────────────────────────
-    if content != original_content and patches_applied > 0:
-        with open(filepath, "wb") as f:
-            f.write(content)
-        print(f"  [PASS] {patches_applied} patches applied")
-        return True
-    elif patches_applied == 0:
-        print("  [FAIL] No patterns matched")
+    EXPECTED_PATCHES = 5
+    if patches_applied < EXPECTED_PATCHES:
+        print(f"  [FAIL] Only {patches_applied}/{EXPECTED_PATCHES} patches applied — check [WARN]/[FAIL] messages above")
         return False
-    else:
-        print("  [WARN] No changes made")
+
+    if content == original_content:
+        print(f"  [OK] All {patches_applied} patches already applied (no changes needed)")
         return True
+
+    with open(filepath, "wb") as f:
+        f.write(content)
+    print(f"  [PASS] {patches_applied} patches applied")
+    return True
 
 
 if __name__ == "__main__":

@@ -101,8 +101,8 @@ def patch_detected_projects(filepath):
     # <path>, <os>, and <dir> are captured dynamically.
 
     pat_vscode = (
-        rb"(\w+)\.join\((\w+)\.homedir\(\),"
-        rb'"Library","Application Support",(\w+),'
+        rb"([\w$]+)\.join\(([\w$]+)\.homedir\(\),"
+        rb'"Library","Application Support",([\w$]+),'
         rb'"User","globalStorage","state\.vscdb"\)'
     )
 
@@ -131,7 +131,7 @@ def patch_detected_projects(filepath):
     #     : <path>.join(<os>.homedir(),".local","share","zed","db","0-stable","db.sqlite"))
 
     pat_zed = (
-        rb"(\w+)\.join\((\w+)\.homedir\(\),"
+        rb"([\w$]+)\.join\(([\w$]+)\.homedir\(\),"
         rb'"Library","Application Support","Zed",'
         rb'"db","0-stable","db\.sqlite"\)'
     )

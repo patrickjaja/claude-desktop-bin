@@ -642,6 +642,30 @@ def patch_computer_use_linux(filepath):
 
     original_content = content
     changes = 0
+    patches_applied = 0
+
+    # Expected sub-patches (all must succeed):
+    #  1  = Linux executor injection at app.on("ready")
+    #  2  = ese Set: add "linux"
+    #  4  = createDarwinExecutor: Linux fallback
+    #  5  = ensureOsPermissions: skip TCC on Linux
+    #  6  = handleToolCall: hybrid dispatch
+    #  7  = teach overlay controller: verify CU gate (no content change)
+    #  8  = teach overlay mouse: tooltip-bounds polling
+    #  9a = teach overlay: neutralize setIgnoreMouseEvents in yJt
+    #  9b = teach overlay: neutralize setIgnoreMouseEvents in SUn
+    #  10 = teach overlay: VM-aware transparency
+    #  10b= teach overlay display: force primary monitor
+    #  11 = mVt isEnabled: force true on Linux
+    #  12 = rj chicagoEnabled bypass: force true on Linux
+    #  13a= Lf allowlist gate description
+    #  13b= request_access macOS platform prefix
+    #  13c= request_access apps identifiers
+    #  13d= open_application app identifiers
+    #  13e= open_application description
+    #  13f= screenshot description
+    #  13g= screenshot suffix description
+    EXPECTED_PATCHES = 20
 
     # Patch 1: Inject Linux executor at app.on("ready")
     inject_js = LINUX_EXECUTOR_JS.strip().encode("utf-8")
@@ -654,6 +678,7 @@ def patch_computer_use_linux(filepath):
     if count >= 1:
         print(f"  [OK] Linux executor: injected ({count} match)")
         changes += count
+        patches_applied += 1
     else:
         print('  [FAIL] app.on("ready") pattern: 0 matches')
         return False
@@ -670,6 +695,7 @@ def patch_computer_use_linux(filepath):
     if count >= 1:
         print(f"  [OK] ese Set: added linux ({count} match)")
         changes += count
+        patches_applied += 1
     else:
         print("  [FAIL] ese Set pattern: 0 matches")
         return False
@@ -677,7 +703,7 @@ def patch_computer_use_linux(filepath):
     # Patch 4: Patch createDarwinExecutor (L4r) to return Linux executor on Linux
     # Original: function L4r(t){if(process.platform!=="darwin")throw new Error(...)
     # New: function L4r(t){if(process.platform==="linux"&&globalThis.__linuxExecutor)return globalThis.__linuxExecutor;if(process.platform!=="darwin")throw...
-    executor_pattern = rb'(function \w+\(\w+\)\{)if\(process\.platform!=="darwin"\)throw new Error'
+    executor_pattern = rb'(function [\w$]+\([\w$]+\)\{)if\(process\.platform!=="darwin"\)throw new Error'
 
     def patch_executor(m):
         return m.group(1) + b'if(process.platform==="linux"&&globalThis.__linuxExecutor)return globalThis.__linuxExecutor;' + b'if(process.platform!=="darwin")throw new Error'
@@ -686,6 +712,7 @@ def patch_computer_use_linux(filepath):
     if count >= 1:
         print(f"  [OK] createDarwinExecutor: Linux fallback ({count} match)")
         changes += count
+        patches_applied += 1
     else:
         print("  [FAIL] createDarwinExecutor pattern: 0 matches")
         return False
@@ -693,7 +720,7 @@ def patch_computer_use_linux(filepath):
     # Patch 5: Patch ensureOsPermissions to return granted:true on Linux
     # Original: ensureOsPermissions:JLr  (JLr calls claude-swift TCC checks)
     # New: on Linux, return {granted:true} — no TCC permissions needed
-    perms_pattern = rb"ensureOsPermissions:(\w+)"
+    perms_pattern = rb"ensureOsPermissions:([\w$]+)"
 
     def patch_perms(m):
         fn_name = m.group(1).decode("utf-8")
@@ -703,8 +730,9 @@ def patch_computer_use_linux(filepath):
     if count >= 1:
         print(f"  [OK] ensureOsPermissions: skip TCC on Linux ({count} match)")
         changes += count
+        patches_applied += 1
     else:
-        print("  [WARN] ensureOsPermissions pattern: 0 matches")
+        print("  [FAIL] ensureOsPermissions pattern: 0 matches")
 
     # Patch 6: Hybrid handleToolCall — inject early-return block at the top
     # The upstream handleToolCall calls a session-cached dispatcher. On Linux, we
@@ -720,7 +748,7 @@ def patch_computer_use_linux(filepath):
     #   Then inject LINUX_HANDLER_INJECTION after the opening brace.
 
     # Step A: Match the handleToolCall start
-    htc_start = rb"((\w+)=\{isEnabled:\w+=>\w+\(\),handleToolCall:async\((\w+),(\w+),(\w+)\)=>\{)"
+    htc_start = rb"(([\w$]+)=\{isEnabled:[\w$]+=>[\w$]+\(\),handleToolCall:async\(([\w$]+),([\w$]+),([\w$]+)\)=>\{)"
     htc_match = re.search(htc_start, content)
 
     if htc_match:
@@ -732,7 +760,7 @@ def patch_computer_use_linux(filepath):
         # It appears as: const n=DISPATCHER(SESSION_PARAM),{save_to_disk:
         after_brace = content[inject_pos : inject_pos + 2000]
         dispatcher_match = re.search(
-            rb"const \w+=(\w+)\(" + session_param.encode("utf-8") + rb"\),\{save_to_disk:",
+            rb"const [\w$]+=([\w$]+)\(" + session_param.encode("utf-8") + rb"\),\{save_to_disk:",
             after_brace,
         )
 
@@ -744,6 +772,7 @@ def patch_computer_use_linux(filepath):
             content = content[:inject_pos] + handler_js.encode("utf-8") + content[inject_pos:]
             print("  [OK] handleToolCall: hybrid dispatch (teach→upstream, rest→direct) (1 match)")
             changes += 1
+            patches_applied += 1
         else:
             print("  [FAIL] handleToolCall dispatcher not found")
             return False
@@ -762,12 +791,15 @@ def patch_computer_use_linux(filepath):
         # The gate function name changes every release (vee→MX→...) but always calls
         # <name>.has(process.platform) on the ese/gie Set we already patched.
         after_stub = content[stub_match.end() : stub_match.end() + 50]
-        if b".has(process.platform)" in after_stub or b"vee()" in after_stub or b"MX()" in after_stub:
+        # The gate function name is minified and changes every release (vee→MX→nee→...).
+        # Match any short function call followed by &&( which is the standard gate pattern.
+        if b".has(process.platform)" in after_stub or re.search(rb",[\w$]+\(\)&&\(", after_stub):
             print("  [OK] teach overlay controller: CU gate found (handled by Set fix)")
+            patches_applied += 1
         else:
-            print("  [WARN] teach overlay: CU gate not found after TCC stub — may need manual check")
+            print("  [FAIL] teach overlay: CU gate not found after TCC stub — may need manual check")
     else:
-        print("  [WARN] teach overlay: TCC stub pattern not found")
+        print("  [FAIL] teach overlay: TCC stub pattern not found")
 
     # Patch 8: Fix teach overlay mouse events on Linux
     # On macOS, setIgnoreMouseEvents(true, {forward: true}) makes transparent areas
@@ -784,7 +816,7 @@ def patch_computer_use_linux(filepath):
     # from setting the window back to pass-through.
 
     # Find the overlay variable name from: OVERLAYVAR.setAlwaysOnTop(!0,"screen-saver"),OVERLAYVAR.setFullScreenable(!1),OVERLAYVAR.setIgnoreMouseEvents(!0,{forward:!0})
-    overlay_var_pattern = rb'(\w+)\.setAlwaysOnTop\(!0,"screen-saver"\),\1\.setFullScreenable\(!1\),\1\.setIgnoreMouseEvents\(!0,\{forward:!0\}\)'
+    overlay_var_pattern = rb'([\w$]+)\.setAlwaysOnTop\(!0,"screen-saver"\),\1\.setFullScreenable\(!1\),\1\.setIgnoreMouseEvents\(!0,\{forward:!0\}\)'
 
     overlay_var_match = re.search(overlay_var_pattern, content)
     if overlay_var_match:
@@ -814,10 +846,11 @@ def patch_computer_use_linux(filepath):
         if new_init in content:
             print(f"  [OK] teach overlay mouse: tooltip-bounds polling for Linux ({ov})")
             changes += 1
+            patches_applied += 1
         else:
-            print("  [WARN] teach overlay mouse: replacement failed")
+            print("  [FAIL] teach overlay mouse: replacement failed")
     else:
-        print("  [WARN] teach overlay mouse: overlay variable pattern not found")
+        print("  [FAIL] teach overlay mouse: overlay variable pattern not found")
 
     # Patch 9: Neutralize setIgnoreMouseEvents resets in yJt/SUn on Linux
     # The upstream code calls setIgnoreMouseEvents(true,{forward:true}) in two places
@@ -831,7 +864,7 @@ def patch_computer_use_linux(filepath):
 
     if overlay_var_match:
         # 9a: yJt() uses function parameter (not global oa) — pattern: function yJt(PARAM,e){PARAM.setIgnoreMouseEvents(!0,{forward:!0})
-        yjt_pat = rb"(function \w+\(\w+,\w+\)\{)(\w+)(\.setIgnoreMouseEvents\(!0,\{forward:!0\}\))"
+        yjt_pat = rb"(function [\w$]+\([\w$]+,[\w$]+\)\{)([\w$]+)(\.setIgnoreMouseEvents\(!0,\{forward:!0\}\))"
 
         def yjt_repl(m):
             fn_head = m.group(1).decode("utf-8")
@@ -844,8 +877,9 @@ def patch_computer_use_linux(filepath):
             content = content_new
             print("  [OK] teach overlay: neutralized setIgnoreMouseEvents in show handler (yJt) for Linux")
             changes += 1
+            patches_applied += 1
         else:
-            print("  [WARN] teach overlay: yJt pattern not found (may be OK)")
+            print("  [FAIL] teach overlay: yJt pattern not found")
 
         # 9b: SUn() uses global overlay var — pattern: oa.setIgnoreMouseEvents(!0,{forward:!0}),oa.webContents.send("cu-teach:working"
         sun_pat = f'{ov}.setIgnoreMouseEvents(!0,{{forward:!0}}),{ov}.webContents.send("cu-teach:working"'.encode("utf-8")
@@ -854,15 +888,16 @@ def patch_computer_use_linux(filepath):
             content = content.replace(sun_pat, sun_repl, 1)
             print("  [OK] teach overlay: neutralized setIgnoreMouseEvents in working handler (SUn) for Linux")
             changes += 1
+            patches_applied += 1
         else:
-            print("  [WARN] teach overlay: SUn pattern not found (may be OK)")
+            print("  [FAIL] teach overlay: SUn pattern not found")
 
     # Patch 10: Fix teach overlay transparency on VMs
     # The fullscreen transparent BrowserWindow causes GPU crashes and cursor artifacts
     # on virtual GPUs (VirtualBox VMSVGA, etc.). On native hardware it works fine.
     # Detect VMs at runtime using systemd-detect-virt and fall back to a dark backdrop.
     # Native hardware keeps full transparency (see-through overlay like macOS).
-    teach_overlay_pattern = rb'(=new \w+\.BrowserWindow\(\{[^}]*?)transparent:!0([^}]*?)backgroundColor:"#00000000"'
+    teach_overlay_pattern = rb'(=new [\w$]+\.BrowserWindow\(\{[^}]*?)transparent:!0([^}]*?)backgroundColor:"#00000000"'
     teach_overlay_matches = list(re.finditer(teach_overlay_pattern, content))
     for m in teach_overlay_matches:
         before = content[max(0, m.start() - 80) : m.start()]
@@ -872,9 +907,10 @@ def patch_computer_use_linux(filepath):
             content = content.replace(old, new, 1)
             print("  [OK] teach overlay: VM-aware transparency (transparent on native, dark backdrop on VMs)")
             changes += 1
+            patches_applied += 1
             break
     else:
-        print("  [WARN] teach overlay transparency pattern not found")
+        print("  [FAIL] teach overlay transparency pattern not found")
 
     # Patch 10b: Force teach overlay display to primary monitor on Linux
     # The xlr() function resolves which display to use for the glow and teach overlay
@@ -884,7 +920,7 @@ def patch_computer_use_linux(filepath):
     # monitor for teach overlays. This avoids fragile xdotool-based window detection
     # that only works on X11 and keeps the teach experience consistent across distros.
     # Pattern: function xlr(PARAM){return PARAM===null?ELECTRON.screen.getPrimaryDisplay():...}
-    xlr_pattern = rb"(function \w+\((\w+)\)\{)(return \2===null\?\w+\.screen\.getPrimaryDisplay\(\):\w+\.screen\.getAllDisplays\(\)\.find)"
+    xlr_pattern = rb"(function [\w$]+\(([\w$]+)\)\{)(return \2===null\?[\w$]+\.screen\.getPrimaryDisplay\(\):[\w$]+\.screen\.getAllDisplays\(\)\.find)"
 
     def patch_xlr(m):
         param = m.group(2).decode("utf-8")
@@ -894,8 +930,9 @@ def patch_computer_use_linux(filepath):
     if count >= 1:
         print(f"  [OK] teach overlay display: forced to primary monitor on Linux ({count} match)")
         changes += count
+        patches_applied += 1
     else:
-        print("  [WARN] xlr display resolver pattern: 0 matches (teach may appear on wrong monitor)")
+        print("  [FAIL] xlr display resolver pattern: 0 matches (teach may appear on wrong monitor)")
 
     # Patch 11: Force mVt() (computer-use isEnabled gate) to return true on Linux
     # The mVt() function gates whether the computer-use MCP server is enabled for
@@ -907,7 +944,7 @@ def patch_computer_use_linux(filepath):
     # Our enable_local_agent_mode.py only overrides {status:"supported"} in the
     # static registry — it doesn't affect the GrowthBook "enabled" key.
     # Fix: inject an early return true on Linux before the original logic.
-    mVt_pattern = rb"(function \w+\(\)\{)return \w+\(\w+\)\?\w+\.has\(process\.platform\)&&\w+\(\):\w+\(\)\}"
+    mVt_pattern = rb"(function [\w$]+\(\)\{)return [\w$]+\([\w$]+\)\?[\w$]+\.has\(process\.platform\)&&[\w$]+\(\):[\w$]+\(\)\}"
 
     def patch_mVt(m):
         return m.group(1) + b'if(process.platform==="linux")return!0;' + m.group(0)[len(m.group(1)) :]
@@ -916,8 +953,9 @@ def patch_computer_use_linux(filepath):
     if count >= 1:
         print(f"  [OK] mVt isEnabled: force true on Linux ({count} match)")
         changes += count
+        patches_applied += 1
     else:
-        print("  [WARN] mVt isEnabled pattern: 0 matches (computer-use may not work in cowork/CCD)")
+        print("  [FAIL] mVt isEnabled pattern: 0 matches (computer-use may not work in cowork/CCD)")
 
     # Patch 12: Force rj() to return true on Linux (bypass chicagoEnabled + GrowthBook)
     # rj() is the single function that feeds BOTH runtime gates:
@@ -928,7 +966,7 @@ def patch_computer_use_linux(filepath):
     # Both fail → rj()=false → tools blocked. The Settings toggle (claude.ai web UI)
     # is server-rendered and hidden on Linux regardless of our main-process patches.
     # Fix: return true unconditionally on Linux — no config entry needed.
-    rj_pattern = rb'(function \w+\(\)\{)return \w+\.has\(process\.platform\)\?\w+\(\)&&\w+\("chicagoEnabled"\):!1\}'
+    rj_pattern = rb'(function [\w$]+\(\)\{)return [\w$]+\.has\(process\.platform\)\?[\w$]+\(\)&&[\w$]+\("chicagoEnabled"\):!1\}'
 
     def patch_rj(m):
         return m.group(1) + b'if(process.platform==="linux")return!0;' + m.group(0)[len(m.group(1)) :]
@@ -937,8 +975,9 @@ def patch_computer_use_linux(filepath):
     if count >= 1:
         print(f"  [OK] rj chicagoEnabled bypass: force true on Linux ({count} match)")
         changes += count
+        patches_applied += 1
     else:
-        print("  [WARN] rj pattern: 0 matches (computer-use tool calls may be blocked)")
+        print("  [FAIL] rj pattern: 0 matches (computer-use tool calls may be blocked)")
 
     # ─── Patch 13: Linux-aware computer-use tool descriptions ───────────────
     # V7r() builds CU tool definitions with descriptions that assume macOS or
@@ -953,7 +992,7 @@ def patch_computer_use_linux(filepath):
     # 13a: Lf (allowlist gate warning) — empty on Linux
     # Lf is appended to 14+ tool descriptions via ${Lf} template literals.
     # On Linux the allowlist is bypassed (sub-patch 6), so the warning is wrong.
-    lf_pat = rb'(\w+)="The frontmost application must be in the session allowlist at the time of this call, or this tool returns an error and does nothing\."'
+    lf_pat = rb'([\w$]+)="The frontmost application must be in the session allowlist at the time of this call, or this tool returns an error and does nothing\."'
 
     def lf_repl(m):
         v = m.group(1).decode("utf-8")
@@ -965,8 +1004,9 @@ def patch_computer_use_linux(filepath):
     if count:
         print("  [OK] 13a Lf allowlist gate: empty on Linux")
         desc_changes += 1
+        patches_applied += 1
     else:
-        print("  [WARN] 13a Lf: not found")
+        print("  [FAIL] 13a Lf: not found")
 
     # 13b: request_access — "Linux" instead of "macOS"/"Finder"
     # The ternary t.platform==="win32"?'Windows':'macOS' falls to macOS on
@@ -988,8 +1028,9 @@ def patch_computer_use_linux(filepath):
         content = content.replace(_old_13b, _new_13b, 1)
         print("  [OK] 13b request_access: Linux platform prefix")
         desc_changes += 1
+        patches_applied += 1
     else:
-        print("  [WARN] 13b request_access macOS prefix: not found")
+        print("  [FAIL] 13b request_access macOS prefix: not found")
 
     # 13c: App identifier (request_access apps schema) — WM_CLASS for Linux
     # macOS uses bundle identifiers (com.tinyspeck.slackmacgap) — N/A on Linux.
@@ -1010,8 +1051,9 @@ def patch_computer_use_linux(filepath):
         content = content.replace(_old_13c, _new_13c, 1)
         print("  [OK] 13c request_access apps: Linux identifiers")
         desc_changes += 1
+        patches_applied += 1
     else:
-        print("  [WARN] 13c request_access apps: not found")
+        print("  [FAIL] 13c request_access apps: not found")
 
     # 13d: App identifier (open_application app schema) — simplified for Linux
     _old_13d = b"""'Display name (e.g. "Slack") or bundle identifier (e.g. "com.tinyspeck.slackmacgap").'"""
@@ -1025,8 +1067,9 @@ def patch_computer_use_linux(filepath):
         content = content.replace(_old_13d, _new_13d, 1)
         print("  [OK] 13d open_application app: Linux identifiers")
         desc_changes += 1
+        patches_applied += 1
     else:
-        print("  [WARN] 13d open_application app: not found")
+        print("  [FAIL] 13d open_application app: not found")
 
     # 13e: open_application — no allowlist on Linux
     _old_13e = ('"Bring an application to the front, launching it if necessary. The target application must already be in the session allowlist \u2014 call request_access first."').encode("utf-8")
@@ -1043,8 +1086,9 @@ def patch_computer_use_linux(filepath):
         content = content.replace(_old_13e, _new_13e, 1)
         print("  [OK] 13e open_application: no allowlist on Linux")
         desc_changes += 1
+        patches_applied += 1
     else:
-        print("  [WARN] 13e open_application: not found")
+        print("  [FAIL] 13e open_application: not found")
 
     # 13f: screenshot (none-filtering) — remove allowlist text on Linux
     _old_13f = (
@@ -1065,11 +1109,12 @@ def patch_computer_use_linux(filepath):
         content = content.replace(_old_13f, _new_13f, 1)
         print("  [OK] 13f screenshot: clean description on Linux")
         desc_changes += 1
+        patches_applied += 1
     else:
-        print("  [WARN] 13f screenshot: not found")
+        print("  [FAIL] 13f screenshot: not found")
 
     # 13g: screenshot suffix — remove "allowlist empty" error on Linux
-    ss_sfx_pat = rb'(\w+)\+" Returns an error if the allowlist is empty\. The returned image is what subsequent click coordinates are relative to\."'
+    ss_sfx_pat = rb'([\w$]+)\+" Returns an error if the allowlist is empty\. The returned image is what subsequent click coordinates are relative to\."'
 
     def ss_sfx_repl(m):
         v = m.group(1).decode("utf-8")
@@ -1083,23 +1128,32 @@ def patch_computer_use_linux(filepath):
     if count:
         print("  [OK] 13g screenshot suffix: no allowlist error on Linux")
         desc_changes += 1
+        patches_applied += 1
     else:
-        print("  [WARN] 13g screenshot suffix: not found")
+        print("  [FAIL] 13g screenshot suffix: not found")
 
     if desc_changes > 0:
         changes += desc_changes
         print(f"  [OK] {desc_changes}/7 description patches applied")
     else:
-        print("  [WARN] No description patches applied (descriptions unchanged)")
+        print("  [FAIL] No description patches applied (descriptions unchanged)")
 
-    if changes > 0 and content != original_content:
+    if patches_applied < EXPECTED_PATCHES:
+        print(f"  [FAIL] Only {patches_applied}/{EXPECTED_PATCHES} patches applied — check [FAIL] messages above")
+        # Still write partial changes so the build can be inspected
+        if content != original_content:
+            with open(filepath, "wb") as f:
+                f.write(content)
+        return False
+
+    if content != original_content:
         with open(filepath, "wb") as f:
             f.write(content)
-        print(f"  [PASS] {changes} sub-patches applied")
+        print(f"  [PASS] {patches_applied}/{EXPECTED_PATCHES} sub-patches applied ({changes} content changes)")
         return True
     else:
-        print("  [WARN] No changes made")
-        return True
+        print("  [FAIL] No changes made")
+        return False
 
 
 if __name__ == "__main__":

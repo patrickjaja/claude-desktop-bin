@@ -60,7 +60,7 @@ def patch_cowork_linux(filepath):
     #   2 = ef (assignment target variable)
     #   3 = {vm:vZe} (the VM client object literal)
     #   \2 backreference matches the same variable name in the else branch
-    vm_client_pattern = rb'(\w+)\?(\w+)=(\{vm:\w+\}):\2=\(await import\("@ant/claude-swift"\)\)\.default'
+    vm_client_pattern = rb'([\w$]+)\?([\w$]+)=(\{vm:[\w$]+\}):\2=\(await import\("@ant/claude-swift"\)\)\.default'
 
     def vm_client_replacement(m):
         li_var = m.group(1)  # Li
@@ -195,7 +195,7 @@ def patch_cowork_linux(filepath):
 
     # Also extend the error detection to recognize Linux paths
     # Use regex to match any variable name before .includes
-    error_detect_pattern = rb'(\w+)(\.includes\("/usr/local/bin/claude"\))'
+    error_detect_pattern = rb'([\w$]+)(\.includes\("/usr/local/bin/claude"\))'
 
     def error_detect_replacement(m):
         var = m.group(1)
@@ -209,12 +209,13 @@ def patch_cowork_linux(filepath):
         print("  [WARN] Error detection: pattern not found")
 
     # Check results
-    if patches_applied == 0:
-        print("  [FAIL] No patches could be applied")
+    EXPECTED_PATCHES = 5  # A, B, C, D, E
+    if patches_applied < EXPECTED_PATCHES:
+        print(f"  [FAIL] Only {patches_applied}/{EXPECTED_PATCHES} patches applied — check [WARN]/[FAIL] messages above")
         return False
 
     if content == original_content:
-        print("  [WARN] No changes made (patterns may have already been applied)")
+        print(f"  [OK] All {patches_applied} patches already applied (no changes needed)")
         return True
 
     # Verify our patches didn't introduce a brace imbalance

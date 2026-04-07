@@ -64,12 +64,13 @@ def patch_cowork_error_message(filepath):
         print("  [WARN] Timeout error message not found")
 
     # Check results
-    if patches_applied == 0:
-        print("  [FAIL] No patches could be applied")
+    EXPECTED_PATCHES = 2
+    if patches_applied < EXPECTED_PATCHES:
+        print(f"  [FAIL] Only {patches_applied}/{EXPECTED_PATCHES} patches applied — check [WARN]/[FAIL] messages above")
         return False
 
     if content == original_content:
-        print("  [WARN] No changes made (patterns may have already been applied)")
+        print(f"  [WARN] No changes made ({patches_applied}/{EXPECTED_PATCHES} patterns matched but already applied)")
         return True
 
     # Verify brace balance

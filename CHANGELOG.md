@@ -2,6 +2,23 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-07 — Strict patch validation, `[\w$]+` regex hardening, built-in MCP/flag audit
+
+### Fixed
+- **fix_dispatch_linux.py** Patch D: telemetry gate variable `F$e` not matched by `\w+` (contains `$`)
+- **fix_startup_settings.py** Patch 2: logger variable changed `re` → `R` upstream; now uses flexible `[\w$]+` pattern
+- **fix_computer_use_linux.py** Patch 7: teach overlay gate function `nee()` not in hardcoded allowlist; now uses generic `[\w$]+()&&(` pattern
+
+### Changed
+- **16 patch files**: All `\w+` regex patterns matching JS identifiers replaced with `[\w$]+` to handle minified names containing `$`
+- **8 patch files**: Lenient success criteria (`patches_applied == 0`) replaced with strict `EXPECTED_PATCHES` check — all sub-patches must succeed or the build fails
+- **fix_app_quit.py**: Changed silent `sys.exit(0)` on failure to `sys.exit(1)`
+
+### Docs
+- **CLAUDE.md**: Added Section 5b "Patch Strictness Rules" — all sub-patches must match, `[\w$]+` required for JS identifiers
+- **CLAUDE_BUILT_IN_MCP.md**: Added `update_plan` Chrome tool, `read_me` widget tool, `cowork-artifact` dynamic servers, `web_search` API built-in, fixed `scheduled-tasks` server name, Operon expanded to 31 sub-interfaces, v1.1062.0 version notes
+- **CLAUDE_FEATURE_FLAGS.md**: Added Operon tool inventory (14 brain + 7 compute + 1 dynamic + 4 internal LLM tools), 3 new Operon interfaces, new/removed GrowthBook flags for v1.1062.0
+
 ## 2026-04-07 — Portal+PipeWire screenshots for GNOME Wayland 46+ (#28)
 
 ### Added

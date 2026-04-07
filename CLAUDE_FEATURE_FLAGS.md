@@ -197,6 +197,26 @@ Calls `xse`, validates the result against a Zod schema, and sends it to the rend
 |---------|-----|-------|
 | `3196624152` | Phoenix Rising updater | Completely removed |
 
+#### New in v1.1062.0
+
+| Flag ID | Purpose | Patched? |
+|---------|---------|----------|
+| `2114777685` | Cowork onboarding / CU-only mode (`show_onboarding_role_picker` tool) | No |
+| `3371831021` | `cuOnlyMode` — computer-use-only session variant | No |
+
+#### Removed in v1.1062.0
+
+These dispatch-era flags were removed from GrowthBook boolean calls (code may still reference them but they no longer fire):
+
+| Flag ID | Was | Notes |
+|---------|-----|-------|
+| `3558849738` | Dispatch/Spaces feature (RBe constant) | Removed — dispatch now unconditional |
+| `3572572142` | Sessions-bridge init (Dispatch) | Removed — bridge init now unconditional |
+| `4201169164` | Remote orchestrator ("manta") | Already hardcoded off since v1.1.9669, now fully removed |
+| `1585356617` | Epitaxy routing | Removed |
+| `2199295617` | AutoArchiveEngine | Removed |
+| `2860753854` | System prompt override (boolean call) | Removed from boolean calls (still exists as value flag) |
+
 ### Object/Value Flags (j1() / Js())
 
 | Flag ID | Type | Purpose |
@@ -265,7 +285,7 @@ Dispatch is a remote task orchestration feature that lets you send tasks from yo
 3. **Platform label** (`bhe()`) — Returns "Unsupported Platform" for Linux. We add `case"linux":return"Linux"`.
 4. **Telemetry gate** — `di||ns` (darwin||win32) silently drops telemetry on Linux. We extend to include Linux.
 
-**Note on `operon` (Nest):** Do NOT force-enable — requires VM infrastructure (120+ IPC endpoints across 18 sub-interfaces). Currently `{status:"unavailable"}` on Linux (GrowthBook flag `1306813456` not enabled server-side).
+**Note on `operon` (Nest):** Do NOT force-enable — requires VM infrastructure (120+ IPC endpoints across 31 sub-interfaces). Currently `{status:"unavailable"}` on Linux (GrowthBook flag `1306813456` not enabled server-side). See [Operon Tool Inventory](#operon-tool-inventory-v11062) below for the full model-facing toolset.
 
 **No patching needed for:**
 - Keep-awake (`powerSaveBlocker`) — works on Linux via Electron API
@@ -295,6 +315,92 @@ The **Remote Orchestrator** (codename "manta", flag `4201169164` / `yukon_silver
 **Related env vars:**
 - `CLAUDE_COWORK_FORCE_REMOTE_ORCHESTRATOR` — force enable remote mode
 - `CLAUDE_REMOTE_TOOLS_BRIDGE_URL` — override WebSocket bridge URL (default: `wss://bridge.claudeusercontent.com`)
+
+### Operon Tool Inventory (v1.1062.0)
+
+When Operon is active (flag `1306813456`), the model gets access to a rich toolset organized in 4 categories. These are **NOT MCP tools** — they are dispatched through Operon's internal `_executeBrainTool()` / `_executeComputeTool()` routing, not the MCP protocol.
+
+#### Brain Tools (`d3e` routing table, built via `Z0()`)
+
+**Tool Router** (routed via `_handleX` methods):
+
+| Tool | Handler | Status |
+|------|---------|--------|
+| `ask_user` | `_handleAskUser` | Active |
+| `search_agents` | `_handleSearchAgents` | Active |
+| `search_skills` | `_handleSearchSkills` | Active |
+| `create_skill` | `_handleCreateSkill` | Active |
+| `generate_plan` | `_handleGeneratePlan` | Active |
+| `update_step_status` | `_handleUpdateStepStatus` | Active |
+| `render_dashboard` | `_handleRenderDashboard` | **DISABLED** — `"disabled pending sandbox hardening (T12421, mitigation 25263)"` |
+| `patch_dashboard` | `_handlePatchDashboard` | **DISABLED** — same sandbox hardening gate |
+| `read_dashboard` | `_handleReadDashboard` | Active |
+| `request_network_access` | `_handleRequestNetworkAccess` | Active |
+| `request_host_access` | `_handleRequestHostAccess` | Active |
+
+**Delegator** (multi-agent orchestration, also in `RNn` table):
+
+| Tool | Handler | Description |
+|------|---------|-------------|
+| `delegate_to` | `_handleDelegation` | Delegate task to another agent |
+| `delegate_subtask` | `_handleSubtaskDelegation` | Spawn a subtask to an agent |
+| `stop_child` | `_handleStopChild` | Stop a child agent |
+| `wait_for_notification` | `_handleWaitForNotification` | Wait for async notification from child |
+
+All brain tools are collected in the `L$n` array as Anthropic-format tool schemas (with `input_schema`).
+
+#### Compute Tools (`u3e` array, with `parameters` + `handler`)
+
+| Tool | Variable | Description |
+|------|----------|-------------|
+| `bash` | `LPn` | Shell command execution |
+| `python` | `FPn` | Python code execution (via `I5e()`) |
+| `r` | `UPn` | R code execution |
+| `save_artifacts` | `t6n` | Save output artifacts |
+| `manage_environments` | `d6n` | Manage compute environments |
+| `manage_packages` | `f6n` | Manage installed packages |
+| `fetch_article_fulltext` | `N6n` | Fetch full text of a web article |
+
+Special handling set `SNn`: `python`, `r`, `manage_environments`, `manage_packages`.
+
+#### Dynamic Tool
+
+| Tool | Description |
+|------|-------------|
+| `skill` | Dynamically built via `Z0()`, pushed into `_computeTools`. Handled in both `_executeLocalTool` and `_executeComputeTool` |
+
+#### Internal LLM Tools (not model-facing — forced `tool_choice` in internal calls)
+
+| Tool | Variable | Purpose |
+|------|----------|---------|
+| `report_input_files` | `hNn` | Identify all input files read during code generation |
+| `select_relevant_inputs` | `mNn` | Select which inputs contributed to outputs |
+| `summarize_conversation` | `zer`/`vvn()` | Context compaction / conversation summarization |
+| `create_work_item` | `Izn` | Create structured work items from context |
+
+These are never exposed to the user-facing model. They are used by Operon internally with forced `tool_choice:{type:"tool",name:"..."}`.
+
+#### Anthropic API Built-in Tool
+
+| Tool | Type ID | Gating |
+|------|---------|--------|
+| `web_search` | `web_search_20250305` | `enable_web_search` flag |
+
+Not an MCP or Operon tool — passed directly in the API request as `{type:"web_search_20250305",name:"web_search"}`. Referenced in the `Nzn` exclusion set: `new Set([...u3e.map(t=>t.name),"skill","request_network_access","request_host_access","tool_search_tool_regex","code_execution","web_search","web_fetch"])`.
+
+#### Cowork Command (not a standard tool)
+
+| Name | Description | Scope |
+|------|-------------|-------|
+| `context` | Show what's using your context window | `cowork` |
+
+Defined in `ODt` array alongside `AskUserQuestion` and `ExitPlanMode`. UI command, not a tool-use tool.
+
+### Operon Sub-Interfaces (v1.1062.0)
+
+31 sub-interfaces (up from 28 in v1.1.9134):
+
+`OperonAgentConfig`, `OperonAgents`, `OperonAnalytics`, `OperonAnnotations`, `OperonApiKeys`, `OperonArtifactDownloads`, `OperonArtifacts`, `OperonAssembly`, `OperonAttachments`, `OperonBootstrap`, `OperonCloud`, `OperonConversations`, `OperonEvents`, `OperonExportBundle` (**new**), `OperonFolders`, `OperonFrames`, `OperonHostAccess`, `OperonHostAccessProvider`, `OperonImageProvider`, `OperonMcp`, `OperonNotes`, `OperonPreferences`, `OperonProjects`, `OperonQuitHandler`, `OperonReplay` (**new**), `OperonSDK` (**new**), `OperonSecrets`, `OperonServices`, `OperonSessionManager`, `OperonSkills`, `OperonSkillsSync`, `OperonSystem`
 
 ### Features we do NOT enable
 

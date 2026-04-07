@@ -64,8 +64,8 @@ def patch_office_addin_linux(filepath):
     # Pattern anchors on `&&(` before and `)&&En("louderPenguinEnabled")` after.
     # Uses \w+ for all minified variable names.
 
-    pattern_a = rb'(&&\()(\w+\|\|\w+)(\)&&\w+\("louderPenguinEnabled"\))'
-    already_a = rb'&&\(\w+\|\|\w+\|\|process\.platform==="linux"\)&&\w+\("louderPenguinEnabled"\)'
+    pattern_a = rb'(&&\()([\w$]+\|\|[\w$]+)(\)&&[\w$]+\("louderPenguinEnabled"\))'
+    already_a = rb'&&\([\w$]+\|\|[\w$]+\|\|process\.platform==="linux"\)&&[\w$]+\("louderPenguinEnabled"\)'
 
     if re.search(already_a, content):
         print("  [OK] MCP server isEnabled: already patched (skipped)")
@@ -93,8 +93,8 @@ def patch_office_addin_linux(filepath):
     #
     # Pattern anchors on `});(` before and `)&&En("louderPenguinEnabled")&&(` after.
 
-    pattern_b = rb'(\}\);\()(\w+\|\|\w+)(\)&&\w+\("louderPenguinEnabled"\)&&\()'
-    already_b = rb'\}\);\(\w+\|\|\w+\|\|process\.platform==="linux"\)&&\w+\("louderPenguinEnabled"\)&&\('
+    pattern_b = rb'(\}\);\()([\w$]+\|\|[\w$]+)(\)&&[\w$]+\("louderPenguinEnabled"\)&&\()'
+    already_b = rb'\}\);\([\w$]+\|\|[\w$]+\|\|process\.platform==="linux"\)&&[\w$]+\("louderPenguinEnabled"\)&&\('
 
     if re.search(already_b, content):
         print("  [OK] Init block: already patched (skipped)")
@@ -121,8 +121,8 @@ def patch_office_addin_linux(filepath):
     #
     # Pattern anchors on `(` before and `)&&await VAR(VAR.app,VAR.document)` after.
 
-    pattern_c = rb"(\()(\w+\|\|\w+)(\)&&await \w+\(\w+\.app,\w+\.document\))"
-    already_c = rb'\(\w+\|\|\w+\|\|process\.platform==="linux"\)&&await \w+\(\w+\.app,\w+\.document\)'
+    pattern_c = rb"(\()([\w$]+\|\|[\w$]+)(\)&&await [\w$]+\([\w$]+\.app,[\w$]+\.document\))"
+    already_c = rb'\([\w$]+\|\|[\w$]+\|\|process\.platform==="linux"\)&&await [\w$]+\([\w$]+\.app,[\w$]+\.document\)'
 
     if re.search(already_c, content):
         print("  [OK] Connected file detection: already patched (skipped)")
@@ -141,12 +141,13 @@ def patch_office_addin_linux(filepath):
 
     # ── Results ───────────────────────────────────────────────────────────
 
-    if patches_applied == 0:
-        print("  [FAIL] No patches could be applied")
+    EXPECTED_PATCHES = 3
+    if patches_applied < EXPECTED_PATCHES:
+        print(f"  [FAIL] Only {patches_applied}/{EXPECTED_PATCHES} patches applied — check [WARN]/[FAIL] messages above")
         return False
 
     if content == original_content:
-        print("  [WARN] No changes made (patterns may have already been applied)")
+        print(f"  [OK] All {patches_applied} patches already applied (no changes needed)")
         return True
 
     # Verify patches didn't introduce a brace imbalance

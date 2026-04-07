@@ -174,7 +174,7 @@ def patch_dock_bounce(filepath):
             applied.append("early-guard(prepend)")
 
     # --- 2. Inline: strip steal from app.focus({steal:!0}) ---
-    steal_pattern = rb"(\w+\.app\.focus)\(\{steal:!?[01t]\w*\}\)"
+    steal_pattern = rb"([\w$]+\.app\.focus)\(\{steal:!?[01t][\w$]*\}\)"
 
     def steal_replacement(m):
         return m.group(1) + b"({})"
@@ -187,7 +187,7 @@ def patch_dock_bounce(filepath):
         print("  [INFO] No app.focus({steal}) calls found (may already be cleaned)")
 
     # --- 3. No-op requestUserAttention on Linux ---
-    rua_pattern = rb"(requestUserAttention\(\)\{)(var \w+;this\.isAppFocusedAndVisible\(\)\|\|)"
+    rua_pattern = rb"(requestUserAttention\(\)\{)(var [\w$]+;this\.isAppFocusedAndVisible\(\)\|\|)"
     rua_replacement = rb'\1if(process.platform==="linux")return;\2'
 
     if b'requestUserAttention(){if(process.platform==="linux")return;' in content:

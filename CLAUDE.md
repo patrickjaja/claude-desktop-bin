@@ -120,14 +120,14 @@ Minified variable names change between versions. Examples from v1.0.1217 → v1.
 
 ### 5. Fix Strategy: Use Flexible Patterns
 
-Instead of hardcoding variable names, use `\w+` wildcards with replacement functions:
+Instead of hardcoding variable names, use `[\w$]+` wildcards with replacement functions:
 
 ```python
 # BAD - hardcoded variable names (breaks on updates)
 pattern = rb'function pTe\(\)\{const t=ce\.screen\.getPrimaryDisplay\(\)'
 
 # GOOD - flexible pattern with capture groups
-pattern = rb'(function \w+\(\)\{const t=)(\w+)(\.screen\.)getPrimaryDisplay\(\)'
+pattern = rb'(function [\w$]+\(\)\{const t=)([\w$]+)(\.screen\.)getPrimaryDisplay\(\)'
 
 def replacement_func(m):
     electron_var = m.group(2).decode('utf-8')
@@ -136,6 +136,40 @@ def replacement_func(m):
 
 content, count = re.subn(pattern, replacement_func, content)
 ```
+
+**Important:** Always use `[\w$]+` (not bare `\w+`) for matching JS identifiers. Minified variable names can contain `$` (e.g., `F$e`, `$S`). Using bare `\w+` will silently fail to match.
+
+### 5b. Patch Strictness Rules
+
+**Every sub-patch MUST succeed or the whole patch script MUST fail (exit 1).** This is critical because:
+
+- A failed sub-patch means the upstream code changed — the pattern no longer matches
+- Silent failures hide regressions that only surface as broken features at runtime
+- The correct response to a failed match is *investigation*, not silent acceptance
+
+**Required pattern for multi-patch scripts:**
+
+```python
+EXPECTED_PATCHES = 5  # A, B, C, D, E — list all expected sub-patches
+patches_applied = 0
+
+# ... each successful sub-patch increments patches_applied ...
+
+if patches_applied < EXPECTED_PATCHES:
+    print(f"  [FAIL] Only {patches_applied}/{EXPECTED_PATCHES} patches applied")
+    return False
+```
+
+**Rules:**
+1. Count expected patches and require ALL to succeed (or be detected as "already applied")
+2. Never use `[WARN]` + continue for a patch that doesn't match — use `[FAIL]` and don't increment the counter
+3. "Already patched" detection (idempotency) counts as success — increment the counter
+4. When a patch fails after an upstream update, investigate why:
+   - **Pattern changed:** The minified variable names shifted — update the regex
+   - **Code refactored:** The target code was restructured — rewrite the patch approach
+   - **Feature removed:** The code we patched no longer exists — the patch can be removed
+   - **Feature upstreamed:** Anthropic added native Linux support — the patch can be removed
+5. Never add a new patch with `[WARN]`-on-failure or `patches_applied == 0` as the only check
 
 ### 6. Verify Syntax After Patching
 

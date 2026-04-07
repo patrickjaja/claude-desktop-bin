@@ -39,7 +39,7 @@ def patch_process_argv(filepath):
         content = f.read()
 
     # Check if already patched (use flexible pattern for any variable name)
-    if re.search(rb"\w+\.argv=\[\]", content):
+    if re.search(rb"[\w$]+\.argv=\[\]", content):
         print("  [OK] process.argv: already patched (skipped)")
         return True
 
@@ -51,7 +51,7 @@ def patch_process_argv(filepath):
     # between upstream releases (e.g., Ie -> at).
 
     # Primary: insert <var>.argv=[] just before exposeInMainWorld("process",<var>)
-    expose_pattern = rb'(\w+\.contextBridge\.exposeInMainWorld\("process",)(\w+)(\))'
+    expose_pattern = rb'([\w$]+\.contextBridge\.exposeInMainWorld\("process",)([\w$]+)(\))'
     match = re.search(expose_pattern, content)
     if match:
         var_name = match.group(2)
@@ -63,7 +63,7 @@ def patch_process_argv(filepath):
         return True
 
     # Fallback 1: after platform spoof
-    spoof_pattern = rb'(\w+)(\.platform="win32"\})'
+    spoof_pattern = rb'([\w$]+)(\.platform="win32"\})'
     match = re.search(spoof_pattern, content)
     if match:
         var_name = match.group(1)
@@ -75,7 +75,7 @@ def patch_process_argv(filepath):
         return True
 
     # Fallback 2: after <var>.version=...appVersion;
-    version_pattern = rb"(\w+)(\.version=\w+\(\)\.appVersion;)"
+    version_pattern = rb"([\w$]+)(\.version=[\w$]+\(\)\.appVersion;)"
     match = re.search(version_pattern, content)
     if match:
         var_name = match.group(1)
