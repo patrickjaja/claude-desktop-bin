@@ -340,6 +340,8 @@ See [CLAUDE_BUILT_IN_MCP.md](CLAUDE_BUILT_IN_MCP.md#14-computer-use) for the ful
 
 Hardware Buddy connects Claude Desktop to a [Nibblet](https://github.com/felixrieseberg/nibblet) — a small M5StickC Plus BLE companion device that displays animated characters reflecting Claude's session state (idle, busy, celebrating, etc.).
 
+![Hardware Buddy (Nibblet)](buddy.png)
+
 **Access:** App menu → Developer → Open Hardware Buddy…
 
 **How it works on Linux:** The BLE communication uses standard Web Bluetooth (Nordic UART Service) via Electron's Chromium layer — no native code needed. Upstream gates the feature behind a server-side flag. The patch ([fix_buddy_ble_linux.py](patches/fix_buddy_ble_linux.py)) forces the flag on Linux so the BLE bridge initializes.
