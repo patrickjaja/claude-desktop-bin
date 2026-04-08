@@ -340,7 +340,7 @@ See [CLAUDE_BUILT_IN_MCP.md](CLAUDE_BUILT_IN_MCP.md#14-computer-use) for the ful
 
 Hardware Buddy connects Claude Desktop to a [Nibblet](https://github.com/felixrieseberg/nibblet) — a small M5StickC Plus BLE companion device that displays animated characters reflecting Claude's session state (idle, busy, celebrating, etc.).
 
-![Hardware Buddy (Nibblet)](buddy.png)
+<img src="buddy.png" alt="Hardware Buddy (Nibblet)" width="330">
 
 **Access:** App menu → Developer → Open Hardware Buddy…
 
