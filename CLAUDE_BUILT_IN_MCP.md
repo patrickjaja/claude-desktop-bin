@@ -1,4 +1,4 @@
-# Built-in MCP Servers — Claude Desktop v1.1062.0
+# Built-in MCP Servers — Claude Desktop v1.1348.0
 
 Claude Desktop registers internal MCP servers via a two-layer architecture:
 
@@ -187,8 +187,8 @@ Browser interaction (30-second timeout each):
 | Field | Value |
 |-------|-------|
 | Server name | `"terminal"` |
-| Platform | **All** (macOS, Windows, Linux) — natively cross-platform since v1.2.234 (`LRe = isDarwin \|\| isWin32 \|\| isLinux`) |
-| Gating | CCD session + `LRe` platform check + server flag `397125142` |
+| Platform | **All** (macOS, Windows, Linux) — upstream regressed in v1.1348.0 to `z5e` (darwin\|\|win32 only), but `fix_dispatch_linux.py` patches `z5e` to include Linux |
+| Gating | CCD session + `z5e` platform check + server flag `397125142` |
 
 | Tool | Description |
 |------|-------------|
@@ -293,9 +293,12 @@ Claude Desktop creates 4 additional MCP servers **dynamically per cowork/dispatc
 | `present_files` | `_Re` | Present files to user with interactive cards. Takes `{files: [{file_path}]}`. Handler returns file paths as text content |
 | `request_cowork_directory` | `h0` | Request access to a host directory. Opens native folder picker (local sessions) or resolves path (remote). Denied in headless/dispatch-child without explicit `path` |
 | `allow_cowork_file_delete` | `uR` | Allow deletion of files in cowork directory. Enriches input with `_folderName` for permission UI |
-| `launch_code_session` | `bRe` | Launch a Claude Code session from within cowork |
+| `launch_code_session` | — | Launch a Claude Code session from within cowork. Conditional on `canLaunchCodeSession` |
+| `create_artifact` | — | Create a self-contained HTML artifact (inline CSS/JS, data: URLs for images). Conditional on GrowthBook flag `2940196192` (**new in v1.1348.0**) |
+| `update_artifact` | — | Update an existing artifact. Same constraints as `create_artifact`. Conditional on GrowthBook flag `2940196192` (**new in v1.1348.0**) |
+| `save_skill` | — | Save a reusable skill to the user's account. Conditional on `canSaveSkill` (**new in v1.1348.0**) |
 
-**Note:** `present_files`, `allow_cowork_file_delete`, and `launch_code_session` are added to `disallowedTools` for bridge/dispatch-child sessions (`rft` array). On Linux native, `cowork-svc-linux` removes `present_files` from `disallowedTools` as a workaround for file sharing.
+**Note:** `present_files`, `allow_cowork_file_delete`, `launch_code_session`, `create_artifact`, and `update_artifact` are added to `disallowedTools` for bridge/dispatch-child sessions. On Linux native, `cowork-svc-linux` removes `present_files` from `disallowedTools` as a workaround for file sharing.
 
 ### 14. Session Info
 
@@ -487,19 +490,19 @@ Uses `createDarwinExecutor()` → `@ant/claude-swift` native module for screen c
 
 - **Claude in Chrome**: Works on Linux via `fix_browser_tools_linux.py` — redirects native host binary to Claude Code's `~/.claude/chrome/chrome-native-host` and installs NativeMessagingHosts manifests for 6 Linux browsers (Chrome, Chromium, Brave, Edge, Vivaldi, Opera). Requires Claude Code CLI and the [Claude in Chrome](https://chromewebstore.google.com/detail/claude-code/fcoeoabgfenejglbffodgkkbkcdhcgfn) extension.
 - **Office Add-in**: Platform-gated to macOS/Windows. Patched to enable on Linux via `fix_office_addin_linux.py`.
-- **Terminal**: Natively supports all platforms since v1.2.234 (`LRe` includes Linux). No patch needed.
+- **Terminal**: Upstream regressed in v1.1348.0 — `z5e` (darwin||win32) replaced `LRe` (which included Linux). Works on Linux because `fix_dispatch_linux.py` patches `z5e` to include Linux.
 - **Computer Use**: Works on Linux via `fix_computer_use_linux.py` — uses xdotool/scrot + Electron built-in APIs (clipboard, screen, desktopCapturer) instead of `@ant/claude-swift`. Available in Cowork and Code sessions.
 - **MCP Registry / Plugins / Visualize / Scheduled Tasks**: Cross-platform, work on Linux.
 
-## Operon IPC System (v1.1.9134)
+## Operon IPC System (v1.1348.0)
 
-Not an MCP server, but a new internal IPC layer with 120+ endpoints across 31 sub-interfaces (up from 28 in v1.1.9134):
+Not an MCP server, but a new internal IPC layer with 120+ endpoints across 33 sub-interfaces (up from 31 in v1.1062.0):
 
-`OperonAgentConfig`, `OperonAgents`, `OperonAnalytics`, `OperonAnnotations`, `OperonApiKeys`, `OperonArtifactDownloads`, `OperonArtifacts`, `OperonAssembly`, `OperonAttachments`, `OperonBootstrap`, `OperonCloud`, `OperonConversations`, `OperonEvents`, `OperonExportBundle` (**new**), `OperonFolders`, `OperonFrames`, `OperonHostAccess`, `OperonHostAccessProvider`, `OperonImageProvider`, `OperonMcp`, `OperonNotes`, `OperonPreferences`, `OperonProjects`, `OperonQuitHandler`, `OperonReplay` (**new**), `OperonSDK` (**new**), `OperonSecrets`, `OperonServices`, `OperonSessionManager`, `OperonSkills`, `OperonSkillsSync`, `OperonSystem`
+`OperonAgentConfig`, `OperonAgents`, `OperonAnalytics`, `OperonAnnotations`, `OperonApiKeys`, `OperonArtifactDownloads`, `OperonArtifacts`, `OperonAssembly`, `OperonAttachments`, `OperonBootstrap`, `OperonCloud`, `OperonConversations`, `OperonDesktop` (**new**), `OperonEvents`, `OperonExportBundle`, `OperonFolders`, `OperonFrames`, `OperonHostAccess`, `OperonHostAccessProvider`, `OperonImageProvider`, `OperonMcp`, `OperonMcpToolAccessProvider` (**new**), `OperonNotes`, `OperonPreferences`, `OperonProjects`, `OperonQuitHandler`, `OperonReplay`, `OperonSDK`, `OperonSecrets`, `OperonServices`, `OperonSessionManager`, `OperonSkills`, `OperonSkillsSync`, `OperonSystem`
 
 Gated behind GrowthBook flag `1306813456` — currently **unavailable** on all platforms (not enabled server-side). Do NOT force-enable; requires VM infrastructure (Nest).
 
-When active, Operon provides 14 "brain tools" (multi-agent delegation, skills, dashboards, planning), 7 "compute tools" (bash, python, R, artifacts, packages), 1 dynamic tool (`skill`), and 4 internal LLM tools. See [CLAUDE_FEATURE_FLAGS.md — Operon Tool Inventory](CLAUDE_FEATURE_FLAGS.md#operon-tool-inventory-v11062) for the full catalog.
+When active, Operon provides 14 "brain tools" (multi-agent delegation, skills, dashboards, planning), 7 "compute tools" (bash, python, R, artifacts, packages), 1 dynamic tool (`skill`), and 4 internal LLM tools. See [CLAUDE_FEATURE_FLAGS.md — Operon Tool Inventory](CLAUDE_FEATURE_FLAGS.md#operon-tool-inventory-v11348) for the full catalog.
 
 ## Version Notes
 
@@ -509,5 +512,6 @@ When active, Operon provides 14 "brain tools" (multi-agent delegation, skills, d
 | v1.1.9669 | Registration function renamed `Are()` (was `Pee()`). **New `computerUse` feature flag** in static registry (`jun()`, darwin-only) — computer use now gated by both MCP server registration AND feature flag. No new MCP servers or tools. `chillingSlothFeat` darwin gate re-introduced (was removed in v1.1.9134). Remote orchestrator (`4201169164`) removed from GrowthBook. Same 3 renderer-facing servers (Chrome, mcp-registry, office-addin) and same backend servers. Variable renames only. |
 | v1.1.9493 | Metadata-only re-release of v1.1.9310. JS bundles identical — no new MCP servers, tools, or IPC changes. Async feature merger restructured (`Promise.all` pattern). |
 | v1.1.9134 | **New MCP server: `ccd_session`** (`spawn_task` tool for parallel session spawning). **5 new computer-use tools** (`switch_display`, `computer_batch`, `request_teach_access`, `teach_step`, `teach_batch` — 22→27 total). Registration function renamed `IM()`→`Pee()`. Operon expanded from 18→28 sub-interfaces. Computer-use constant renamed `zxt`→`p6t`. |
+| v1.1348.0 | **3 new cowork tools:** `create_artifact`, `update_artifact` (flag `2940196192`), `save_skill` (conditional). Terminal server regressed to `z5e` (darwin\|\|win32) — Linux support maintained via `fix_dispatch_linux.py` `z5e` patch. New `Buddy` BLE device pairing IPC. Operon 31→33 sub-interfaces (`OperonDesktop`, `OperonMcpToolAccessProvider`). No new MCP servers. All 34 patches applied cleanly. |
 | v1.1062.0 | Registration function renamed to `One()`. **New: `update_plan` Chrome tool** (20 total Chrome tools). **New: `read_me` widget MCP tool** in Visualize server. Scheduled Tasks server name constant `qBe="scheduled-tasks"` (hyphenated). `cowork-artifact-<id>` dynamic per-artifact servers. `web_search` Anthropic API built-in tool (`web_search_20250305`) gated by `enable_web_search`. Operon expanded to 31 sub-interfaces (3 new: `OperonExportBundle`, `OperonReplay`, `OperonSDK`). Operon tool inventory: 14 brain tools, 7 compute tools, 1 dynamic (`skill`), 4 internal LLM tools. Dashboard tools `render_dashboard`/`patch_dashboard` disabled pending sandbox hardening. |
 | v1.1.8359 | Visualize server factory renamed to `p3n()` via `getImagineServerDef` (same interface). Operon IPC system added (not MCP). No new MCP servers — all 14 unchanged. |

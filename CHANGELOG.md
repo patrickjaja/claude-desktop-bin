@@ -2,6 +2,33 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-08 (v1.1348.0) — Upstream update, all 34 patches apply cleanly
+
+### Upstream
+- **Version bump:** v1.1062.0 → v1.1348.0
+- **No structural changes** to feature flag architecture — same 18 features, same 3-layer system
+- Function renames only: `Ow()`→`gb()` (static registry), `xse`→`eoe` (async merger), `m0e()`→`Kwe()` (gate function), `rn()`→`tn()` (flag reader), `wR()`→`LI()` (listener), `Js()`→`js()` / `j1()`→`$b()` (value flags)
+- New GrowthBook boolean flag: `4040257062` (memory path routing for non-session contexts)
+- New GrowthBook value flags: `254738541` (prompt), `4066504968` (setup-cowork skill config), `365342473` (shouldScrubTelemetry)
+- New value flag keys: `1978029737` gained `artifactMcpConcurrencyLimit`, `idleGraceMs`, `disableSessionsDiskCleanup`, `sessionsBridgePollIntervalMs`, `coworkMessageTimeoutMs`; `3300773012` gained `scheduledTaskPostWakeDelayMs`, `dispatchJitterMaxMinutes`
+- Removed GrowthBook flags: `927037640` (subagent model config), `3190506572` (Chrome permission control)
+- Operon sub-interfaces: 31 → 33 (new: `OperonDesktop`, `OperonMcpToolAccessProvider`)
+- 3 new cowork tools: `create_artifact`, `update_artifact` (flag `2940196192`), `save_skill` (conditional)
+- New `Buddy` BLE device pairing IPC (macOS hardware accessory)
+- Terminal server upstream regression: `z5e` (darwin||win32) replaced `LRe` (which included Linux) — already handled by `fix_dispatch_linux.py` `z5e` patch
+- `chillingSlothFeat` gate changed from `process.platform!=="darwin"` to `z5e` variable — also handled by `z5e` patch + merger override
+- Electron 40.8.5
+
+### Patches
+- All 34 existing patches applied without modification — minified variable names changed but `[\w$]+` regex patterns handled the renames automatically
+- Terminal server Linux support maintained via existing `fix_dispatch_linux.py` `z5e` patch (no new patch needed)
+- **New patch: `fix_buddy_ble_linux.py`** — enables Hardware Buddy (Nibblet M5StickC Plus BLE device) on Linux by forcing GrowthBook flag `2358734848`. BLE communication uses Web Bluetooth via BlueZ — no native code needed. Requires `bluez` package.
+
+### Documentation
+- **CLAUDE_FEATURE_FLAGS.md** — updated function names, GrowthBook flag catalog, version history table
+- **CLAUDE_BUILT_IN_MCP.md** — new cowork tools, terminal regression note, Operon sub-interfaces
+- **CHANGELOG.md** — this entry
+
 ## 2026-04-07 — Fix CU system prompt: model no longer misidentifies Linux as macOS
 
 ### Fixed
