@@ -20,12 +20,17 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 
 ### Patches
 - All 35 existing patches applied without modification — minified variable names changed but `[\w$]+` regex patterns handled the renames automatically
-- No new patches needed
+- **New patch: `fix_imagine_linux.py`** — enables Imagine/Visualize MCP server on Linux by forcing GrowthBook flag `3444158716`. Provides `show_widget` (inline SVG/HTML rendering) and `read_me` (CSS/theme guidance) tools in Cowork sessions. No platform gate exists upstream — only the server-side flag was blocking it.
 
 ### Documentation
 - **CLAUDE_FEATURE_FLAGS.md** — updated function names, version history table
-- **CLAUDE_BUILT_IN_MCP.md** — new `radar` server (disabled), platform gate variable rename, version notes
+- **CLAUDE_BUILT_IN_MCP.md** — new `radar` server (full tool schema), expanded `visualize` server docs, platform gate variable renames, node-pty status, version notes
+- **README.md** — added `fix_imagine_linux.py` to patch table
 - **CHANGELOG.md** — this entry
+
+### Known Limitations
+- **node-pty**: Only Windows binaries shipped in upstream package. Import fails gracefully on Linux. Rebuilding for Linux would enable the integrated terminal feature (future enhancement).
+- **Radar**: Server disabled at MCP level (`isEnabled:()=>!1`), session creation in renderer code. Not activatable yet.
 
 ## 2026-04-08 (v1.1348.0) — Upstream update, all 34 patches apply cleanly
 

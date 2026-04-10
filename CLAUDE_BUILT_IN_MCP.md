@@ -109,18 +109,29 @@ These are accessible to CCD/Cowork sessions but not directly from the renderer.
 | `suggest_plugin_install` | Suggest plugins for the user to install |
 | `search_plugins` | Search available plugins |
 
-### 5. Visualize
+### 5. Visualize (Imagine)
 
 | Field | Value |
 |-------|-------|
-| Server name | `"visualize"` |
-| Factory | `Vzn()` via `getImagineServerDef` |
-| Gating | Server flag `3444158716` + Cowork session only |
+| Server name | `"visualize"` (variable `wgi`) |
+| Factory | `bgi()` via `getImagineServerDef` |
+| Gating | GrowthBook flag `3444158716` + Cowork session only |
+| Platform | All (no platform gate) |
+| Linux status | **Enabled** via `fix_imagine_linux.py` — forces flag `3444158716` to bypass GrowthBook |
+| Resource URI | `ui://imagine/show-widget.html` |
+
+Renders inline SVG graphics, HTML diagrams, charts, mockups, data visualizations, and elicitation forms directly in the chat UI. Uses a sandboxed iframe renderer with CSP allowing `esm.sh`, `cdnjs.cloudflare.com`, `cdn.jsdelivr.net`, `unpkg.com`.
 
 | Tool | Description |
 |------|-------------|
-| `show_widget` | Render a visual widget in the UI |
-| `read_me` | Returns CSS variables, colors, and theme context for widget rendering (read-only, `annotations:{readOnlyHint:true}`) |
+| `show_widget` | Render SVG or HTML content inline. Input: `{loading_messages: string[], title: string, widget_code: string}`. Returns static confirmation text. `widget_code` can be raw SVG (starts with `<svg>`) or HTML (no DOCTYPE/html/head/body). CSS variables available for theming. Scripts run after streaming completes. |
+| `read_me` | Returns CSS variables, colors, typography, layout rules, and module-specific guidance for widget rendering. Input: `{modules?: ["diagram"|"mockup"|"interactive"|"data_viz"|"art"|"chart"|"elicitation"][]}`. Read-only (`annotations:{readOnlyHint:true}`). |
+
+**Modules:** diagram (SVG flowcharts/graphs), mockup (UI layouts), interactive (dynamic widgets), data_viz (Chart.js + D3 choropleths), art (illustrations), chart (data charts), elicitation (forms with `.elicit-*` classes, pills, file upload).
+
+**System prompt:** The `imagineSystemPrompt` field comes from the claude.ai backend during session creation. When present AND the flag is enabled, it's injected into the cowork session system prompt. If the backend doesn't send it (depends on account tier/rollout), the tools still appear and work — the model just doesn't get the specialized rendering instructions.
+
+**`sendPrompt(text)`:** Global JS function available inside widgets that sends a message to chat as if the user typed it.
 
 ### 6. Claude Preview
 
@@ -226,16 +237,29 @@ Renders an interactive role-picker UI during Cowork onboarding so the user can s
 | Field | Value |
 |-------|-------|
 | Server name | `"radar"` |
-| Gating | **Disabled** (`isEnabled:()=>!1`) |
+| Gating | Dynamically enabled per-session via `YKt` Map; server registration has `isEnabled:()=>!1` (disabled at MCP level) |
+| Platform | All (no platform gate) |
 | Added in | v1.1617.0 |
 
-Records actionable items from conversations. Currently disabled for all platforms.
+An AI-powered inbox scanner that reads from user's remote MCP servers (Gmail, Slack, GitHub, Linear, etc.) and extracts actionable items directed at the user. Currently **not activatable** — the session creation mechanism lives in the renderer/web layer, and the server-level `isEnabled` returns false.
 
 | Tool | Description |
 |------|-------------|
-| `record_card` | Record one actionable item pointed at the user |
+| `record_card` | Record one actionable item pointed at the user. Call once per item — an @-mention waiting on a reply, a review request, a direct ask. The `source_ref` must be the stable upstream identifier (Gmail thread ID, Slack message ts, GitHub owner/repo#N) so re-runs map to the same card. |
 
-**Session type:** `radar` sessions get restricted tool access — only `mcp__radar__record_card` plus remote MCP tools. All other tools are stripped. Permission requests auto-denied.
+**`record_card` input schema:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Short headline naming the ask |
+| `context` | string | Yes | Two or three sentences. Who, what, when it landed |
+| `source` | string | Yes | Connector name: gmail, slack, github, linear, ... |
+| `source_ref` | string | Yes | Stable upstream identifier — thread ID, message ts, issue/PR ref. Dedup key |
+| `prompt` | string | Yes | First message for the spawned Cowork session. Self-contained — the new session has not seen this run |
+| `urgency` | enum | Yes | `"high"`, `"medium"`, or `"low"` |
+| `external_url` | string | No | Direct link to the source item |
+
+**Session type:** `radar` sessions get restricted tool access — only `mcp__radar__record_card` plus remote MCP server tools. All other tools are stripped. Permission requests are auto-denied (`"${tool} requires approval and radar sessions can't prompt — skipped."`). Radar sessions are hidden from the user (classified alongside `agent` and `dispatch_child` in `jL()`).
 
 ### 11. Scheduled Tasks
 
@@ -508,7 +532,10 @@ Uses `createDarwinExecutor()` → `@ant/claude-swift` native module for screen c
 - **Office Add-in**: Platform-gated to macOS/Windows. Patched to enable on Linux via `fix_office_addin_linux.py`.
 - **Terminal**: Upstream regressed in v1.1348.0 — `g5e` (darwin||win32, renamed from `z5e`) replaced `LRe` (which included Linux). Works on Linux because `fix_dispatch_linux.py` patches `g5e` to include Linux.
 - **Computer Use**: Works on Linux via `fix_computer_use_linux.py` — uses xdotool/scrot + Electron built-in APIs (clipboard, screen, desktopCapturer) instead of `@ant/claude-swift`. Available in Cowork and Code sessions.
-- **MCP Registry / Plugins / Visualize / Scheduled Tasks**: Cross-platform, work on Linux.
+- **Visualize (Imagine)**: Enabled on Linux via `fix_imagine_linux.py` — forces GrowthBook flag `3444158716`. No platform gate. Renders SVG/HTML inline in cowork sessions.
+- **Radar**: Not yet activatable — server disabled at MCP level, session creation in renderer code. No platform gate. Future feature.
+- **MCP Registry / Plugins / Scheduled Tasks**: Cross-platform, work on Linux.
+- **Integrated Terminal (node-pty)**: Only Windows binaries shipped. Import fails gracefully on Linux (try/catch). Could work by rebuilding node-pty for Linux (requires matching Electron Node ABI). Future enhancement.
 
 ## Operon IPC System (v1.1617.0)
 
