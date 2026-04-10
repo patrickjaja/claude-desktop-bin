@@ -2,6 +2,31 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-10 (v1.1617.0) — Upstream update, all 35 patches apply cleanly
+
+### Upstream
+- **Version bump:** v1.1348.0 → v1.1617.0
+- **No structural changes** to feature flag architecture — same 18 features, same 3-layer system
+- Function renames only: `gb()`→`wb()` (static registry), `eoe`→`Soe` (async merger), `Kwe()`→`bbe()` (gate function), `tn()`→`rn()` (flag reader), `LI()`→`ZI()` (listener), `js()`→`Gs()` / `$b()`→`Db()` (value flags)
+- Platform gate variable renamed: `z5e`→`g5e` (same `darwin||win32` pattern)
+- computerUse Set variable renamed: kept as `Hae` with `Lte()` checker
+- No new GrowthBook flag IDs added or removed
+- **New MCP server: `radar`** — records actionable items (`record_card` tool), currently **disabled** (`isEnabled:()=>!1`)
+- **New renderer windows:** `buddy_window/`, `find_in_page/`
+- **New infrastructure:** `transcript-search-worker/`, `sqlite-worker/`
+- **New dependencies:** `node-pty` (1.1.0-beta34), `ws` (^8.18.0), `@ant/imagine-server`
+- Operon: same 33 sub-interfaces, no changes
+- 3 force-ON GrowthBook flags: `2976814254`, `3246569822`, `1143815894` (hardcoded in `m6r` map)
+
+### Patches
+- All 35 existing patches applied without modification — minified variable names changed but `[\w$]+` regex patterns handled the renames automatically
+- No new patches needed
+
+### Documentation
+- **CLAUDE_FEATURE_FLAGS.md** — updated function names, version history table
+- **CLAUDE_BUILT_IN_MCP.md** — new `radar` server (disabled), platform gate variable rename, version notes
+- **CHANGELOG.md** — this entry
+
 ## 2026-04-08 (v1.1348.0) — Upstream update, all 34 patches apply cleanly
 
 ### Upstream

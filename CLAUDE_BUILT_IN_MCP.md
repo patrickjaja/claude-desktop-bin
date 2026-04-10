@@ -1,4 +1,4 @@
-# Built-in MCP Servers — Claude Desktop v1.1348.0
+# Built-in MCP Servers — Claude Desktop v1.1617.0
 
 Claude Desktop registers internal MCP servers via a two-layer architecture:
 
@@ -187,8 +187,8 @@ Browser interaction (30-second timeout each):
 | Field | Value |
 |-------|-------|
 | Server name | `"terminal"` |
-| Platform | **All** (macOS, Windows, Linux) — upstream regressed in v1.1348.0 to `z5e` (darwin\|\|win32 only), but `fix_dispatch_linux.py` patches `z5e` to include Linux |
-| Gating | CCD session + `z5e` platform check + server flag `397125142` |
+| Platform | **All** (macOS, Windows, Linux) — upstream regressed in v1.1348.0 to `g5e` (darwin\|\|win32 only, renamed from `z5e`), but `fix_dispatch_linux.py` patches `g5e` to include Linux |
+| Gating | CCD session + `g5e` platform check + server flag `397125142` |
 
 | Tool | Description |
 |------|-------------|
@@ -221,7 +221,23 @@ Renders an interactive role-picker UI during Cowork onboarding so the user can s
 |------|-------------|
 | `get_roots` | Get MCP roots |
 
-### 10. Scheduled Tasks
+### 10. Radar
+
+| Field | Value |
+|-------|-------|
+| Server name | `"radar"` |
+| Gating | **Disabled** (`isEnabled:()=>!1`) |
+| Added in | v1.1617.0 |
+
+Records actionable items from conversations. Currently disabled for all platforms.
+
+| Tool | Description |
+|------|-------------|
+| `record_card` | Record one actionable item pointed at the user |
+
+**Session type:** `radar` sessions get restricted tool access — only `mcp__radar__record_card` plus remote MCP tools. All other tools are stripped. Permission requests auto-denied.
+
+### 11. Scheduled Tasks
 
 | Field | Value |
 |-------|-------|
@@ -235,7 +251,7 @@ Renders an interactive role-picker UI during Cowork onboarding so the user can s
 | `create_scheduled_task` | Create a new scheduled task |
 | `update_scheduled_task` | Update an existing scheduled task |
 
-### 11. CCD Session
+### 12. CCD Session
 
 | Field | Value |
 |-------|-------|
@@ -257,7 +273,7 @@ Claude Desktop creates 4 additional MCP servers **dynamically per cowork/dispatc
 
 **Communication:** SDK-type servers use `MessagePort` bridges. On Mac/Windows, the VM SDK daemon (`nodeHost.js`) provides this bridge via vsock. On Linux native, `cowork-svc-linux` now **passes `--mcp-config` through unchanged** (since commit `d1dfc3b`). The CLI sends `control_request` messages on stdout, which flow through the event stream to Claude Desktop. Desktop's session manager intercepts them and sends `control_response` back via writeStdin — identical to VM mode on Mac/Windows.
 
-### 12. Dispatch
+### 13. Dispatch
 
 | Field | Value |
 |-------|-------|
@@ -278,7 +294,7 @@ Claude Desktop creates 4 additional MCP servers **dynamically per cowork/dispatc
 
 **Important:** `mcp__dispatch__send_message` is **NOT** a replacement for the built-in `SendUserMessage` CLI tool — they serve completely different purposes. `send_message` sends a follow-up message **to another session** (inter-session communication, takes `{session_id, message}`). `SendUserMessage` sends a response **to the human user** (renders on phone, takes `{message, attachments?}`). Since `SendUserMessage` is broken ([anthropics/claude-code#35076](https://github.com/anthropics/claude-code/issues/35076) — still open as of 2026-03-27, confirmed on v2.1.85), there is **no native tool** for the model to send user-facing responses. Patch I in `fix_dispatch_linux.py` compensates by transforming plain text assistant messages into synthetic `SendUserMessage` tool_use blocks, which the sessions API renders on phone.
 
-### 13. Cowork
+### 14. Cowork
 
 | Field | Value |
 |-------|-------|
@@ -300,7 +316,7 @@ Claude Desktop creates 4 additional MCP servers **dynamically per cowork/dispatc
 
 **Note:** `present_files`, `allow_cowork_file_delete`, `launch_code_session`, `create_artifact`, and `update_artifact` are added to `disallowedTools` for bridge/dispatch-child sessions. On Linux native, `cowork-svc-linux` removes `present_files` from `disallowedTools` as a workaround for file sharing.
 
-### 14. Session Info
+### 15. Session Info
 
 | Field | Value |
 |-------|-------|
@@ -315,7 +331,7 @@ Claude Desktop creates 4 additional MCP servers **dynamically per cowork/dispatc
 | `list_sessions` | `qdt` | List child sessions and all sessions |
 | `read_transcript` | `zdt` | Read transcript of a session |
 
-### 15. Workspace
+### 16. Workspace
 
 | Field | Value |
 |-------|-------|
@@ -390,20 +406,20 @@ disallowedTools: ["AskUserQuestion", "mcp__cowork__allow_cowork_file_delete",
                    "mcp__cowork__present_files", "mcp__cowork__launch_code_session"]
 ```
 
-### 16. Computer Use
+### 17. Computer Use
 
 | Field | Value |
 |-------|-------|
 | Server name | `"computer-use"` (constant `p6t`) |
 | Tool prefix | `mcp__computer-use__` |
 | Platform | macOS (native), **Linux (patched)** |
-| Gating (macOS/Windows) | Set-based: `vee()` checks `ese = new Set(["darwin","win32"])` + `chicagoEnabled` preference |
+| Gating (macOS/Windows) | Set-based: `Lte()` checks `Hae = new Set(["darwin","win32"])` + `chicagoEnabled` preference |
 | Gating (Linux) | Enabled via Set modification (add "linux" to `ese`) + feature flag and preference bypassed |
 | Internal codename | "chicago" |
 
 **Background:** Computer-use was previously a separate `computer-use-server.js` file in the app root (removed in v1.1.7714). As of v1.1.8359, it's fully integrated into `index.js` as an internal MCP server. In v1.1.9134, 5 new tools were added (multi-monitor, batch actions, teach mode).
 
-**Feature flag (v1.2.234):** Computer-use has a **triple gate**: (1) `ese` Set platform check (`vee()`), (2) static registry `computerUse` flag (`status` key, checked by `kgn()`), and (3) runtime enabled check (`Rse()`/`rj()` reading GrowthBook `chicago_config.enabled` + `chicagoEnabled` preference). Our patches bypass all three: `fix_computer_use_linux.py` adds "linux" to `ese` (gate 1), forces `mVt()` true on Linux (registration gate), and forces `rj()` true on Linux (runtime gate — bypasses both GrowthBook and the `chicagoEnabled` preference). `enable_local_agent_mode.py` Patch 3 overrides `computerUse` to `{status:"supported"}` (gate 2). The Settings toggle for CU is rendered server-side by claude.ai's web UI and hidden on Linux — `rj()` bypass means no toggle is needed.
+**Feature flag (v1.1617.0):** Computer-use has a **triple gate**: (1) `Hae` Set platform check (`Lte()`), (2) static registry `computerUse` flag (`status` key), and (3) runtime enabled check (reading GrowthBook `chicago_config.enabled` + `chicagoEnabled` preference). Our patches bypass all three: `fix_computer_use_linux.py` adds "linux" to `Hae` (gate 1), forces registration gate true on Linux, and forces runtime gate true on Linux (bypasses both GrowthBook and the `chicagoEnabled` preference). `enable_local_agent_mode.py` Patch 3 overrides `computerUse` to `{status:"supported"}` (gate 2). The Settings toggle for CU is rendered server-side by claude.ai's web UI and hidden on Linux — runtime bypass means no toggle is needed.
 
 **Tools (27):**
 
@@ -452,7 +468,7 @@ Uses `createDarwinExecutor()` → `@ant/claude-swift` native module for screen c
 | # | Sub-patch | What it does |
 |---|-----------|-------------|
 | 1 | Inject `__linuxExecutor` | Linux executor using xdotool/scrot/Electron APIs at `app.on("ready")` |
-| 2 | Add "linux" to `ese` Set | `new Set(["darwin","win32"])` → `new Set(["darwin","win32","linux"])` — fixes all `vee()` gates (server push, chicagoEnabled, overlay init) |
+| 2 | Add "linux" to `Hae` Set | `new Set(["darwin","win32"])` → `new Set(["darwin","win32","linux"])` — fixes all `Lte()` gates (server push, chicagoEnabled, overlay init) |
 | 3 | Patch `createDarwinExecutor` | Return `__linuxExecutor` on Linux instead of throwing |
 | 4 | Patch `ensureOsPermissions` | Return `{granted: true}` on Linux (skip macOS TCC checks) |
 | 5 | Bypass permission model | Direct tool dispatch on Linux, skip allowlist/tier system |
@@ -490,13 +506,13 @@ Uses `createDarwinExecutor()` → `@ant/claude-swift` native module for screen c
 
 - **Claude in Chrome**: Works on Linux via `fix_browser_tools_linux.py` — redirects native host binary to Claude Code's `~/.claude/chrome/chrome-native-host` and installs NativeMessagingHosts manifests for 6 Linux browsers (Chrome, Chromium, Brave, Edge, Vivaldi, Opera). Requires Claude Code CLI and the [Claude in Chrome](https://chromewebstore.google.com/detail/claude-code/fcoeoabgfenejglbffodgkkbkcdhcgfn) extension.
 - **Office Add-in**: Platform-gated to macOS/Windows. Patched to enable on Linux via `fix_office_addin_linux.py`.
-- **Terminal**: Upstream regressed in v1.1348.0 — `z5e` (darwin||win32) replaced `LRe` (which included Linux). Works on Linux because `fix_dispatch_linux.py` patches `z5e` to include Linux.
+- **Terminal**: Upstream regressed in v1.1348.0 — `g5e` (darwin||win32, renamed from `z5e`) replaced `LRe` (which included Linux). Works on Linux because `fix_dispatch_linux.py` patches `g5e` to include Linux.
 - **Computer Use**: Works on Linux via `fix_computer_use_linux.py` — uses xdotool/scrot + Electron built-in APIs (clipboard, screen, desktopCapturer) instead of `@ant/claude-swift`. Available in Cowork and Code sessions.
 - **MCP Registry / Plugins / Visualize / Scheduled Tasks**: Cross-platform, work on Linux.
 
-## Operon IPC System (v1.1348.0)
+## Operon IPC System (v1.1617.0)
 
-Not an MCP server, but a new internal IPC layer with 120+ endpoints across 33 sub-interfaces (up from 31 in v1.1062.0):
+Not an MCP server, but a new internal IPC layer with 120+ endpoints across 33 sub-interfaces (unchanged from v1.1348.0):
 
 `OperonAgentConfig`, `OperonAgents`, `OperonAnalytics`, `OperonAnnotations`, `OperonApiKeys`, `OperonArtifactDownloads`, `OperonArtifacts`, `OperonAssembly`, `OperonAttachments`, `OperonBootstrap`, `OperonCloud`, `OperonConversations`, `OperonDesktop` (**new**), `OperonEvents`, `OperonExportBundle`, `OperonFolders`, `OperonFrames`, `OperonHostAccess`, `OperonHostAccessProvider`, `OperonImageProvider`, `OperonMcp`, `OperonMcpToolAccessProvider` (**new**), `OperonNotes`, `OperonPreferences`, `OperonProjects`, `OperonQuitHandler`, `OperonReplay`, `OperonSDK`, `OperonSecrets`, `OperonServices`, `OperonSessionManager`, `OperonSkills`, `OperonSkillsSync`, `OperonSystem`
 
@@ -513,5 +529,6 @@ When active, Operon provides 14 "brain tools" (multi-agent delegation, skills, d
 | v1.1.9493 | Metadata-only re-release of v1.1.9310. JS bundles identical — no new MCP servers, tools, or IPC changes. Async feature merger restructured (`Promise.all` pattern). |
 | v1.1.9134 | **New MCP server: `ccd_session`** (`spawn_task` tool for parallel session spawning). **5 new computer-use tools** (`switch_display`, `computer_batch`, `request_teach_access`, `teach_step`, `teach_batch` — 22→27 total). Registration function renamed `IM()`→`Pee()`. Operon expanded from 18→28 sub-interfaces. Computer-use constant renamed `zxt`→`p6t`. |
 | v1.1348.0 | **3 new cowork tools:** `create_artifact`, `update_artifact` (flag `2940196192`), `save_skill` (conditional). Terminal server regressed to `z5e` (darwin\|\|win32) — Linux support maintained via `fix_dispatch_linux.py` `z5e` patch. New `Buddy` BLE device pairing IPC. Operon 31→33 sub-interfaces (`OperonDesktop`, `OperonMcpToolAccessProvider`). No new MCP servers. All 34 patches applied cleanly. |
+| v1.1617.0 | **New MCP server: `radar`** (disabled, `record_card` tool). Platform gate variable renamed `z5e`→`g5e`. Computer-use Set variable `Hae` with `Lte()` checker. Registration function still `One()`. New renderer windows (`buddy_window/`, `find_in_page/`). New deps: `node-pty`, `ws`. No new tools on existing servers. All 35 patches applied cleanly. |
 | v1.1062.0 | Registration function renamed to `One()`. **New: `update_plan` Chrome tool** (20 total Chrome tools). **New: `read_me` widget MCP tool** in Visualize server. Scheduled Tasks server name constant `qBe="scheduled-tasks"` (hyphenated). `cowork-artifact-<id>` dynamic per-artifact servers. `web_search` Anthropic API built-in tool (`web_search_20250305`) gated by `enable_web_search`. Operon expanded to 31 sub-interfaces (3 new: `OperonExportBundle`, `OperonReplay`, `OperonSDK`). Operon tool inventory: 14 brain tools, 7 compute tools, 1 dynamic (`skill`), 4 internal LLM tools. Dashboard tools `render_dashboard`/`patch_dashboard` disabled pending sandbox hardening. |
 | v1.1.8359 | Visualize server factory renamed to `p3n()` via `getImagineServerDef` (same interface). Operon IPC system added (not MCP). No new MCP servers — all 14 unchanged. |
