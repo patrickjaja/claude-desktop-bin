@@ -2,6 +2,13 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-10 (v1.1617.0) — Fix RPM glibc compatibility
+
+### Build
+- **Fix RPM install failure on Fedora 40** — the node-pty rebuild (added in `6509b00`) compiled `pty.node` inside the `archlinux:base-devel` CI container, which links against glibc 2.42 (Arch rolling release). rpmbuild auto-detected this as a package dependency, making the RPM uninstallable on Fedora 40 (glibc 2.39). Fix: added a post-processing CI step that rebuilds `pty.node` inside a `node:20-bullseye` container (Debian 11, glibc 2.31), then repackages the tarball. This makes the RPM compatible with Fedora 38+, Ubuntu 20.04+, Debian 11+, and RHEL 9+.
+
+---
+
 ## 2026-04-10 (v1.1617.0) — New patch: fix dispatch outputs dir
 
 ### Patches

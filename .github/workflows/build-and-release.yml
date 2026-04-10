@@ -294,7 +294,7 @@ jobs:
     if: needs.check-version.outputs.should_build == 'true'
     runs-on: ubuntu-latest
     outputs:
-      tarball_sha256: ${{ steps.build.outputs.tarball_sha256 }}
+      tarball_sha256: ${{ steps.pty-rebuild.outputs.tarball_sha256 || steps.build.outputs.tarball_sha256 }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -360,6 +360,82 @@ jobs:
           echo "Build passed - tarball ready for upload"
           echo "  Version: ${VERSION}"
           echo "  SHA256:  ${SHA256}"
+
+      - name: Rebuild node-pty for glibc compatibility
+        id: pty-rebuild
+        run: |
+          echo "=== Rebuilding node-pty against old glibc (Debian 11 / glibc 2.31) ==="
+          TARBALL=$(ls /tmp/build-output/claude-desktop-*-linux.tar.gz)
+          REPACK_DIR=$(mktemp -d)
+
+          # Extract tarball
+          tar xzf "$TARBALL" -C "$REPACK_DIR"
+
+          # Check if pty.node exists and is a Linux ELF
+          PTY_NODE="$REPACK_DIR/app/app.asar.unpacked/node_modules/node-pty/build/Release/pty.node"
+          if [ ! -f "$PTY_NODE" ] || ! file "$PTY_NODE" | grep -q "ELF 64-bit"; then
+            echo "No Linux pty.node found in tarball — skipping rebuild"
+            rm -rf "$REPACK_DIR"
+            exit 0
+          fi
+
+          echo "Before rebuild: $(objdump -T "$PTY_NODE" 2>/dev/null | grep -oP 'GLIBC_\S+' | sort -uV | tail -1)"
+
+          # Read versions from package.json inside the asar contents
+          # The asar was already repacked, so extract it temporarily
+          ASAR_DIR=$(mktemp -d)
+          npx --yes @electron/asar extract "$REPACK_DIR/app/app.asar" "$ASAR_DIR"
+          ELECTRON_VERSION=$(node -e "console.log(require('$ASAR_DIR/package.json').devDependencies?.electron || '')" 2>/dev/null)
+          NODE_PTY_VERSION=$(node -e "console.log(require('$ASAR_DIR/package.json').optionalDependencies?.['node-pty'] || '')" 2>/dev/null)
+          rm -rf "$ASAR_DIR"
+
+          if [ -z "$ELECTRON_VERSION" ] || [ -z "$NODE_PTY_VERSION" ]; then
+            echo "::warning::Could not detect Electron ($ELECTRON_VERSION) or node-pty ($NODE_PTY_VERSION) version — skipping glibc-compat rebuild"
+            rm -rf "$REPACK_DIR"
+            exit 0
+          fi
+
+          echo "Rebuilding node-pty@$NODE_PTY_VERSION against Electron $ELECTRON_VERSION in node:20-bullseye (glibc 2.31)"
+
+          mkdir -p /tmp/pty-compat-output
+          docker run --rm \
+            -v /tmp/pty-compat-output:/output \
+            node:20-bullseye \
+            bash -c "
+              set -e
+              apt-get update && apt-get install -y build-essential python3 > /dev/null 2>&1
+              cd /tmp
+              npm init -y > /dev/null 2>&1
+              npm install 'node-pty@$NODE_PTY_VERSION' --ignore-scripts 2>&1 | tail -1
+              npx @electron/rebuild --version '$ELECTRON_VERSION' \
+                --module-dir node_modules/node-pty --arch x64 2>&1 | tail -3
+              cp node_modules/node-pty/build/Release/pty.node /output/pty.node
+            "
+
+          REBUILT_PTY="/tmp/pty-compat-output/pty.node"
+          if [ -f "$REBUILT_PTY" ] && file "$REBUILT_PTY" | grep -q "ELF 64-bit"; then
+            cp "$REBUILT_PTY" "$PTY_NODE"
+            echo "After rebuild: $(objdump -T "$PTY_NODE" 2>/dev/null | grep -oP 'GLIBC_\S+' | sort -uV | tail -1)"
+            echo "node-pty rebuilt successfully for glibc compatibility"
+          else
+            echo "::error::node-pty glibc-compat rebuild failed"
+            rm -rf "$REPACK_DIR" /tmp/pty-compat-output
+            exit 1
+          fi
+
+          # Repackage tarball
+          cd "$REPACK_DIR"
+          tar -czf "$TARBALL" app/ icons/ launcher/
+          NEW_SHA256=$(sha256sum "$TARBALL" | cut -d' ' -f1)
+
+          # Update build-info.txt with new SHA256
+          sed -i "s/^SHA256=.*/SHA256=$NEW_SHA256/" /tmp/build-output/build-info.txt
+
+          # Update GitHub Actions output so downstream jobs use the new SHA256
+          echo "tarball_sha256=$NEW_SHA256" >> $GITHUB_OUTPUT
+
+          echo "Tarball repackaged with glibc-compat node-pty (SHA256: $NEW_SHA256)"
+          rm -rf "$REPACK_DIR" /tmp/pty-compat-output
 
       - name: Upload tarball artifact
         uses: actions/upload-artifact@v4
