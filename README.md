@@ -302,6 +302,10 @@ Cowork is Claude Desktop's agentic workspace feature. This package patches it to
 
 ![Cowork in Claude Desktop](co_in_cd.png)
 
+| | | | | |
+|:---:|:---:|:---:|:---:|:---:|
+| <img src="co_in_cd_bar.png" width="180"> | <img src="co_in_cd_flow.png" width="180"> | <img src="co_in_cd_mock.png" width="180"> | <img src="co_in_cd_pie.png" width="180"> | <img src="co_in_cd_qa.png" width="180"> |
+
 Requires Claude Code CLI (see above) and [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service). See its Installation section for distro-specific instructions ([APT](https://github.com/patrickjaja/claude-cowork-service#debian--ubuntu-apt-repository), [DNF](https://github.com/patrickjaja/claude-cowork-service#fedora--rhel-dnf-repository), [AUR](https://github.com/patrickjaja/claude-cowork-service#arch-linux-aur), [Nix](https://github.com/patrickjaja/claude-cowork-service#nixos), or [binary install](https://github.com/patrickjaja/claude-cowork-service#quick-install-any-distro-x86_64--arm64)).
 
 ## CoworkSpaces
