@@ -181,6 +181,49 @@ log_info "JavaScript syntax validation passed"
 rm -f "$WORK_DIR/app/app.asar.contents/node_modules/@ant/claude-native/claude-native-binding.node"
 rm -f "$WORK_DIR/app/app.asar.unpacked/node_modules/@ant/claude-native/claude-native-binding.node"
 
+# Rebuild node-pty for Linux (upstream ships only Windows binaries)
+# This enables the integrated terminal + read_terminal MCP tool
+NODE_PTY_UNPACKED="$WORK_DIR/app/app.asar.unpacked/node_modules/node-pty"
+if [ -d "$NODE_PTY_UNPACKED" ] && command -v npx &>/dev/null; then
+    log_info "Rebuilding node-pty for Linux..."
+    # The extracted app only has prebuilt Windows binaries and lib/ (no source).
+    # Install from npm with source, rebuild against Electron headers, then swap in.
+    NODE_PTY_VERSION=$(node -e "console.log(require('$WORK_DIR/app/app.asar.contents/package.json').optionalDependencies?.['node-pty'] || '')" 2>/dev/null)
+    ELECTRON_VERSION=$(node -e "console.log(require('$WORK_DIR/app/app.asar.contents/package.json').devDependencies?.electron || '')" 2>/dev/null)
+
+    if [ -n "$NODE_PTY_VERSION" ] && [ -n "$ELECTRON_VERSION" ]; then
+        PTY_BUILD_DIR=$(mktemp -d)
+        (
+            cd "$PTY_BUILD_DIR"
+            npm init -y >/dev/null 2>&1
+            npm install "node-pty@$NODE_PTY_VERSION" --ignore-scripts 2>&1 | tail -1
+            npx @electron/rebuild --version "$ELECTRON_VERSION" \
+                --module-dir node_modules/node-pty --arch x64 2>&1 | tail -3
+        )
+
+        REBUILT_PTY="$PTY_BUILD_DIR/node_modules/node-pty/build/Release/pty.node"
+        if [ -f "$REBUILT_PTY" ] && file "$REBUILT_PTY" | grep -q "ELF 64-bit"; then
+            # Replace Windows binaries with Linux native module
+            rm -f "$NODE_PTY_UNPACKED/build/Release/"*.node
+            rm -f "$NODE_PTY_UNPACKED/build/Release/"*.exe
+            rm -f "$NODE_PTY_UNPACKED/build/Release/"*.dll
+            cp "$REBUILT_PTY" "$NODE_PTY_UNPACKED/build/Release/pty.node"
+            log_info "node-pty rebuilt successfully ($(file -b "$REBUILT_PTY" | cut -d, -f1-2))"
+        else
+            log_warn "node-pty rebuild failed — integrated terminal will be unavailable"
+        fi
+        rm -rf "$PTY_BUILD_DIR"
+    else
+        log_warn "Could not detect node-pty or Electron version — skipping rebuild"
+    fi
+else
+    if [ ! -d "$NODE_PTY_UNPACKED" ]; then
+        log_warn "node-pty not found in app.asar.unpacked — skipping rebuild"
+    else
+        log_warn "npx not available — skipping node-pty rebuild"
+    fi
+fi
+
 # Repack app.asar
 log_info "Repacking app.asar..."
 cd "$WORK_DIR/app"

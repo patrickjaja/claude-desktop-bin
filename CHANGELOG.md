@@ -28,8 +28,10 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 - **README.md** — added `fix_imagine_linux.py` to patch table
 - **CHANGELOG.md** — this entry
 
+### Build
+- **node-pty rebuilt for Linux** in `build-patched-tarball.sh` — installs source from npm, rebuilds against Electron 40.8.5 headers via `@electron/rebuild`, replaces Windows PE32+ binaries with Linux ELF. Enables the integrated terminal and `read_terminal` MCP tool. Build dependency: `npx` (already required for asar).
+
 ### Known Limitations
-- **node-pty**: Only Windows binaries shipped in upstream package. Import fails gracefully on Linux. Rebuilding for Linux would enable the integrated terminal feature (future enhancement).
 - **Radar**: Server disabled at MCP level (`isEnabled:()=>!1`), session creation in renderer code. Not activatable yet.
 
 ## 2026-04-08 (v1.1348.0) — Upstream update, all 34 patches apply cleanly
