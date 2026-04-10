@@ -405,6 +405,7 @@ The package applies several patches to make Claude Desktop work on Linux. Each p
 | `fix_detected_projects_linux.py` | Enables detected projects with Linux IDE paths (VSCode, Cursor, Zed) | `rg -o 'detectedProjects.{0,50}' index.js` |
 | `fix_disable_autoupdate.py` | Disables auto-updater (no Linux installer) | `rg -o '.{0,40}isInstalled.{0,40}' index.js` |
 | `fix_dispatch_linux.py` | Enables Dispatch — forces bridge init, bypasses platform gate, forwards responses natively | `rg -o 'sessions-bridge.*init' index.js` |
+| `fix_dispatch_outputs_dir.py` | Fixes "Show folder" opening empty outputs dir — falls back to child session outputs | `rg -o 'openOutputsDir.{0,80}' index.js` |
 | `fix_dock_bounce.py` | Suppresses taskbar attention-stealing on KDE/Wayland | Prepended IIFE, no regex |
 | `fix_enterprise_config_linux.py` | Reads enterprise config from `/etc/claude-desktop/enterprise.json` | `rg -o 'enterprise.json' index.js` |
 | `fix_imagine_linux.py` | Enables Imagine/Visualize — forces GrowthBook flag for inline SVG/HTML rendering | `rg -o '3444158716' index.js` |

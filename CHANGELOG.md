@@ -2,6 +2,13 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-10 (v1.1617.0) — New patch: fix dispatch outputs dir
+
+### Patches
+- **New patch: `fix_dispatch_outputs_dir.py`** — fixes "Show folder" opening an empty outputs directory for dispatch sessions. On Linux with the native Go backend, the dispatch parent and child sessions have separate directories. When the parent's outputs dir is empty, the patch scans sibling session directories for one that has files and opens that instead. Uses `[\w$]+` regex wildcards and `require("fs")`/`require("path")` for version resilience.
+
+---
+
 ## 2026-04-10 (v1.1617.0) — Upstream update, 38 patches (3 new)
 
 ### Upstream
