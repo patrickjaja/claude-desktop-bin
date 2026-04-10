@@ -84,18 +84,20 @@ def patch_imagine(filepath):
     # injected into the cowork session system prompt. If the backend doesn't
     # send the prompt, this is harmless (the && check prevents injection).
 
-    already_b = b"__imagine_forced=true" in content
+    # Already patched if the flag ID no longer appears in this specific pattern
+    already_b = re.search(rb'[\w$]+=[\w$]+\("3444158716"\)\|\|!1', content) is None and b'"3444158716"' not in content
     if already_b:
         print("  [OK] hasImagine: already patched (skipped)")
         patches_applied += 1
     else:
         # Match: <var>=rn("3444158716")||!1
         # The variable name changes per release, so use [\w$]+
+        # Replace with <var>=!0 (true) — safe in strict mode, no global leak
         pattern_b = rb'([\w$]+)=[\w$]+\("3444158716"\)\|\|!1'
 
         def replacement_b(m):
             var = m.group(1)
-            return var + b"=(__imagine_forced=true)"
+            return var + b"=!0"
 
         content, count = re.subn(pattern_b, replacement_b, content, count=1)
         if count >= 1:
