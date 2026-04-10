@@ -171,7 +171,7 @@ Calls `Soe`, validates the result against a Zod schema, and sends it to the rend
 | `3298006781` | MSIX updater gate | No |
 | `3366735351` | Auto-update on ready state | No |
 | `3444158716` | Cowork resources MCP ("visualize" — show_widget tool) | No |
-| `1143815894` | hostLoopMode — non-VM cowork (run CLI on host, skip VM path translation) | **Yes** — forced ON in `fix_dispatch_linux.py` (Linux has no VM) |
+| `1143815894` | hostLoopMode — non-VM cowork (bare SDK loop, no cowork service spawn) | **No** — must NOT be forced ON; doing so bypasses the cowork service, breaking skills/plugins |
 | `3558849738` | Dispatch/Spaces feature (RBe constant) | **Yes** — forced ON in `fix_dispatch_linux.py` |
 | `3572572142` | Sessions-bridge init (Dispatch) | **Yes** — forced ON in `fix_dispatch_linux.py` |
 | `3691521536` | Stealth updater — nudge updates when no active sessions | No |

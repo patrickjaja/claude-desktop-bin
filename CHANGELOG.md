@@ -2,6 +2,17 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-11 (v1.1617.0) — Fix Cowork skills/plugins broken by hostLoopMode
+
+### Patches
+- **Critical fix: `fix_dispatch_linux.py`** — removed erroneous override of GrowthBook flag `1143815894` (hostLoopMode). Forcing this flag `true` made Desktop bypass the cowork service spawn entirely, falling back to a bare HostLoop SDK that lacks `mcp__workspace__bash` and plugin skill mapping. Result: all Cowork skills (`/pdf`, `/docx`, `/pptx`, etc.) returned "Unknown skill" and sessions completed in ~12ms with zero API calls. Fix: only override flag `3558849738` (dispatch agent name), leave `1143815894` to its default so the cowork service handles session spawning.
+- **New sub-patch: `fix_cowork_linux.py` Patch F** — allows `present_files` MCP tool to accept native host paths. Previously, `present_files` only accepted `/sessions/` VM paths; on native Linux without root (no `/sessions/` symlink), all files failed the accessibility check. The patch falls back to checking the host outputs directory.
+
+### Build
+- **Copy missing `cowork-plugin-shim.sh`** — the plugin permission bridge file was present in the upstream exe but not copied during build. Without it, Desktop logs a `[warn] ENOENT` on every session start. The shim enables the confirmation UI for plugin operations (e.g., "allow send email?") but is not required for skills to load — the actual skills breakage was caused by the hostLoopMode flag above.
+
+---
+
 ## 2026-04-10 (v1.1617.0) — Fix RPM glibc compatibility
 
 ### Build
@@ -30,7 +41,7 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 - **New infrastructure:** `transcript-search-worker/`, `sqlite-worker/`
 - **New dependencies:** `node-pty` (1.1.0-beta34), `ws` (^8.18.0), `@ant/imagine-server`
 - Operon: same 33 sub-interfaces, no changes
-- 3 force-ON GrowthBook flags: `2976814254`, `3246569822`, `1143815894` (hardcoded in `m6r` map)
+- 3 force-ON GrowthBook flags upstream: `2976814254`, `3246569822`, `1143815894` (hardcoded in `m6r` map) — note: our patch no longer overrides `1143815894` (see 2026-04-11 fix)
 
 ### Patches
 - All 35 existing patches applied without modification — minified variable names changed but `[\w$]+` regex patterns handled the renames automatically
@@ -201,7 +212,7 @@ The CU system prompt builder only distinguished Windows vs non-Windows, giving L
 - **enable_local_agent_mode.py**: Async feature merger regex failed because the static registry function was renamed to `$w()` — the `$` character isn't matched by `\w`. Changed regex from `\w+` to `[\w$]+` to handle `$`-prefixed minified names.
 
 ### Added
-- **fix_dispatch_linux.py**: Force-enable GrowthBook flag `1143815894` (hostLoopMode / non-VM cowork) on Linux. Since Linux has no VM infrastructure and uses native cowork via the Go daemon, host-loop mode is semantically correct — it tells the Electron side to skip VM path translations and use native host paths directly.
+- **fix_dispatch_linux.py**: Force-enable GrowthBook flag `3558849738` (dispatch agent name) on Linux. ~~Also forced `1143815894` (hostLoopMode) — later reverted in 2026-04-11 as it bypassed the cowork service spawn, breaking all skills/plugins.~~
 
 ### Changed
 - **Version bump to v1.569.0** — upstream switched from 4-part versioning (v1.2.234) to 3-part (v1.569.0). All 31 patches apply cleanly. Same 18 feature flags, no structural changes.

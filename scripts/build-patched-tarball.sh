@@ -246,6 +246,13 @@ if [ -d "$WORK_DIR/extract/lib/net45/resources/claude-ssh" ]; then
     chmod +x "$WORK_DIR/app/locales/claude-ssh/claude-ssh-"* 2>/dev/null || true
 fi
 
+# Copy cowork-plugin-shim.sh (needed for Cowork plugin/skill permission bridge)
+# Electron's process.resourcesPath resolves to the locales/ dir in our layout
+if [ -f "$WORK_DIR/extract/lib/net45/resources/cowork-plugin-shim.sh" ]; then
+    log_info "Copying cowork-plugin-shim.sh..."
+    cp "$WORK_DIR/extract/lib/net45/resources/cowork-plugin-shim.sh" "$WORK_DIR/app/locales/"
+fi
+
 # Run Electron smoke test if dependencies are available
 if [ "${SKIP_SMOKE_TEST:-0}" = "1" ]; then
     log_warn "Skipping smoke test (SKIP_SMOKE_TEST=1)"

@@ -208,8 +208,65 @@ def patch_cowork_linux(filepath):
     else:
         print("  [WARN] Error detection: pattern not found")
 
+    # Patch F: Fix present_files to accept native host paths on Linux
+    #
+    # On native Linux (no VM), the cowork service runs Claude Code directly on the host
+    # and the /sessions/<name> symlink may not exist (requires root to create /sessions/).
+    # In that case:
+    #   - reverseMap is disabled in the cowork service → model gets real host paths
+    #   - present_files checks: (c?$w(p,c):null)===null && u.push(f)
+    #   - $w() returns null for any non-/sessions/ path → ALL native paths fail
+    #   - Result: "Cannot present X file(s) — not accessible on the user's computer"
+    #
+    # Fix: after the VM-path check returns null, additionally allow paths that are
+    # within the session's host outputs directory (t.getHostOutputsDir()).
+    # This is safe: the host outputs dir is already a user-approved location.
+    #
+    # Pattern (variable names change between versions — use wildcards):
+    #   for(const{file_path:f,vmPath:p}of l){
+    #     if(L$e(p,t.vmProcessName))continue;
+    #     (c?$w(p,c):null)===null&&u.push(f)    ← patched line
+    #   }
+    #
+    # Replacement: wrap the push in an IIFE that first checks if the path is
+    # in the host outputs dir — if so, skip the push (file is allowed).
+
+    present_files_old_pattern = (
+        rb"for\(const\{file_path:([\w$]+),vmPath:([\w$]+)\}of ([\w$]+)\)\{"
+        rb"if\(([\w$]+)\(\2,([\w$]+)\.vmProcessName\)\)continue;"
+        rb"\(([\w$]+)\?\$w\(\2,\6\):null\)===null&&([\w$]+)\.push\(\1\)\}"
+    )
+
+    def present_files_replacement(m):
+        f_var = m.group(1)
+        p_var = m.group(2)
+        l_var = m.group(3)
+        scratchpad_fn = m.group(4)
+        t_var = m.group(5)
+        c_var = m.group(6)
+        u_var = m.group(7)
+        return (
+            b"for(const{file_path:" + f_var + b",vmPath:" + p_var + b"}of " + l_var + b"){"
+            b"if(" + scratchpad_fn + b"(" + p_var + b"," + t_var + b".vmProcessName))continue;"
+            b"(" + c_var + b"?$w(" + p_var + b"," + c_var + b"):null)===null&&"
+            b"(()=>{const _ho=" + t_var + b".getHostOutputsDir();"
+            b"if(_ho&&(" + f_var + b"===_ho||" + f_var + b'.startsWith(_ho+"/")))return;' + u_var + b".push(" + f_var + b")})()}"
+        )
+
+    already_f = b".getHostOutputsDir();if(_ho&&(" in content
+    if already_f:
+        print("  [OK] F present_files native paths: already patched (skipped)")
+        patches_applied += 1
+    else:
+        content, count_f = re.subn(present_files_old_pattern, present_files_replacement, content)
+        if count_f >= 1:
+            print(f"  [OK] F present_files native paths: host outputs dir allowed ({count_f} match)")
+            patches_applied += 1
+        else:
+            print("  [FAIL] F present_files native paths: pattern not found")
+
     # Check results
-    EXPECTED_PATCHES = 5  # A, B, C, D, E
+    EXPECTED_PATCHES = 6  # A, B, C, D, E, F
     if patches_applied < EXPECTED_PATCHES:
         print(f"  [FAIL] Only {patches_applied}/{EXPECTED_PATCHES} patches applied — check [WARN]/[FAIL] messages above")
         return False

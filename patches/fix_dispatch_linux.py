@@ -214,15 +214,18 @@ def patch_dispatch_linux(filepath):
     # Pattern uses \w+ for all minified names. The unique anchor is the
     # Cl[t] lookup + nullish coalescing chain.
 
-    jr_already = b'if(t==="3558849738"||t==="1143815894")return!0;'
-    jr_old_single = b'if(t==="3558849738")return!0;'
-    if jr_already in content:
-        print("  [OK] Jr() dispatch flag override: already patched (skipped)")
+    # Only override "3558849738" (dispatch agent name). Do NOT override
+    # "1143815894" (hostLoopMode) — that flag forces HostLoop mode which
+    # bypasses the cowork service spawn, breaking skills/plugins.
+    jr_target = b'if(t==="3558849738")return!0;'
+    jr_stale_both = b'if(t==="3558849738"||t==="1143815894")return!0;'
+    if jr_stale_both in content:
+        # Downgrade: remove the hostLoopMode override added in error
+        content = content.replace(jr_stale_both, jr_target, 1)
+        print("  [OK] Jr() dispatch flag override: removed stale hostLoopMode override")
         patches_applied += 1
-    elif jr_old_single in content:
-        # Upgrade from old single-flag override to include hostLoopMode flag
-        content = content.replace(jr_old_single, jr_already, 1)
-        print("  [OK] Jr() dispatch flag override: upgraded to include hostLoopMode")
+    elif jr_target in content:
+        print("  [OK] Jr() dispatch flag override: already patched (skipped)")
         patches_applied += 1
     else:
         # Match: function Jr(t){const e=Cl[t];return(e==null?void 0:e.on)??!1}
@@ -234,7 +237,7 @@ def patch_dispatch_linux(filepath):
 
         def jr_replacement(m):
             param = m.group(4)
-            return m.group(1) + m.group(2) + m.group(3) + m.group(4) + m.group(5) + b"if(" + param + b'==="3558849738"||' + param + b'==="1143815894")return!0;' + m.group(6)
+            return m.group(1) + m.group(2) + m.group(3) + m.group(4) + m.group(5) + b"if(" + param + b'==="3558849738")return!0;' + m.group(6)
 
         content, count_e = re.subn(jr_pattern, jr_replacement, content)
         if count_e >= 1:
