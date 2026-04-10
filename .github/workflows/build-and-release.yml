@@ -423,13 +423,17 @@ jobs:
             exit 1
           fi
 
-          # Repackage tarball
+          # Repackage tarball (original is root-owned from Docker, so write to temp and replace)
           cd "$REPACK_DIR"
-          tar -czf "$TARBALL" app/ icons/ launcher/
+          TARBALL_TMP=$(mktemp)
+          tar -czf "$TARBALL_TMP" app/ icons/ launcher/
+          sudo cp "$TARBALL_TMP" "$TARBALL"
+          sudo chown "$(id -u):$(id -g)" "$TARBALL"
+          rm -f "$TARBALL_TMP"
           NEW_SHA256=$(sha256sum "$TARBALL" | cut -d' ' -f1)
 
-          # Update build-info.txt with new SHA256
-          sed -i "s/^SHA256=.*/SHA256=$NEW_SHA256/" /tmp/build-output/build-info.txt
+          # Update build-info.txt with new SHA256 (also root-owned)
+          sudo sed -i "s/^SHA256=.*/SHA256=$NEW_SHA256/" /tmp/build-output/build-info.txt
 
           # Update GitHub Actions output so downstream jobs use the new SHA256
           echo "tarball_sha256=$NEW_SHA256" >> $GITHUB_OUTPUT
