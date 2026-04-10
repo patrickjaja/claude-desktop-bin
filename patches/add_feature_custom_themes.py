@@ -227,6 +227,7 @@ wc.on("dom-ready",function(){
 try{
 var url=wc.getURL()||"";
 if(url.indexOf("devtools://")===0)return;
+if(url.indexOf("http://localhost")===0||url.indexOf("http://127.0.0.1")===0||url.indexOf("https://localhost")===0)return;
 wc.insertCSS(__cdb_css);
 console.log("[CustomThemes] Injected CSS into "+url);
 }catch(e){console.log("[CustomThemes] insertCSS error: "+e.message)}
