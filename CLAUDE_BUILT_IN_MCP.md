@@ -197,13 +197,21 @@ Browser interaction (30-second timeout each):
 
 | Field | Value |
 |-------|-------|
-| Server name | `"terminal"` |
+| Server name | `"terminal"` (constant `Egi`) |
+| Factory | `xgi()` via `getTerminalServerDef` |
 | Platform | **All** (macOS, Windows, Linux) — upstream regressed in v1.1348.0 to `g5e` (darwin\|\|win32 only, renamed from `z5e`), but `fix_dispatch_linux.py` patches `g5e` to include Linux |
-| Gating | CCD session + `g5e` platform check + server flag `397125142` |
+| Gating | `t.sessionType === "ccd"` AND `g5e` platform check AND server flag `397125142` |
+| Session types | **CCD only** — NOT available in Cowork sessions. The `sessionType==="ccd"` check is hardcoded in `isEnabled` |
+| Backend | `node-pty` — spawns a PTY shell, streams output to xterm.js terminal panel in the UI |
+| Linux status | **Works** — `g5e` patched by `fix_dispatch_linux.py`, node-pty rebuilt from source by `build-patched-tarball.sh` |
 
 | Tool | Description |
 |------|-------------|
-| `read_terminal` | Read terminal output |
+| `read_terminal` | Read the last ~200 lines of the integrated terminal panel (ANSI codes stripped). Use when the user references test output, errors, or logs visible in their terminal. Returns error if terminal panel is not open |
+
+**Why not in Cowork?** In Cowork sessions, the model has `mcp__workspace__bash` which runs shell commands directly on the host (on Linux — no sandbox). This is strictly more powerful than `read_terminal` (which can only *read* the terminal panel, not execute commands). The terminal server is designed for CCD sessions where the model observes a user-controlled terminal rather than running its own commands.
+
+**node-pty dependency:** The terminal backend requires `node-pty` to spawn PTY processes. Upstream ships only Windows PE32+ binaries. The build script rebuilds node-pty from npm source against Electron headers via `@electron/rebuild`. If the rebuild fails (logged as warning), the terminal panel and `read_terminal` tool are unavailable but Claude Desktop runs normally.
 
 ### 8. Cowork Onboarding
 
@@ -370,6 +378,10 @@ Claude Desktop creates 4 additional MCP servers **dynamically per cowork/dispatc
 | `bash` | `Jdt` | Run bash commands in workspace context |
 | `web_fetch` | `Xdt` | Fetch web resources |
 
+**Bash tool description (Edn function):** The tool description is constructed dynamically via string concatenation: `"Run a shell command in the session's isolated Linux workspace. Your connected folders are mounted under /sessions/" + t.vmProcessName + "/mnt/ — ..."`. On macOS/Windows (VM-based), this is accurate. On Linux (native Go backend), there is no VM or `/sessions/` mount — `fix_cowork_sandbox_refs.py` (Patch A) replaces both string halves with: *"Run a shell command on the host Linux system. There is no VM or sandbox — commands execute directly on the user's computer."* The dynamic concatenation (`+ t.vmProcessName +`) is preserved but made inert.
+
+**System prompt sandbox references:** The upstream cowork system prompt tells the model: *"Claude runs in a lightweight Linux VM (Ubuntu 22) on the user's computer. This VM provides a secure sandbox..."* and *"Shell commands run in an isolated Linux environment."* On Linux, `fix_cowork_sandbox_refs.py` (Patches B–D) replaces these with host-accurate text. Without this patch, the model hallucinates that it's in "an isolated Linux sandbox (Ubuntu 22)" even though `uname -a` returns the host kernel.
+
 ### SDK Server Architecture
 
 ```
@@ -530,12 +542,13 @@ Uses `createDarwinExecutor()` → `@ant/claude-swift` native module for screen c
 
 - **Claude in Chrome**: Works on Linux via `fix_browser_tools_linux.py` — redirects native host binary to Claude Code's `~/.claude/chrome/chrome-native-host` and installs NativeMessagingHosts manifests for 6 Linux browsers (Chrome, Chromium, Brave, Edge, Vivaldi, Opera). Requires Claude Code CLI and the [Claude in Chrome](https://chromewebstore.google.com/detail/claude-code/fcoeoabgfenejglbffodgkkbkcdhcgfn) extension.
 - **Office Add-in**: Platform-gated to macOS/Windows. Patched to enable on Linux via `fix_office_addin_linux.py`.
-- **Terminal**: Upstream regressed in v1.1348.0 — `g5e` (darwin||win32, renamed from `z5e`) replaced `LRe` (which included Linux). Works on Linux because `fix_dispatch_linux.py` patches `g5e` to include Linux.
+- **Terminal (`read_terminal`)**: CCD sessions only — `isEnabled` checks `sessionType==="ccd"` (hardcoded, not patchable without changing session semantics). NOT available in Cowork sessions. In Cowork, the model uses `mcp__workspace__bash` instead which runs directly on the host. Platform gate `g5e` patched by `fix_dispatch_linux.py`. node-pty rebuilt by build script.
 - **Computer Use**: Works on Linux via `fix_computer_use_linux.py` — uses xdotool/scrot + Electron built-in APIs (clipboard, screen, desktopCapturer) instead of `@ant/claude-swift`. Available in Cowork and Code sessions.
 - **Visualize (Imagine)**: Enabled on Linux via `fix_imagine_linux.py` — forces GrowthBook flag `3444158716`. No platform gate. Renders SVG/HTML inline in cowork sessions.
 - **Radar**: Not yet activatable — server disabled at MCP level, session creation in renderer code. No platform gate. Future feature.
 - **MCP Registry / Plugins / Scheduled Tasks**: Cross-platform, work on Linux.
-- **Integrated Terminal (node-pty)**: Only Windows binaries shipped. Import fails gracefully on Linux (try/catch). Could work by rebuilding node-pty for Linux (requires matching Electron Node ABI). Future enhancement.
+- **Integrated Terminal (node-pty)**: Upstream ships only Windows binaries. Build script (`build-patched-tarball.sh`) rebuilds node-pty from source against Electron headers via `@electron/rebuild`. Enables the integrated terminal panel and `read_terminal` MCP tool on Linux.
+- **Cowork sandbox descriptions**: Upstream system prompts and tool descriptions tell the model it runs in "a lightweight Linux VM (Ubuntu 22)" with "an isolated sandbox". On Linux with the native Go backend there is no VM — `fix_cowork_sandbox_refs.py` replaces these with accurate host-system descriptions.
 
 ## Operon IPC System (v1.1617.0)
 

@@ -272,10 +272,11 @@ Restart Claude Desktop after setup.
 - **Browser Tools (Chrome integration)** - 18 browser automation tools (navigate, read_page, javascript_tool, etc.) via the [Claude in Chrome](https://chromewebstore.google.com/detail/claude-code/fcoeoabgfenejglbffodgkkbkcdhcgfn) extension. Uses Claude Code's native messaging host (`~/.claude/chrome/chrome-native-host`) instead of the proprietary Windows/macOS binary
 - **MCP server support** - Model Context Protocol servers work on Linux
 - **Custom Themes (Experimental)** - 6 built-in color themes (Nord, Catppuccin Mocha/Frappe/Latte/Macchiato, Sweet) or create your own via JSON config — not all UI elements are fully themed yet
+- **Imagine / Visualize** - Inline SVG graphics, HTML diagrams, charts, mockups, and data visualizations rendered directly in Cowork sessions via `show_widget` and `read_me` MCP tools. Enabled on Linux by forcing the GrowthBook feature flag
 - **Hardware Buddy (Nibblet)** - BLE companion device (M5StickC Plus) showing animated session state. Access via app menu → Developer → Open Hardware Buddy… (requires `bluez`)
 - **Multi-monitor Quick Entry** - Global hotkey (Ctrl+Alt+Space) opens on the monitor where your cursor is
 - Automated daily version checks
-- …and [34+ more patches](#patches) for native Linux integration (tray icons, window management, enterprise config, detected projects, and more)
+- …and [38+ more patches](#patches) for native Linux integration (tray icons, window management, enterprise config, detected projects, and more)
 
 ## Claude Chat
 
@@ -393,6 +394,8 @@ The package applies several patches to make Claude Desktop work on Linux. Each p
 | `fix_computer_use_tcc.py` | Stubs macOS TCC permission handlers to prevent error logs | Prepended IIFE, UUID extraction |
 | `fix_cowork_error_message.py` | Replaces Windows VM errors with Linux-friendly guidance | String literal match |
 | `fix_cowork_linux.py` | Enables Cowork — VM client, Unix socket, bundle config, binary resolution | `rg -o '.{0,50}vmClient.{0,50}' index.js` |
+| `fix_cowork_sandbox_refs.py` | Replaces VM/sandbox system prompts and tool descriptions with accurate host-system text | `rg 'lightweight Linux VM\|isolated Linux' index.js` |
+| `fix_cowork_first_bash.py` | Fixes first bash command returning empty output — events socket race condition | `rg -o 'ZVt.*await Sq' index.js` |
 | `fix_cowork_spaces.py` | File-based CoworkSpaces service (CRUD, file ops, events) | `rg -o 'CoworkSpaces' index.js` |
 | `fix_cross_device_rename.py` | EXDEV fallback for cross-filesystem file moves | Uses `.rename(` literal |
 | `fix_detected_projects_linux.py` | Enables detected projects with Linux IDE paths (VSCode, Cursor, Zed) | `rg -o 'detectedProjects.{0,50}' index.js` |

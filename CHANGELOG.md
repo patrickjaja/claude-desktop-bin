@@ -2,7 +2,7 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
-## 2026-04-10 (v1.1617.0) — Upstream update, all 35 patches apply cleanly
+## 2026-04-10 (v1.1617.0) — Upstream update, 38 patches (3 new)
 
 ### Upstream
 - **Version bump:** v1.1348.0 → v1.1617.0
@@ -21,6 +21,8 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 ### Patches
 - All 35 existing patches applied without modification — minified variable names changed but `[\w$]+` regex patterns handled the renames automatically
 - **New patch: `fix_imagine_linux.py`** — enables Imagine/Visualize MCP server on Linux by forcing GrowthBook flag `3444158716`. Provides `show_widget` (inline SVG/HTML rendering) and `read_me` (CSS/theme guidance) tools in Cowork sessions. No platform gate exists upstream — only the server-side flag was blocking it.
+- **New patch: `fix_cowork_sandbox_refs.py`** — replaces upstream system prompts and tool descriptions that tell the model it runs in "a lightweight Linux VM (Ubuntu 22)" / "isolated sandbox". On Linux with the native Go backend there is no VM — the model now correctly understands it runs directly on the host. Patches: bash tool description (Edn function), cowork identity prompt, computer use explanation, and 3× "isolated Linux environment" references.
+- **New patch: `fix_cowork_first_bash.py`** — fixes first bash command in Cowork sessions returning empty output. Root cause: events socket (`yUt`) opens async but `qTe()` sends spawn immediately via the RPC socket — on Linux the command completes before events are subscribed. Fix: poll-wait for `mA` (events socket connection) before spawning. Not visible on macOS/Windows where the VM boot delay masks the race.
 
 ### Documentation
 - **CLAUDE_FEATURE_FLAGS.md** — updated function names, version history table

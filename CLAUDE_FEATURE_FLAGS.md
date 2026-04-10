@@ -147,7 +147,7 @@ Calls `Soe`, validates the result against a Zod schema, and sends it to the rend
 |---------|---------|----------|
 | `159894531` | ENABLE_TOOL_SEARCH ("auto"/"false") | No |
 | `162211072` | Prompt suggestions enable | No |
-| `397125142` | Terminal server (ccd + darwin only) | No |
+| `397125142` | Terminal server — gated: `sessionType==="ccd"` AND `g5e` AND this flag. CCD only, NOT cowork. `g5e` patched by `fix_dispatch_linux.py`; flag itself not patched (enabled server-side) | No |
 | `714014285` | CLAUDE_CODE_ENABLE_FINE_GRAINED_TOOL_STREAMING | No |
 | `763725229` | Developer menu label/visibility | No |
 | `720735283` | Marketplace migration | No |
