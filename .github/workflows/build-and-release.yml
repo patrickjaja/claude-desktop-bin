@@ -239,7 +239,7 @@ jobs:
         run: |
           echo "=== Running shellcheck on shell scripts ==="
           FAILED=false
-          for f in scripts/*.sh packaging/rpm/*.sh; do
+          for f in scripts/*.sh packaging/apt/*.sh packaging/rpm/*.sh; do
             [ -f "$f" ] || continue
             echo "Checking $f..."
             if ! shellcheck -S error "$f"; then
@@ -513,27 +513,48 @@ jobs:
           bash packaging/appimage/build-appimage.sh $ARCH_FLAG "$TARBALL" ./dist
 
       - name: Test AppImage
-        if: matrix.arch == 'x86_64'
         run: |
-          docker run --rm \
-            -v "$(pwd)/dist:/dist:ro" \
-            -v "$(pwd)/scripts:/scripts:ro" \
-            ubuntu:22.04 \
-            bash -c "
-              set -e
-              export DEBIAN_FRONTEND=noninteractive
-              apt-get update
-              apt-get install -y xvfb libgtk-3-0 libnss3 libasound2 libgbm1 libnotify4
+          if [ "${{ matrix.arch }}" = "aarch64" ]; then
+            docker run --rm --platform linux/arm64 \
+              -v "$(pwd)/dist:/dist:ro" \
+              arm64v8/ubuntu:22.04 \
+              bash -c "
+                set -e
+                export DEBIAN_FRONTEND=noninteractive
+                apt-get update
+                apt-get install -y file
 
-              cp /dist/Claude_Desktop-*-x86_64.AppImage /tmp/
-              chmod +x /tmp/Claude_Desktop-*-x86_64.AppImage
-              cd /tmp
-              /tmp/Claude_Desktop-*-x86_64.AppImage --appimage-extract
+                cp /dist/Claude_Desktop-*-aarch64.AppImage /tmp/
+                chmod +x /tmp/Claude_Desktop-*-aarch64.AppImage
+                cd /tmp
+                /tmp/Claude_Desktop-*-aarch64.AppImage --appimage-extract
 
-              SKIP_SANDBOX_CHECK=1 bash /scripts/smoke-test.sh \
-                /tmp/squashfs-root/usr/lib/claude-desktop/resources/app.asar \
-                /tmp/squashfs-root/usr/lib/claude-desktop/claude-desktop
-            "
+                test -f /tmp/squashfs-root/usr/lib/claude-desktop/resources/app.asar
+                test -x /tmp/squashfs-root/usr/lib/claude-desktop/claude-desktop
+                file /tmp/squashfs-root/usr/lib/claude-desktop/claude-desktop | grep -q 'aarch64\|ARM aarch64'
+                echo 'aarch64 AppImage smoke test passed'
+              "
+          else
+            docker run --rm \
+              -v "$(pwd)/dist:/dist:ro" \
+              -v "$(pwd)/scripts:/scripts:ro" \
+              ubuntu:22.04 \
+              bash -c "
+                set -e
+                export DEBIAN_FRONTEND=noninteractive
+                apt-get update
+                apt-get install -y xvfb libgtk-3-0 libnss3 libasound2 libgbm1 libnotify4
+
+                cp /dist/Claude_Desktop-*-x86_64.AppImage /tmp/
+                chmod +x /tmp/Claude_Desktop-*-x86_64.AppImage
+                cd /tmp
+                /tmp/Claude_Desktop-*-x86_64.AppImage --appimage-extract
+
+                SKIP_SANDBOX_CHECK=1 bash /scripts/smoke-test.sh \
+                  /tmp/squashfs-root/usr/lib/claude-desktop/resources/app.asar \
+                  /tmp/squashfs-root/usr/lib/claude-desktop/claude-desktop
+              "
+          fi
 
       - name: Upload AppImage artifact
         uses: actions/upload-artifact@v4
