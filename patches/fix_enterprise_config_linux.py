@@ -51,28 +51,26 @@ def patch_enterprise_config_linux(filepath):
         print("  [PASS] No changes needed")
         return True
 
-    # Pattern: the default case in the platform switch inside the enterprise
-    # config loader function (af/similar).
+    # Pattern: the ternary chain in enterprise config loader functions.
     #
-    # Original:
-    #   case"win32":VAR=FUNC();break;default:VAR={};break
+    # Original (v1.2278.0+):
+    #   process.platform==="darwin"?FUNC_D():process.platform==="win32"?FUNC_W():{}
     #
-    # Patched:
-    #   case"win32":VAR=FUNC();break;default:VAR=function(){try{return JSON.parse(
-    #     require("fs").readFileSync("/etc/claude-desktop/enterprise.json","utf8")
-    #   )}catch(e){return{}}}();break
+    # Patched — add Linux branch before the fallback {}:
+    #   process.platform==="darwin"?FUNC_D():process.platform==="win32"?FUNC_W():
+    #     process.platform==="linux"?(()=>{try{return JSON.parse(
+    #       require("fs").readFileSync("/etc/claude-desktop/enterprise.json","utf8")
+    #     )}catch(e){return{}}})():{}
     #
-    # The self-invoking function reads and parses the JSON file. If the file
-    # doesn't exist or contains invalid JSON, catch returns {} (same as before).
-    #
-    # Variable names are minified and change between versions — use \w+.
-    pattern = rb'(case"win32":([\w$]+)=[\w$]+\(\);break;default:)\2(=\{\};break)'
+    # This appears in two functions (gUt/r8r or similar). Replace all occurrences.
+    pattern = rb'process\.platform==="darwin"\?([\w$]+)\(\):process\.platform==="win32"\?([\w$]+)\(\):\{\}'
+
+    linux_reader = b'process.platform==="linux"?(()=>{try{return JSON.parse(require("fs").readFileSync("/etc/claude-desktop/enterprise.json","utf8"))}catch(e){return{}}})():{}'
 
     def replacement(m):
-        prefix = m.group(1)  # case"win32":Tb=ztr();break;default:
-        cache_var = m.group(2)  # Tb
-        linux_reader = b'=function(){try{return JSON.parse(require("fs").readFileSync("/etc/claude-desktop/enterprise.json","utf8"))}catch(e){return{}}}();break'
-        return prefix + cache_var + linux_reader
+        darwin_fn = m.group(1)
+        win32_fn = m.group(2)
+        return b'process.platform==="darwin"?' + darwin_fn + b'():process.platform==="win32"?' + win32_fn + b"():" + linux_reader
 
     content, count = re.subn(pattern, replacement, content)
     if count >= 1:
@@ -85,6 +83,23 @@ def patch_enterprise_config_linux(filepath):
     with open(filepath, "wb") as f:
         f.write(content)
     print("  [PASS] Enterprise config Linux support added")
+
+    # Also patch index.pre.js if it exists (early bootstrap enterprise config)
+    pre_js = os.path.join(os.path.dirname(filepath), "index.pre.js")
+    if os.path.exists(pre_js):
+        with open(pre_js, "rb") as f:
+            pre_content = f.read()
+        if b"/etc/claude-desktop/enterprise.json" in pre_content:
+            print("  [OK] index.pre.js: already patched")
+        else:
+            pre_content, pre_count = re.subn(pattern, replacement, pre_content)
+            if pre_count >= 1:
+                with open(pre_js, "wb") as f:
+                    f.write(pre_content)
+                print(f"  [OK] index.pre.js: enterprise config patched ({pre_count} match)")
+            else:
+                print("  [INFO] index.pre.js: no matching pattern (optional)")
+
     return True
 
 

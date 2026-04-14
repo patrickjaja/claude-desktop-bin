@@ -47,39 +47,59 @@ def patch_first_bash(filepath):
 
     # ── Patch A: Wait for events socket before spawn ─────────────────
     #
-    # Upstream qTe():
-    #   ZVt(),await Sq();const n=await Ts();
+    # Upstream oneshot spawn function:
+    #   FUNC1(),await FUNC2();const n=await FUNC3();
     #
-    # After Sq() completes, the events socket (yUt) has been OPENED but
-    # may not be CONNECTED. The variable mA is set in the connect callback.
-    # We inject a poll-wait for mA between Sq() and Ts().
+    # FUNC2() triggers the events socket opener (JVt/similar), which calls
+    # createConnection() — async. The events socket variable (nE/similar)
+    # is set in the "connect" callback. If a command is spawned before
+    # the socket connects, stdout/exit events are missed.
+    #
+    # Fix: find the events socket variable by anchoring on subscribeEvents,
+    # then inject a poll-wait between await FUNC2() and const n=.
 
-    old_a = b"ZVt(),await Sq();const n=await Ts()"
+    import re as _re_a
 
-    # Poll mA every 10ms, max 200 iterations (2 seconds).
-    # On a healthy system this resolves in one tick (<10ms).
-    new_a = (
-        b"ZVt(),await Sq();"
-        b'if(typeof mA==="undefined"||!mA)'
-        b"await new Promise(function(_r){"
-        b"var _c=0,_iv=setInterval(function(){"
-        b'if((typeof mA!=="undefined"&&mA)||++_c>200){clearInterval(_iv);_r()}'
-        b"},10)})"
-        b";const n=await Ts()"
-    )
-
-    already_a = b'if(typeof mA==="undefined"||!mA)await new Promise' in content
-    if already_a:
-        print("  [OK] A events socket wait: already patched (skipped)")
-        patches_applied += 1
+    # Step 1: find the events socket variable name
+    # Pattern: function FUNC(){if(VAR)return;...createConnection...subscribeEvents
+    ev_sock_match = _re_a.search(rb"function ([\w$]+)\(\)\{if\(([\w$]+)\)return;const [\w$]+=[\w$]+\.createConnection", content)
+    if not ev_sock_match:
+        print("  [FAIL] A events socket wait: cannot find events socket function")
     else:
-        count = content.count(old_a)
-        if count == 1:
-            content = content.replace(old_a, new_a, 1)
-            print("  [OK] A events socket wait: injected mA poll-wait before spawn")
+        ev_var = ev_sock_match.group(2)  # e.g. nE
+        ev_var_str = ev_var.decode("utf-8")
+
+        # Step 2: match the spawn preamble using regex
+        # Pattern: FUNC(),await FUNC();const VAR=await FUNC();if(!VAR)throw new Error("VM
+        spawn_pattern = (
+            rb"([\w$]+\(\),await [\w$]+\(\))"
+            rb'(;const ([\w$]+)=await [\w$]+\(\);if\(!\3\)throw new Error\("VM is not available)'
+        )
+
+        already_a = b"_cdb_evsock_wait" in content
+        if already_a:
+            print("  [OK] A events socket wait: already patched (skipped)")
             patches_applied += 1
         else:
-            print(f"  [FAIL] A events socket wait: expected 1 occurrence, found {count}")
+            spawn_match = _re_a.search(spawn_pattern, content)
+            if spawn_match:
+                # Inject poll-wait for the events socket variable between the two parts
+                wait_code = (
+                    b";/* _cdb_evsock_wait */"
+                    b"if(typeof " + ev_var + b'==="undefined"||!' + ev_var + b")"
+                    b"await new Promise(function(_r){"
+                    b"var _c=0,_iv=setInterval(function(){"
+                    b"if((typeof " + ev_var + b'!=="undefined"&&' + ev_var + b")||++_c>200){clearInterval(_iv);_r()}"
+                    b"},10)})"
+                )
+
+                old_full = spawn_match.group(0)
+                new_full = spawn_match.group(1) + wait_code + spawn_match.group(2)
+                content = content.replace(old_full, new_full, 1)
+                print(f"  [OK] A events socket wait: injected {ev_var_str} poll-wait before spawn")
+                patches_applied += 1
+            else:
+                print("  [FAIL] A events socket wait: spawn pattern not found")
 
     if patches_applied < EXPECTED_PATCHES:
         print(f"  [FAIL] Only {patches_applied}/{EXPECTED_PATCHES} patches applied")

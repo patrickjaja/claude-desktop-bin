@@ -234,7 +234,7 @@ def patch_cowork_linux(filepath):
     present_files_old_pattern = (
         rb"for\(const\{file_path:([\w$]+),vmPath:([\w$]+)\}of ([\w$]+)\)\{"
         rb"if\(([\w$]+)\(\2,([\w$]+)\.vmProcessName\)\)continue;"
-        rb"\(([\w$]+)\?\$w\(\2,\6\):null\)===null&&([\w$]+)\.push\(\1\)\}"
+        rb"\(([\w$]+)\?([\w$]+)\(\2,\6\):null\)===null&&([\w$]+)\.push\(\1\)\}"
     )
 
     def present_files_replacement(m):
@@ -244,11 +244,12 @@ def patch_cowork_linux(filepath):
         scratchpad_fn = m.group(4)
         t_var = m.group(5)
         c_var = m.group(6)
-        u_var = m.group(7)
+        resolve_fn = m.group(7)  # was $w, now ub or similar
+        u_var = m.group(8)
         return (
             b"for(const{file_path:" + f_var + b",vmPath:" + p_var + b"}of " + l_var + b"){"
             b"if(" + scratchpad_fn + b"(" + p_var + b"," + t_var + b".vmProcessName))continue;"
-            b"(" + c_var + b"?$w(" + p_var + b"," + c_var + b"):null)===null&&"
+            b"(" + c_var + b"?" + resolve_fn + b"(" + p_var + b"," + c_var + b"):null)===null&&"
             b"(()=>{const _ho=" + t_var + b".getHostOutputsDir();"
             b"if(_ho&&(" + f_var + b"===_ho||" + f_var + b'.startsWith(_ho+"/")))return;' + u_var + b".push(" + f_var + b")})()}"
         )

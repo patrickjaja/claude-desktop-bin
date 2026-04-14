@@ -1,14 +1,14 @@
 # Claude Desktop Feature Flag Architecture
 
-Reference documentation for the feature flag system in Claude Desktop's Electron app. This documents v1.1617.0 internals to aid patch maintenance.
+Reference documentation for the feature flag system in Claude Desktop's Electron app. This documents v1.2278.0 internals to aid patch maintenance.
 
 ## Overview
 
 18 feature flags are controlled by a 3-layer system:
 
-1. **`wb()` (static)** - Calls individual feature functions, builds base object (17 features)
-2. **`Soe` (async merger)** - Spreads `wb()`, adds `louderPenguin` + `operon` as async overrides
-3. **IPC handler** - Calls `Soe`, validates against schema, sends to renderer
+1. **`eA()` (static)** - Calls individual feature functions, builds base object (17 features)
+2. **`yue` (async merger)** - Spreads `eA()`, adds `louderPenguin` + `operon` as async overrides
+3. **IPC handler** - Calls `yue`, validates against schema, sends to renderer
 
 Feature name strings (`chillingSlothFeat`, `louderPenguin`, etc.) are runtime IPC identifiers, **not minified** - they are stable pattern anchors.
 
@@ -16,79 +16,79 @@ Feature name strings (`chillingSlothFeat`, `louderPenguin`, etc.) are runtime IP
 
 | # | Feature | Function | Gate | Purpose |
 |---|---------|----------|------|---------|
-| 1 | `nativeQuickEntry` | `Abn()` | `platform !== "darwin"` | Native Quick Entry (macOS only) |
-| 2 | `quickEntryDictation` | `Ebn()` | `platform !== "darwin"` + macOS >= 14.0 | Quick Entry dictation |
-| 3 | `customQuickEntryDictationShortcut` | direct value `Abe` | None | Custom dictation shortcut value |
-| 4 | `plushRaccoon` | `bbe(() => Abe)` | **bbe() production gate** | Custom dictation shortcut (dev-gated) |
-| 5 | `quietPenguin` | `bbe(Rbn)` | **bbe()** + inner `Rbn()` returns supported | Code-related feature (dev-gated) |
-| 6 | `louderPenguin` | `await Dbn()` in Soe only | **async override** in Soe; platform gate (darwin/win32) + GrowthBook `4116586025` | **Code tab** |
-| 7 | `chillingSlothFeat` | `Cbn()` | `g5e` variable check (darwin gate re-introduced in v1.1.9669) | Local Agent Mode / Cowork |
-| 8 | `chillingSlothEnterprise` | `Sbn()` | Org config check | Enterprise disable for Claude Code |
-| 9 | `chillingSlothLocal` | `xbn()` | **None** (always supported) | Local sessions |
-| 10 | `yukonSilver` | `K6e()` | Platform/arch gate via `Ibn()` + org config (has native Linux support!) | Secure VM |
-| 11 | `yukonSilverGems` | `Vht()` | Depends on `yukonSilver` (`K6e()`) | VM extensions |
-| 12 | `yukonSilverGemsCache` | `Vht()` | Depends on `yukonSilver` (`K6e()`) | VM extensions cache |
-| 13 | `wakeScheduler` | `bbe(Lbn)` | **bbe() gate** + `platform !== "darwin"` + macOS >= 13.0 | macOS Login Items / wake scheduling |
-| 14 | `desktopTopBar` | `Nbn()` | **None** (always supported) | Desktop top bar |
-| 15 | `ccdPlugins` | `Abe` (constant) | **None** (always supported) | CCD Plugins UI (Add plugins, Browse plugins) |
-| 16 | `floatingAtoll` | `Obn()` | `floatingAtollActive` preference (GrowthBook `1985802636` listener) | Floating mini-window (macOS window button offset, preference-gated) |
-| 17 | `operon` | static: `Fbn()` (unavailable) + async: `await GZt()` in Soe | blocks win32, checks `K6e()` (yukonSilver) + GrowthBook `1306813456` | Nest — 120+ IPC endpoints, 33 sub-interfaces |
-| 18 | `computerUse` | `Mbn()` | `Lte()` — Set-based check | Computer use feature flag (**patched for Linux** via Set modification) |
+| 1 | `nativeQuickEntry` | `WRn()` | `platform !== "darwin"` | Native Quick Entry (macOS only) |
+| 2 | `quickEntryDictation` | `GRn()` | `platform !== "darwin"` + macOS >= 14.0 | Quick Entry dictation |
+| 3 | `customQuickEntryDictationShortcut` | direct value `xEe` | None | Custom dictation shortcut value |
+| 4 | `plushRaccoon` | `CEe(() => xEe)` | **CEe() production gate** | Custom dictation shortcut (dev-gated) |
+| 5 | `quietPenguin` | `CEe(r4n)` | **CEe()** + inner `r4n()` returns supported | Code-related feature (dev-gated) |
+| 6 | `louderPenguin` | `await o4n()` in yue only | **async override** in yue; platform gate (darwin/win32) + GrowthBook `4116586025` | **Code tab** |
+| 7 | `chillingSlothFeat` | `YRn()` | `IOe` variable check (darwin\|\|win32, changed from darwin-only in v1.2278.0) | Local Agent Mode / Cowork |
+| 8 | `chillingSlothEnterprise` | `KRn()` | Org config check | Enterprise disable for Claude Code |
+| 9 | `chillingSlothLocal` | `ZRn()` | **None** (always supported) | Local sessions |
+| 10 | `yukonSilver` | `wUe()` | Platform/arch gate via `JRn()` + org config (has native Linux support!) | Secure VM |
+| 11 | `yukonSilverGems` | `A0t()` | Depends on `yukonSilver` (`wUe()`) | VM extensions |
+| 12 | `yukonSilverGemsCache` | `A0t()` | Depends on `yukonSilver` (`wUe()`) | VM extensions cache |
+| 13 | `wakeScheduler` | `CEe(l4n)` | **CEe() gate** + `platform !== "darwin"` + macOS >= 13.0 | macOS Login Items / wake scheduling |
+| 14 | `desktopTopBar` | `i4n()` | **None** (always supported) | Desktop top bar |
+| 15 | `ccdPlugins` | `xEe` (constant) | **None** (always supported) | CCD Plugins UI (Add plugins, Browse plugins) |
+| 16 | `floatingAtoll` | `s4n()` | `floatingAtollActive` preference (GrowthBook `1985802636` listener) | Floating mini-window (macOS window button offset, preference-gated) |
+| 17 | `operon` | static: `u4n()` (unavailable) + async: `await Lir()` in yue | blocks win32, checks `wUe()` (yukonSilver) + GrowthBook `1306813456` | Nest — 120+ IPC endpoints, 33 sub-interfaces |
+| 18 | `computerUse` | `c4n()` | `Lie()` — `Ole` Set-based check | Computer use feature flag (**patched for Linux** via Set modification) |
 
-## The bbe() Production Gate
+## The CEe() Production Gate
 
 ```javascript
-function bbe(t){return Ae.app.isPackaged?{status:"unavailable"}:t()}
+function CEe(t){return Ce.app.isPackaged?{status:"unavailable"}:t()}
 ```
 
-In production builds (`app.isPackaged === true`), bbe() returns `{status:"unavailable"}` **without calling** the wrapped function. Only in development builds does it call `t()`.
+In production builds (`app.isPackaged === true`), CEe() returns `{status:"unavailable"}` **without calling** the wrapped function. Only in development builds does it call `t()`.
 
-**Features gated by bbe():** `plushRaccoon`, `quietPenguin`, `wakeScheduler`
+**Features gated by CEe():** `plushRaccoon`, `quietPenguin`, `wakeScheduler`
 
-Note: `louderPenguin` is no longer in wb() at all (was QL()-gated in earlier versions). It exists only in Soe as `await Dbn()`, which has its own platform gate (darwin/win32 only) + server feature flag check. `operon` now has both a static entry (`Fbn()` returning unavailable) and an async override in Soe as `await GZt()` (with 5-second delay).
+Note: `louderPenguin` is no longer in eA() at all (was QL()-gated in earlier versions). It exists only in yue as `await o4n()`, which has its own platform gate (darwin/win32 only) + server feature flag check. `operon` now has both a static entry (`u4n()` returning unavailable) and an async override in yue as `await Lir()` (with 5-second delay).
 
-This is why patching the inner functions alone is insufficient - bbe() never calls them in packaged builds.
+This is why patching the inner functions alone is insufficient - CEe() never calls them in packaged builds.
 
 ## The Three Layers
 
-### Layer 1: wb() - Static Registry
+### Layer 1: eA() - Static Registry
 
 ```javascript
-function wb(){
+function eA(){
   return{
-    nativeQuickEntry:Abn(),
-    quickEntryDictation:Ebn(),
-    customQuickEntryDictationShortcut:Abe,
-    plushRaccoon:bbe(()=>Abe),
-    quietPenguin:bbe(Rbn),
-    chillingSlothFeat:Cbn(),           // g5e variable check
-    chillingSlothEnterprise:Sbn(),
-    chillingSlothLocal:xbn(),
-    yukonSilver:K6e(),
-    yukonSilverGems:Vht(),
-    yukonSilverGemsCache:Vht(),
-    wakeScheduler:bbe(Lbn),
-    operon:Fbn(),                      // always unavailable
-    desktopTopBar:Nbn(),
-    ccdPlugins:Abe,                    // constant {status:"supported"}
-    floatingAtoll:Obn(),               // preference-gated via floatingAtollActive
-    computerUse:Mbn()                  // Lte() Set-based gate
+    nativeQuickEntry:WRn(),
+    quickEntryDictation:GRn(),
+    customQuickEntryDictationShortcut:xEe,
+    plushRaccoon:CEe(()=>xEe),
+    quietPenguin:CEe(r4n),
+    chillingSlothFeat:YRn(),           // IOe variable check (darwin||win32)
+    chillingSlothEnterprise:KRn(),
+    chillingSlothLocal:ZRn(),
+    yukonSilver:wUe(),
+    yukonSilverGems:A0t(),
+    yukonSilverGemsCache:A0t(),
+    wakeScheduler:CEe(l4n),
+    operon:u4n(),                      // always unavailable
+    desktopTopBar:i4n(),
+    ccdPlugins:xEe,                    // constant {status:"supported"}
+    floatingAtoll:s4n(),               // preference-gated via floatingAtollActive
+    computerUse:c4n()                  // Lie() Set-based gate (Ole)
   }
 }
 ```
 
-Returns 17 features synchronously. `Abe` is a constant `{status:"supported"}`. Features wrapped by `bbe()` are always `{status:"unavailable"}` in packaged builds.
+Returns 17 features synchronously. `xEe` is a constant `{status:"supported"}`. Features wrapped by `CEe()` are always `{status:"unavailable"}` in packaged builds.
 
-### Layer 2: Soe - Async Merger
+### Layer 2: yue - Async Merger
 
 ```javascript
-const Soe=async()=>{
-  const[t,e]=await Promise.all([Dbn(),GZt()]);
-  return{...wb(),louderPenguin:t,operon:e}
+const yue=async()=>{
+  const[t,e]=await Promise.all([o4n(),Lir()]);
+  return{...eA(),louderPenguin:t,operon:e}
 };
 ```
 
-Uses `Promise.all` to parallelize louderPenguin (`Dbn()`) and operon (`GZt()`) async checks. Spreads `wb()` then adds `louderPenguin` and `operon` as async overrides. `Dbn()` checks platform (darwin/win32) then checks server feature flag `4116586025`. `GZt()` introduces a 5-second delay, then blocks win32, checks `K6e()` (yukonSilver), and checks GrowthBook flag `1306813456`.
+Uses `Promise.all` to parallelize louderPenguin (`o4n()`) and operon (`Lir()`) async checks. Spreads `eA()` then adds `louderPenguin` and `operon` as async overrides. `o4n()` checks platform (darwin/win32) then checks server feature flag `4116586025`. `Lir()` introduces a 5-second delay, then blocks win32, checks `wUe()` (yukonSilver), and checks GrowthBook flag `1306813456`.
 
 **v1.1.3770 → v1.1.3918 changes:**
 - `chillingSlothEnterprise` moved from async-only (mC) to static (Fd)
@@ -139,15 +139,16 @@ Feature flags can also be affected by organization-level admin settings:
 
 Calls `Soe`, validates the result against a Zod schema, and sends it to the renderer process via IPC. The renderer uses these flags to conditionally render UI elements (e.g., Chat|Code toggle).
 
-## GrowthBook Flag Catalog (v1.1617.0)
+## GrowthBook Flag Catalog (v1.2278.0)
 
-### Boolean Flags (rn())
+### Boolean Flags (Zr())
 
 | Flag ID | Purpose | Patched? |
 |---------|---------|----------|
 | `159894531` | ENABLE_TOOL_SEARCH ("auto"/"false") | No |
 | `162211072` | Prompt suggestions enable | No |
-| `397125142` | Terminal server — gated: `sessionType==="ccd"` AND `g5e` AND this flag. CCD only, NOT cowork. `g5e` patched by `fix_dispatch_linux.py`; flag itself not patched (enabled server-side) | No |
+| `286376943` | Plugin skills for system prompt — gates `getPluginSkillsForSystemPrompt` (**new in v1.2278.0**) | No |
+| `397125142` | Terminal server — gated: `sessionType==="ccd"` AND `IOe` AND this flag. CCD only, NOT cowork. `IOe` patched by `fix_dispatch_linux.py`; flag itself not patched (enabled server-side) | No |
 | `714014285` | CLAUDE_CODE_ENABLE_FINE_GRAINED_TOOL_STREAMING | No |
 | `763725229` | Developer menu label/visibility | No |
 | `720735283` | Marketplace migration | No |
@@ -155,6 +156,7 @@ Calls `Soe`, validates the result against a Zod schema, and sends it to the rend
 | `770567414` | VM service routing (direct vs persistent pipe) | No |
 | `1306813456` | Operon/Nest gate | No |
 | `1412563253` | askUserQuestion preview format ("html") | No |
+| `1434290056` | Dispatch code tasks permission mode — bypass-permissions for dispatch sessions (**new in v1.2278.0**) | No |
 | `1942781881` | Prompt suggestions in sessions | No |
 | `2051942385` | CIC can-use-tool | No |
 | `2067027393` | canLaunchCodeSession | No |
@@ -162,9 +164,12 @@ Calls `Soe`, validates the result against a Zod schema, and sends it to the rend
 | `2246535838` | Local MCP server prefix (`local:`) | No |
 | `2339084909` | VM monitoring fallback (non-heartbeat) | No |
 | `2340532315` | Plugin sync on session start | No |
+| `2345107588` | GrowthBook cache persistence — persist/seed GrowthBook cache from/into sessions (**new in v1.2278.0**) | No |
 | `2349950458` | Scheduled task notifications | No |
+| `2392971184` | Replay user messages — adds `--replay-user-messages` to CLI args for session resume; also enables `/remote-control`/`/rc` command in dispatch (**new in v1.2278.0**) | No |
 | `2614807392` | Session feature A | No |
 | `2678455445` | MCP SDK server mode | No |
+| `2725876754` | Org CLI exec policies — gates reading `orgCliExecPolicies` for plugin tool permission checks (**new in v1.2278.0**) | No |
 | `2860753854` | System prompt override (via value) | No |
 | `2976814254` | Launch server (isAvailable check) | No |
 | `3246569822` | canSaveSkill (save reusable skills) | No |
@@ -230,25 +235,26 @@ These dispatch-era flags were removed from GrowthBook boolean calls (code may st
 | `2199295617` | AutoArchiveEngine | Removed |
 | `2860753854` | System prompt override (boolean call) | Removed from boolean calls (still exists as value flag) |
 
-### Object/Value Flags (Db() / Gs())
+### Object/Value Flags (_A() / xs())
 
 | Flag ID | Type | Purpose |
 |---------|------|---------|
-| `254738541` | Gs() | Prompt text (**new in v1.1348.0**) |
-| `365342473` | Db() | shouldScrubTelemetry (default: `true`) (**new in v1.1348.0**) |
-| `476513332` | Db() | Update check interval ticks config |
-| `554317356` | Db() | Timer interval config |
-| `1677081600` | Db() | Custom prompt/instruction text |
-| `1748356779` | Db() | System prompt / user prompt template config |
-| `1978029737` | Gs() | Session config (skillsSyncIntervalMs, artifactMcpConcurrencyLimit, idleGraceMs, disableSessionsDiskCleanup, sessionsBridgePollIntervalMs, coworkMessageTimeoutMs) |
-| `2860753854` | Db() | System prompt override text |
-| `2893011886` | Gs() | Wake scheduler config (enabled, scheduledTasksWakeEnabled, minLeadTimeMs, chainIntervalMs, batteryIntervalMs, acIntervalMs) |
-| `3300773012` | Gs() | Scheduled tasks config (skillDescription, skillPrompt, scheduledTaskPostWakeDelayMs, dispatchJitterMaxMinutes) |
-| `3586389629` | Db() | Connection timeout config |
-| `3758515526` | Gs() | Default marketplace repo config (repo, repoCCD) |
-| `4066504968` | Gs() | Setup-cowork skill config (skillDescription, skillPrompt) (**new in v1.1348.0**) |
+| `254738541` | xs() | Prompt text (**new in v1.1348.0**) |
+| `365342473` | _A() | shouldScrubTelemetry (default: `true`) (**new in v1.1348.0**) |
+| `476513332` | _A() | Update check interval ticks config |
+| `554317356` | _A() | Timer interval config |
+| `1677081600` | _A() | Custom prompt/instruction text |
+| `1748356779` | _A() | System prompt / user prompt template config |
+| `1893165035` | _A() | SDK error auto-recovery config (`{enabled, categories}`) — categories include `sdk_binary_missing`, `sandbox_deps_missing`, `filesystem_error` (**new in v1.2278.0**) |
+| `1978029737` | xs() | Session config (skillsSyncIntervalMs, artifactMcpConcurrencyLimit, artifactSampleConcurrencyLimit, idleGraceMs, disableSessionsDiskCleanup, sessionsBridgePollIntervalMs, coworkMessageTimeoutMs, coworkWebFetchViaApi) |
+| `2860753854` | _A() | System prompt override text |
+| `2893011886` | xs() | Wake scheduler config (enabled, scheduledTasksWakeEnabled, minLeadTimeMs, chainIntervalMs, batteryIntervalMs, acIntervalMs) |
+| `3300773012` | xs() | Scheduled tasks config (skillDescription, skillPrompt, scheduledTaskPostWakeDelayMs, dispatchJitterMaxMinutes) |
+| `3586389629` | _A() | Connection timeout config |
+| `3758515526` | xs() | Default marketplace repo config (repo, repoCCD) |
+| `4066504968` | xs() | Setup-cowork skill config (skillDescription, skillPrompt) (**new in v1.1348.0**) |
 
-### Listener Flags (ZI())
+### Listener Flags (VI())
 
 | Flag ID | Purpose |
 |---------|---------|
@@ -263,20 +269,20 @@ These dispatch-era flags were removed from GrowthBook boolean calls (code may st
 
 ### enable_local_agent_mode.py
 
-**Patch 1 - Individual functions:** Remove `process.platform!=="darwin"` gate from `Rbn()` (quietPenguin inner). Note: `Cbn()` (chillingSlothFeat) uses `g5e` variable check (darwin gate re-introduced in v1.1.9669) — our Patch 1 still handles it. Also inject Linux early-return in `K6e()` (yukonSilver) to bypass its platform gate (though upstream now has native Linux support too — our patch is defensive).
+**Patch 1 - Individual functions:** Remove `process.platform!=="darwin"` gate from `r4n()` (quietPenguin inner). Note: `YRn()` (chillingSlothFeat) uses `IOe` variable check (darwin||win32 gate, changed from darwin-only in v1.2278.0) — only 1 match now instead of 2, handled gracefully by the `elif len(matches) == 1` branch. Also inject Linux early-return in `wUe()` (yukonSilver) to bypass its platform gate (though upstream now has native Linux support too — our patch is defensive).
 
-**Patch 3 - Soe merger override:** Append to the `Soe` return object:
+**Patch 3 - yue merger override:** Append to the `yue` return object:
 ```javascript
 ,quietPenguin:{status:"supported"},louderPenguin:{status:"supported"},chillingSlothFeat:{status:"supported"},chillingSlothLocal:{status:"supported"},yukonSilver:{status:"supported"},yukonSilverGems:{status:"supported"},ccdPlugins:{status:"supported"},computerUse:{status:"supported"}
 ```
 
-This bypasses the bbe() gate by overriding at the merger level (8 total overrides). The spread order ensures our values win:
+This bypasses the CEe() gate by overriding at the merger level (8 total overrides). The spread order ensures our values win:
 ```
-...wb()           -> quietPenguin: {status:"unavailable"}  (from bbe)
+...eA()           -> quietPenguin: {status:"unavailable"}  (from CEe)
 ...our overrides  -> quietPenguin: {status:"supported"}    (wins)
 ```
 
-Note: `chillingSlothLocal` and `ccdPlugins` overrides are defensive — both are already `{status:"supported"}`, but the overrides protect against future gating. `yukonSilverGemsCache` is NOT overridden but inherits support from the `K6e()` (yukonSilver) function patch in Patch 1b.
+Note: `chillingSlothLocal` and `ccdPlugins` overrides are defensive — both are already `{status:"supported"}`, but the overrides protect against future gating. `yukonSilverGemsCache` is NOT overridden but inherits support from the `wUe()` (yukonSilver) function patch in Patch 1b.
 
 ### Cowork on Linux (experimental)
 
@@ -285,7 +291,7 @@ As of v1.1.2685, Cowork uses a decoupled architecture with a TypeScript VM clien
 - **`fix_cowork_linux.py`** patches the VM client loader to include Linux (not just `win32`)
 - The Named Pipe path is replaced with a Unix domain socket on Linux
 - **`claude-cowork-service`** (separate Go daemon at `/home/patrickjaja/development/claude-cowork-service`) provides native execution backend — 18 RPC methods, process spawning, path remapping
-- `chillingSlothFeat`, `chillingSlothLocal`, `yukonSilver`, `yukonSilverGems`, and `ccdPlugins` are all overridden to `{status:"supported"}` in the eoe merger
+- `chillingSlothFeat`, `chillingSlothLocal`, `yukonSilver`, `yukonSilverGems`, and `ccdPlugins` are all overridden to `{status:"supported"}` in the yue merger
 
 Without the daemon running, Cowork will show connection errors naturally in the UI.
 
@@ -299,7 +305,7 @@ Dispatch is a remote task orchestration feature that lets you send tasks from yo
 1. **Sessions-bridge init gate** (GrowthBook flags `3572572142` + `4201169164`) — The bridge only initializes when the combined gate `h = f || p` is true (`f` from flag `3572572142`, `p` from flag `4201169164`). On Linux neither flag fires. We force `h=!0` (true).
 2. **Remote session control** (GrowthBook flag `2216414644`) — Messages with `channel:"mobile"` throw unless this flag is on. We replace `!Hn("2216414644")` with `!1` at both call sites.
 3. **Platform label** (`bhe()`) — Returns "Unsupported Platform" for Linux. We add `case"linux":return"Linux"`.
-4. **Telemetry gate** — `di||ns` (darwin||win32) silently drops telemetry on Linux. We extend to include Linux.
+4. **Telemetry gate** — `hi||vs` (darwin||win32) silently drops telemetry on Linux. We extend to include Linux.
 
 **Note on `operon` (Nest):** Do NOT force-enable — requires VM infrastructure (120+ IPC endpoints across 31 sub-interfaces). Currently `{status:"unavailable"}` on Linux (GrowthBook flag `1306813456` not enabled server-side). See [Operon Tool Inventory](#operon-tool-inventory-v11062) below for the full model-facing toolset.
 
@@ -429,7 +435,7 @@ Defined in `ODt` array alongside `AskUserQuestion` and `ExitPlanMode`. UI comman
 | `floatingAtoll` | macOS window button positioning, disabled for all platforms |
 | `operon` | Requires VM infrastructure (Nest); flag not enabled server-side |
 
-### Known Issues (v1.1617.0)
+### Known Issues (v1.2278.0)
 
 No known issues. Computer-use is fully integrated into `index.js` since v1.1.8359 and working on Linux.
 
@@ -456,8 +462,8 @@ Feature name strings are stable across versions because they're IPC identifiers 
 
 ### When updating for new versions
 
-1. Check if `eoe` structure changed (new features added, order changed)
-2. Check if Kwe()-wrapped features changed
+1. Check if `yue` structure changed (new features added, order changed)
+2. Check if CEe()-wrapped features changed
 3. Verify feature name strings haven't been renamed (unlikely - they're IPC contracts)
 4. Test with `./scripts/validate-patches.sh`
 
@@ -480,3 +486,4 @@ Feature name strings are stable across versions because they're IPC identifiers 
 | v1.1062.0 | `Ow()` | `xse` | `m0e()` | Same 18 features (17 static + louderPenguin async); `rn()` flag reader; function renames only; 2 new GrowthBook flags (`2114777685` cowork CU-only mode, `3371831021` cuOnlyMode); 6 dispatch-era flags removed (`3558849738`, `3572572142`, `4201169164`, `1585356617`, `2199295617`, `2860753854`); HTTP header pattern changed (`,` separator instead of `;` — fixed in patch) |
 | v1.1348.0 | `gb()` | `eoe` | `Kwe()` | Same 18 features; `tn()` flag reader; `LI()` listener; `js()`/`$b()` value flags; `floatingAtoll` now preference-gated (`$wn()` reads `floatingAtollActive`); 1 new boolean flag (`4040257062` memory routing); 3 new value flags (`254738541` prompt, `4066504968` setup-cowork, `365342473` telemetry scrub); 2 removed (`927037640` subagent model, `3190506572` Chrome perms); Operon 31→33 sub-interfaces (`OperonDesktop`, `OperonMcpToolAccessProvider`); all 34 patches applied without modification |
 | v1.1617.0 | `wb()` | `Soe` | `bbe()` | Same 18 features; `rn()` flag reader; `ZI()` listener; `Gs()`/`Db()` value flags; no new/removed GrowthBook flags; platform gate `z5e`→`g5e`; new `radar` MCP server (disabled); 3 force-ON flags (`2976814254`, `3246569822`, `1143815894` in `m6r` map); new renderer windows (`buddy_window/`, `find_in_page/`); new deps (`node-pty`, `ws`); all 35 patches applied without modification |
+| v1.2278.0 | `eA()` | `yue` | `CEe()` | Same 18 features; `Zr()` flag reader; `VI()` listener; `xs()`/`_A()` value flags; `chillingSlothFeat` gate changed `g5e`→`IOe` (darwin\|\|win32, was darwin-only); platform booleans `hi`/`vs`/`IOe`; 5 new boolean flags (`286376943`, `1434290056`, `2345107588`, `2392971184`, `2725876754`); 1 new value flag (`1893165035` SDK error auto-recovery); new `index.pre.js` bootstrap file with enterprise config; enterprise config switched from switch/case to ternary; 3 patches updated (`fix_cowork_first_bash.py`, `fix_cowork_linux.py`, `fix_enterprise_config_linux.py`) |

@@ -2,6 +2,33 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-14 (v1.2278.0) — Upstream update, all patches applied (3 fixed)
+
+### Upstream
+- **Version bump:** v1.1617.0 → v1.2278.0
+- **No structural changes** to feature flag architecture — same 18 features, same 3-layer system
+- Function renames only: `wb()`→`eA()` (static registry), `Soe`→`yue` (async merger), `bbe()`→`CEe()` (gate function), `rn()`→`Zr()` (flag reader), `Db()`→`_A()` / `Gs()`→`xs()` (value flags)
+- **`chillingSlothFeat` gate changed** from darwin-only (`g5e`) to darwin||win32 (`IOe`) — Linux still excluded, handled by merger override
+- Platform booleans now named `hi` (darwin), `vs` (win32), `IOe` (combined)
+- 5 new GrowthBook boolean flags: `286376943` (plugin skills), `1434290056` (dispatch permissions), `2345107588` (GrowthBook cache), `2392971184` (replay messages), `2725876754` (org CLI exec policies)
+- 1 new value flag: `1893165035` (SDK error auto-recovery config)
+- New `index.pre.js` bootstrap file with enterprise config loading
+- Enterprise config switched from switch/case to ternary structure
+- Same 6 MCP servers (Chrome, mcp-registry, office-addin, radar, visualize, computer-use)
+
+### Patches
+- **Fixed: `fix_cowork_first_bash.py`** — upstream renamed event socket functions (`ZVt`→`$er`, `Sq`→`oH`, `Ts`→`Ps`) and variable (`mA`→`nE`). Converted from exact byte match to regex pattern with dynamic variable detection. Now finds the events socket variable by anchoring on `subscribeEvents` context.
+- **Fixed: `fix_cowork_linux.py` Patch F** — `$w` function renamed to `ub`. Changed hardcoded `\$w\(` in regex to `([\w$]+)\(` to match any function name dynamically.
+- **Fixed: `fix_enterprise_config_linux.py`** — enterprise config structure changed from switch/case (`case"win32":VAR=FUNC();break;default:VAR={};break`) to ternary chain (`process.platform==="darwin"?FUNC_D():process.platform==="win32"?FUNC_W():{}`). Updated regex pattern to match the new ternary form. Now also patches `index.pre.js` (new bootstrap file) for early-boot enterprise config.
+- All other 35 patches applied without modification — `[\w$]+` regex patterns handled the renames automatically
+
+### Documentation
+- **CLAUDE_FEATURE_FLAGS.md** — updated all function names, added 5 new boolean flags + 1 value flag, version history entry, `chillingSlothFeat` gate change noted
+- **CLAUDE_BUILT_IN_MCP.md** — version number updated
+- **CHANGELOG.md** — this entry
+
+---
+
 ## 2026-04-11 (v1.1617.0) — Fix Cowork skills/plugins broken by hostLoopMode
 
 ### Patches
