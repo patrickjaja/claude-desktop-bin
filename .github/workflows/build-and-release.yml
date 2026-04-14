@@ -515,29 +515,33 @@ jobs:
       - name: Test AppImage
         run: |
           if [ "${{ matrix.arch }}" = "aarch64" ]; then
-            docker run --rm --platform linux/arm64 \
-              -v "$(pwd)/dist:/dist:ro" \
-              arm64v8/ubuntu:22.04 \
-              bash -c "
-                set -e
-                export DEBIAN_FRONTEND=noninteractive
-                apt-get update -qq && apt-get install -y -qq file >/dev/null
+            # AppImage outer ELF is aarch64 (can't execute under QEMU in Docker).
+            # Verify on the host: check ELF arch, then extract with squashfs-tools
+            # and validate the inner Electron binary is also aarch64.
+            sudo apt-get install -y -qq squashfs-tools >/dev/null
 
-                cp /dist/Claude_Desktop-*-aarch64.AppImage /tmp/
-                chmod +x /tmp/Claude_Desktop-*-aarch64.AppImage
-                cd /tmp
+            APPIMAGE="$(ls dist/Claude_Desktop-*-aarch64.AppImage)"
 
-                # Verify the AppImage outer ELF is actually aarch64
-                file /tmp/Claude_Desktop-*-aarch64.AppImage | grep -q 'aarch64\|ARM aarch64'
-                echo 'AppImage ELF is aarch64 — OK'
+            # 1. Verify outer ELF is aarch64
+            file "$APPIMAGE" | grep -q 'aarch64\|ARM aarch64'
+            echo "AppImage outer ELF is aarch64 — OK"
 
-                /tmp/Claude_Desktop-*-aarch64.AppImage --appimage-extract
+            # 2. Extract squashfs payload (skip ELF runtime to find hsqs magic)
+            OFFSET=$(python3 -c "
+            with open('$APPIMAGE', 'rb') as f:
+                data = f.read()
+                idx = data.find(b'hsqs')
+                assert idx > 0, 'squashfs magic not found'
+                print(idx)
+            ")
+            unsquashfs -f -d /tmp/squashfs-root -o "$OFFSET" "$APPIMAGE"
 
-                test -f /tmp/squashfs-root/usr/lib/claude-desktop/resources/app.asar
-                test -x /tmp/squashfs-root/usr/lib/claude-desktop/claude-desktop
-                file /tmp/squashfs-root/usr/lib/claude-desktop/claude-desktop | grep -q 'aarch64\|ARM aarch64'
-                echo 'aarch64 AppImage smoke test passed'
-              "
+            # 3. Verify inner contents
+            test -f /tmp/squashfs-root/usr/lib/claude-desktop/resources/app.asar
+            test -x /tmp/squashfs-root/usr/lib/claude-desktop/claude-desktop
+            file /tmp/squashfs-root/usr/lib/claude-desktop/claude-desktop | grep -q 'aarch64\|ARM aarch64'
+            echo "aarch64 AppImage smoke test passed"
+            rm -rf /tmp/squashfs-root
           else
             docker run --rm \
               -v "$(pwd)/dist:/dist:ro" \
