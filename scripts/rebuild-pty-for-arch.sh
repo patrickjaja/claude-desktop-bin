@@ -113,12 +113,17 @@ if [ "$NEEDS_DOCKER" = true ]; then
         node:20-bullseye \
         bash -c "
             set -e
+            apt-get update -qq && apt-get install -y -qq gcc > /dev/null 2>&1
             cd /tmp
             npm init -y > /dev/null 2>&1
             npm install 'node-pty@$NODE_PTY_VERSION' --ignore-scripts 2>&1 | tail -1
             npx @electron/rebuild --version '$ELECTRON_VERSION' \
                 --module-dir node_modules/node-pty --arch $ELECTRON_ARCH 2>&1 | tail -3
             cp node_modules/node-pty/build/Release/pty.node /output/pty.node
+            # Build spawn-helper (pure C, no Node deps — needed by pty.fork())
+            if [ -f node_modules/node-pty/src/unix/spawn-helper.cc ]; then
+                gcc -o /output/spawn-helper node_modules/node-pty/src/unix/spawn-helper.cc 2>&1
+            fi
         "
 else
     log_info "Native compilation..."
@@ -130,6 +135,10 @@ else
         npx @electron/rebuild --version "$ELECTRON_VERSION" \
             --module-dir node_modules/node-pty --arch "$ELECTRON_ARCH" 2>&1 | tail -3
         cp node_modules/node-pty/build/Release/pty.node "$PTY_OUTPUT_DIR/pty.node"
+        # Build spawn-helper (pure C, no Node deps — needed by pty.fork())
+        if [ -f node_modules/node-pty/src/unix/spawn-helper.cc ]; then
+            gcc -o "$PTY_OUTPUT_DIR/spawn-helper" node_modules/node-pty/src/unix/spawn-helper.cc 2>&1
+        fi
         rm -rf "$BUILD_DIR"
     )
 fi
@@ -163,6 +172,15 @@ rm -f "$PTY_DIR/build/Release/"*.exe "$PTY_DIR/build/Release/"*.dll
 mkdir -p "$PTY_DIR/build/Release"
 cp "$REBUILT_PTY" "$PTY_NODE"
 log_info "Installed pty.node: $(file -b "$PTY_NODE" | cut -d, -f1-2)"
+
+# Install spawn-helper if built
+REBUILT_HELPER="$PTY_OUTPUT_DIR/spawn-helper"
+if [ -f "$REBUILT_HELPER" ]; then
+    cp "$REBUILT_HELPER" "$PTY_DIR/build/Release/spawn-helper"
+    log_info "Installed spawn-helper: $(file -b "$REBUILT_HELPER" | cut -d, -f1-2)"
+else
+    log_warn "spawn-helper not built — terminal may not spawn shells on $ELECTRON_ARCH"
+fi
 
 # Repack tarball in-place
 TARBALL_ABS=$(cd "$(dirname "$TARBALL_PATH")" && pwd)/$(basename "$TARBALL_PATH")

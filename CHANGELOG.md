@@ -2,6 +2,16 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-15 — Fix integrated terminal (node-pty) loading on all distros
+
+### Bug Fix
+- **Integrated terminal broken** — `node-pty`'s native `pty.node` was packed inside `app.asar` where Electron can't `dlopen()` native modules. Fixed `build-patched-tarball.sh` to use `asar pack --unpack "{**/*.node,**/spawn-helper}"` so Electron's loader redirects `require()` to `app.asar.unpacked/`.
+- **Missing `spawn-helper`** — `@electron/rebuild` only builds `.node` modules, not executables. Added `gcc` build of `spawn-helper` from node-pty source (pure C, no Node deps). Required by `pty.fork()` to spawn PTY shell processes.
+- **All distros covered** — the tarball produced by `build-patched-tarball.sh` is consumed by all packaging scripts (Arch PKGBUILD, Debian, RPM, AppImage, Nix) via `cp -r app/*`, so the fix propagates automatically.
+- **ARM64 + glibc-compat** — updated `scripts/rebuild-pty-for-arch.sh` and the CI inline glibc-compat Docker rebuild step to also build and install `spawn-helper` alongside `pty.node`.
+
+---
+
 ## 2026-04-14 (v1.2581.0) — Upstream update, all patches applied (1 fixed)
 
 ### Upstream

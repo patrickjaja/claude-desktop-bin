@@ -183,6 +183,7 @@ rm -f "$WORK_DIR/app/app.asar.unpacked/node_modules/@ant/claude-native/claude-na
 
 # Rebuild node-pty for Linux (upstream ships only Windows binaries)
 # This enables the integrated terminal + read_terminal MCP tool
+NODE_PTY_CONTENTS="$WORK_DIR/app/app.asar.contents/node_modules/node-pty"
 NODE_PTY_UNPACKED="$WORK_DIR/app/app.asar.unpacked/node_modules/node-pty"
 if [ -d "$NODE_PTY_UNPACKED" ] && command -v npx &>/dev/null; then
     log_info "Rebuilding node-pty for Linux..."
@@ -203,12 +204,37 @@ if [ -d "$NODE_PTY_UNPACKED" ] && command -v npx &>/dev/null; then
 
         REBUILT_PTY="$PTY_BUILD_DIR/node_modules/node-pty/build/Release/pty.node"
         if [ -f "$REBUILT_PTY" ] && file "$REBUILT_PTY" | grep -q "ELF 64-bit"; then
-            # Replace Windows binaries with Linux native module
+            # Build spawn-helper from source (needed by pty.fork() to spawn PTY processes)
+            # @electron/rebuild only builds .node modules, not executables
+            SPAWN_HELPER_SRC="$PTY_BUILD_DIR/node_modules/node-pty/src/unix/spawn-helper.cc"
+            SPAWN_HELPER_BIN="$PTY_BUILD_DIR/spawn-helper"
+            if [ -f "$SPAWN_HELPER_SRC" ] && command -v gcc &>/dev/null; then
+                gcc -o "$SPAWN_HELPER_BIN" "$SPAWN_HELPER_SRC" 2>&1
+            fi
+
+            # Replace Windows binaries in asar contents with Linux builds
+            # This is critical: .node files inside the asar can't be dlopen'd by Electron.
+            # The --unpack flag in the asar pack step below moves them to app.asar.unpacked/
+            rm -f "$NODE_PTY_CONTENTS/build/Release/"*.exe
+            rm -f "$NODE_PTY_CONTENTS/build/Release/"*.dll
+            rm -f "$NODE_PTY_CONTENTS/build/Release/conpty"*.node
+            rm -f "$NODE_PTY_CONTENTS/build/Release/pty.node"
+            cp "$REBUILT_PTY" "$NODE_PTY_CONTENTS/build/Release/pty.node"
+            if [ -f "$SPAWN_HELPER_BIN" ]; then
+                cp "$SPAWN_HELPER_BIN" "$NODE_PTY_CONTENTS/build/Release/spawn-helper"
+                log_info "node-pty + spawn-helper rebuilt successfully ($(file -b "$REBUILT_PTY" | cut -d, -f1-2))"
+            else
+                log_warn "spawn-helper build failed — terminal may not spawn shells"
+                log_info "node-pty rebuilt successfully ($(file -b "$REBUILT_PTY" | cut -d, -f1-2))"
+            fi
+
+            # Also update the unpacked dir (used by rebuild-pty-for-arch.sh)
             rm -f "$NODE_PTY_UNPACKED/build/Release/"*.node
             rm -f "$NODE_PTY_UNPACKED/build/Release/"*.exe
             rm -f "$NODE_PTY_UNPACKED/build/Release/"*.dll
+            mkdir -p "$NODE_PTY_UNPACKED/build/Release"
             cp "$REBUILT_PTY" "$NODE_PTY_UNPACKED/build/Release/pty.node"
-            log_info "node-pty rebuilt successfully ($(file -b "$REBUILT_PTY" | cut -d, -f1-2))"
+            [ -f "$SPAWN_HELPER_BIN" ] && cp "$SPAWN_HELPER_BIN" "$NODE_PTY_UNPACKED/build/Release/spawn-helper"
         else
             log_warn "node-pty rebuild failed — integrated terminal will be unavailable"
         fi
@@ -224,10 +250,18 @@ else
     fi
 fi
 
+# Remove remaining Windows .node/.exe/.dll from asar contents
+# Native .node files can't be loaded from inside an asar archive —
+# they must live in app.asar.unpacked/ (handled by --unpack below)
+log_info "Cleaning Windows native binaries from asar contents..."
+find "$WORK_DIR/app/app.asar.contents" \( -name "*.exe" -o -name "*.dll" \) -delete 2>/dev/null || true
+
 # Repack app.asar
+# --unpack ensures native .node files and spawn-helper are placed in app.asar.unpacked/
+# and marked in the asar header so Electron redirects require() to the unpacked location
 log_info "Repacking app.asar..."
 cd "$WORK_DIR/app"
-asar pack app.asar.contents app.asar
+asar pack app.asar.contents app.asar --unpack "{**/*.node,**/spawn-helper}"
 rm -rf app.asar.contents
 
 # Copy locales (must be in place before smoke test — app loads them on startup)

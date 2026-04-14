@@ -410,12 +410,24 @@ jobs:
               npx @electron/rebuild --version '$ELECTRON_VERSION' \
                 --module-dir node_modules/node-pty --arch x64 2>&1 | tail -3
               cp node_modules/node-pty/build/Release/pty.node /output/pty.node
+              # Build spawn-helper (pure C, no Node deps — needed by pty.fork())
+              if [ -f node_modules/node-pty/src/unix/spawn-helper.cc ]; then
+                gcc -o /output/spawn-helper node_modules/node-pty/src/unix/spawn-helper.cc 2>&1
+              fi
             "
 
           REBUILT_PTY="/tmp/pty-compat-output/pty.node"
           if [ -f "$REBUILT_PTY" ] && file "$REBUILT_PTY" | grep -q "ELF 64-bit"; then
             cp "$REBUILT_PTY" "$PTY_NODE"
             echo "After rebuild: $(objdump -T "$PTY_NODE" 2>/dev/null | grep -oP 'GLIBC_\S+' | sort -uV | tail -1)"
+            # Install spawn-helper alongside pty.node
+            SPAWN_HELPER_DIR="$(dirname "$PTY_NODE")"
+            if [ -f /tmp/pty-compat-output/spawn-helper ]; then
+              cp /tmp/pty-compat-output/spawn-helper "$SPAWN_HELPER_DIR/spawn-helper"
+              echo "spawn-helper built for glibc compatibility"
+            else
+              echo "::warning::spawn-helper not built — terminal may not spawn shells"
+            fi
             echo "node-pty rebuilt successfully for glibc compatibility"
           else
             echo "::error::node-pty glibc-compat rebuild failed"
