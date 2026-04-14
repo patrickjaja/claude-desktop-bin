@@ -527,13 +527,7 @@ jobs:
             echo "AppImage outer ELF is aarch64 — OK"
 
             # 2. Extract squashfs payload (skip ELF runtime to find hsqs magic)
-            OFFSET=$(python3 -c "
-            with open('$APPIMAGE', 'rb') as f:
-                data = f.read()
-                idx = data.find(b'hsqs')
-                assert idx > 0, 'squashfs magic not found'
-                print(idx)
-            ")
+            OFFSET=$(python3 -c "import sys; data=open('$APPIMAGE','rb').read(); idx=data.find(b'hsqs'); assert idx>0,'squashfs magic not found'; print(idx)")
             unsquashfs -f -d /tmp/squashfs-root -o "$OFFSET" "$APPIMAGE"
 
             # 3. Verify inner contents
