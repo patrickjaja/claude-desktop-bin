@@ -130,6 +130,7 @@ def patch_local_agent_mode(filepath):
     # - yukonSilver/yukonSilverGems → "supported" (VM features, needs daemon)
     # - ccdPlugins → "supported" (Plugin UI, defensive override for future gating)
     # - computerUse → "supported" (Computer Use feature flag, new in v1.1.9669)
+    # - coworkKappa → "supported" (memory consolidation skill, new in v1.2581.0)
     #
     # Format varies across versions:
     #   Old (≤v1.1.9310): const X=async()=>({...Oh(),...,louderPenguin:await fwt()})
