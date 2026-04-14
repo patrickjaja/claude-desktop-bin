@@ -290,9 +290,10 @@ This package patches Claude Desktop to work with system-installed Claude Code on
 
 ![Claude Code in Claude Desktop](cc_in_cd.png)
 
-| |
-|:---:|
-| <img src="cc_in_cd_preview.png" width="180"> |
+| | |
+|:---:|:---:|
+| <img src="cc_in_cd_preview.png" width="180"> | <img src="docs/code/terminal.png" width="180"> |
+| Code Preview | Integrated Terminal |
 
 To use Claude Code (and Cowork) features, install the CLI following the [official setup guide](https://code.claude.com/docs/en/setup), then verify it's accessible:
 ```bash
