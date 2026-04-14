@@ -515,24 +515,29 @@ jobs:
       - name: Test AppImage
         run: |
           if [ "${{ matrix.arch }}" = "aarch64" ]; then
-            # The AppImage outer ELF is x86_64 (built by appimagetool on the host),
-            # so extract on the host, then verify arm64 contents in QEMU container.
-            chmod +x dist/Claude_Desktop-*-aarch64.AppImage
-            cd dist && ./Claude_Desktop-*-aarch64.AppImage --appimage-extract && cd ..
-
             docker run --rm --platform linux/arm64 \
-              -v "$(pwd)/dist/squashfs-root:/squashfs-root:ro" \
+              -v "$(pwd)/dist:/dist:ro" \
               arm64v8/ubuntu:22.04 \
               bash -c "
                 set -e
+                export DEBIAN_FRONTEND=noninteractive
                 apt-get update -qq && apt-get install -y -qq file >/dev/null
 
-                test -f /squashfs-root/usr/lib/claude-desktop/resources/app.asar
-                test -x /squashfs-root/usr/lib/claude-desktop/claude-desktop
-                file /squashfs-root/usr/lib/claude-desktop/claude-desktop | grep -q 'aarch64\|ARM aarch64'
+                cp /dist/Claude_Desktop-*-aarch64.AppImage /tmp/
+                chmod +x /tmp/Claude_Desktop-*-aarch64.AppImage
+                cd /tmp
+
+                # Verify the AppImage outer ELF is actually aarch64
+                file /tmp/Claude_Desktop-*-aarch64.AppImage | grep -q 'aarch64\|ARM aarch64'
+                echo 'AppImage ELF is aarch64 — OK'
+
+                /tmp/Claude_Desktop-*-aarch64.AppImage --appimage-extract
+
+                test -f /tmp/squashfs-root/usr/lib/claude-desktop/resources/app.asar
+                test -x /tmp/squashfs-root/usr/lib/claude-desktop/claude-desktop
+                file /tmp/squashfs-root/usr/lib/claude-desktop/claude-desktop | grep -q 'aarch64\|ARM aarch64'
                 echo 'aarch64 AppImage smoke test passed'
               "
-            rm -rf dist/squashfs-root
           else
             docker run --rm \
               -v "$(pwd)/dist:/dist:ro" \

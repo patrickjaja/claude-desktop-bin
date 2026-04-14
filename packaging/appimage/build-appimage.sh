@@ -199,6 +199,18 @@ APPIMAGE_PATH="$OUTPUT_DIR/Claude_Desktop-${VERSION}-${APPIMAGE_ARCH}.AppImage"
 # Set architecture for appimagetool
 export ARCH=$APPIMAGE_ARCH
 
+# When cross-building (e.g. aarch64 AppImage on x86_64 host), appimagetool embeds
+# its own x86_64 runtime stub, producing an AppImage that won't execute on the target.
+# Download the correct runtime for the target architecture and pass --runtime-file.
+RUNTIME_FLAG=""
+if [ "$APPIMAGE_ARCH" != "$HOST_ARCH" ]; then
+    log_info "Cross-building: downloading ${APPIMAGE_ARCH} AppImage runtime..."
+    RUNTIME_FILE="$WORK_DIR/runtime-${APPIMAGE_ARCH}"
+    wget -q -O "$RUNTIME_FILE" \
+        "https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-${APPIMAGE_ARCH}"
+    RUNTIME_FLAG="--runtime-file $RUNTIME_FILE"
+fi
+
 # Embed update information for AppImage delta updates (gh-releases-zsync transport)
 UPDATE_INFO="gh-releases-zsync|patrickjaja|claude-desktop-bin|latest|Claude_Desktop-*-${APPIMAGE_ARCH}.AppImage.zsync"
 log_info "Embedding update info: $UPDATE_INFO"
@@ -209,7 +221,7 @@ else
     log_warn "zsyncmake not found — .zsync file will NOT be generated (install zsync package)"
 fi
 
-"$APPIMAGETOOL" -u "$UPDATE_INFO" "$APPDIR" "$APPIMAGE_PATH"
+"$APPIMAGETOOL" $RUNTIME_FLAG -u "$UPDATE_INFO" "$APPDIR" "$APPIMAGE_PATH"
 
 # Calculate SHA256
 SHA256=$(sha256sum "$APPIMAGE_PATH" | cut -d' ' -f1)
