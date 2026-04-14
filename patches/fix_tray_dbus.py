@@ -45,9 +45,11 @@ def patch_tray_dbus(filepath):
         print(f"  [OK] menuBarEnabled listener: found tray function '{tray_func.decode()}'")
 
     # Step 2: Find tray variable name
+    # Look for `let XX=null;` (or `let XX;`) right before `function TRAY_FUNC`
+    # The let may not be immediately after `});` — other code can sit in between
     tray_var = None
     if tray_func:
-        pattern = rb"\}\);let (\w+)=null;(?:async )?function " + tray_func
+        pattern = rb"let ([\w$]+)=null;(?:async )?function " + tray_func
         match = re.search(pattern, content)
         if not match:
             print("  [FAIL] tray variable: 0 matches, expected >= 1")

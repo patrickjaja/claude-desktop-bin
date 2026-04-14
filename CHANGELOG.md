@@ -2,6 +2,29 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-14 (v1.2581.0) — Upstream update, all patches applied (1 fixed)
+
+### Upstream
+- **Version bump:** v1.2278.0 → v1.2581.0
+- **New feature: `coworkKappa`** — 19th feature flag added. Static entry `sPn()` always unavailable; async override `aPn()` depends on `yukonSilver` + GrowthBook flag `123929380`. Gates a `consolidate-memory` skill ("Reflective pass over memory files — merge duplicates, fix stale facts, prune the index") and session context building for typeless sessions. No Linux patch needed — inherits yukonSilver support from our existing override; availability controlled by server-side flag.
+- Async merger `jue` now uses 3-way `Promise.all([tPn(), Xsr(), aPn()])` (was 2-way) adding `coworkKappa` alongside `louderPenguin` and `operon`
+- Function renames: `eA()`→`iA()` (static registry), `yue`→`jue` (async merger), `CEe()`→`XEe()` (gate function), `Zr()`→`Yr()` (flag reader)
+- Platform variables renamed: `vs`→`_s` (win32), `IOe`→`c3e` (darwin||win32)
+- 1 new GrowthBook boolean flag: `123929380` (coworkKappa / consolidate-memory skill)
+- 1 removed GrowthBook flag: `4040257062` (memory path routing — was new in v1.1348.0)
+- Same 6 MCP servers (Chrome, mcp-registry, office-addin, radar, visualize, computer-use)
+
+### Patches
+- **Fixed: `fix_tray_dbus.py`** — tray variable pattern was too strict: used `\w+` which can't match `$` in JS identifiers (tray variable is now `$m`), and required `});` immediately before `let XX=null;` but the event listener registration now sits in between. Changed to `[\w$]+` and removed the `\}\);` prefix from the pattern.
+- All other 34 patches applied without modification — `[\w$]+` regex patterns handled the renames automatically
+
+### Documentation
+- **CLAUDE_FEATURE_FLAGS.md** — added `coworkKappa` (19th feature), updated all function names, added flag `123929380`, removed flag `4040257062`, version history entry
+- **CLAUDE_BUILT_IN_MCP.md** — version number updated
+- **CHANGELOG.md** — this entry
+
+---
+
 ## 2026-04-14 (v1.2278.0) — Upstream update, all patches applied (3 fixed)
 
 ### Upstream
