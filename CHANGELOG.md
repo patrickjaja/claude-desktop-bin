@@ -6,7 +6,7 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 
 ### Upstream
 - **Version bump:** v1.2278.0 → v1.2581.0
-- **New feature: `coworkKappa`** — 19th feature flag added. Static entry `sPn()` always unavailable; async override `aPn()` depends on `yukonSilver` + GrowthBook flag `123929380`. Gates a `consolidate-memory` skill ("Reflective pass over memory files — merge duplicates, fix stale facts, prune the index") and session context building for typeless sessions. No Linux patch needed — inherits yukonSilver support from our existing override; availability controlled by server-side flag.
+- **New feature: `coworkKappa`** — 19th feature flag added. Static entry `sPn()` always unavailable; async override `aPn()` depends on `yukonSilver` + GrowthBook flag `123929380`. Gates a `consolidate-memory` skill ("Reflective pass over memory files — merge duplicates, fix stale facts, prune the index") and auto-memory directory for typeless sessions. **Enabled on Linux** — forced flag `123929380` to true (3 call sites) and added merger override. Purely local file I/O, no VM needed.
 - Async merger `jue` now uses 3-way `Promise.all([tPn(), Xsr(), aPn()])` (was 2-way) adding `coworkKappa` alongside `louderPenguin` and `operon`
 - Function renames: `eA()`→`iA()` (static registry), `yue`→`jue` (async merger), `CEe()`→`XEe()` (gate function), `Zr()`→`Yr()` (flag reader)
 - Platform variables renamed: `vs`→`_s` (win32), `IOe`→`c3e` (darwin||win32)
@@ -16,6 +16,7 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 
 ### Patches
 - **Fixed: `fix_tray_dbus.py`** — tray variable pattern was too strict: used `\w+` which can't match `$` in JS identifiers (tray variable is now `$m`), and required `});` immediately before `let XX=null;` but the event listener registration now sits in between. Changed to `[\w$]+` and removed the `\}\);` prefix from the pattern.
+- **Enhanced: `enable_local_agent_mode.py`** — added `coworkKappa` as 9th feature override in merger + bypassed GrowthBook flag `123929380` (3 call sites). Enables `/consolidate-memory` skill and auto-memory directory for sessions on Linux.
 - All other 34 patches applied without modification — `[\w$]+` regex patterns handled the renames automatically
 
 ### ARM64 / Raspberry Pi 5

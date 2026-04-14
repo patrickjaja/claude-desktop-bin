@@ -215,7 +215,7 @@ Calls `jue`, validates the result against a Zod schema, and sends it to the rend
 
 | Flag ID | Purpose | Patched? |
 |---------|---------|----------|
-| `123929380` | coworkKappa / `consolidate-memory` skill — reflective pass over memory files (merge, prune, fix). Also gates session context building for typeless sessions. | No (server-side gated; yukonSilver support inherited) |
+| `123929380` | coworkKappa / `consolidate-memory` skill — reflective pass over memory files (merge, prune, fix). Also gates session context building for typeless sessions. | **Yes** — forced ON in `enable_local_agent_mode.py` (3 call sites) |
 
 #### Removed in v1.2581.0
 
@@ -296,7 +296,7 @@ This bypasses the XEe() gate by overriding at the merger level (8 total override
 ...our overrides  -> quietPenguin: {status:"supported"}    (wins)
 ```
 
-Note: `chillingSlothLocal` and `ccdPlugins` overrides are defensive — both are already `{status:"supported"}`, but the overrides protect against future gating. `yukonSilverGemsCache` is NOT overridden but inherits support from the `Uue()` (yukonSilver) function patch in Patch 1b. `coworkKappa` is NOT overridden — it depends on server-side flag `123929380` and inherits yukonSilver support from our patch.
+Note: `chillingSlothLocal` and `ccdPlugins` overrides are defensive — both are already `{status:"supported"}`, but the overrides protect against future gating. `yukonSilverGemsCache` is NOT overridden but inherits support from the `Uue()` (yukonSilver) function patch in Patch 1b. `coworkKappa` is overridden to `{status:"supported"}` AND its GrowthBook flag `123929380` is forced ON (Patch 3b) — this enables the `/consolidate-memory` skill and auto-memory directory for sessions.
 
 ### Cowork on Linux (experimental)
 
@@ -448,7 +448,7 @@ Defined in `ODt` array alongside `AskUserQuestion` and `ExitPlanMode`. UI comman
 | `wakeScheduler` | Requires macOS Login Items API + macOS >= 13.0 |
 | `floatingAtoll` | macOS window button positioning, disabled for all platforms |
 | `operon` | Requires VM infrastructure (Nest); flag not enabled server-side |
-| `coworkKappa` | Server-side gated (flag `123929380`); inherits yukonSilver from our override; no separate patch needed |
+| ~~`coworkKappa`~~ | **Enabled on Linux** — flag `123929380` forced ON + merger override in `enable_local_agent_mode.py` |
 
 ### Known Issues (v1.2581.0)
 
