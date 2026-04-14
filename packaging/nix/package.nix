@@ -111,7 +111,7 @@ stdenvNoCC.mkDerivation {
     description = "Claude AI Desktop Application for Linux";
     homepage = "https://claude.ai";
     license = licenses.unfree;
-    platforms = [ "x86_64-linux" ];
+    platforms = [ "x86_64-linux" "aarch64-linux" ];
     maintainers = [ ];
     mainProgram = "claude-desktop";
   };

@@ -4,7 +4,7 @@
 """
 Enable Code and Cowork features on Linux.
 
-Four-part patch:
+Multi-part patch:
 1. Individual function patch: Remove platform!=="darwin" gate from both
    chillingSlothFeat and quietPenguin functions in Oh() (static layer).
    Cowork tab is functional when claude-cowork-service daemon is running.
@@ -14,8 +14,11 @@ Four-part patch:
 3. mC() merger patch: Override features at the async merger layer.
    Enables quietPenguin/louderPenguin (Code tab, bypasses QL gate),
    chillingSlothFeat/chillingSlothLocal/yukonSilver/yukonSilverGems (Cowork),
-   ccdPlugins (Plugin UI), and computerUse (Computer Use on Linux)
-   with {status:"supported"}.
+   ccdPlugins (Plugin UI), computerUse (Computer Use on Linux), and
+   coworkKappa (memory consolidation skill) with {status:"supported"}.
+3b. coworkKappa GrowthBook flag bypass: Force flag 123929380 to true.
+   Gates the consolidate-memory skill, auto-memory dir for sessions,
+   and coworkKappa async status. All purely local file I/O — no VM needed.
 4. Preferences defaults patch: Change louderPenguinEnabled and
    quietPenguinEnabled defaults from false to true so the renderer
    (claude.ai web content) enables the Code tab UI.
@@ -131,7 +134,7 @@ def patch_local_agent_mode(filepath):
     # Format varies across versions:
     #   Old (≤v1.1.9310): const X=async()=>({...Oh(),...,louderPenguin:await fwt()})
     #   New (≥v1.1.9493): const X=async()=>{...;return{...vw(),louderPenguin:t,operon:e}};
-    overrides = b',quietPenguin:{status:"supported"},louderPenguin:{status:"supported"},chillingSlothFeat:{status:"supported"},chillingSlothLocal:{status:"supported"},yukonSilver:{status:"supported"},yukonSilverGems:{status:"supported"},ccdPlugins:{status:"supported"},computerUse:{status:"supported"}'
+    overrides = b',quietPenguin:{status:"supported"},louderPenguin:{status:"supported"},chillingSlothFeat:{status:"supported"},chillingSlothLocal:{status:"supported"},yukonSilver:{status:"supported"},yukonSilverGems:{status:"supported"},ccdPlugins:{status:"supported"},computerUse:{status:"supported"},coworkKappa:{status:"supported"}'
 
     # New format: return{...FUNC(),...props}};
     # Note: [\w$]+ because minified names can start with $ (e.g. $w)
@@ -143,17 +146,35 @@ def patch_local_agent_mode(filepath):
         count3 = 1
 
     if count3 >= 1:
-        print(f"  [OK] mC() feature merger: 8 features overridden ({count3} match)")
+        print(f"  [OK] mC() feature merger: 9 features overridden ({count3} match)")
     else:
         # Fallback: old format const X=async()=>({...Oh(),...,await fn()})
         pattern3_old = rb"(const [\w$]+=async\(\)=>\(\{\.\.\.[\w$]+\(\),[^}]+)(await [\w$]+\(\))\}\)"
         replacement3_old = rb"\1\2" + overrides + rb"})"
         content, count3 = re.subn(pattern3_old, replacement3_old, content)
         if count3 >= 1:
-            print(f"  [OK] mC() feature merger: 8 features overridden (old format, {count3} match)")
+            print(f"  [OK] mC() feature merger: 9 features overridden (old format, {count3} match)")
         else:
             print("  [FAIL] mC() feature merger: 0 matches, expected 1")
             failed = True
+
+    # Patch 3b: Enable coworkKappa GrowthBook flag (123929380) on Linux
+    # This flag gates:
+    #   1. consolidate-memory skill (isEnabled:()=>Yr("123929380"))
+    #   2. Auto-memory directory for typeless sessions (getAutoMemoryDirForSession)
+    #   3. coworkKappa async status check (aPn)
+    # All 3 are purely local operations (memory file management, path resolution).
+    # No VM or server-side infrastructure needed.
+    # Use [\w$]+ for the flag reader function name (changes every release).
+    kappa_pattern = rb'[\w$]+\("123929380"\)'
+    content, kappa_applied = re.subn(kappa_pattern, b"!0", content)
+    if kappa_applied >= 3:
+        print(f"  [OK] coworkKappa flag 123929380: forced ON ({kappa_applied} matches)")
+    elif kappa_applied > 0:
+        print(f"  [WARN] coworkKappa flag 123929380: only {kappa_applied}/3 matches (expected 3)")
+    else:
+        print("  [FAIL] coworkKappa flag 123929380: 0 matches")
+        failed = True
 
     # Check results
     if failed:

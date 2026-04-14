@@ -190,9 +190,9 @@ cd claude-desktop-bin
 
 > **Note:** Source builds do not receive automatic updates. Pull and rebuild to update.
 
-### ARM64 / aarch64 (NVIDIA DGX Spark, Jetson, etc.)
+### ARM64 / aarch64 (Raspberry Pi 5, NVIDIA DGX Spark, Jetson, etc.)
 
-ARM64 .deb and .rpm packages are available for platforms like **NVIDIA DGX Spark** (Ubuntu 24.04 arm64) and **Jetson** (JetPack/Ubuntu 22.04 arm64).
+ARM64 .deb, .rpm, AppImage, and Nix packages are available for platforms like **Raspberry Pi 5** (Raspberry Pi OS 64-bit / Ubuntu arm64), **NVIDIA DGX Spark** (Ubuntu 24.04 arm64), and **Jetson** (JetPack/Ubuntu 22.04 arm64). All features including the integrated terminal are supported on ARM64.
 
 ```bash
 # Debian/Ubuntu ARM64 (via APT repo)

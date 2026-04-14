@@ -479,6 +479,18 @@ jobs:
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y wget unzip file zsync
 
+      - name: Set up QEMU for ARM64
+        if: matrix.arch == 'aarch64'
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Rebuild node-pty for aarch64
+        if: matrix.arch == 'aarch64'
+        run: |
+          TARBALL="claude-desktop-${{ needs.check-version.outputs.version }}-linux.tar.gz"
+          bash scripts/rebuild-pty-for-arch.sh --arch aarch64 "$TARBALL"
+
       - name: Get Electron version
         id: electron
         run: |
@@ -560,6 +572,12 @@ jobs:
         with:
           platforms: arm64
 
+      - name: Rebuild node-pty for arm64
+        if: matrix.arch == 'arm64'
+        run: |
+          TARBALL="claude-desktop-${{ needs.check-version.outputs.version }}-linux.tar.gz"
+          bash scripts/rebuild-pty-for-arch.sh --arch arm64 "$TARBALL"
+
       - name: Build Debian Package (${{ matrix.arch }})
         env:
           VERSION: ${{ needs.check-version.outputs.version }}
@@ -639,23 +657,11 @@ jobs:
         with:
           platforms: arm64
 
-      - name: Strip x86_64 native modules for aarch64
+      - name: Rebuild node-pty for aarch64
         if: matrix.arch == 'aarch64'
         run: |
           TARBALL="claude-desktop-${{ needs.check-version.outputs.version }}-linux.tar.gz"
-          REPACK_DIR=$(mktemp -d)
-          tar xzf "$TARBALL" -C "$REPACK_DIR"
-
-          # Remove x86_64 pty.node — rpmbuild would flag it as requiring x86_64 glibc
-          PTY_NODE="$REPACK_DIR/app/app.asar.unpacked/node_modules/node-pty/build/Release/pty.node"
-          if [ -f "$PTY_NODE" ] && file "$PTY_NODE" | grep -q "x86-64"; then
-            echo "Removing x86_64 pty.node from aarch64 tarball (terminal unavailable on arm64)"
-            rm -f "$PTY_NODE"
-          fi
-
-          cd "$REPACK_DIR"
-          tar -czf "$OLDPWD/$TARBALL" app/ icons/ launcher/
-          rm -rf "$REPACK_DIR"
+          bash scripts/rebuild-pty-for-arch.sh --arch aarch64 "$TARBALL"
 
       - name: Build RPM Package (${{ matrix.arch }})
         env:

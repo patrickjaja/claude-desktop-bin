@@ -18,6 +18,13 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 - **Fixed: `fix_tray_dbus.py`** — tray variable pattern was too strict: used `\w+` which can't match `$` in JS identifiers (tray variable is now `$m`), and required `});` immediately before `let XX=null;` but the event listener registration now sits in between. Changed to `[\w$]+` and removed the `\}\);` prefix from the pattern.
 - All other 34 patches applied without modification — `[\w$]+` regex patterns handled the renames automatically
 
+### ARM64 / Raspberry Pi 5
+- **ARM64 integrated terminal** — node-pty is now cross-compiled for arm64 via Docker + QEMU in CI, replacing the old "strip x86_64 pty.node" workaround. All ARM64 packages (deb, rpm, AppImage) now include a working integrated terminal.
+- **New: `scripts/rebuild-pty-for-arch.sh`** — reusable script for cross-compiling node-pty to any target architecture. Verifies the produced binary matches the target arch.
+- **Nix aarch64-linux** — `packaging/nix/package.nix` now lists `aarch64-linux` in `meta.platforms`
+- **Raspberry Pi 5** — added to supported devices in README alongside DGX Spark and Jetson
+- **`enable_local_agent_mode.py`** — added `coworkKappa:{status:"supported"}` to feature merger overrides and force-enabled GrowthBook flag `123929380` (consolidate-memory skill, auto-memory for typeless sessions)
+
 ### Documentation
 - **CLAUDE_FEATURE_FLAGS.md** — added `coworkKappa` (19th feature), updated all function names, added flag `123929380`, removed flag `4040257062`, version history entry
 - **CLAUDE_BUILT_IN_MCP.md** — version number updated
