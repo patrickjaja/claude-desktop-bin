@@ -65,10 +65,24 @@ def patch_locale_paths(filepath):
         with open(filepath, "wb") as f:
             f.write(content)
         print("  [PASS] All required patterns matched and applied")
-        return True
     else:
         print("  [WARN] No changes made (patterns may have already been applied)")
-        return True
+
+    # Also patch index.pre.js if it exists (new in v1.2278.0 — bootstrap file)
+    pre_js = os.path.join(os.path.dirname(filepath), "index.pre.js")
+    if os.path.exists(pre_js):
+        with open(pre_js, "rb") as f:
+            pre_content = f.read()
+        pre_count = pre_content.count(old_resource_path)
+        if pre_count > 0:
+            pre_content = pre_content.replace(old_resource_path, new_resource_path)
+            with open(pre_js, "wb") as f:
+                f.write(pre_content)
+            print(f"  [OK] index.pre.js: process.resourcesPath patched ({pre_count} match)")
+        else:
+            print("  [INFO] index.pre.js: no process.resourcesPath (already patched or absent)")
+
+    return True
 
 
 if __name__ == "__main__":

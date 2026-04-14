@@ -399,7 +399,7 @@ The package applies several patches to make Claude Desktop work on Linux. Each p
 | `fix_cowork_error_message.py` | Replaces Windows VM errors with Linux-friendly guidance | String literal match |
 | `fix_cowork_linux.py` | Enables Cowork — VM client, Unix socket, bundle config, binary resolution | `rg -o '.{0,50}vmClient.{0,50}' index.js` |
 | `fix_cowork_sandbox_refs.py` | Replaces VM/sandbox system prompts and tool descriptions with accurate host-system text | `rg 'lightweight Linux VM\|isolated Linux' index.js` |
-| `fix_cowork_first_bash.py` | Fixes first bash command returning empty output — events socket race condition | `rg -o 'ZVt.*await Sq' index.js` |
+| `fix_cowork_first_bash.py` | Fixes first bash command returning empty output — events socket race condition | `rg -o 'subscribeEvents' index.js` |
 | `fix_cowork_spaces.py` | File-based CoworkSpaces service (CRUD, file ops, events) | `rg -o 'CoworkSpaces' index.js` |
 | `fix_cross_device_rename.py` | EXDEV fallback for cross-filesystem file moves | Uses `.rename(` literal |
 | `fix_detected_projects_linux.py` | Enables detected projects with Linux IDE paths (VSCode, Cursor, Zed) | `rg -o 'detectedProjects.{0,50}' index.js` |
