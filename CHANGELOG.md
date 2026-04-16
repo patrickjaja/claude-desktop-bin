@@ -2,6 +2,26 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-16 (v1.2773.0) — Upstream update, all patches applied (no fixes needed)
+
+### Upstream
+- **Version bump:** v1.2581.0 → v1.2773.0
+- Same 19 features, no additions or removals
+- `chillingSlothFeat` gate changed: `process.platform!=="darwin"` → `r6e` (darwin||win32 combined variable). Our patches handle this gracefully (Patch 1 finds 1 match instead of 2, elif branch; Patch 3 merger override still forces supported)
+- `floatingAtoll` now always `{status:"supported"}` unconditionally (was preference-gated via `floatingAtollActive` + GrowthBook `1985802636` listener). Listener for `1985802636` removed
+- Function renames: `iA()`→`Hb()` (static registry), `jue`→`Mle` (async merger), `XEe()`→`G1e()` (gate function), `Yr()`→`Wr()` (flag reader), `VI()`→`QR()` (listener), `xs()`→`us()` / `_A()`→`cA()` (value flags)
+- Platform variables renamed: `_s`→`vs` (win32), `c3e`→`r6e` (darwin||win32), new named `pi` (darwin)
+- MCP registration function renamed: `One()`→`ooe()`
+- Computer-use Set variable renamed: `ese`→`ele`, checker `Lte()`→`Jne()`
+- 4 new GrowthBook flags: `919950191` (LAM tool search), `2140326016` (author stubs error), `2216480658` (VM outputs), `3858743149` (maxThinkingTokens config, default 4000)
+- 3 removed GrowthBook flags: `1585356617` (epitaxy routing), `2199295617` (AutoArchiveEngine), `4201169164` (remote orchestrator — was already hardcoded off)
+- Same 17 MCP servers (Chrome, mcp-registry, office-addin, radar, computer-use, terminal, visualize, scheduled-tasks, cowork-onboarding, dev-debug, plugins, Claude Preview, dispatch, cowork, session_info, workspace, ccd_session)
+
+### Patches
+- All 40 patches applied without modification (39 Python + 1 JS) — `[\w$]+` regex patterns handled all renames automatically
+
+---
+
 ## 2026-04-15 — Fix integrated terminal (node-pty) loading on all distros
 
 ### Bug Fix

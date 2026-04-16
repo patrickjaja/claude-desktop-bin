@@ -1,8 +1,8 @@
-# Built-in MCP Servers — Claude Desktop v1.2581.0
+# Built-in MCP Servers — Claude Desktop v1.2773.0
 
 Claude Desktop registers internal MCP servers via a two-layer architecture:
 
-1. **Renderer-facing layer (`One()`)** — servers accessible from the BrowserView via Electron `MessageChannelMain` ports
+1. **Renderer-facing layer (`ooe()`)** — servers accessible from the BrowserView via Electron `MessageChannelMain` ports
 2. **Backend/session layer (`zZr`/`VZr`)** — servers providing tools to CCD/Cowork sessions
 
 A server may appear in both layers (e.g., Chrome, mcp-registry) or only one.
@@ -10,14 +10,14 @@ A server may appear in both layers (e.g., Chrome, mcp-registry) or only one.
 ## Registration System
 
 ```
-One(serverName, displayLabel, factoryFn)
+ooe(serverName, displayLabel, factoryFn)
 ```
 
 - Lazy singleton factory per server name
 - UUID display label sent to renderer for identification
 - Server list and instantiation managed via helper functions
 
-## Renderer-Facing Servers (via `Are()`)
+## Renderer-Facing Servers (via `ooe()`)
 
 ### 1. Claude in Chrome
 
@@ -62,7 +62,7 @@ Communicates with the Chrome browser extension via Unix socket at `/tmp/claude-m
 | Platform | All |
 | Gating | Always enabled |
 
-The `One()` registration is a **stub returning no tools**. Actual tools are provided via the backend session layer.
+The `ooe()` registration is a **stub returning no tools**. Actual tools are provided via the backend session layer.
 
 **Tools (via P8t):**
 
@@ -93,7 +93,7 @@ Communicates via WebSocket to `wss://localhost:8766` (configurable via `OFFICE_A
 | `open_office_file` | Open an Office file and the Claude add-in panel |
 | `close_office_file` | Close a currently open Office file |
 
-## Backend-Only Servers (via `zZr`/`VZr`, not `Are()`)
+## Backend-Only Servers (via `zZr`/`VZr`, not `ooe()`)
 
 These are accessible to CCD/Cowork sessions but not directly from the renderer.
 
@@ -199,11 +199,11 @@ Browser interaction (30-second timeout each):
 |-------|-------|
 | Server name | `"terminal"` (constant `Egi`) |
 | Factory | `xgi()` via `getTerminalServerDef` |
-| Platform | **All** (macOS, Windows, Linux) — upstream regressed in v1.1348.0 to `g5e` (darwin\|\|win32 only, renamed from `z5e`), but `fix_dispatch_linux.py` patches `g5e` to include Linux |
-| Gating | `t.sessionType === "ccd"` AND `g5e` platform check AND server flag `397125142` |
+| Platform | **All** (macOS, Windows, Linux) — upstream uses `r6e` (darwin\|\|win32 only), but `fix_dispatch_linux.py` patches `r6e` to include Linux |
+| Gating | `t.sessionType === "ccd"` AND `r6e` platform check AND server flag `397125142` |
 | Session types | **CCD only** — NOT available in Cowork sessions. The `sessionType==="ccd"` check is hardcoded in `isEnabled` |
 | Backend | `node-pty` — spawns a PTY shell, streams output to xterm.js terminal panel in the UI |
-| Linux status | **Works** — `g5e` patched by `fix_dispatch_linux.py`, node-pty rebuilt from source by `build-patched-tarball.sh` |
+| Linux status | **Works** — `r6e` patched by `fix_dispatch_linux.py`, node-pty rebuilt from source by `build-patched-tarball.sh` |
 
 | Tool | Description |
 |------|-------------|
@@ -301,7 +301,7 @@ The `spawn_task` tool requires desktop approval card injection — cannot be aut
 
 ## Per-Session Dynamic MCP Servers (SDK-type)
 
-Claude Desktop creates 4 additional MCP servers **dynamically per cowork/dispatch session**. These are NOT registered via `Are()` — they are created inline in the session manager and passed to the Claude Code CLI via `sdkMcpServers` in `--mcp-config`.
+Claude Desktop creates 4 additional MCP servers **dynamically per cowork/dispatch session**. These are NOT registered via `ooe()` — they are created inline in the session manager and passed to the Claude Code CLI via `sdkMcpServers` in `--mcp-config`.
 
 **Communication:** SDK-type servers use `MessagePort` bridges. On Mac/Windows, the VM SDK daemon (`nodeHost.js`) provides this bridge via vsock. On Linux native, `cowork-svc-linux` now **passes `--mcp-config` through unchanged** (since commit `d1dfc3b`). The CLI sends `control_request` messages on stdout, which flow through the event stream to Claude Desktop. Desktop's session manager intercepts them and sends `control_response` back via writeStdin — identical to VM mode on Mac/Windows.
 
@@ -408,9 +408,9 @@ Linux native (current, since cowork-svc commit d1dfc3b):
 
 ### Dynamic Per-Artifact MCP Servers (`cowork-artifact-<id>`)
 
-When a Cowork session creates artifacts, Claude Desktop registers **dynamic** MCP servers named `cowork-artifact-<uuid>` for each artifact. These are NOT statically registered via `One()` — they are created inline per artifact. The `cowork-artifact` string also serves as an Electron custom protocol scheme (`cowork-artifact:`) for rendering artifact content in the UI.
+When a Cowork session creates artifacts, Claude Desktop registers **dynamic** MCP servers named `cowork-artifact-<uuid>` for each artifact. These are NOT statically registered via `ooe()` — they are created inline per artifact. The `cowork-artifact` string also serves as an Electron custom protocol scheme (`cowork-artifact:`) for rendering artifact content in the UI.
 
-**Not a static server** — no tools to document. Calls route via `callRemoteTool("cowork-artifact-<id>", ...)`.
+**Not a static server** — no tools to document. Not registered via `ooe()`. Calls route via `callRemoteTool("cowork-artifact-<id>", ...)`.
 
 ### Anthropic API Built-in Tool: `web_search`
 
@@ -449,8 +449,8 @@ disallowedTools: ["AskUserQuestion", "mcp__cowork__allow_cowork_file_delete",
 | Server name | `"computer-use"` (constant `p6t`) |
 | Tool prefix | `mcp__computer-use__` |
 | Platform | macOS (native), **Linux (patched)** |
-| Gating (macOS/Windows) | Set-based: `Lte()` checks `Hae = new Set(["darwin","win32"])` + `chicagoEnabled` preference |
-| Gating (Linux) | Enabled via Set modification (add "linux" to `ese`) + feature flag and preference bypassed |
+| Gating (macOS/Windows) | Set-based: `Jne()` checks `ele = new Set(["darwin","win32"])` + `chicagoEnabled` preference |
+| Gating (Linux) | Enabled via Set modification (add "linux" to `ele`) + feature flag and preference bypassed |
 | Internal codename | "chicago" |
 
 **Background:** Computer-use was previously a separate `computer-use-server.js` file in the app root (removed in v1.1.7714). As of v1.1.8359, it's fully integrated into `index.js` as an internal MCP server. In v1.1.9134, 5 new tools were added (multi-monitor, batch actions, teach mode).
@@ -504,7 +504,7 @@ Uses `createDarwinExecutor()` → `@ant/claude-swift` native module for screen c
 | # | Sub-patch | What it does |
 |---|-----------|-------------|
 | 1 | Inject `__linuxExecutor` | Linux executor using xdotool/scrot/Electron APIs at `app.on("ready")` |
-| 2 | Add "linux" to `Hae` Set | `new Set(["darwin","win32"])` → `new Set(["darwin","win32","linux"])` — fixes all `Lte()` gates (server push, chicagoEnabled, overlay init) |
+| 2 | Add "linux" to `ele` Set | `new Set(["darwin","win32"])` → `new Set(["darwin","win32","linux"])` — fixes all `Jne()` gates (server push, chicagoEnabled, overlay init) |
 | 3 | Patch `createDarwinExecutor` | Return `__linuxExecutor` on Linux instead of throwing |
 | 4 | Patch `ensureOsPermissions` | Return `{granted: true}` on Linux (skip macOS TCC checks) |
 | 5 | Bypass permission model | Direct tool dispatch on Linux, skip allowlist/tier system |
@@ -542,7 +542,7 @@ Uses `createDarwinExecutor()` → `@ant/claude-swift` native module for screen c
 
 - **Claude in Chrome**: Works on Linux via `fix_browser_tools_linux.py` — redirects native host binary to Claude Code's `~/.claude/chrome/chrome-native-host` and installs NativeMessagingHosts manifests for 6 Linux browsers (Chrome, Chromium, Brave, Edge, Vivaldi, Opera). Requires Claude Code CLI and the [Claude in Chrome](https://chromewebstore.google.com/detail/claude-code/fcoeoabgfenejglbffodgkkbkcdhcgfn) extension.
 - **Office Add-in**: Platform-gated to macOS/Windows. Patched to enable on Linux via `fix_office_addin_linux.py`.
-- **Terminal (`read_terminal`)**: CCD sessions only — `isEnabled` checks `sessionType==="ccd"` (hardcoded, not patchable without changing session semantics). NOT available in Cowork sessions. In Cowork, the model uses `mcp__workspace__bash` instead which runs directly on the host. Platform gate `g5e` patched by `fix_dispatch_linux.py`. node-pty rebuilt by build script.
+- **Terminal (`read_terminal`)**: CCD sessions only — `isEnabled` checks `sessionType==="ccd"` (hardcoded, not patchable without changing session semantics). NOT available in Cowork sessions. In Cowork, the model uses `mcp__workspace__bash` instead which runs directly on the host. Platform gate `r6e` patched by `fix_dispatch_linux.py`. node-pty rebuilt by build script.
 - **Computer Use**: Works on Linux via `fix_computer_use_linux.py` — uses xdotool/scrot + Electron built-in APIs (clipboard, screen, desktopCapturer) instead of `@ant/claude-swift`. Available in Cowork and Code sessions.
 - **Visualize (Imagine)**: Enabled on Linux via `fix_imagine_linux.py` — forces GrowthBook flag `3444158716`. No platform gate. Renders SVG/HTML inline in cowork sessions.
 - **Radar**: Not yet activatable — server disabled at MCP level, session creation in renderer code. No platform gate. Future feature.
@@ -564,6 +564,7 @@ When active, Operon provides 14 "brain tools" (multi-agent delegation, skills, d
 
 | Version | Changes |
 |---------|---------|
+| v1.2773.0 | Registration function renamed `ooe()` (was `One()`). Computer-use Set variable `ese`→`ele` with `Jne()` checker (was `Lte()`). Platform gate variable `c3e`→`r6e`. `floatingAtoll` now always supported unconditionally (was preference-gated). No new MCP servers, no new tools. Same 17 servers. Variable renames only. All patches compatible. |
 | v1.2.234 | Registration function renamed `One()` (was `Are()`). **Terminal server now natively supports Linux** — `LRe = isDarwin \|\| isWin32 \|\| isLinux`, `fix_read_terminal_linux.py` patch removed. Computer-use platform gate changed to Set-based (`ese = new Set(["darwin","win32"])`) with `vee()` function. No new MCP servers or tools. Variable renames only. |
 | v1.1.9669 | Registration function renamed `Are()` (was `Pee()`). **New `computerUse` feature flag** in static registry (`jun()`, darwin-only) — computer use now gated by both MCP server registration AND feature flag. No new MCP servers or tools. `chillingSlothFeat` darwin gate re-introduced (was removed in v1.1.9134). Remote orchestrator (`4201169164`) removed from GrowthBook. Same 3 renderer-facing servers (Chrome, mcp-registry, office-addin) and same backend servers. Variable renames only. |
 | v1.1.9493 | Metadata-only re-release of v1.1.9310. JS bundles identical — no new MCP servers, tools, or IPC changes. Async feature merger restructured (`Promise.all` pattern). |
