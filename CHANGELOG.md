@@ -18,7 +18,8 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 - Same 17 MCP servers (Chrome, mcp-registry, office-addin, radar, computer-use, terminal, visualize, scheduled-tasks, cowork-onboarding, dev-debug, plugins, Claude Preview, dispatch, cowork, session_info, workspace, ccd_session)
 
 ### Patches
-- All 40 patches applied without modification (39 Python + 1 JS) — `[\w$]+` regex patterns handled all renames automatically
+- **Enhanced: `enable_local_agent_mode.py`** — added Patch 3c: force GrowthBook flag `159894531` to true (2 call sites). Without this, Desktop sets `ENABLE_TOOL_SEARCH="false"` as env var when spawning the CLI, silently overriding the user's `~/.claude/settings.json`. With the patch, CCD sessions get `"auto"` and LAM sessions get the correct gate value — matching macOS/Windows behavior.
+- All other 39 patches applied without modification (38 Python + 1 JS) — `[\w$]+` regex patterns handled all renames automatically
 
 ---
 

@@ -147,7 +147,7 @@ Calls `Mle`, validates the result against a Zod schema, and sends it to the rend
 
 | Flag ID | Purpose | Patched? |
 |---------|---------|----------|
-| `159894531` | ENABLE_TOOL_SEARCH ("auto"/"false") | No |
+| `159894531` | ENABLE_TOOL_SEARCH ("auto"/"false") — gates tool search env var for CCD and LAM sessions. Without patch, Desktop sets `ENABLE_TOOL_SEARCH="false"` overriding user's settings.json | **Yes** — forced ON in `enable_local_agent_mode.py` (2 call sites) |
 | `162211072` | Prompt suggestions enable | No |
 | `286376943` | Plugin skills for system prompt — gates `getPluginSkillsForSystemPrompt` (**new in v1.2278.0**) | No |
 | `397125142` | Terminal server — gated: `sessionType==="ccd"` AND `r6e` AND this flag. CCD only, NOT cowork. `r6e` patched by `fix_dispatch_linux.py`; flag itself not patched (enabled server-side) | No |
