@@ -177,28 +177,11 @@ def patch_local_agent_mode(filepath):
         print("  [FAIL] coworkKappa flag 123929380: 0 matches")
         failed = True
 
-    # Patch 3c: Enable ENABLE_TOOL_SEARCH GrowthBook flag (159894531) on Linux
-    # This flag controls the ENABLE_TOOL_SEARCH env var passed to the CLI:
-    #   - Site 1: CCD sessions → ENABLE_TOOL_SEARCH="auto" (was "false")
-    #   - Site 2: LAM sessions → _e=true (enables the 919950191 gate for LAM "true" override)
-    # Without this, Desktop sets ENABLE_TOOL_SEARCH="false" which overrides
-    # the user's ~/.claude/settings.json value. With it, users get "auto" (same
-    # as macOS/Windows) and can still override via settings.json for standalone CLI.
-    # Use [\w$]+ for the flag reader function name (changes every release).
-    tool_search_pattern = rb'[\w$]+\("159894531"\)'
-    content, tool_search_applied = re.subn(tool_search_pattern, b"!0", content)
-    if tool_search_applied >= 2:
-        print(f"  [OK] ENABLE_TOOL_SEARCH flag 159894531: forced ON ({tool_search_applied} matches)")
-    elif tool_search_applied > 0:
-        print(f"  [WARN] ENABLE_TOOL_SEARCH flag 159894531: only {tool_search_applied}/2 matches (expected 2)")
-    else:
-        print("  [FAIL] ENABLE_TOOL_SEARCH flag 159894531: 0 matches")
-        failed = True
-
-    # Check results
-    if failed:
-        print("  [FAIL] Required patterns did not match")
-        return False
+    # Note: Patch 3c (ENABLE_TOOL_SEARCH flag 159894531 bypass) removed in v1.3036.0.
+    # Upstream removed the GrowthBook-gated ENABLE_TOOL_SEARCH="false" override
+    # — the env var now passes through from the user's environment / settings.json
+    # without Desktop-side interference. Both flags 159894531 and 919950191 (LAM-specific)
+    # were removed from the bundle.
 
     # Patch 4: Change preferences defaults for Code features
     # The renderer (claude.ai web content) checks louderPenguinEnabled and

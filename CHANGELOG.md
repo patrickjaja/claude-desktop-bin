@@ -2,6 +2,29 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-16 (v1.3036.0) — Upstream update, 1 patch removed (obsolete)
+
+### Upstream
+- **Version bump:** v1.2773.0 → v1.3036.0
+- Same 19 features — no additions or removals
+- Function renames: `Hb()`→`nA()` (static registry), `Mle`→`ode` (async merger), `G1e()`→`ESe()` (gate function), `QR()`→`Xk()` (listener), `us()`→`fs()` / `cA()`→`wA()` (value flags), `ooe()`→`kce()` (MCP registration)
+- Platform variables renamed: `vs`→`xce` (win32), `r6e`→`UMe` (darwin||win32). `hi` (darwin) unchanged.
+- **`Wr()` boolean flag reader name unchanged** — first release in a while without a flag-reader rename
+- 4 new GrowthBook flags: `658929541` (LAM setModel buffer check / ccd_lock mitigation), `1496450144` (CLAUDE_CODE_ENABLE_TASKS env var), `2800354941` (plugin/skill alphabetical sort), `2815031518` (LocalSessionManager setModel buffer check / ccd_lock mitigation)
+- 3 removed GrowthBook flags: `159894531` (ENABLE_TOOL_SEARCH env-var override — upstream dropped the Desktop-side `"false"` override entirely, user settings.json now passes through), `919950191` (LAM-specific tool search), `2678455445` (MCP SDK server mode)
+- Same 17 MCP servers
+
+### Patches
+- **Removed: `enable_local_agent_mode.py` Patch 3c** — flag `159894531` no longer exists. Upstream removed the ENABLE_TOOL_SEARCH="false" Desktop override that the patch was working around. `ENABLE_TOOL_SEARCH` now passes through from the user's environment / `~/.claude/settings.json` without Desktop interference. The patch replaced the only failing sub-patch — everything else applied cleanly.
+- All other 39 patches (38 Python + 1 JS) applied without modification — `[\w$]+` regex patterns handled all renames automatically
+
+### Documentation
+- **CLAUDE_FEATURE_FLAGS.md** — updated all function names (static registry, async merger, gate function, listener, value-flag readers, MCP registration) and platform-variable names, added new flags section, removed flags section, version history entry
+- **CLAUDE_BUILT_IN_MCP.md** — version number updated, registration function rename noted, version history entry
+- **CHANGELOG.md** — this entry
+
+---
+
 ## 2026-04-16 (v1.2773.0) — Upstream update, all patches applied (no fixes needed)
 
 ### Upstream

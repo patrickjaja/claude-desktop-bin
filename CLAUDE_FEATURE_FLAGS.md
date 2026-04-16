@@ -1,14 +1,14 @@
 # Claude Desktop Feature Flag Architecture
 
-Reference documentation for the feature flag system in Claude Desktop's Electron app. This documents v1.2773.0 internals to aid patch maintenance.
+Reference documentation for the feature flag system in Claude Desktop's Electron app. This documents v1.3036.0 internals to aid patch maintenance.
 
 ## Overview
 
 19 feature flags are controlled by a 3-layer system:
 
-1. **`Hb()` (static)** - Calls individual feature functions, builds base object (18 features)
-2. **`Mle` (async merger)** - Spreads `Hb()`, adds `louderPenguin` + `operon` + `coworkKappa` as async overrides
-3. **IPC handler** - Calls `Mle`, validates against schema, sends to renderer
+1. **`nA()` (static)** - Calls individual feature functions, builds base object (18 features)
+2. **`ode` (async merger)** - Spreads `nA()`, adds `louderPenguin` + `operon` + `coworkKappa` as async overrides
+3. **IPC handler** - Calls `ode`, validates against schema, sends to renderer
 
 Feature name strings (`chillingSlothFeat`, `louderPenguin`, etc.) are runtime IPC identifiers, **not minified** - they are stable pattern anchors.
 
@@ -16,81 +16,81 @@ Feature name strings (`chillingSlothFeat`, `louderPenguin`, etc.) are runtime IP
 
 | # | Feature | Function | Gate | Purpose |
 |---|---------|----------|------|---------|
-| 1 | `nativeQuickEntry` | `vkn()` | `platform !== "darwin"` + macOS >= 13 | Native Quick Entry (macOS only) |
-| 2 | `quickEntryDictation` | `wkn()` | `platform !== "darwin"` + macOS >= 14.0 + mic | Quick Entry dictation |
-| 3 | `customQuickEntryDictationShortcut` | direct value `K1e` | None | Custom dictation shortcut value |
-| 4 | `plushRaccoon` | `G1e(() => K1e)` | **G1e() production gate** | Custom dictation shortcut (dev-gated) |
-| 5 | `quietPenguin` | `G1e(kkn)` | **G1e()** + inner `kkn()` returns supported on darwin | Code-related feature (dev-gated) |
-| 6 | `louderPenguin` | `await Pkn()` in Mle only | **async override** in Mle; platform gate (darwin/win32) + GrowthBook `4116586025` | **Code tab** |
-| 7 | `chillingSlothFeat` | `Akn()` | `r6e` variable check (darwin\|\|win32) | Local Agent Mode / Cowork |
-| 8 | `chillingSlothEnterprise` | `bkn()` | Org config check | Enterprise disable for Claude Code |
-| 9 | `chillingSlothLocal` | `Ekn()` | **None** (always supported) | Local sessions |
-| 10 | `yukonSilver` | `Ble()` | Platform/arch gate via `Skn()` + org config (has native Linux support!) | Secure VM |
-| 11 | `yukonSilverGems` | `J0t()` | Depends on `yukonSilver` (`Ble()`) | VM extensions |
-| 12 | `yukonSilverGemsCache` | `J0t()` | Depends on `yukonSilver` (`Ble()`) | VM extensions cache |
-| 13 | `wakeScheduler` | `G1e(Nkn)` | **G1e() gate** + `platform !== "darwin"` + macOS >= 13.0 | macOS Login Items / wake scheduling |
-| 14 | `desktopTopBar` | `$kn()` | **None** (always supported) | Desktop top bar |
-| 15 | `ccdPlugins` | `K1e` (constant) | **None** (always supported) | CCD Plugins UI (Add plugins, Browse plugins) |
-| 16 | `floatingAtoll` | `Rkn()` | **None** (always supported, unconditional) | Floating mini-window (was preference-gated, now always supported) |
-| 17 | `operon` | static: `Okn()` (unavailable) + async: `await Prr()` in Mle | blocks win32, checks `Ble()` (yukonSilver) + GrowthBook `1306813456` | Nest — 120+ IPC endpoints, 33 sub-interfaces |
-| 18 | `computerUse` | `Dkn()` | `Jne()` — Set-based check via `ele` | Computer use feature flag (**patched for Linux** via Set modification) |
-| 19 | `coworkKappa` | static: `Bkn()` (unavailable) + async: `await Mkn()` in Mle | Depends on `Ble()` (yukonSilver) + GrowthBook `123929380` | Memory consolidation — `consolidate-memory` skill |
+| 1 | `nativeQuickEntry` | `L4n()` | `platform !== "darwin"` + macOS >= 13 | Native Quick Entry (macOS only) |
+| 2 | `quickEntryDictation` | `F4n()` | `platform !== "darwin"` + macOS >= 14.0 + mic | Quick Entry dictation |
+| 3 | `customQuickEntryDictationShortcut` | direct value `SSe` | None | Custom dictation shortcut value |
+| 4 | `plushRaccoon` | `ESe(() => SSe)` | **ESe() production gate** | Custom dictation shortcut (dev-gated) |
+| 5 | `quietPenguin` | `ESe(W4n)` | **ESe()** + inner `W4n()` returns supported on darwin | Code-related feature (dev-gated) |
+| 6 | `louderPenguin` | `await J4n()` in ode only | **async override** in ode; platform gate (darwin/win32) + GrowthBook `4116586025` | **Code tab** |
+| 7 | `chillingSlothFeat` | `j4n()` | `UMe` variable check (darwin\|\|win32) | Local Agent Mode / Cowork |
+| 8 | `chillingSlothEnterprise` | `U4n()` | Org config check | Enterprise disable for Claude Code |
+| 9 | `chillingSlothLocal` | `q4n()` | **None** (always supported) | Local sessions |
+| 10 | `yukonSilver` | `ade()` | Platform/arch gate + org config (has native Linux support!) | Secure VM |
+| 11 | `yukonSilverGems` | `obt()` | Depends on `yukonSilver` (`ade()`) | VM extensions |
+| 12 | `yukonSilverGemsCache` | `obt()` | Depends on `yukonSilver` (`ade()`) | VM extensions cache |
+| 13 | `wakeScheduler` | `ESe(X4n)` | **ESe() gate** + `platform !== "darwin"` + macOS >= 13.0 | macOS Login Items / wake scheduling |
+| 14 | `desktopTopBar` | `K4n()` | **None** (always supported) | Desktop top bar |
+| 15 | `ccdPlugins` | `SSe` (constant) | **None** (always supported) | CCD Plugins UI (Add plugins, Browse plugins) |
+| 16 | `floatingAtoll` | `Z4n()` | **None** (always supported, unconditional) | Floating mini-window |
+| 17 | `operon` | static: `eDn()` (unavailable) + async: `await ior()` in ode | blocks win32, checks yukonSilver + GrowthBook `1306813456` | Nest — 120+ IPC endpoints, 33 sub-interfaces |
+| 18 | `computerUse` | `Y4n()` | Set-based check on `process.platform` | Computer use feature flag (**patched for Linux** via Set modification) |
+| 19 | `coworkKappa` | static: `tDn()` (unavailable) + async: `await rDn()` in ode | Depends on yukonSilver + GrowthBook `123929380` | Memory consolidation — `consolidate-memory` skill |
 
-## The G1e() Production Gate
+## The ESe() Production Gate
 
 ```javascript
-function G1e(t){return Se.app.isPackaged?{status:"unavailable"}:t()}
+function ESe(t){return Se.app.isPackaged?{status:"unavailable"}:t()}
 ```
 
-In production builds (`app.isPackaged === true`), G1e() returns `{status:"unavailable"}` **without calling** the wrapped function. Only in development builds does it call `t()`.
+In production builds (`app.isPackaged === true`), ESe() returns `{status:"unavailable"}` **without calling** the wrapped function. Only in development builds does it call `t()`.
 
-**Features gated by G1e():** `plushRaccoon`, `quietPenguin`, `wakeScheduler`
+**Features gated by ESe():** `plushRaccoon`, `quietPenguin`, `wakeScheduler`
 
-Note: `louderPenguin` is no longer in Hb() at all (was QL()-gated in earlier versions). It exists only in Mle as `await Pkn()`, which has its own platform gate (darwin/win32 only) + server feature flag check. `operon` now has both a static entry (`Okn()` returning unavailable) and an async override in Mle as `await Prr()` (with 5-second delay). `coworkKappa` is similarly async-only: static `Bkn()` returns unavailable, async `Mkn()` checks yukonSilver + flag `123929380`.
+Note: `louderPenguin` is no longer in nA() at all (was QL()-gated in earlier versions). It exists only in ode as `await J4n()`, which has its own platform gate (darwin/win32 only) + server feature flag check. `operon` now has both a static entry (unconditionally unavailable) and an async override in ode as `await ior()` (with 5-second delay). `coworkKappa` is similarly async-only: static returns unavailable, async `rDn()` checks yukonSilver + flag `123929380`.
 
 This is why patching the inner functions alone is insufficient - G1e() never calls them in packaged builds.
 
 ## The Three Layers
 
-### Layer 1: Hb() - Static Registry
+### Layer 1: nA() - Static Registry
 
 ```javascript
-function Hb(){
+function nA(){
   return{
-    nativeQuickEntry:vkn(),
-    quickEntryDictation:wkn(),
-    customQuickEntryDictationShortcut:K1e,
-    plushRaccoon:G1e(()=>K1e),
-    quietPenguin:G1e(kkn),
-    chillingSlothFeat:Akn(),           // r6e variable check (darwin||win32)
-    chillingSlothEnterprise:bkn(),
-    chillingSlothLocal:Ekn(),
-    yukonSilver:Ble(),
-    yukonSilverGems:J0t(),
-    yukonSilverGemsCache:J0t(),
-    wakeScheduler:G1e(Nkn),
-    operon:Okn(),                      // always unavailable
-    desktopTopBar:$kn(),
-    ccdPlugins:K1e,                    // constant {status:"supported"}
-    floatingAtoll:Rkn(),               // always supported (unconditional)
-    computerUse:Dkn(),                 // Jne() Set-based gate via ele
-    coworkKappa:Bkn()                  // always unavailable (async-only)
+    nativeQuickEntry:...,
+    quickEntryDictation:...,
+    customQuickEntryDictationShortcut:...,
+    plushRaccoon:ESe(()=>...),
+    quietPenguin:ESe(...),
+    chillingSlothFeat:j4n(),           // UMe variable check (darwin||win32)
+    chillingSlothEnterprise:...,
+    chillingSlothLocal:...,
+    yukonSilver:...,
+    yukonSilverGems:...,
+    yukonSilverGemsCache:...,
+    wakeScheduler:ESe(...),
+    operon:...,                        // always unavailable
+    desktopTopBar:...,
+    ccdPlugins:...,                    // constant {status:"supported"}
+    floatingAtoll:...,                 // always supported (unconditional)
+    computerUse:...,                   // Set-based gate, "linux" added by patch
+    coworkKappa:...                    // always unavailable (async-only)
   }
 }
 ```
 
-Returns 18 features synchronously. `K1e` is a constant `{status:"supported"}`. Features wrapped by `G1e()` are always `{status:"unavailable"}` in packaged builds.
+Returns 18 features synchronously. Features wrapped by `ESe()` are always `{status:"unavailable"}` in packaged builds.
 
-### Layer 2: Mle - Async Merger
+### Layer 2: ode - Async Merger
 
 ```javascript
-const Mle=async()=>{
-  const[t,e,r]=await Promise.all([Pkn(),Prr(),Mkn()]);
-  return{...Hb(),louderPenguin:t,operon:e,coworkKappa:r}
+const ode=async()=>{
+  const[t,e,r]=await Promise.all([J4n(),ior(),rDn()]);
+  return{...nA(),louderPenguin:t,operon:e,coworkKappa:r}
 };
 ```
 
-Uses `Promise.all` to parallelize louderPenguin (`Pkn()`), operon (`Prr()`), and coworkKappa (`Mkn()`) async checks. Spreads `Hb()` then adds the three as async overrides. `Pkn()` checks platform (darwin/win32) then checks server feature flag `4116586025`. `Prr()` introduces a 5-second delay, then blocks win32, checks `Ble()` (yukonSilver), and checks GrowthBook flag `1306813456`. `Mkn()` checks `Ble()` (yukonSilver), waits 5 seconds, then checks GrowthBook flag `123929380`.
+Uses `Promise.all` to parallelize louderPenguin (`J4n()`), operon (`ior()`), and coworkKappa (`rDn()`) async checks. Spreads `nA()` then adds the three as async overrides. `J4n()` checks platform (darwin/win32) then checks server feature flag `4116586025`. `ior()` introduces a 5-second delay, then blocks win32, checks yukonSilver, and checks GrowthBook flag `1306813456`. `rDn()` checks yukonSilver, waits 5 seconds, then checks GrowthBook flag `123929380`.
 
 **v1.1.3770 → v1.1.3918 changes:**
 - `chillingSlothEnterprise` moved from async-only (mC) to static (Fd)
@@ -141,13 +141,12 @@ Feature flags can also be affected by organization-level admin settings:
 
 Calls `Mle`, validates the result against a Zod schema, and sends it to the renderer process via IPC. The renderer uses these flags to conditionally render UI elements (e.g., Chat|Code toggle).
 
-## GrowthBook Flag Catalog (v1.2773.0)
+## GrowthBook Flag Catalog (v1.3036.0)
 
 ### Boolean Flags (Wr())
 
 | Flag ID | Purpose | Patched? |
 |---------|---------|----------|
-| `159894531` | ENABLE_TOOL_SEARCH ("auto"/"false") — gates tool search env var for CCD and LAM sessions. Without patch, Desktop sets `ENABLE_TOOL_SEARCH="false"` overriding user's settings.json | **Yes** — forced ON in `enable_local_agent_mode.py` (2 call sites) |
 | `162211072` | Prompt suggestions enable | No |
 | `286376943` | Plugin skills for system prompt — gates `getPluginSkillsForSystemPrompt` (**new in v1.2278.0**) | No |
 | `397125142` | Terminal server — gated: `sessionType==="ccd"` AND `r6e` AND this flag. CCD only, NOT cowork. `r6e` patched by `fix_dispatch_linux.py`; flag itself not patched (enabled server-side) | No |
@@ -170,7 +169,6 @@ Calls `Mle`, validates the result against a Zod schema, and sends it to the rend
 | `2349950458` | Scheduled task notifications | No |
 | `2392971184` | Replay user messages — adds `--replay-user-messages` to CLI args for session resume; also enables `/remote-control`/`/rc` command in dispatch (**new in v1.2278.0**) | No |
 | `2614807392` | Session feature A | No |
-| `2678455445` | MCP SDK server mode | No |
 | `2725876754` | Org CLI exec policies — gates reading `orgCliExecPolicies` for plugin tool permission checks (**new in v1.2278.0**) | No |
 | `2860753854` | System prompt override (via value) | No |
 | `2976814254` | Launch server (isAvailable check) | No |
@@ -215,7 +213,6 @@ Calls `Mle`, validates the result against a Zod schema, and sends it to the rend
 
 | Flag ID | Purpose | Patched? |
 |---------|---------|----------|
-| `919950191` | ENABLE_TOOL_SEARCH for LAM sessions (LAM-specific tool search gate) | No |
 | `2140326016` | Author-supplied bin stubs error enforcement | No |
 | `2216480658` | VM outputs directory mounting | No |
 | `3858743149` | `maxThinkingTokens` config (configurable thinking budget, default 4000, min 1024) | No |
@@ -227,6 +224,23 @@ Calls `Mle`, validates the result against a Zod schema, and sends it to the rend
 | `1585356617` | Epitaxy routing — SSH session routing | Completely removed |
 | `2199295617` | AutoArchiveEngine — auto-archives sessions when PRs close | Completely removed |
 | `4201169164` | Remote orchestrator ("manta") — was already hardcoded off | Completely removed |
+
+#### New in v1.3036.0
+
+| Flag ID | Purpose | Patched? |
+|---------|---------|----------|
+| `658929541` | LocalAgentModeSessionManager `setModel` buffer check — allows model-switch when `messageBuffer.length>0` (ccd_lock mitigation) | No |
+| `1496450144` | `CLAUDE_CODE_ENABLE_TASKS` env var — enables the new Tasks CLI feature (gated alongside `CLAUDE_CODE_SKIP_PRECOMPACT_LOAD`) | No |
+| `2800354941` | Alphabetical sort for plugin/skill lists and system-prompt skills — deterministic ordering | No |
+| `2815031518` | LocalSessionManager `setModel` buffer check — CCD-session equivalent of `658929541` (ccd_lock mitigation) | No |
+
+#### Removed in v1.3036.0
+
+| Flag ID | Was | Notes |
+|---------|-----|-------|
+| `159894531` | ENABLE_TOOL_SEARCH env-var override (was forced ON by our patch) | **Completely removed — the Desktop-side `ENABLE_TOOL_SEARCH="false"` override is gone. User's `~/.claude/settings.json` now passes through unmolested. Our Patch 3c was removed.** |
+| `919950191` | ENABLE_TOOL_SEARCH for LAM sessions (was new in v1.2773.0) | Completely removed |
+| `2678455445` | MCP SDK server mode | Completely removed |
 
 #### New in v1.2581.0
 
@@ -266,27 +280,29 @@ These dispatch-era flags were removed from GrowthBook boolean calls (code may st
 | `2199295617` | AutoArchiveEngine | Removed |
 | `2860753854` | System prompt override (boolean call) | Removed from boolean calls (still exists as value flag) |
 
-### Object/Value Flags (us())
+### Object/Value Flags (fs())
+
+`wA()` reads single-value flags; `fs()` reads multi-key object/value flags.
 
 | Flag ID | Type | Purpose |
 |---------|------|---------|
-| `254738541` | us() | Prompt text (**new in v1.1348.0**) |
-| `365342473` | cA() | shouldScrubTelemetry (default: `true`) (**new in v1.1348.0**) |
-| `476513332` | cA() | Update check interval ticks config |
-| `554317356` | cA() | Timer interval config |
-| `1677081600` | cA() | Custom prompt/instruction text |
-| `1748356779` | cA() | System prompt / user prompt template config |
-| `1893165035` | cA() | SDK error auto-recovery config (`{enabled, categories}`) — categories include `sdk_binary_missing`, `sandbox_deps_missing`, `filesystem_error` (**new in v1.2278.0**) |
-| `1978029737` | us() | Session config (skillsSyncIntervalMs, artifactMcpConcurrencyLimit, artifactSampleConcurrencyLimit, idleGraceMs, disableSessionsDiskCleanup, sessionsBridgePollIntervalMs, coworkMessageTimeoutMs, coworkWebFetchViaApi) |
-| `2860753854` | cA() | System prompt override text |
-| `2893011886` | us() | Wake scheduler config (enabled, scheduledTasksWakeEnabled, minLeadTimeMs, chainIntervalMs, batteryIntervalMs, acIntervalMs) |
-| `3300773012` | us() | Scheduled tasks config (skillDescription, skillPrompt, scheduledTaskPostWakeDelayMs, dispatchJitterMaxMinutes) |
-| `3586389629` | cA() | Connection timeout config |
-| `3758515526` | us() | Default marketplace repo config (repo, repoCCD) |
-| `3858743149` | us() | maxThinkingTokens config (default 4000, min 1024) (**new in v1.2773.0**) |
-| `4066504968` | us() | Setup-cowork skill config (skillDescription, skillPrompt) (**new in v1.1348.0**) |
+| `254738541` | fs() | Prompt text (**new in v1.1348.0**) |
+| `365342473` | wA() | shouldScrubTelemetry (default: `true`) (**new in v1.1348.0**) |
+| `476513332` | wA() | Update check interval ticks config |
+| `554317356` | wA() | Timer interval config |
+| `1677081600` | wA() | Custom prompt/instruction text |
+| `1748356779` | wA() | System prompt / user prompt template config |
+| `1893165035` | wA() | SDK error auto-recovery config (`{enabled, categories}`) — categories include `sdk_binary_missing`, `sandbox_deps_missing`, `filesystem_error` (**new in v1.2278.0**) |
+| `1978029737` | fs() | Session config (skillsSyncIntervalMs, artifactMcpConcurrencyLimit, artifactSampleConcurrencyLimit, idleGraceMs, disableSessionsDiskCleanup, sessionsBridgePollIntervalMs, coworkMessageTimeoutMs, coworkWebFetchViaApi, coworkNativeFilePreview) |
+| `2860753854` | wA() | System prompt override text |
+| `2893011886` | fs() | Wake scheduler config (enabled, scheduledTasksWakeEnabled, minLeadTimeMs, chainIntervalMs, batteryIntervalMs, acIntervalMs) |
+| `3300773012` | fs() | Scheduled tasks config (skillDescription, skillPrompt, scheduledTaskPostWakeDelayMs, dispatchJitterMaxMinutes) |
+| `3586389629` | wA() | Connection timeout config |
+| `3758515526` | fs() | Default marketplace repo config (repo, repoCCD) |
+| `3858743149` | fs() | maxThinkingTokens config (default 4000, min 1024) (**new in v1.2773.0**) |
+| `4066504968` | fs() | Setup-cowork skill config (skillDescription, skillPrompt) (**new in v1.1348.0**) |
 
-### Listener Flags (QR())
+### Listener Flags (Xk())
 
 | Flag ID | Purpose |
 |---------|---------|
@@ -300,9 +316,9 @@ These dispatch-era flags were removed from GrowthBook boolean calls (code may st
 
 ### enable_local_agent_mode.py
 
-**Patch 1 - Individual functions:** Remove `process.platform!=="darwin"` gate from `kkn()` (quietPenguin inner). Note: `Akn()` (chillingSlothFeat) uses `r6e` variable check (darwin||win32 gate) — only 1 match now instead of 2, handled gracefully by the `elif len(matches) == 1` branch. Also inject Linux early-return in `Ble()` (yukonSilver) to bypass its platform gate (though upstream now has native Linux support too — our patch is defensive).
+**Patch 1 - Individual functions:** Remove `process.platform!=="darwin"` gate from the quietPenguin inner function. Note: chillingSlothFeat uses `UMe` variable check (darwin||win32 gate, was `r6e` in v1.2773.0) — only 1 match now instead of 2, handled gracefully by the `elif len(matches) == 1` branch. Also inject Linux early-return in yukonSilver (`J4n()` in v1.3036.0) to bypass its platform gate (though upstream now has native Linux support too — our patch is defensive).
 
-**Patch 3 - Mle merger override:** Append to the `Mle` return object:
+**Patch 3 - ode merger override:** Append to the `ode` return object:
 ```javascript
 ,quietPenguin:{status:"supported"},louderPenguin:{status:"supported"},chillingSlothFeat:{status:"supported"},chillingSlothLocal:{status:"supported"},yukonSilver:{status:"supported"},yukonSilverGems:{status:"supported"},ccdPlugins:{status:"supported"},computerUse:{status:"supported"}
 ```
@@ -467,7 +483,7 @@ Defined in `ODt` array alongside `AskUserQuestion` and `ExitPlanMode`. UI comman
 | `operon` | Requires VM infrastructure (Nest); flag not enabled server-side |
 | ~~`coworkKappa`~~ | **Enabled on Linux** — flag `123929380` forced ON + merger override in `enable_local_agent_mode.py` |
 
-### Known Issues (v1.2773.0)
+### Known Issues (v1.3036.0)
 
 No known issues. Computer-use is fully integrated into `index.js` since v1.1.8359 and working on Linux.
 
@@ -521,3 +537,4 @@ Feature name strings are stable across versions because they're IPC identifiers 
 | v1.2278.0 | `eA()` | `yue` | `CEe()` | Same 18 features; `Zr()` flag reader; `VI()` listener; `xs()`/`_A()` value flags; `chillingSlothFeat` gate changed `g5e`→`IOe` (darwin\|\|win32, was darwin-only); platform booleans `hi`/`vs`/`IOe`; 5 new boolean flags (`286376943`, `1434290056`, `2345107588`, `2392971184`, `2725876754`); 1 new value flag (`1893165035` SDK error auto-recovery); new `index.pre.js` bootstrap file with enterprise config; enterprise config switched from switch/case to ternary; 3 patches updated (`fix_cowork_first_bash.py`, `fix_cowork_linux.py`, `fix_enterprise_config_linux.py`) |
 | v1.2581.0 | `iA()` | `jue` | `XEe()` | **New `coworkKappa` feature** (19 features, 3 async overrides); `Yr()` flag reader; platform vars `_s`/`c3e`; async merger now 3-way `Promise.all` (louderPenguin + operon + coworkKappa); 1 new flag (`123929380` coworkKappa/consolidate-memory); 1 removed flag (`4040257062` memory path routing); `fix_tray_dbus.py` updated (`[\w$]+` for tray variable with `$`) |
 | v1.2773.0 | `Hb()` | `Mle` | `G1e()` | Same 19 features; `Wr()` flag reader; `QR()` listener; `us()`/`cA()` value flags; platform vars `pi`/`vs`/`r6e`; `chillingSlothFeat` gate changed from `process.platform!=="darwin"` to `r6e` (darwin\|\|win32); `floatingAtoll` now always supported (`Rkn()` unconditional, was preference-gated); 4 new flags (`919950191` LAM tool search, `2140326016` author stubs error, `2216480658` VM outputs, `3858743149` maxThinkingTokens); 3 removed flags (`1585356617` epitaxy, `2199295617` AutoArchive, `4201169164` remote orchestrator); MCP registration `One()`→`ooe()`; computer-use Set `ese`→`ele`; all patches compatible |
+| v1.3036.0 | `nA()` | `ode` | `ESe()` | Same 19 features; `Wr()` flag reader unchanged; `Xk()` listener (was `QR()`); `fs()`/`wA()` value flags (was `us()`/`cA()`); platform vars `hi` (darwin, unchanged)/`xce` (win32, was `vs`)/`UMe` (darwin\|\|win32, was `r6e`); 4 new flags (`658929541` LAM setModel buffer, `1496450144` CLAUDE_CODE_ENABLE_TASKS, `2800354941` plugin/skill sort, `2815031518` LocalSessionMgr setModel buffer); 3 removed flags (`159894531` ENABLE_TOOL_SEARCH, `919950191` LAM tool search, `2678455445` MCP SDK server mode); MCP registration `ooe()`→`kce()`; **Patch 3c removed from `enable_local_agent_mode.py`** — upstream dropped the Desktop-side ENABLE_TOOL_SEARCH="false" override, user settings.json now passes through; all other patches compatible |
