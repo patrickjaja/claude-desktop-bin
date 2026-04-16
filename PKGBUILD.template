@@ -43,9 +43,11 @@ package() {
     # Install launcher script (Wayland/X11 detection, env setup, lock cleanup)
     install -Dm755 "$srcdir/launcher/claude-desktop" "$pkgdir/usr/bin/claude-desktop"
 
-    # Install desktop entry
+    # Install desktop entry.
+    # Filename must match APP_ID in the launcher (com.anthropic.claude-desktop)
+    # so xdg-desktop-portal can resolve our systemd-scope / cgroup identity.
     install -dm755 "$pkgdir/usr/share/applications"
-    cat > "$pkgdir/usr/share/applications/claude-desktop.desktop" << 'EOF'
+    cat > "$pkgdir/usr/share/applications/com.anthropic.claude-desktop.desktop" << 'EOF'
 [Desktop Entry]
 Name=Claude
 Comment=Claude AI Desktop Application
@@ -55,7 +57,7 @@ Type=Application
 Terminal=false
 Categories=Office;Utility;Chat;
 MimeType=x-scheme-handler/claude;
-StartupWMClass=Claude
+StartupWMClass=com.anthropic.claude-desktop
 EOF
 
     # Install icon (included in tarball)

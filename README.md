@@ -515,9 +515,32 @@ On Windows/Mac, dispatch runs inside a VM. On Linux, [claude-cowork-service](htt
 
 ## Known Limitations
 
-### Global hotkey on Sway / GNOME
+### Global hotkey on Wayland requires Electron 40+ (bundled) or 40+ system
 
-The Ctrl+Alt+Space global hotkey works on X11, KDE, and Hyprland. On **Sway** and **GNOME**, the compositor doesn't yet implement the desktop portal GlobalShortcuts interface — the hotkey won't fire. Workaround: configure a compositor keybind to focus the Claude Desktop window, or set `CLAUDE_USE_XWAYLAND=1` to fall back to XWayland (where X11 hotkeys work).
+On Wayland, the global hotkey (Ctrl+Alt+Space) is delivered through the
+`xdg-desktop-portal` GlobalShortcuts interface. GNOME, KDE, and Hyprland now
+all implement it. **However, Electron <40 has a broken DBus signal signature
+([electron/electron#49806](https://github.com/electron/electron/issues/49806),
+fixed in #49842 / 40.x+/41.x+)** — registrations succeed but Activated events
+never reach the app, so the hotkey appears to "only work when Claude is
+focused."
+
+- **Fedora / Debian / AppImage / Nix**: Electron is bundled with each release
+  and tracks latest stable — these builds should work out of the box.
+- **Arch AUR (`claude-desktop-bin`)**: uses system `electron`. Arch is
+  currently on 39. **Update with `sudo pacman -Syu electron`** once Arch
+  bumps to 40+. The launcher prints a warning if it detects Electron <40.
+- **Can't update Electron?** Set `CLAUDE_USE_XWAYLAND=1` to run under X11
+  instead, where global hotkeys go through `XGrabKey` and work reliably.
+
+### App identity on Wayland
+
+`xdg-desktop-portal` resolves unsandboxed apps via the systemd user scope /
+cgroup name. Starting with this release we launch under
+`app-com.anthropic.claude-desktop-*.scope` (via `systemd-run --user --scope`)
+and install the `.desktop` file under the matching reverse-URL name. If you
+had the old `claude-desktop.desktop` entry pinned to a taskbar, re-pin once
+after this update.
 
 ## Tips
 - Press **Alt** to toggle the app menu bar (Electron default)

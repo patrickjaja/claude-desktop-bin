@@ -50,16 +50,19 @@ stdenvNoCC.mkDerivation {
 
   nativeBuildInputs = [ makeWrapper copyDesktopItems ];
 
+  # Reverse-URL name ("name") becomes the .desktop filename; startupWMClass
+  # must match what Electron actually reports (set via --class=$APP_ID below).
+  # Both are needed so xdg-desktop-portal can resolve our app identity.
   desktopItems = [
     (makeDesktopItem {
-      name = "claude-desktop";
+      name = "com.anthropic.claude-desktop";
       desktopName = "Claude";
       comment = "Claude AI Desktop Application";
       exec = "claude-desktop %u";
       icon = "claude-desktop";
       categories = [ "Office" "Utility" "Chat" ];
       mimeTypes = [ "x-scheme-handler/claude" ];
-      startupWMClass = "Claude";
+      startupWMClass = "com.anthropic.claude-desktop";
       terminal = false;
     })
   ];
@@ -78,6 +81,8 @@ stdenvNoCC.mkDerivation {
       --set ELECTRON_FORCE_IS_PACKAGED "true" \
       --set ELECTRON_USE_SYSTEM_TITLE_BAR "1" \
       --add-flags "--disable-features=CustomTitlebar" \
+      --add-flags "--enable-transparent-visuals" \
+      --add-flags "--class=com.anthropic.claude-desktop" \
       ${lib.optionalString (xdotool != null) "--prefix PATH : ${xdotool}/bin"} \
       ${lib.optionalString (scrot != null) "--prefix PATH : ${scrot}/bin"} \
       ${lib.optionalString (imagemagick != null) "--prefix PATH : ${imagemagick}/bin"} \

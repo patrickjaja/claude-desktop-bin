@@ -122,8 +122,10 @@ cp -r "$WORK_DIR/tarball/app/"* "$DEB_ROOT/usr/lib/claude-desktop/resources/"
 # GPU fallback, SingletonLock cleanup, cowork socket cleanup, and logging)
 install -m755 "$WORK_DIR/tarball/launcher/claude-desktop" "$DEB_ROOT/usr/bin/claude-desktop"
 
-# Install desktop file
-cat > "$DEB_ROOT/usr/share/applications/claude-desktop.desktop" << EOF
+# Install desktop file.
+# Filename must match APP_ID in the launcher (com.anthropic.claude-desktop)
+# so xdg-desktop-portal can resolve our systemd-scope / cgroup identity.
+cat > "$DEB_ROOT/usr/share/applications/com.anthropic.claude-desktop.desktop" << EOF
 [Desktop Entry]
 Name=Claude
 Comment=Claude AI Desktop Application
@@ -133,7 +135,7 @@ Type=Application
 Terminal=false
 Categories=Office;Utility;Chat;
 MimeType=x-scheme-handler/claude;
-StartupWMClass=Claude
+StartupWMClass=com.anthropic.claude-desktop
 EOF
 
 # Install icon

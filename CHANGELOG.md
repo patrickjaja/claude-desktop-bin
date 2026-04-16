@@ -2,6 +2,36 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-16 — Quick Entry fixes: portal identity + transparency (issues #38, #39)
+
+### Fixed
+- **Quick Entry hotkey only works when Claude has focus** (issues #38, upstream aaddrick #404): root cause is app identity. `xdg-desktop-portal` identifies unsandboxed apps by their systemd-scope / cgroup name and matches them against the installed `.desktop` file. We previously shipped as `"Claude"` (`app.setName` default, plus `claude-desktop.desktop`), which is not a valid reverse-URL and can't be resolved by the portal → GlobalShortcuts registrations succeed but Activated events never route back to the app. Fix aligns every identity signal on `com.anthropic.claude-desktop`. Credit to the KDE-side reporter who diagnosed the same class of problem for persistent grants in KDE Settings.
+- **Quick Entry window shows opaque square behind the rounded card** (issue #39): Chromium transparency silently fails on some Wayland compositors when `--enable-transparent-visuals` isn't set. Adding the flag forces ARGB visuals; the 606×470 Quick Entry window now renders its outer area transparently as intended.
+
+### Changed — launcher (`scripts/claude-desktop-launcher.sh`)
+- New constant `APP_ID='com.anthropic.claude-desktop'` — the canonical reverse-URL id used across packaging and runtime.
+- **Launch via `systemd-run --user --scope --unit=app-${APP_ID}-$$.scope`** — gives the Electron process a named systemd user scope so the portal resolves cgroup → scope name → matching `.desktop` file. Falls back to direct `exec` if `systemd-run` is unavailable.
+- **New Chromium flag `--class=${APP_ID}`** — Wayland `app_id` / X11 `WM_CLASS` now match the `.desktop` filename and `StartupWMClass`.
+- **New Chromium flag `--enable-transparent-visuals`** — fixes the #39 "opaque rectangle" symptom on most Wayland configs. Harmless on X11.
+- **Electron <40 warning** — prints a clear message on startup (`log` + stderr) pointing users at [electron/electron#49806](https://github.com/electron/electron/issues/49806) and asking them to update. No silent XWayland fallback — the bug is upstream, users should update Electron. `CLAUDE_USE_XWAYLAND=1` remains as a manual escape hatch for users who can't.
+- `app.setName("Claude")` is **not** changed — userData (`~/.config/Claude`) stays put.
+
+### Changed — packaging
+- `.desktop` filename is now `com.anthropic.claude-desktop.desktop` across every format (RPM, DEB, AUR, AppImage, Nix). `StartupWMClass` updated to match. `Name=` / `Icon=` unchanged.
+- Existing pinned shortcuts referencing `claude-desktop.desktop` will need to be re-pinned once (minor one-time inconvenience; the new desktop entry is picked up by `update-desktop-database` automatically).
+
+### Known limitation
+- **Nix flake**: the Nix package uses `makeWrapper` rather than our shared launcher script, so the `systemd-run` scope wrap does not apply to Nix builds. `--class` and `--enable-transparent-visuals` are wired in. Portal identity on Nix would require a small wrapper-of-wrapper; deferred.
+
+### Patches — unchanged
+- `fix_quick_entry_position.py`, `fix_quick_entry_ready_wayland.py`, `fix_window_bounds.py`, `fix_native_frame.py` — all still correct and still needed; the current symptoms were outside the asar surface they touch.
+
+### References
+- electron/electron#49806 — `globalShortcut` fails on Wayland with `GlobalShortcutsPortal` feature enabled.
+- electron/electron#49842 — Fix merged 2026-02-19, backported to 40-x-y and 41-x-y. Not backported to 39.
+
+---
+
 ## 2026-04-16 (v1.3036.0) — Upstream update, 1 patch removed (obsolete)
 
 ### Upstream

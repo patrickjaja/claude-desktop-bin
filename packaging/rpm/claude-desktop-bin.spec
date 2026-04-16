@@ -76,9 +76,11 @@ cp -a tarball/app/* %{buildroot}/usr/lib/claude-desktop/resources/
 mkdir -p %{buildroot}/usr/bin
 install -m755 tarball/launcher/claude-desktop %{buildroot}/usr/bin/claude-desktop
 
-# Install desktop file
+# Install desktop file.
+# Filename must match APP_ID in the launcher (com.anthropic.claude-desktop)
+# so xdg-desktop-portal can resolve our systemd-scope / cgroup identity.
 mkdir -p %{buildroot}/usr/share/applications
-cat > %{buildroot}/usr/share/applications/claude-desktop.desktop << 'DESKTOP'
+cat > %{buildroot}/usr/share/applications/com.anthropic.claude-desktop.desktop << 'DESKTOP'
 [Desktop Entry]
 Name=Claude
 Comment=Claude AI Desktop Application
@@ -88,7 +90,7 @@ Type=Application
 Terminal=false
 Categories=Office;Utility;Chat;
 MimeType=x-scheme-handler/claude;
-StartupWMClass=Claude
+StartupWMClass=com.anthropic.claude-desktop
 DESKTOP
 
 # Install icon
@@ -127,5 +129,5 @@ fi
 %files
 /usr/lib/claude-desktop/
 /usr/bin/claude-desktop
-/usr/share/applications/claude-desktop.desktop
+/usr/share/applications/com.anthropic.claude-desktop.desktop
 /usr/share/icons/hicolor/256x256/apps/claude-desktop.png

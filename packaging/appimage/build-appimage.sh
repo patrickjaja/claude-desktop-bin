@@ -158,10 +158,12 @@ exec "${HERE}/usr/bin/claude-desktop" "$@"
 EOF
 chmod +x "$APPDIR/AppRun"
 
-# Create desktop file
+# Create desktop file.
+# Filename must match APP_ID in the launcher (com.anthropic.claude-desktop)
+# so xdg-desktop-portal can resolve our systemd-scope / cgroup identity.
 log_info "Creating desktop file..."
 mkdir -p "$APPDIR/usr/share/applications"
-cat > "$APPDIR/claude-desktop.desktop" << EOF
+cat > "$APPDIR/com.anthropic.claude-desktop.desktop" << EOF
 [Desktop Entry]
 Name=Claude
 Comment=Claude AI Desktop Application
@@ -171,10 +173,10 @@ Type=Application
 Terminal=false
 Categories=Office;Utility;Chat;
 MimeType=x-scheme-handler/claude;
-StartupWMClass=Claude
+StartupWMClass=com.anthropic.claude-desktop
 X-AppImage-Version=${VERSION}
 EOF
-cp "$APPDIR/claude-desktop.desktop" "$APPDIR/usr/share/applications/"
+cp "$APPDIR/com.anthropic.claude-desktop.desktop" "$APPDIR/usr/share/applications/"
 
 # Copy icon
 log_info "Installing icon..."
