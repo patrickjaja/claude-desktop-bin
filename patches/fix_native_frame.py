@@ -83,7 +83,8 @@ def patch_native_frame(filepath):
         if b'titleBarStyle:process.platform==="linux"?"default":"hidden"' in content:
             print("  [INFO] titleBarStyle already patched")
         else:
-            print('  [WARN] titleBarStyle:"hidden" pattern not found near titleBarOverlay')
+            print('  [FAIL] titleBarStyle:"hidden" pattern not found near titleBarOverlay')
+            return False
 
     # Step 6: Add autoHideMenuBar:true for Linux (hides native menu bar by default)
     # The menu bar will appear when pressing Alt key (standard Electron behavior)
@@ -101,7 +102,8 @@ def patch_native_frame(filepath):
         if b'autoHideMenuBar:process.platform==="linux"' in content:
             print("  [INFO] autoHideMenuBar already patched")
         else:
-            print("  [WARN] autoHideMenuBar pattern not found")
+            print("  [FAIL] autoHideMenuBar pattern not found")
+            return False
 
     # Step 7: Add window icon for Linux (shows Claude icon in title bar)
     icon_pattern = rb'(autoHideMenuBar:process\.platform==="linux"),(titleBarOverlay:\w+)'
@@ -118,7 +120,8 @@ def patch_native_frame(filepath):
         if b'icon:process.platform==="linux"' in content:
             print("  [INFO] window icon already patched")
         else:
-            print("  [WARN] window icon pattern not found")
+            print("  [FAIL] window icon pattern not found")
+            return False
 
     # Write back if changed
     if content != original_content:

@@ -73,7 +73,12 @@ def patch_node_host(filepath):
     if shell_count > 0:
         print(f"  [OK] shellPathWorker: {shell_count} match(es)")
     else:
-        print("  [WARN] shellPathWorker: 0 matches (pattern may have changed)")
+        # Idempotency check: already-patched code uses app.getAppPath() for shellPathWorker.
+        if b'require("electron").app.getAppPath(),"\\.vite","build","shell-path-worker"' in content or b'require("electron").app.getAppPath(),".vite","build","shell-path-worker"' in content:
+            print("  [OK] shellPathWorker: already patched")
+        else:
+            print("  [FAIL] shellPathWorker: 0 matches and no already-patched marker")
+            return False
 
     # Write back if changed
     if content != original_content:

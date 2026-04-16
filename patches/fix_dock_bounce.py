@@ -214,7 +214,8 @@ def patch_dock_bounce(filepath):
             print(f"  [OK] backgroundThrottling enabled on Linux: {bg_count} match(es)")
             applied.append(f"bg-throttle({bg_count})")
         else:
-            print("  [WARN] backgroundThrottling pattern not matched (non-critical)")
+            print("  [FAIL] backgroundThrottling pattern not matched")
+            return False
 
     # --- Summary ---
     if not applied:

@@ -54,8 +54,8 @@ def patch_updater_state(filepath):
         print(f"  [OK] Updater idle state: added version/versionNumber ({count} match)")
         return True
     else:
-        print("  [WARN] Updater idle state: pattern not found (may have changed)")
-        return True  # Non-critical, don't fail the build
+        print("  [FAIL] Updater idle state: pattern not found")
+        return False
 
 
 if __name__ == "__main__":

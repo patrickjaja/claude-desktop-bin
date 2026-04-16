@@ -69,11 +69,16 @@ def patch_cross_device_rename(filepath):
     if count >= 1:
         print(f"  [OK] Replaced {count} rename() calls with inline EXDEV fallback")
     else:
-        print("  [WARN] No unguarded rename() calls found")
+        # Idempotency check: patched code contains the EXDEV catch marker.
+        if b'.catch(async e=>{if(e.code==="EXDEV"' in content:
+            print("  [OK] Already patched (EXDEV catch marker present)")
+            return True
+        print("  [FAIL] No unguarded rename() calls found and no EXDEV marker present")
+        return False
 
     if content == original_content:
-        print("  [WARN] No changes made")
-        return True
+        print("  [FAIL] re.subn reported matches but content unchanged")
+        return False
 
     # Verify brace balance
     original_delta = original_content.count(b"{") - original_content.count(b"}")

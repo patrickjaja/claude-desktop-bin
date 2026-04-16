@@ -2,6 +2,25 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-17 (v1.3109.0) — Dispatch rename fix + strict-mode patch hardening
+
+### Fixed
+- **`fix_dispatch_linux.py` sub-patches F (rjt text forward) & J (auto-wake cold parent)** stopped matching on v1.3109.0 because webpack re-minified the dispatch IPC bridge. Variable rename cascade: rjt item `s→n`; auto-wake session `n→i`, notification `s→n`, child session `e→A`, index `r→t`, logger `B/P→M`. Both patterns now use `[\w$]+` captures with backreferences so future minification shifts self-heal.
+
+### Changed — strict-mode patch hardening
+Per project rule "a failed sub-patch means upstream changed — investigate, don't silently skip", converted `[WARN]` (silent continue) to `[FAIL] + return False` in every case where a required pattern was not found and no already-patched marker exists:
+- `fix_dispatch_linux.py` — C (platform label), D (telemetry gate), F (rjt), J (auto-wake)
+- `fix_updater_state_linux.py` — idle-state version/versionNumber
+- `fix_native_frame.py` — titleBarStyle, autoHideMenuBar, window icon
+- `fix_dock_bounce.py` — backgroundThrottling
+- `fix_window_bounds.py` — Quick Entry blur-before-hide
+- `fix_cross_device_rename.py` — now idempotent via EXDEV-catch marker detection
+- `fix_0_node_host.py` — shellPathWorker
+
+Idempotency tails ("No changes made") and counter-enforced patches left unchanged — those paths are already safe.
+
+---
+
 ## 2026-04-16 — Quick Entry fixes: portal identity + transparency (issues #38, #39)
 
 ### Fixed

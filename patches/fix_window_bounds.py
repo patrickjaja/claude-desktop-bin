@@ -159,7 +159,8 @@ def patch_window_bounds(filepath):
             print(f"  [OK] Quick Entry blur before hide: {count} match(es)")
             applied.append(f"qe-blur({count})")
         else:
-            print("  [WARN] Quick Entry hide pattern not matched (non-critical)")
+            print("  [FAIL] Quick Entry hide pattern not matched")
+            return False
 
     # --- Summary ---
     if not applied:

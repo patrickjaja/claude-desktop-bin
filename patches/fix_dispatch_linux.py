@@ -168,7 +168,7 @@ def patch_dispatch_linux(filepath):
         print("  [OK] Platform label: added Linux to HI()")
         patches_applied += 1
     else:
-        print("  [WARN] Platform label: pattern not found")
+        print("  [FAIL] Platform label: pattern not found")
 
     # ── Patch D: Include Linux in Xqe telemetry gate ────────────────────
     #
@@ -199,7 +199,7 @@ def patch_dispatch_linux(filepath):
             print(f"  [OK] Telemetry gate: included Linux ({count_d} match)")
             patches_applied += 1
         else:
-            print("  [WARN] Telemetry gate: pattern not found")
+            print("  [FAIL] Telemetry gate: pattern not found")
 
     # ── Patch E: Override Jr() for dispatch agent name flag ──────────────
     #
@@ -272,18 +272,61 @@ def patch_dispatch_linux(filepath):
     # text instead of SendUserMessage, the response still reaches the API
     # and is displayed in the web UI.
 
-    rjt_old = b'if((s==null?void 0:s.type)==="tool_use"&&s.name==="SendUserMessage")return!0}return!1}'
-    rjt_new = b'if((s==null?void 0:s.type)==="tool_use"&&(s.name==="SendUserMessage"||s.name==="mcp__dispatch__send_message"||s.name==="mcp__cowork__present_files"))return!0}return n.some(function(j){return j&&j.type==="text"&&j.text})}'
+    # Flexible pattern: item var (s→n in v1.1.8629→newer) and array var are captured.
+    # Original shape:
+    #   for(const LOOP of ARRAY){const ITEM=LOOP;if((ITEM==null?void 0:ITEM.type)==="tool_use"
+    #     &&ITEM.name==="SendUserMessage")return!0}return!1}
+    rjt_pattern = re.compile(
+        rb"for\(const ([\w$]+) of ([\w$]+)\)\{const ([\w$]+)=\1;"
+        rb'if\(\(\3==null\?void 0:\3\.type\)==="tool_use"&&\3\.name==="SendUserMessage"\)return!0\}return!1\}'
+    )
 
-    if rjt_new in content:
+    # Already-patched marker: post-patch we emit `.some(function(j){return j&&j.type==="text"&&j.text})`
+    rjt_already = re.compile(
+        rb'if\(\(([\w$]+)==null\?void 0:\1\.type\)==="tool_use"&&'
+        rb'\(\1\.name==="SendUserMessage"\|\|\1\.name==="mcp__dispatch__send_message"\|\|\1\.name==="mcp__cowork__present_files"\)\)return!0\}'
+        rb'return [\w$]+\.some\(function\(j\)\{return j&&j\.type==="text"&&j\.text\}\)\}'
+    )
+
+    if rjt_already.search(content):
         print("  [OK] rjt() text forward: already patched (skipped)")
         patches_applied += 1
-    elif rjt_old in content:
-        content = content.replace(rjt_old, rjt_new, 1)
-        print("  [OK] rjt() text forward: patched to include text content")
-        patches_applied += 1
     else:
-        print("  [WARN] rjt() text forward: pattern not found")
+        m = rjt_pattern.search(content)
+        if m:
+            loop_var = m.group(1)
+            array_var = m.group(2)
+            item_var = m.group(3)
+            rjt_replacement = (
+                b"for(const "
+                + loop_var
+                + b" of "
+                + array_var
+                + b"){const "
+                + item_var
+                + b"="
+                + loop_var
+                + b";"
+                + b"if(("
+                + item_var
+                + b"==null?void 0:"
+                + item_var
+                + b'.type)==="tool_use"&&('
+                + item_var
+                + b'.name==="SendUserMessage"||'
+                + item_var
+                + b'.name==="mcp__dispatch__send_message"||'
+                + item_var
+                + b'.name==="mcp__cowork__present_files"))return!0}'
+                + b"return "
+                + array_var
+                + b'.some(function(j){return j&&j.type==="text"&&j.text})}'
+            )
+            content = content[: m.start()] + rjt_replacement + content[m.end() :]
+            print(f"  [OK] rjt() text forward: patched (item={item_var.decode()}, array={array_var.decode()})")
+            patches_applied += 1
+        else:
+            print("  [FAIL] rjt() text forward: pattern not found")
 
     # ── Patch G: (Removed) ──────────────────────────────────────────────
     # Diagnostic forwardEvent logging was here. Removed — no longer needed.
@@ -311,11 +354,15 @@ def patch_dispatch_linux(filepath):
     # which creates the inputStream and drains pending notifications.
     # The model then reads the child's transcript and delivers the answer.
 
-    # Use regex to capture the logger variable name (was B in v8359, P in v8629)
+    # Flexible pattern. Variables have been renamed across versions:
+    #   v1.1.8359: session=n, notif=s, child=e, index=r, logger=B
+    #   v1.1.8629: same + logger=P
+    #   v1.1.87xx: session=i, notif=n, child=A, index=t, logger=M
+    # We capture all four via backreferences.
     wake_pattern = re.compile(
-        rb"(\(\(n\.pendingDispatchNotifications\?\?\(n\.pendingDispatchNotifications=\[\]\)\)\.push\(s\),)"
-        rb"([\w$]+)"  # capture logger variable (may be $ in newer versions)
-        rb"(\.info\(`\[Dispatch\] Queued notification for cold parent \$\{n\.sessionId\} \(child \$\{e\.sessionId\} \$\{r\}\)`\)\))"
+        rb"(\(\(([\w$]+)\.pendingDispatchNotifications\?\?\(\2\.pendingDispatchNotifications=\[\]\)\)\.push\(([\w$]+)\),)"
+        rb"([\w$]+)"  # logger variable (group 4)
+        rb"(\.info\(`\[Dispatch\] Queued notification for cold parent \$\{\2\.sessionId\} \(child \$\{([\w$]+)\.sessionId\} \$\{([\w$]+)\}\)`\)\))"
     )
 
     # Check if already patched (has setTimeout auto-wake)
@@ -325,21 +372,33 @@ def patch_dispatch_linux(filepath):
     else:
         wake_match = wake_pattern.search(content)
         if wake_match:
-            logger = wake_match.group(2)
+            session_var = wake_match.group(2)
+            notif_var = wake_match.group(3)
+            logger = wake_match.group(4)
             wake_replacement = (
                 wake_match.group(1)
                 + logger
-                + wake_match.group(3)[:-1]  # strip trailing )
+                + wake_match.group(5)[:-1]  # strip trailing )
                 + b",setTimeout(()=>{"
                 + logger
-                + b".info(`[Dispatch] Auto-waking cold parent ${n.sessionId}`);"
-                b"this.sendMessage(n.sessionId,s).catch(x=>" + logger + b".error(`[Dispatch] Auto-wake failed for ${n.sessionId}:`,x))},500))"
+                + b".info(`[Dispatch] Auto-waking cold parent ${"
+                + session_var
+                + b".sessionId}`);"
+                + b"this.sendMessage("
+                + session_var
+                + b".sessionId,"
+                + notif_var
+                + b").catch(x=>"
+                + logger
+                + b".error(`[Dispatch] Auto-wake failed for ${"
+                + session_var
+                + b".sessionId}:`,x))},500))"
             )
             content = content[: wake_match.start()] + wake_replacement + content[wake_match.end() :]
-            print(f"  [OK] dispatch auto-wake parent: injected setTimeout sendMessage (logger={logger.decode()})")
+            print(f"  [OK] dispatch auto-wake parent: injected setTimeout sendMessage (session={session_var.decode()}, notif={notif_var.decode()}, logger={logger.decode()})")
             patches_applied += 1
         else:
-            print("  [WARN] dispatch auto-wake parent: pattern not found")
+            print("  [FAIL] dispatch auto-wake parent: pattern not found")
 
     # ── Results ──────────────────────────────────────────────────────────
 
