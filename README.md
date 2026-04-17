@@ -519,23 +519,15 @@ On Windows/Mac, dispatch runs inside a VM. On Linux, [claude-cowork-service](htt
 
 The Quick Entry global hotkey (default Ctrl+Alt+Space) goes through one of two paths on Wayland:
 
-1. **`xdg-desktop-portal` GlobalShortcuts** (the default path enabled via `--enable-features=GlobalShortcutsPortal`). Works reliably on **KDE Plasma** (one-time approval via `kglobalaccel` — persists after that) and **Hyprland** (`xdg-desktop-portal-hyprland`). On **GNOME** the portal shows an approval notification that is easy to miss or dismiss, and there's no clear signal when that happens — the hotkey just silently doesn't fire.
+1. **`xdg-desktop-portal` GlobalShortcuts** (default). Works reliably on **KDE Plasma** (one-time `kglobalaccel` approval, then persists), **Hyprland** (`xdg-desktop-portal-hyprland`), and **Sway** (`xdg-desktop-portal-wlr` — install it explicitly; not pulled in by every Sway setup). On **GNOME**, the portal approval notification is easy to miss and Electron's `globalShortcut.register()` returns `true` either way — the hotkey silently doesn't fire.
 
-2. **GNOME custom keybinding via `gsettings`** (opt-in, recommended on GNOME). Binds Ctrl+Alt+Space (or any accelerator you prefer) to `claude-desktop --toggle-quick-entry`. The command triggers Quick Entry through Electron's single-instance mechanism, bypassing the portal entirely. Run once after install:
-
-   ```bash
-   claude-desktop --install-gnome-hotkey                 # default Ctrl+Alt+Space
-   claude-desktop --install-gnome-hotkey '<Super>space'  # or any accelerator
-   claude-desktop --uninstall-gnome-hotkey               # remove
-   ```
-
-   The helper writes a single entry under `org.gnome.settings-daemon.plugins.media-keys.custom-keybindings` and preserves any existing custom keybindings. Safe to re-run to change the accelerator.
+2. **GNOME custom keybinding via `gsettings`** (opt-in, recommended on GNOME). Binds the accelerator directly to `claude-desktop --toggle-quick-entry`, bypassing the portal entirely. Run `claude-desktop --install-gnome-hotkey` once after install — see [wayland.md](wayland.md#quick-entry-hotkey-not-firing-on-gnome) for commands, accelerator syntax, and verification steps.
 
 For triaging portal vs. gsettings issues, `claude-desktop --diagnose` prints session type, Electron version, portal availability, and whether the GNOME hotkey slot is installed.
 
 **Electron `<40` bug.** Separately, Electron versions before 40 have a DBus signal-signature bug ([electron/electron#49806](https://github.com/electron/electron/issues/49806), fixed in #49842 / 40.x+ / 41.x+) that breaks the portal path even on compositors where it otherwise works. The launcher logs a warning if it detects Electron `<40`.
 
-- **Fedora / Debian / AppImage / Nix**: Electron is bundled (`41.x+`) — portal path works on KDE/Hyprland; GNOME users should use `--install-gnome-hotkey`.
+- **Fedora / Debian / AppImage / Nix**: Electron is bundled (`41.x+`) — portal path works on KDE/Hyprland/Sway; GNOME users should use `--install-gnome-hotkey`.
 - **Arch AUR (`claude-desktop-bin`)**: uses system `electron`. Update with `sudo pacman -Syu electron` until Arch is on 40+.
 - **Last-resort escape hatch**: `CLAUDE_USE_XWAYLAND=1` forces XWayland so `XGrabKey` runs instead. GNOME 49 has tightened XWayland key-grab policy, so this is not reliable on recent GNOME — the `gsettings` path above is preferred.
 
@@ -544,9 +536,11 @@ For triaging portal vs. gsettings issues, `claude-desktop --diagnose` prints ses
 `xdg-desktop-portal` resolves unsandboxed apps via the systemd user scope /
 cgroup name. Starting with this release we launch under
 `app-com.anthropic.claude-desktop-*.scope` (via `systemd-run --user --scope`)
-and install the `.desktop` file under the matching reverse-URL name. If you
-had the old `claude-desktop.desktop` entry pinned to a taskbar, re-pin once
-after this update.
+and install the `.desktop` file under the matching reverse-URL name.
+
+- **Pinned taskbar entries**: if you had the old `claude-desktop.desktop` pinned, re-pin once after this update.
+- **Custom X11 WM rules**: `WM_CLASS` / Wayland `app_id` changed from `Claude` to `com.anthropic.claude-desktop`. Users with i3 / xmonad / awesome / bspwm / KWin rules matching the old class will need to update them.
+- **NixOS gap**: the Nix package wraps Electron via `makeWrapper` rather than the shared launcher script, so it receives `--class` and `--enable-transparent-visuals` but **not** the `systemd-run --scope` wrap. xdg-desktop-portal identity on NixOS GNOME Wayland may therefore break — use the `--install-gnome-hotkey` path instead. Other sessions (KDE, Hyprland, Sway, X11) are unaffected.
 
 ## Tips
 - Press **Alt** to toggle the app menu bar (Electron default)

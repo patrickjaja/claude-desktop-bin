@@ -56,12 +56,16 @@ keybinding slot is installed. Paste the output directly into issue reports.
 
 Classic Wayland focus-stealing-prevention symptom. When `Po.show()` is called
 from a background context, Mutter won't transfer focus; Electron emits `blur`
-within a few hundred milliseconds because the logical focus state just changed;
-the upstream dismiss handler runs before you can type. Fixed by
-`patches/fix_quick_entry_wayland_blur_guard.py` — blurs within 500 ms of a
-fresh `show` are ignored. Blur-dismiss on deliberate click-outside still works
-normally after the grace window. No user action required — the patch is
-included in every build.
+anyway because the logical focus state just changed; the upstream dismiss
+handler runs before you can type. Fixed by
+`patches/fix_quick_entry_wayland_blur_guard.py` — **the blur handler is
+focus-tracked**: blurs are ignored unless a `focus` event has fired on the
+Quick Entry window since the last `show`/`hide`. Phantom blurs where Mutter
+never transferred focus are dropped. On platforms where focus *does* transfer
+(X11, KDE Plasma, Hyprland), click-outside dismiss works normally. On GNOME
+Wayland, close Quick Entry with **Escape** or submit — click-outside dismiss
+is skipped by design because Po never gained focus to lose. No user action
+required — the patch is included in every build.
 
 ## Global Shortcut Not Working (KDE Plasma)
 
