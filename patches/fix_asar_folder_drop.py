@@ -35,6 +35,11 @@ import sys
 import os
 import re
 
+# Expected sub-patches:
+#   A. noe() file-drop convergence filter (.asar)
+#   B. Second-instance argv parser (KXn) .asar guard
+EXPECTED_PATCHES = 2
+
 
 def patch_asar_folder_drop(filepath):
     """Filter app.asar paths from file-drop dispatch."""
@@ -48,6 +53,8 @@ def patch_asar_folder_drop(filepath):
 
     with open(filepath, "rb") as f:
         content = f.read()
+
+    patches_applied = 0
 
     # ── Idempotency check ────────────────────────────────────────────
     # Check for the noe() .asar filter (primary fix)
@@ -83,6 +90,7 @@ def patch_asar_folder_drop(filepath):
 
     if count > 0:
         print(f"  [OK] noe() file-drop filter: {count} match(es)")
+        patches_applied += 1
     else:
         print("  [FAIL] noe() pattern: 0 matches")
         return False
@@ -113,18 +121,24 @@ def patch_asar_folder_drop(filepath):
 
     if count > 0:
         print(f"  [OK] Second-instance argv parser (KXn): {count} match(es)")
+        patches_applied += 1
     else:
-        print("  [WARN] Second-instance argv parser: 0 matches (noe filter is primary)")
+        print("  [FAIL] Second-instance argv parser: 0 matches")
+
+    # ── Enforce strictness ───────────────────────────────────────────
+    if patches_applied < EXPECTED_PATCHES:
+        print(f"  [FAIL] Only {patches_applied}/{EXPECTED_PATCHES} patches applied")
+        return False
 
     # ── Write back ───────────────────────────────────────────────────
     if content != original_content:
         with open(filepath, "wb") as f:
             f.write(content)
-        print("  [PASS] Patch applied")
+        print(f"  [PASS] Patch applied ({patches_applied}/{EXPECTED_PATCHES} patches applied)")
         return True
     else:
-        print("  [WARN] No changes made")
-        return True
+        print(f"  [FAIL] No changes made ({patches_applied}/{EXPECTED_PATCHES} patches applied)")
+        return False
 
 
 if __name__ == "__main__":

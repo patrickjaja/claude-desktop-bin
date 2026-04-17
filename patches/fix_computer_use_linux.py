@@ -1012,11 +1012,14 @@ def patch_computer_use_linux(filepath):
         print("  [FAIL] 13a Lf: not found")
 
     # 13b: request_access — "Linux" instead of "macOS"/"Finder"
-    # The ternary t.platform==="win32"?'Windows':'macOS' falls to macOS on
+    # The ternary e.platform==="win32"?'Windows':'macOS' falls to macOS on
     # Linux, telling the model "This computer is running macOS" — wrong.
+    # Note: in function qir(e,A,t), `e` is the CU config (has .platform),
+    # `t` is the installed apps array (has no .platform). Using t.platform
+    # crashes with "Cannot read properties of undefined (reading 'platform')".
     _old_13b = b"""'This computer is running macOS. The file manager is "Finder". '"""
     _new_13b = (
-        b"""(t.platform==="linux"?"""
+        b"""(e.platform==="linux"?"""
         b"""'This computer is running Linux. """
         b"""On Linux, ALL applications are automatically accessible at full """
         b"""tier without explicit permission grants. You do NOT need to call """
@@ -1041,7 +1044,7 @@ def patch_computer_use_linux(filepath):
         b"""'Application display names (e.g. "Slack", "Calendar") or bundle identifiers (e.g. "com.tinyspeck.slackmacgap"). Display names are resolved case-insensitively against installed apps.'"""
     )
     _new_13c = (
-        b"""(t.platform==="linux"?"""
+        b"""(e.platform==="linux"?"""
         b"""'Application names as shown in window titles, or WM_CLASS values """
         b"""(e.g. "firefox", "org.gnome.Nautilus"). """
         b"""On Linux all apps are auto-granted at full tier.'"""
@@ -1061,7 +1064,7 @@ def patch_computer_use_linux(filepath):
     # 13d: App identifier (open_application app schema) — simplified for Linux
     _old_13d = b"""'Display name (e.g. "Slack") or bundle identifier (e.g. "com.tinyspeck.slackmacgap").'"""
     _new_13d = (
-        b"""(t.platform==="linux"?"""
+        b"""(e.platform==="linux"?"""
         b"""'Application name or WM_CLASS (e.g. "firefox", "nautilus").'"""
         b""":"""
         b"""'Display name (e.g. "Slack") or bundle identifier (e.g. "com.tinyspeck.slackmacgap").')"""

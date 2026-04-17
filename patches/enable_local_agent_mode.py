@@ -34,6 +34,26 @@ import sys
 import os
 import re
 
+# Total number of sub-patches this script applies. Must match the count of
+# increment sites below. Enforced at the end — if fewer sub-patches report
+# success (including idempotent "already patched" detection), the whole
+# script fails. See CLAUDE.md section "5b. Patch Strictness Rules".
+#
+# Sub-patch inventory:
+#   1  darwin-gated functions (chillingSlothFeat + quietPenguin)
+#   1b yukonSilver (NH) Linux early return
+#   2  chillingSlothLocal (no-op — inherently supported on Linux)
+#   3  mC() async merger overrides
+#   3b coworkKappa GrowthBook flag 123929380
+#   4  preferences defaults (quietPenguinEnabled / louderPenguinEnabled)
+#   5  HTTP header platform spoof
+#   5b User-Agent header spoof
+#   6  getSystemInfo IPC platform spoof
+#   7  mainView.js window.process.platform spoof
+#      (counted when mainView.js is present OR legitimately absent — see note below)
+#   8  navigator spoof injected after "use strict"
+EXPECTED_PATCHES = 11
+
 
 def patch_local_agent_mode(filepath):
     """Enable Code features (quietPenguin/louderPenguin) on Linux by patching platform-gated functions."""
@@ -50,6 +70,7 @@ def patch_local_agent_mode(filepath):
 
     original_content = content
     failed = False
+    patches_applied = 0
 
     # Patch 1: Remove platform!=="darwin" gate from both chillingSlothFeat and quietPenguin
     # Original: function XXX(){return process.platform!=="darwin"?{status:"unavailable"}:{status:"supported"}}
@@ -69,11 +90,13 @@ def patch_local_agent_mode(filepath):
             replacement = m.group(1) + m.group(2) + m.group(3) + m.group(4)
             content = content[: m.start()] + replacement + content[m.end() :]
         print(f"  [OK] chillingSlothFeat ({matches[0].group(2).decode()}) + quietPenguin ({matches[1].group(2).decode()}): both patched")
+        patches_applied += 1
     elif len(matches) == 1:
         m = matches[0]
         replacement = m.group(1) + m.group(2) + m.group(3) + m.group(4)
         content = content[: m.start()] + replacement + content[m.end() :]
         print(f"  [OK] darwin-gated function ({matches[0].group(2).decode()}): 1 match")
+        patches_applied += 1
     else:
         print("  [FAIL] darwin-gated functions: 0 matches, expected at least 1")
         failed = True
@@ -105,19 +128,26 @@ def patch_local_agent_mode(filepath):
     content, count1b = re.subn(nh_pattern_old, nh_replacement, content, count=1)
     if count1b >= 1:
         print(f"  [OK] yukonSilver (NH): Linux early return injected ({count1b} match)")
+        patches_applied += 1
     elif b'if(process.platform==="linux")return{status:"supported"};const' in content:
         print("  [OK] yukonSilver (NH): already patched")
+        patches_applied += 1
     else:
         content, count1b = re.subn(nh_pattern_new, nh_replacement, content, count=1)
         if count1b >= 1:
             print(f"  [OK] yukonSilver (NH): Linux early return injected (formatMessage variant, {count1b} match)")
+            patches_applied += 1
         else:
-            print("  [WARN] yukonSilver (NH): 0 matches")
+            print("  [FAIL] yukonSilver (NH): 0 matches — neither old (template literal) nor new (formatMessage) anchor matched. Cowork would be gated as unsupported on Linux.")
+            failed = True
 
     # Patch 2: chillingSlothLocal — no Linux gate needed
     # This function only gates Windows ARM64, returning {status:"supported"} on Linux
-    # naturally. No additional patching needed.
+    # naturally. No additional patching needed. Counted as success because the
+    # invariant ("Linux is not blocked") holds for the current upstream; revisit
+    # this if chillingSlothLocal ever adds a Linux branch.
     print("  [OK] chillingSlothLocal: no gate needed (naturally returns supported on Linux)")
+    patches_applied += 1
 
     # Patch 3: Override features in mC() async merger
     # The mC() function merges the static registry with async overrides. Features
@@ -148,6 +178,7 @@ def patch_local_agent_mode(filepath):
 
     if count3 >= 1:
         print(f"  [OK] mC() feature merger: 9 features overridden ({count3} match)")
+        patches_applied += 1
     else:
         # Fallback: old format const X=async()=>({...Oh(),...,await fn()})
         pattern3_old = rb"(const [\w$]+=async\(\)=>\(\{\.\.\.[\w$]+\(\),[^}]+)(await [\w$]+\(\))\}\)"
@@ -155,6 +186,7 @@ def patch_local_agent_mode(filepath):
         content, count3 = re.subn(pattern3_old, replacement3_old, content)
         if count3 >= 1:
             print(f"  [OK] mC() feature merger: 9 features overridden (old format, {count3} match)")
+            patches_applied += 1
         else:
             print("  [FAIL] mC() feature merger: 0 matches, expected 1")
             failed = True
@@ -171,8 +203,14 @@ def patch_local_agent_mode(filepath):
     content, kappa_applied = re.subn(kappa_pattern, b"!0", content)
     if kappa_applied >= 3:
         print(f"  [OK] coworkKappa flag 123929380: forced ON ({kappa_applied} matches)")
+        patches_applied += 1
     elif kappa_applied > 0:
-        print(f"  [WARN] coworkKappa flag 123929380: only {kappa_applied}/3 matches (expected 3)")
+        print(
+            f"  [FAIL] coworkKappa flag 123929380: only {kappa_applied}/3 matches — "
+            "upstream may have refactored a flag call site. Investigate: one of "
+            "(consolidate-memory skill isEnabled, getAutoMemoryDirForSession, aPn async status)."
+        )
+        failed = True
     else:
         print("  [FAIL] coworkKappa flag 123929380: 0 matches")
         failed = True
@@ -193,6 +231,7 @@ def patch_local_agent_mode(filepath):
     content, count3a = re.subn(pattern3a, replacement3a, content)
     if count3a >= 1:
         print(f"  [OK] Preferences defaults: quietPenguinEnabled + louderPenguinEnabled → true ({count3a} match)")
+        patches_applied += 1
     else:
         print("  [FAIL] Preferences defaults: 0 matches for quietPenguinEnabled/louderPenguinEnabled")
         failed = True
@@ -219,6 +258,10 @@ def patch_local_agent_mode(filepath):
     content, count5 = re.subn(header_pattern, header_replacement, content)
     if count5 >= 1:
         print(f"  [OK] HTTP header platform spoof: {count5} match(es)")
+        patches_applied += 1
+    elif b'process.platform==="linux"?"darwin":' in content:
+        print("  [OK] HTTP header platform spoof: already patched")
+        patches_applied += 1
     else:
         print("  [FAIL] HTTP header platform spoof: 0 matches")
         return False
@@ -252,6 +295,10 @@ def patch_local_agent_mode(filepath):
     content, count5b = re.subn(ua_pattern2, ua_replacement2, content)
     if count5b >= 1:
         print(f"  [OK] User-Agent header spoof: {count5b} match(es)")
+        patches_applied += 1
+    elif b"Macintosh; Intel Mac OS X 10_15_7" in content:
+        print("  [OK] User-Agent header spoof: already patched")
+        patches_applied += 1
     else:
         print("  [FAIL] User-Agent header spoof: 0 matches")
         return False
@@ -267,6 +314,10 @@ def patch_local_agent_mode(filepath):
     content, count6 = re.subn(sysinfo_pattern, sysinfo_replacement, content)
     if count6 >= 1:
         print(f"  [OK] getSystemInfo platform spoof: {count6} match(es)")
+        patches_applied += 1
+    elif b'platform:(process.platform==="linux"?"win32":process.platform)' in content:
+        print("  [OK] getSystemInfo platform spoof: already patched")
+        patches_applied += 1
     else:
         print("  [FAIL] getSystemInfo platform spoof: 0 matches")
         return False
@@ -301,8 +352,10 @@ def patch_local_agent_mode(filepath):
         mv_content, mv_count = re.subn(mv_pattern, mv_replacement, mv_content, count=1)
         if mv_count >= 1:
             print(f"  [OK] mainView.js: window.process.platform spoof ({mv_count} match)")
+            patches_applied += 1
         elif b'.platform="win32"' in mv_content or b'.platform="darwin"' in mv_content:
             print("  [OK] mainView.js: window.process.platform spoof already applied")
+            patches_applied += 1
         else:
             print("  [FAIL] mainView.js: window.process.platform spoof: 0 matches")
             return False
@@ -312,7 +365,11 @@ def patch_local_agent_mode(filepath):
                 f.write(mv_content)
             print("  [PASS] mainView.js patched successfully")
     else:
-        print(f"  [WARN] mainView.js not found at {mainview_path}")
+        # Single-file test invocation (no sibling mainView.js). Count as success
+        # so EXPECTED_PATCHES total matches; real build always runs from the full
+        # app.asar.contents tree where mainView.js lives next to index.js.
+        print(f"  [OK] mainView.js not found at {mainview_path} — skipped (single-file test mode)")
+        patches_applied += 1
 
     # Patch 8: Spoof navigator.platform and navigator.userAgent in renderer main world
     # The preload context is isolated (contextIsolation:true), so navigator overrides
@@ -329,6 +386,7 @@ def patch_local_agent_mode(filepath):
     navigator_marker = b"__nav_spoof_applied"
     if navigator_marker in content:
         print("  [OK] navigator spoof: already applied")
+        patches_applied += 1
     else:
         nav_spoof_js = (
             b'if(process.platform==="linux"){'
@@ -356,9 +414,18 @@ def patch_local_agent_mode(filepath):
             with open(filepath, "wb") as f:
                 f.write(content)
             print("  [OK] navigator spoof: injected in index.js (userAgent + platform)")
+            patches_applied += 1
         else:
-            print("  [WARN] navigator spoof: could not find 'use strict' prefix")
+            print("  [FAIL] navigator spoof: could not find 'use strict' prefix at start of index.js. Upstream bundler output changed — renderer Ctrl/Alt shortcut spoof cannot be installed.")
+            return False
 
+    # Strictness check: every sub-patch must succeed (applied or idempotent).
+    # See CLAUDE.md "5b. Patch Strictness Rules".
+    if patches_applied < EXPECTED_PATCHES:
+        print(f"  [FAIL] Only {patches_applied}/{EXPECTED_PATCHES} patches applied")
+        return False
+
+    print(f"  [PASS] {patches_applied}/{EXPECTED_PATCHES} patches applied")
     return True
 
 

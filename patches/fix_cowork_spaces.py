@@ -28,6 +28,15 @@ import os
 import re
 
 
+# Number of required sub-patches that must succeed on a pristine build:
+#   A: eipc UUID extraction
+#   B: SpaceManager singleton variable name extraction (primary or fallback regex)
+#   C: Service injection after app.on("ready", ...)
+# The "remove old stubs" step is a cleanup that may legitimately be a no-op on
+# pristine upstream, so it is NOT counted here.
+EXPECTED_PATCHES = 3
+
+
 def extract_eipc_uuid(content):
     """Extract the eipc UUID from the file content dynamically."""
     m = re.search(
@@ -347,14 +356,16 @@ def patch_cowork_spaces(filepath):
         content = f.read()
 
     original_content = content
+    patches_applied = 0
 
-    # --- Step 0: Check if full service is already injected ---
+    # --- Step 0: Check if full service is already injected (idempotency) ---
+    # "Already patched" is success — all sub-patches count as applied.
     if b"class _SpacesService extends _EE{" in content:
-        print("  [OK] Full CoworkSpaces service already injected")
-        print("  [PASS] No patch needed")
+        print("  [OK] Full CoworkSpaces service already injected (idempotent)")
+        print(f"  [PASS] {EXPECTED_PATCHES}/{EXPECTED_PATCHES} patches applied (already patched)")
         return True
 
-    # --- Step 1: Extract eipc UUID ---
+    # --- Step 1 (Patch A): Extract eipc UUID ---
     uuid = extract_eipc_uuid(content)
     if not uuid:
         mainview = os.path.join(os.path.dirname(filepath), "mainView.js")
@@ -362,30 +373,44 @@ def patch_cowork_spaces(filepath):
             with open(mainview, "rb") as f:
                 uuid = extract_eipc_uuid(f.read())
     if not uuid:
-        print("  [FAIL] Could not extract eipc UUID from source files")
+        print("  [FAIL] Patch A: Could not extract eipc UUID from source files")
         return False
 
     eipc_prefix = f"$eipc_message$_{uuid}_$_claude.web_$_CoworkSpaces_$_"
-    print(f"  [OK] Extracted eipc UUID: {uuid}")
+    print(f"  [OK] Patch A: Extracted eipc UUID: {uuid}")
+    patches_applied += 1
 
-    # --- Step 2: Find SpaceManager singleton variable name ---
+    # --- Step 2 (Patch B): Find SpaceManager singleton variable name ---
+    # Primary regex, then fallback regex. If BOTH fail, this is a FAIL —
+    # do NOT guess with a dummy name, because resolveSpaceContext won't work
+    # and the user will silently lose a feature. This is exactly the silent-
+    # bug class the Patch Strictness Rules exist to catch.
     singleton_var = extract_space_manager_singleton(content)
     if not singleton_var:
-        print("  [WARN] Could not find SpaceManager singleton variable, using fallback")
+        print("  [INFO] Patch B: primary singleton regex didn't match, trying fallback")
         # Fallback: try to find it from the $Dt class pattern
         # Pattern: peek(){return this.current}}const VARNAME=new
         m = re.search(rb"peek\(\)\{return this\.current\}\}const (\w+)=new \w+,", content)
         if m:
             singleton_var = m.group(1).decode("utf-8")
-            print(f"  [OK] Found singleton via fallback pattern: {singleton_var}")
+            print(f"  [OK] Patch B: Found singleton via fallback pattern: {singleton_var}")
         else:
-            singleton_var = "__spaceMgr__"
-            print("  [WARN] Using dummy singleton name (resolveSpaceContext won't work)")
+            print(
+                "  [FAIL] Patch B: Could not find SpaceManager singleton variable. "
+                "Upstream code likely refactored — update "
+                "extract_space_manager_singleton() and the fallback regex. "
+                "Refusing to inject with a guessed name because resolveSpaceContext "
+                "would silently break."
+            )
+            return False
+    else:
+        print(f"  [OK] Patch B: SpaceManager singleton (primary regex): {singleton_var}")
+    patches_applied += 1
 
-    print(f"  [OK] SpaceManager singleton: {singleton_var}")
-
-    # --- Step 3: Remove any existing CoworkSpaces stubs ---
+    # --- Step 3: Remove any existing CoworkSpaces stubs (cleanup, not counted) ---
     # Match the old stub pattern: if(process.platform==="linux"){const _ipc=...CoworkSpaces...}
+    # This is a cleanup step that may legitimately be a no-op on pristine upstream,
+    # so it is NOT counted toward EXPECTED_PATCHES.
     old_stub_pattern = (
         rb'if\(process\.platform==="linux"\)\{'
         rb'const _ipc=require\("electron"\)\.ipcMain;'
@@ -396,7 +421,7 @@ def patch_cowork_spaces(filepath):
     if removed:
         print(f"  [OK] Removed {removed} old CoworkSpaces stub block(s)")
 
-    # --- Step 4: Build and inject the full service ---
+    # --- Step 4 (Patch C): Build and inject the full service ---
     service_js = build_spaces_service_js(eipc_prefix, singleton_var)
 
     # Inject after app.on("ready", async () => {
@@ -405,19 +430,27 @@ def patch_cowork_spaces(filepath):
 
     content, count = re.subn(pattern, replacement, content, count=1)
     if count >= 1:
-        print(f"  [OK] CoworkSpaces service injected ({count} match)")
+        print(f"  [OK] Patch C: CoworkSpaces service injected ({count} match)")
+        patches_applied += 1
     else:
-        print('  [FAIL] app.on("ready") pattern: 0 matches')
+        print('  [FAIL] Patch C: app.on("ready") pattern: 0 matches')
+        return False
+
+    # --- Strict enforcement: all required sub-patches must have succeeded ---
+    if patches_applied < EXPECTED_PATCHES:
+        print(f"  [FAIL] Only {patches_applied}/{EXPECTED_PATCHES} patches applied")
         return False
 
     if content != original_content:
         with open(filepath, "wb") as f:
             f.write(content)
-        print("  [PASS] CoworkSpaces file-based service registered for Linux")
+        print(f"  [PASS] {patches_applied}/{EXPECTED_PATCHES} patches applied — CoworkSpaces file-based service registered for Linux")
         return True
     else:
-        print("  [WARN] No changes made")
-        return True
+        # All sub-patches reported success yet content is unchanged — this is
+        # an inconsistent state. Fail loudly rather than silently succeeding.
+        print("  [FAIL] Patches reported success but file content unchanged")
+        return False
 
 
 if __name__ == "__main__":

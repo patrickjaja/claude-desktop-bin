@@ -129,6 +129,17 @@ if(_t){clearInterval(_t);_t=null;}
 })();"""
 
 
+# Expected sub-patches (each must apply OR be detected as already-patched):
+#   1. early-guard    — inject Linux monkey-patch block at top of file
+#   2. steal-focus    — strip {steal:!0} from app.focus() calls
+#   3. rua-guard      — no-op requestUserAttention on Linux
+#                       (Option A: required — if upstream removed this method,
+#                       we want a loud FAIL so we can investigate and either
+#                       update the pattern or delete this sub-patch)
+#   4. bg-throttle    — enable backgroundThrottling on Linux for mainView
+EXPECTED_PATCHES = 4
+
+
 def patch_dock_bounce(filepath):
     """Suppress taskbar demands-attention on Linux."""
 
@@ -144,12 +155,14 @@ def patch_dock_bounce(filepath):
 
     original_content = content
     applied = []
+    patches_applied = 0
 
     # --- 1. Inject early monkey-patch block ---
     marker = b'_e.app.on("browser-window-blur"'
     if marker in content:
         print("  [INFO] Early monkey-patch already injected")
         applied.append("early-guard(skip)")
+        patches_applied += 1
     else:
         # Remove any old version of the guard if present
         old_markers = [
@@ -168,10 +181,12 @@ def patch_dock_bounce(filepath):
             content = b'"use strict";' + LINUX_WAYLAND_GUARD + content[len(b'"use strict";') :]
             print('  [OK] Early monkey-patch injected after "use strict"')
             applied.append("early-guard")
+            patches_applied += 1
         else:
             content = LINUX_WAYLAND_GUARD + content
             print("  [OK] Early monkey-patch prepended")
             applied.append("early-guard(prepend)")
+            patches_applied += 1
 
     # --- 2. Inline: strip steal from app.focus({steal:!0}) ---
     steal_pattern = rb"([\w$]+\.app\.focus)\(\{steal:!?[01t][\w$]*\}\)"
@@ -179,27 +194,38 @@ def patch_dock_bounce(filepath):
     def steal_replacement(m):
         return m.group(1) + b"({})"
 
+    # Idempotency: if no {steal:...} forms remain anywhere, treat as already cleaned.
+    steal_already_clean = re.search(rb"[\w$]+\.app\.focus\(\{steal:", content) is None
     content, steal_count = re.subn(steal_pattern, steal_replacement, content)
     if steal_count > 0:
         print(f"  [OK] Removed app.focus({{steal}}) calls: {steal_count} match(es)")
         applied.append(f"steal-focus({steal_count})")
+        patches_applied += 1
+    elif steal_already_clean:
+        print("  [INFO] app.focus({steal}) already stripped")
+        applied.append("steal-focus(skip)")
+        patches_applied += 1
     else:
-        print("  [INFO] No app.focus({steal}) calls found (may already be cleaned)")
+        print("  [FAIL] app.focus({steal}) pattern not matched")
 
     # --- 3. No-op requestUserAttention on Linux ---
+    # Option A: required. If upstream removed requestUserAttention, fail loudly
+    # so we investigate and update or drop this sub-patch.
     rua_pattern = rb"(requestUserAttention\(\)\{)(var [\w$]+;this\.isAppFocusedAndVisible\(\)\|\|)"
     rua_replacement = rb'\1if(process.platform==="linux")return;\2'
 
     if b'requestUserAttention(){if(process.platform==="linux")return;' in content:
         print("  [INFO] requestUserAttention already guarded")
         applied.append("rua-guard(skip)")
+        patches_applied += 1
     else:
         content, rua_count = re.subn(rua_pattern, rua_replacement, content)
         if rua_count > 0:
             print(f"  [OK] requestUserAttention Linux guard: {rua_count} match(es)")
             applied.append(f"rua-guard({rua_count})")
+            patches_applied += 1
         else:
-            print("  [WARN] requestUserAttention pattern not matched (non-critical)")
+            print("  [FAIL] requestUserAttention pattern not matched")
 
     # --- 4. Enable backgroundThrottling on Linux for mainView ---
     bg_pattern = rb"(enableBlinkFeatures:void 0,backgroundThrottling):(!1)"
@@ -208,27 +234,28 @@ def patch_dock_bounce(filepath):
     if b'backgroundThrottling:process.platform!=="linux"' in content:
         print("  [INFO] backgroundThrottling already patched")
         applied.append("bg-throttle(skip)")
+        patches_applied += 1
     else:
         content, bg_count = re.subn(bg_pattern, bg_replacement, content)
         if bg_count > 0:
             print(f"  [OK] backgroundThrottling enabled on Linux: {bg_count} match(es)")
             applied.append(f"bg-throttle({bg_count})")
+            patches_applied += 1
         else:
             print("  [FAIL] backgroundThrottling pattern not matched")
-            return False
 
-    # --- Summary ---
-    if not applied:
-        print("  [FAIL] No patches could be applied")
+    # --- Strictness gate: all expected sub-patches must have applied ---
+    if patches_applied < EXPECTED_PATCHES:
+        print(f"  [FAIL] Only {patches_applied}/{EXPECTED_PATCHES} patches applied")
         return False
 
     if content != original_content:
         with open(filepath, "wb") as f:
             f.write(content)
-        print(f"  [PASS] Applied: {', '.join(applied)}")
+        print(f"  [PASS] {patches_applied}/{EXPECTED_PATCHES} patches applied: {', '.join(applied)}")
         return True
     else:
-        print("  [PASS] No changes needed (already patched)")
+        print(f"  [PASS] {patches_applied}/{EXPECTED_PATCHES} patches applied (no changes needed)")
         return True
 
 
