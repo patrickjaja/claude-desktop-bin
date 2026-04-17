@@ -67,7 +67,15 @@ function _hasPortalToken(){try{_fs.accessSync(_portalTokenPath);return true}catc
 async function _portalScreenshot(tmp,x,y,w,h){
   return new Promise(function(resolve){var ch=_cp.spawn("python3",["-",tmp,String(x),String(y),String(w),String(h)],{stdio:["pipe","pipe","pipe"]});ch.stdin.write(_portalPyCode);ch.stdin.end();var se="";ch.stderr.on("data",function(d){se+=d.toString()});var timer=setTimeout(function(){ch.kill("SIGKILL");resolve({status:1,stderr:"timeout"})},15000);ch.on("close",function(code){clearTimeout(timer);resolve({status:code,stderr:se})});ch.on("error",function(e){clearTimeout(timer);resolve({status:1,stderr:e.message})})});
 }
-async function _captureRegion(x,y,w,h){
+function _findMonByPoint(px,py){
+  var mons=_getMonitors();
+  for(var i=0;i<mons.length;i++){var m=mons[i];if(px>=m.originX&&px<m.originX+m.width&&py>=m.originY&&py<m.originY+m.height)return m}
+  for(var i=0;i<mons.length;i++){if(mons[i].isPrimary)return mons[i]}
+  return mons[0];
+}
+async function _captureRegion(x,y,w,h,sf){
+  if(!sf){var _m=_findMonByPoint(x,y);sf=_m?_m.scaleFactor:1}
+  if(sf&&sf!==1){x=Math.round(x*sf);y=Math.round(y*sf);w=Math.round(w*sf);h=Math.round(h*sf)}
   var tmp=_path.join(_os.tmpdir(),"claude-cu-"+Date.now()+"-"+Math.random().toString(36).slice(2)+".png");
   var _de=_desktopId();
   if(process.env.COWORK_SCREENSHOT_CMD){
@@ -135,6 +143,7 @@ if(_wayland){console.log("[claude-cu] Wayland session detected — using native 
   var avail=_relevant.filter(function(t){return _hasCmd(t)});
   var missing=_relevant.filter(function(t){return !_hasCmd(t)});
   console.log("[claude-cu] diagnostics: session="+(_wayland?"wayland":"x11")+" de="+(_de||"unknown")+" wlroots="+_wlr+" vm="+!!globalThis.__isVM);
+  try{var _diagMons=_getMonitors();console.log("[claude-cu] diagnostics: displays=["+_diagMons.map(function(m){return m.label+"("+m.width+"x"+m.height+"+"+m.originX+"+"+m.originY+" sf="+m.scaleFactor+(m.isPrimary?" primary":"")+")"}).join(", ")+"]")}catch(me){}
   console.log("[claude-cu] diagnostics: available=["+avail.join(", ")+"]");
   if(missing.length)console.warn("[claude-cu] diagnostics: missing=["+missing.join(", ")+"] (install for full functionality)");
   if(_wayland){
@@ -230,7 +239,7 @@ function _mapKeyWayland(k){
   var l=k.trim().toLowerCase();
   return String(_kmap[l]||l);
 }
-async function _screenshotMon(mon){return await _captureRegion(mon.originX,mon.originY,mon.width,mon.height)}
+async function _screenshotMon(mon){return await _captureRegion(mon.originX,mon.originY,mon.width,mon.height,mon.scaleFactor||1)}
 function _getActiveWindowWayland(){
   try{
     if(process.env.HYPRLAND_INSTANCE_SIGNATURE&&_hasCmd("hyprctl")){
@@ -306,7 +315,10 @@ globalThis.__linuxExecutor={
     return{base64:b64,width:mon.width,height:mon.height,displayWidth:mon.width,displayHeight:mon.height,displayId:mon.displayId,originX:mon.originX,originY:mon.originY,hidden:[]};
   },
   async zoom(rect,scale,displayId){
-    var b64=await _captureRegion(rect.x,rect.y,rect.w,rect.h);
+    var mon=displayId!=null?_findMon(displayId):_findMonByPoint(rect.x,rect.y);
+    var sf=mon?mon.scaleFactor:1;
+    console.log("[claude-cu] zoom: rect="+JSON.stringify(rect)+" scale="+scale+" displayId="+displayId+" mon="+((mon&&mon.label)||"?")+" sf="+sf);
+    var b64=await _captureRegion(rect.x,rect.y,rect.w,rect.h,sf);
     return{base64:b64};
   },
   async prepareForAction(bundleIds,displayId){return[]},
@@ -614,7 +626,7 @@ default:return{content:[{type:"text",text:"Unknown action tool: "+t}],isError:!0
 }})}
 try{switch(t){
 case"screenshot":{var __dlist=await ex.listDisplays();var __primaryIdx=0;for(var __pi=0;__pi<__dlist.length;__pi++){if(__dlist[__pi].isPrimary){__primaryIdx=__dlist[__pi].displayId;break}}var __did=globalThis.__cuPinnedDisplay!==void 0?globalThis.__cuPinnedDisplay:(e.display_number||e.display_id||__primaryIdx);var __actMon=__dlist.find(function(d){return d.displayId===__did})||__dlist[0]||{originX:0,originY:0};globalThis.__cuActiveOrigin={x:__actMon.originX||0,y:__actMon.originY||0};var __ss=await ex.screenshot({displayId:__did});return{content:[{type:"image",data:__ss.base64,mimeType:"image/png"}]}}
-case"zoom":{var __zc=__txC(e.coordinate||[960,540]),__sz=e.size||400,__hf=Math.floor(__sz/2),__zr=await ex.zoom({x:Math.max(0,__zc[0]-__hf),y:Math.max(0,__zc[1]-__hf),w:__sz,h:__sz},1,0);return{content:[{type:"image",data:__zr.base64,mimeType:"image/png"}]}}
+case"zoom":{var __zc=__txC(e.coordinate||[960,540]),__sz=e.size||400,__hf=Math.floor(__sz/2),__zdid=globalThis.__cuPinnedDisplay!==void 0?globalThis.__cuPinnedDisplay:null,__zr=await ex.zoom({x:Math.max(0,__zc[0]-__hf),y:Math.max(0,__zc[1]-__hf),w:__sz,h:__sz},1,__zdid);return{content:[{type:"image",data:__zr.base64,mimeType:"image/png"}]}}
 case"cursor_position":{var __cp=await ex.getCursorPosition();var __cpr=__untxC(__cp.x,__cp.y);return{content:[{type:"text",text:"("+__cpr[0]+", "+__cpr[1]+")"}]}}
 case"wait":{var __ws=Math.min(e.duration||e.seconds||1,30);await new Promise(function(__rv){setTimeout(__rv,__ws*1000)});return{content:[{type:"text",text:"Waited "+__ws+"s"}]}}
 case"open_application":{await ex.openApp(e.app||e.application||"");return{content:[{type:"text",text:"Opened app"}]}}

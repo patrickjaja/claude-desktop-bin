@@ -2,6 +2,19 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-17 — Fix computer-use zoom on HiDPI / multi-monitor (issue #32)
+
+### Fixed
+- **Zoom returns incorrect region on HiDPI / multi-monitor setups**: `_captureRegion` now accepts and applies a `scaleFactor` parameter, converting Electron's logical pixel coordinates to physical pixels before passing to screenshot tools (grim, spectacle+convert, scrot, etc.). Previously coordinates were passed unscaled, causing wrong crop regions when `scaleFactor > 1`.
+- **Zoom ignored active display**: The zoom handler passed hardcoded `displayId=0` instead of the user's pinned display (`switch_display`). Now passes `__cuPinnedDisplay` when set, otherwise auto-detects the monitor from the zoom coordinates.
+
+### Added
+- **`_findMonByPoint(px, py)`** helper: determines which monitor contains a given coordinate point, used by both zoom and `_captureRegion` for automatic scaleFactor detection.
+- **Display diagnostics at startup**: `[claude-cu] diagnostics: displays=[...]` now logs all detected monitors with dimensions, origins, and scale factors — visible when running `claude-desktop` from a terminal.
+- **Zoom debug logging**: `[claude-cu] zoom: rect=... sf=...` logs coordinates, scaleFactor, and target monitor for each zoom call.
+
+---
+
 ## 2026-04-17 — Cowork crash fix (`t.platform` → `e.platform`) + patch strictness hardening
 
 ### Fixed
