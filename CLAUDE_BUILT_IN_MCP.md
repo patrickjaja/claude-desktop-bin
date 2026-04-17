@@ -1,23 +1,23 @@
-# Built-in MCP Servers — Claude Desktop v1.3036.0
+# Built-in MCP Servers — Claude Desktop v1.3109.0
 
 Claude Desktop registers internal MCP servers via a two-layer architecture:
 
-1. **Renderer-facing layer (`kce()`)** — servers accessible from the BrowserView via Electron `MessageChannelMain` ports
-2. **Backend/session layer (`zZr`/`VZr`)** — servers providing tools to CCD/Cowork sessions
+1. **Renderer-facing layer (`DfA()`)** — servers accessible from the BrowserView via Electron `MessageChannelMain` ports
+2. **Backend/session layer** — servers providing tools to CCD/Cowork sessions
 
 A server may appear in both layers (e.g., Chrome, mcp-registry) or only one.
 
 ## Registration System
 
 ```
-ooe(serverName, displayLabel, factoryFn)
+DfA(serverName, displayLabel, factoryFn)   // v1.3109.0 (was kce() in v1.3036.0, ooe() in v1.2773.0)
 ```
 
-- Lazy singleton factory per server name
+- Lazy singleton factory per server name; stored in `RL` (registry) + `VJA` (display labels)
 - UUID display label sent to renderer for identification
-- Server list and instantiation managed via helper functions
+- `v7()` enumerates registered server names via `Object.keys(RL)`
 
-## Renderer-Facing Servers (via `kce()`)
+## Renderer-Facing Servers (via `DfA()`)
 
 ### 1. Claude in Chrome
 
@@ -62,7 +62,7 @@ Communicates with the Chrome browser extension via Unix socket at `/tmp/claude-m
 | Platform | All |
 | Gating | Always enabled |
 
-The `kce()` registration is a **stub returning no tools**. Actual tools are provided via the backend session layer.
+The `DfA()` registration is a **stub returning no tools**. Actual tools are provided via the backend session layer.
 
 **Tools (via P8t):**
 
@@ -93,7 +93,7 @@ Communicates via WebSocket to `wss://localhost:8766` (configurable via `OFFICE_A
 | `open_office_file` | Open an Office file and the Claude add-in panel |
 | `close_office_file` | Close a currently open Office file |
 
-## Backend-Only Servers (via `zZr`/`VZr`, not `kce()`)
+## Backend-Only Servers (not registered via `DfA()`)
 
 These are accessible to CCD/Cowork sessions but not directly from the renderer.
 
@@ -301,7 +301,7 @@ The `spawn_task` tool requires desktop approval card injection — cannot be aut
 
 ## Per-Session Dynamic MCP Servers (SDK-type)
 
-Claude Desktop creates 4 additional MCP servers **dynamically per cowork/dispatch session**. These are NOT registered via `kce()` — they are created inline in the session manager and passed to the Claude Code CLI via `sdkMcpServers` in `--mcp-config`.
+Claude Desktop creates 4 additional MCP servers **dynamically per cowork/dispatch session**. These are NOT registered via `DfA()` — they are created inline in the session manager and passed to the Claude Code CLI via `sdkMcpServers` in `--mcp-config`.
 
 **Communication:** SDK-type servers use `MessagePort` bridges. On Mac/Windows, the VM SDK daemon (`nodeHost.js`) provides this bridge via vsock. On Linux native, `cowork-svc-linux` now **passes `--mcp-config` through unchanged** (since commit `d1dfc3b`). The CLI sends `control_request` messages on stdout, which flow through the event stream to Claude Desktop. Desktop's session manager intercepts them and sends `control_response` back via writeStdin — identical to VM mode on Mac/Windows.
 
@@ -410,7 +410,7 @@ Linux native (current, since cowork-svc commit d1dfc3b):
 
 When a Cowork session creates artifacts, Claude Desktop registers **dynamic** MCP servers named `cowork-artifact-<uuid>` for each artifact. These are NOT statically registered via `kce()` — they are created inline per artifact. The `cowork-artifact` string also serves as an Electron custom protocol scheme (`cowork-artifact:`) for rendering artifact content in the UI.
 
-**Not a static server** — no tools to document. Not registered via `kce()`. Calls route via `callRemoteTool("cowork-artifact-<id>", ...)`.
+**Not a static server** — no tools to document. Not registered via `DfA()`. Calls route via `callRemoteTool("cowork-artifact-<id>", ...)`.
 
 ### Anthropic API Built-in Tool: `web_search`
 
@@ -564,6 +564,7 @@ When active, Operon provides 14 "brain tools" (multi-agent delegation, skills, d
 
 | Version | Changes |
 |---------|---------|
+| v1.3109.0 | Registration function renamed `DfA()` (was `kce()`). Platform gate variables `UMe`→`WhA` (darwin\|\|win32), `hi`→`en` (darwin), `xce`→`ws` (win32). No new MCP servers, no new tools — same 17 servers (3 renderer-facing + 14 backend). Webpack re-minify only. All patches compatible. |
 | v1.3036.0 | Registration function renamed `kce()` (was `ooe()`). Platform gate variable `r6e`→`UMe`, win32 `vs`→`xce`. No new MCP servers, no new tools — same 17 servers. Variable renames only. All patches compatible. |
 | v1.2773.0 | Registration function renamed `ooe()` (was `One()`). Computer-use Set variable `ese`→`ele` with `Jne()` checker (was `Lte()`). Platform gate variable `c3e`→`r6e`. `floatingAtoll` now always supported unconditionally (was preference-gated). No new MCP servers, no new tools. Same 17 servers. Variable renames only. All patches compatible. |
 | v1.2.234 | Registration function renamed `One()` (was `Are()`). **Terminal server now natively supports Linux** — `LRe = isDarwin \|\| isWin32 \|\| isLinux`, `fix_read_terminal_linux.py` patch removed. Computer-use platform gate changed to Set-based (`ese = new Set(["darwin","win32"])`) with `vee()` function. No new MCP servers or tools. Variable renames only. |

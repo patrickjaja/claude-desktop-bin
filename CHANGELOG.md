@@ -37,6 +37,21 @@ The portal-based path from commit 814e8fb is correct for KDE/Hyprland but unreli
 
 ## 2026-04-17 (v1.3109.0) — Dispatch rename fix + strict-mode patch hardening
 
+### Upstream diff summary (v1.3036.0 → v1.3109.0)
+Re-audited 2026-04-17 by diffing both extracted bundles side-by-side. This version bump is **webpack re-minification only** — no structural or feature-flag changes upstream:
+
+- **0** new files in `app.asar` (only renderer asset-hash bumps)
+- **0** new `ipcMain.handle(...)` registrations
+- **0** new `process.platform` gates (diff lines are all renames)
+- **0** new `status:"unavailable"` feature gates
+- **0** new GrowthBook flags, **0** removed (same flag set as v1.3036.0)
+- **0** new or removed MCP servers (same 17: 3 renderer-facing + 14 backend)
+- **Same 19 features** in the static registry + async merger
+
+No new Linux compatibility patches needed; `[\w$]+` regex wildcards absorbed every minifier rename automatically — except the dispatch IPC bridge, fixed below.
+
+Function renames (full list in CLAUDE_FEATURE_FLAGS.md and CLAUDE_BUILT_IN_MCP.md version-history tables): static registry `nA()`→`J0()`; async merger `ode`→`ewA`; gate wrapper `ESe()`→`aFA()`; flag reader `Wr()`→`Ti()`; value flag readers `fs()`→`Es()` and `wA()`→`di()`; listener `Xk()`→`wG()`; platform vars `hi`→`en` (darwin), `xce`→`ws` (win32), `UMe`→`WhA` (darwin\|\|win32); MCP registration `kce()`→`DfA()`.
+
 ### Fixed
 - **`fix_dispatch_linux.py` sub-patches F (rjt text forward) & J (auto-wake cold parent)** stopped matching on v1.3109.0 because webpack re-minified the dispatch IPC bridge. Variable rename cascade: rjt item `s→n`; auto-wake session `n→i`, notification `s→n`, child session `e→A`, index `r→t`, logger `B/P→M`. Both patterns now use `[\w$]+` captures with backreferences so future minification shifts self-heal.
 
