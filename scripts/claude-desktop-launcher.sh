@@ -63,6 +63,212 @@ if [[ -z "$APP_ASAR" || ! -f "$APP_ASAR" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
+# CLI subcommands: --install-gnome-hotkey / --uninstall-gnome-hotkey / --diagnose
+# ---------------------------------------------------------------------------
+# Early-exit subcommands intercepted BEFORE Electron is launched. These do
+# not bring up the app — they configure the environment or report diagnostics.
+#
+# `--toggle-quick-entry` is deliberately NOT handled here: it must reach
+# Electron so the second-instance handler (patched in index.js) can see it
+# in argv and dispatch to the Quick Entry show function.
+#
+# Slot path for the gsettings GNOME custom keybinding. Stable across runs so
+# --install/--uninstall can find it.
+GNOME_HOTKEY_SLOT='/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/claude-desktop-quick-entry/'
+GNOME_HOTKEY_ROOT='org.gnome.settings-daemon.plugins.media-keys'
+GNOME_HOTKEY_DEFAULT='<Primary><Alt>space'
+
+# Check that the session looks like GNOME (or at least has gnome-settings-daemon
+# handling custom keybindings). Returns 0 if ok, 1 with a stderr message if not.
+_require_gnome_gsettings() {
+    if ! command -v gsettings &>/dev/null; then
+        echo >&2 'claude-desktop: gsettings not found. This command requires GNOME / gnome-settings-daemon.'
+        return 1
+    fi
+    if ! gsettings list-keys "$GNOME_HOTKEY_ROOT" 2>/dev/null | grep -q '^custom-keybindings$'; then
+        echo >&2 "claude-desktop: schema '$GNOME_HOTKEY_ROOT' not available. This command requires GNOME."
+        return 1
+    fi
+}
+
+_install_gnome_hotkey() {
+    local accel="${1:-$GNOME_HOTKEY_DEFAULT}"
+    _require_gnome_gsettings || return 1
+
+    # Python helper: safely parse the Python-list string from `gsettings get`
+    # and append our slot if absent. Prints the new value as a Python list.
+    local new_array
+    if ! new_array=$(
+        gsettings get "$GNOME_HOTKEY_ROOT" custom-keybindings \
+        | python3 -c "
+import ast, sys
+raw = sys.stdin.read().strip()
+# gsettings prints '@as []' for empty, otherwise a Python-list literal
+if raw.startswith('@as '):
+    raw = raw[len('@as '):]
+try:
+    arr = ast.literal_eval(raw)
+except (ValueError, SyntaxError):
+    print('PARSE_ERROR', file=sys.stderr)
+    sys.exit(2)
+slot = '$GNOME_HOTKEY_SLOT'
+if slot not in arr:
+    arr.append(slot)
+print(repr(arr))
+"
+    ); then
+        echo >&2 'claude-desktop: failed to parse existing custom-keybindings array'
+        return 1
+    fi
+
+    gsettings set "$GNOME_HOTKEY_ROOT" custom-keybindings "$new_array"
+    # Per-slot schema writes. Use ':' form to scope the schema to our slot.
+    gsettings set "${GNOME_HOTKEY_ROOT}.custom-keybinding:${GNOME_HOTKEY_SLOT}" name 'Claude Desktop Quick Entry'
+    gsettings set "${GNOME_HOTKEY_ROOT}.custom-keybinding:${GNOME_HOTKEY_SLOT}" command 'claude-desktop --toggle-quick-entry'
+    gsettings set "${GNOME_HOTKEY_ROOT}.custom-keybinding:${GNOME_HOTKEY_SLOT}" binding "$accel"
+
+    echo "Installed GNOME hotkey: $accel → claude-desktop --toggle-quick-entry"
+    echo "Test it by pressing $accel from any window (Claude does not need to be focused)."
+    echo "To change the accelerator later: claude-desktop --install-gnome-hotkey '<Super>space'"
+    echo "To remove: claude-desktop --uninstall-gnome-hotkey"
+    return 0
+}
+
+_uninstall_gnome_hotkey() {
+    _require_gnome_gsettings || return 1
+
+    local new_array
+    if ! new_array=$(
+        gsettings get "$GNOME_HOTKEY_ROOT" custom-keybindings \
+        | python3 -c "
+import ast, sys
+raw = sys.stdin.read().strip()
+if raw.startswith('@as '):
+    raw = raw[len('@as '):]
+try:
+    arr = ast.literal_eval(raw)
+except (ValueError, SyntaxError):
+    print('PARSE_ERROR', file=sys.stderr)
+    sys.exit(2)
+slot = '$GNOME_HOTKEY_SLOT'
+arr = [x for x in arr if x != slot]
+print(repr(arr))
+"
+    ); then
+        echo >&2 'claude-desktop: failed to parse existing custom-keybindings array'
+        return 1
+    fi
+
+    gsettings set "$GNOME_HOTKEY_ROOT" custom-keybindings "$new_array"
+    # Reset per-slot schema to drop our name/command/binding.
+    gsettings reset-recursively "${GNOME_HOTKEY_ROOT}.custom-keybinding:${GNOME_HOTKEY_SLOT}" 2>/dev/null || true
+
+    echo "Removed GNOME hotkey slot: $GNOME_HOTKEY_SLOT"
+    return 0
+}
+
+_diagnose() {
+    echo '=== claude-desktop --diagnose ==='
+    echo
+    echo '--- Session ---'
+    echo "XDG_SESSION_TYPE = ${XDG_SESSION_TYPE:-(unset)}"
+    echo "XDG_CURRENT_DESKTOP = ${XDG_CURRENT_DESKTOP:-(unset)}"
+    echo "WAYLAND_DISPLAY = ${WAYLAND_DISPLAY:-(unset)}"
+    echo "DISPLAY = ${DISPLAY:-(unset)}"
+    echo
+    echo '--- Binaries ---'
+    echo "ELECTRON_BIN = $ELECTRON_BIN"
+    # Don't run the binary — it IS the Claude app and launching it spawns
+    # a new instance. Read the bundled version file instead.
+    if [[ -n ${_electron_real:-} ]]; then
+        local _vfile="$(dirname "$_electron_real")/version"
+        if [[ -r $_vfile ]]; then
+            echo "electron version file = $(<"$_vfile")"
+        else
+            echo "electron version file = (missing at $_vfile; parsed major=$electron_major)"
+        fi
+    fi
+    echo "systemd-run = $(command -v systemd-run || echo '(missing)')"
+    echo "gsettings = $(command -v gsettings || echo '(missing)')"
+    echo "gdbus = $(command -v gdbus || echo '(missing)')"
+    echo
+    echo '--- App identity ---'
+    echo "APP_ID = $APP_ID"
+    local desktop_file="/usr/share/applications/${APP_ID}.desktop"
+    if [[ -f $desktop_file ]]; then
+        echo ".desktop file: $desktop_file (found)"
+    else
+        echo ".desktop file: $desktop_file (MISSING — portal identity will fail)"
+    fi
+    echo "APP_ASAR = $APP_ASAR"
+    echo
+    echo '--- xdg-desktop-portal GlobalShortcuts ---'
+    if command -v gdbus &>/dev/null; then
+        local portal_ver
+        portal_ver=$(gdbus call --session --dest org.freedesktop.portal.Desktop \
+            --object-path /org/freedesktop/portal/desktop \
+            --method org.freedesktop.DBus.Properties.Get \
+            org.freedesktop.portal.GlobalShortcuts version 2>&1 || echo '(failed)')
+        echo "Portal version = $portal_ver"
+    else
+        echo '(gdbus not installed — cannot probe portal)'
+    fi
+    if command -v gsettings &>/dev/null; then
+        echo
+        echo '--- Registered portal shortcut apps (GNOME) ---'
+        local apps
+        apps=$(gsettings get org.gnome.settings-daemon.global-shortcuts applications 2>/dev/null || echo '(schema missing)')
+        echo "org.gnome.settings-daemon.global-shortcuts applications = $apps"
+        if [[ $apps == '@as []' ]]; then
+            echo '(no app has completed the portal BindShortcuts+approval flow; expected on a fresh install)'
+        fi
+        echo
+        echo '--- GNOME custom-keybinding slot ---'
+        local cks
+        cks=$(gsettings get "$GNOME_HOTKEY_ROOT" custom-keybindings 2>/dev/null || echo '(schema missing)')
+        echo "custom-keybindings = $cks"
+        if [[ $cks == *"$GNOME_HOTKEY_SLOT"* ]]; then
+            echo 'claude-desktop hotkey slot: INSTALLED'
+            echo "  name    = $(gsettings get "${GNOME_HOTKEY_ROOT}.custom-keybinding:${GNOME_HOTKEY_SLOT}" name 2>&1)"
+            echo "  command = $(gsettings get "${GNOME_HOTKEY_ROOT}.custom-keybinding:${GNOME_HOTKEY_SLOT}" command 2>&1)"
+            echo "  binding = $(gsettings get "${GNOME_HOTKEY_ROOT}.custom-keybinding:${GNOME_HOTKEY_SLOT}" binding 2>&1)"
+        else
+            echo 'claude-desktop hotkey slot: NOT INSTALLED'
+            echo '(run: claude-desktop --install-gnome-hotkey)'
+        fi
+    fi
+    echo
+    echo '--- Recent launcher log (last 10 lines) ---'
+    local logf="${XDG_CACHE_HOME:-$HOME/.cache}/claude-desktop/launcher.log"
+    if [[ -f $logf ]]; then
+        tail -10 "$logf"
+    else
+        echo '(no launcher.log yet)'
+    fi
+}
+
+case "${1:-}" in
+    --install-gnome-hotkey)
+        shift
+        _install_gnome_hotkey "$@"
+        exit $?
+        ;;
+    --uninstall-gnome-hotkey)
+        shift
+        _uninstall_gnome_hotkey
+        exit $?
+        ;;
+    --diagnose)
+        shift
+        # Run this subcommand even though it references variables (like
+        # electron_major, platform_mode) that are set below; we re-read what
+        # we need inside _diagnose. Electron version detection happens below
+        # because both _diagnose and the normal launch path need it.
+        _diagnose_requested=1
+        ;;
+esac
+
+# ---------------------------------------------------------------------------
 # Electron version detection
 # ---------------------------------------------------------------------------
 # Used below to decide whether native Wayland + GlobalShortcutsPortal is safe.
@@ -183,6 +389,15 @@ case $platform_mode in
         ELECTRON_ARGS+=('--wayland-text-input-version=3')
         ;;
 esac
+
+# Now that platform_mode and electron_major are known, service the --diagnose
+# subcommand if requested. Exits here — does not launch Electron.
+if [[ -n ${_diagnose_requested:-} ]]; then
+    echo "platform_mode = $platform_mode"
+    echo "electron_major = $electron_major"
+    _diagnose
+    exit 0
+fi
 
 # ---------------------------------------------------------------------------
 # GPU compositing fallback

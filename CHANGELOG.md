@@ -2,6 +2,39 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-17 — Quick Entry hotkey: GNOME bypass via `gsettings` + CLI trigger (issue #38)
+
+The portal-based path from commit 814e8fb is correct for KDE/Hyprland but unreliable on GNOME — the xdg-desktop-portal GlobalShortcuts approval notification is easy to miss, and Electron's `globalShortcut.register()` returns `true` either way, so the hotkey silently doesn't fire. Empirical check: on this project's Ubuntu GNOME Shell 48 VM, `gsettings get org.gnome.settings-daemon.global-shortcuts applications` was `@as []` — no app had completed the approval flow — despite the portal being available and all identity signals correctly aligned.
+
+### Added
+- **New patch `patches/fix_quick_entry_cli_toggle.py`** (3 sub-patches, strict `EXPECTED_PATCHES=3`):
+  - **A**: capture the Quick Entry show handler into `globalThis.__ceQuickEntryShow`. Anchored on the stable `.QUICK_ENTRY` enum property name inside `XYe(Iw.QUICK_ENTRY, () => {...})`. All minified identifiers captured with `[\w$]+`.
+  - **B**: prepend an argv pre-check to `app.on("second-instance", ...)`. If argv contains `--toggle-quick-entry`, invoke the captured handler and return early — don't fall through to upstream main-window show. Anchored on the literal `"second-instance"` (Electron API surface, stable).
+  - **C**: first-instance path — schedule a 500 ms `setTimeout` that fires the handler if `process.argv.includes("--toggle-quick-entry")`. Covers the cold-start case where no `second-instance` event fires. Emitted as part of sub-patch A's replacement so A and C either both apply or both don't.
+- **New patch `patches/fix_quick_entry_wayland_blur_guard.py`** — replaces the upstream `Po.on("blur", () => EHA(null))` with a focus-tracked variant. On GNOME Wayland, Mutter's focus-stealing prevention declines to transfer focus to Po on show but Chromium still emits phantom `blur` events because the logical focus state changed. The guard registers `focus`/`blur`/`show`/`hide` listeners and only dismisses on blur **if Po was ever focused since the last show**. If focus never fired (phantom blur), the dismiss is skipped — Po stays open until the user presses Escape or submits. X11 / KDE / Hyprland paths are unchanged (Po focuses normally there, so blur-click-outside-dismiss keeps working).
+- **Debounce guard in `patches/fix_quick_entry_cli_toggle.py` handler** — on GNOME the `claude-desktop --toggle-quick-entry` CLI gets delivered as TWO `second-instance` events ~500 ms apart for a single Ctrl+Alt+Space press (empirical: launcher fires once, Electron's `second-instance` event fires twice). Upstream `U$t()` implements toggle semantics (`IHA && Po.isVisible() ? EHA(null) : show`), so the second fire saw Po visible and dismissed it via `kjA()` → `Po.blur()` + `Po.hide()` — the "flashes open, closes" symptom. The handler now debounces with a 900 ms window (`if Date.now() - globalThis.__ceQEInvokedAt < 900 return;`); a deliberate second press >900 ms later still toggles normally.
+- **Three launcher subcommands** (`scripts/claude-desktop-launcher.sh`):
+  - `--install-gnome-hotkey [ACCEL]` — binds ACCEL (default `<Primary><Alt>space`) to `claude-desktop --toggle-quick-entry` via `gsettings`, under slot `/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/claude-desktop-quick-entry/`. Preserves any other custom keybindings (Python helper for safe array manipulation). Idempotent — re-run with a different accelerator to change it.
+  - `--uninstall-gnome-hotkey` — removes the slot from the array and resets the per-slot schema.
+  - `--diagnose` — one-shot snapshot: session env vars, Electron path + version (reads the bundled `version` file rather than invoking the binary, which would spawn Claude), systemd-run / gsettings / gdbus availability, `.desktop` file presence at the APP_ID path, portal GlobalShortcuts version, `org.gnome.settings-daemon.global-shortcuts applications` contents (empty means no app has completed approval), whether the project hotkey slot is installed with its name/command/binding, recent launcher log tail.
+
+### Behavior
+- Portal path (`--enable-features=GlobalShortcutsPortal`) is **unchanged** and remains the default on native Wayland. Sites where it works — KDE via `kglobalaccel` persistent grants, Hyprland via `xdg-desktop-portal-hyprland` — are unaffected.
+- GNOME users get a single-command alternative that bypasses the portal entirely. Paths are independent (no auto-fallback, no double-firing).
+- `--toggle-quick-entry` is **not** intercepted by the launcher — it passes through to Electron so the patch sees it in `process.argv` / second-instance argv.
+
+### Deliberately out of scope
+- No auto-install of the GNOME hotkey on first launch. Silent gsettings writes conflict with users' existing custom keybindings and are hard to audit afterward — opt-in only.
+- No portal-Activated verification or self-healing. Two code paths racing is the class of bug we're avoiding.
+- No new IPC channel. `app.on('second-instance')` already gives argv in the main process; bouncing through `ipcMain.handle` adds no capability.
+- No changes to the XWayland escape hatch (`CLAUDE_USE_XWAYLAND=1`). GNOME 49 has tightened XWayland key-grab policy anyway, so `--install-gnome-hotkey` is the recommended GNOME path.
+
+### References
+- [aaddrick/claude-desktop-debian#404](https://github.com/aaddrick/claude-desktop-debian/issues/404) — same symptom reproduced independently on Fedora 43 GNOME 49.
+- `wayland.md` has a new Quick Entry section with full troubleshooting and `--diagnose` reference.
+
+---
+
 ## 2026-04-17 (v1.3109.0) — Dispatch rename fix + strict-mode patch hardening
 
 ### Fixed

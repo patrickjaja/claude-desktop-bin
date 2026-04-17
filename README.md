@@ -515,23 +515,29 @@ On Windows/Mac, dispatch runs inside a VM. On Linux, [claude-cowork-service](htt
 
 ## Known Limitations
 
-### Global hotkey on Wayland requires Electron 40+ (bundled) or 40+ system
+### Global hotkey on Wayland
 
-On Wayland, the global hotkey (Ctrl+Alt+Space) is delivered through the
-`xdg-desktop-portal` GlobalShortcuts interface. GNOME, KDE, and Hyprland now
-all implement it. **However, Electron <40 has a broken DBus signal signature
-([electron/electron#49806](https://github.com/electron/electron/issues/49806),
-fixed in #49842 / 40.x+/41.x+)** — registrations succeed but Activated events
-never reach the app, so the hotkey appears to "only work when Claude is
-focused."
+The Quick Entry global hotkey (default Ctrl+Alt+Space) goes through one of two paths on Wayland:
 
-- **Fedora / Debian / AppImage / Nix**: Electron is bundled with each release
-  and tracks latest stable — these builds should work out of the box.
-- **Arch AUR (`claude-desktop-bin`)**: uses system `electron`. Arch is
-  currently on 39. **Update with `sudo pacman -Syu electron`** once Arch
-  bumps to 40+. The launcher prints a warning if it detects Electron <40.
-- **Can't update Electron?** Set `CLAUDE_USE_XWAYLAND=1` to run under X11
-  instead, where global hotkeys go through `XGrabKey` and work reliably.
+1. **`xdg-desktop-portal` GlobalShortcuts** (the default path enabled via `--enable-features=GlobalShortcutsPortal`). Works reliably on **KDE Plasma** (one-time approval via `kglobalaccel` — persists after that) and **Hyprland** (`xdg-desktop-portal-hyprland`). On **GNOME** the portal shows an approval notification that is easy to miss or dismiss, and there's no clear signal when that happens — the hotkey just silently doesn't fire.
+
+2. **GNOME custom keybinding via `gsettings`** (opt-in, recommended on GNOME). Binds Ctrl+Alt+Space (or any accelerator you prefer) to `claude-desktop --toggle-quick-entry`. The command triggers Quick Entry through Electron's single-instance mechanism, bypassing the portal entirely. Run once after install:
+
+   ```bash
+   claude-desktop --install-gnome-hotkey                 # default Ctrl+Alt+Space
+   claude-desktop --install-gnome-hotkey '<Super>space'  # or any accelerator
+   claude-desktop --uninstall-gnome-hotkey               # remove
+   ```
+
+   The helper writes a single entry under `org.gnome.settings-daemon.plugins.media-keys.custom-keybindings` and preserves any existing custom keybindings. Safe to re-run to change the accelerator.
+
+For triaging portal vs. gsettings issues, `claude-desktop --diagnose` prints session type, Electron version, portal availability, and whether the GNOME hotkey slot is installed.
+
+**Electron `<40` bug.** Separately, Electron versions before 40 have a DBus signal-signature bug ([electron/electron#49806](https://github.com/electron/electron/issues/49806), fixed in #49842 / 40.x+ / 41.x+) that breaks the portal path even on compositors where it otherwise works. The launcher logs a warning if it detects Electron `<40`.
+
+- **Fedora / Debian / AppImage / Nix**: Electron is bundled (`41.x+`) — portal path works on KDE/Hyprland; GNOME users should use `--install-gnome-hotkey`.
+- **Arch AUR (`claude-desktop-bin`)**: uses system `electron`. Update with `sudo pacman -Syu electron` until Arch is on 40+.
+- **Last-resort escape hatch**: `CLAUDE_USE_XWAYLAND=1` forces XWayland so `XGrabKey` runs instead. GNOME 49 has tightened XWayland key-grab policy, so this is not reliable on recent GNOME — the `gsettings` path above is preferred.
 
 ### App identity on Wayland
 
