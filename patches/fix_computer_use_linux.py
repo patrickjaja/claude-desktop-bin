@@ -4,32 +4,47 @@
 """
 Make computer-use work on Linux by removing platform gates and providing a Linux executor.
 
-Upstream has platform gates that block computer-use on non-macOS/Windows:
-  1. ese = new Set(["darwin","win32"]) — vee() checks this set, gating the push
-     of the CU server def and the chicagoEnabled check (rj())
-  2. createDarwinExecutor: throws if process.platform !== "darwin"
+Two runtime behaviors are available. Selection precedence:
 
-This patch:
-  1. Adds "linux" to the ese Set so vee()/rj() accept Linux
-  2. (Removed — handled by Set fix)
-  3. Replaces createDarwinExecutor to return a Linux executor on Linux
-     using xdotool (input), scrot (screenshots), Electron API (displays, clipboard)
-     with session-aware detection: XDG_SESSION_TYPE for X11/Wayland,
-     SWAYSOCK/HYPRLAND_INSTANCE_SIGNATURE for wlroots compositors,
-     XDG_CURRENT_DESKTOP for KDE/GNOME. Tools: ydotool (Wayland input),
-     grim (wlroots screenshots), portal+pipewire (GNOME Wayland 46+),
-     spectacle (KDE), gdbus (GNOME Wayland), gnome-screenshot (GNOME),
-     hyprctl/swaymsg (window info), desktopCapturer (screenshot fallback)
-  4. Patches ensureOsPermissions to return granted:true on Linux (skip TCC)
-  5. Hybrid handleToolCall: injects an early-return block at the top.
-     - Teach tools (request_teach_access, teach_step, teach_batch) fall through
-       to the upstream chain, which uses __linuxExecutor (via sub-patch 3) and
-       auto-granted permissions (via sub-patch 4). The teach overlay is pure
-       Electron BrowserWindow + IPC — works on Linux natively.
-     - Normal CU tools use a fast direct handler dispatching to __linuxExecutor,
-       skipping the macOS app tiers, allowlists, and permission dialogs.
-     - switch_display: real implementation using Electron screen API
-     - computer_batch: structured {completed, failed, remaining} return format
+  1. CLAUDE_CU_MODE=<regular|kwin-wayland>          (explicit override)
+  2. XDG_SESSION_DESKTOP=KDE + XDG_SESSION_TYPE=wayland + kwin-portal-bridge
+     on PATH (or KWIN_PORTAL_BRIDGE_BIN set)        → auto kwin-wayland
+  3. Anything else                                  → regular
+
+  CLAUDE_CU_MODE=regular
+    Cross-distro inline executor built from xdotool/ydotool/scrot/grim/portal/
+    spectacle/gdbus/desktopCapturer with session-aware detection
+    (XDG_SESSION_TYPE, SWAYSOCK, HYPRLAND_INSTANCE_SIGNATURE, XDG_CURRENT_DESKTOP).
+    handleToolCall is rerouted through a hybrid dispatcher that services normal
+    CU tools directly via __linuxExecutor while teach tools fall through to the
+    upstream chain. Teach overlay uses Electron BrowserWindow with VM-aware
+    transparency + setIgnoreMouseEvents no-op workaround.
+
+  CLAUDE_CU_MODE=kwin-wayland
+    KDE-targeted executor loaded from js/executor_linux.js (kwin-portal-
+    bridge backed). handleToolCall stays on the upstream path so the normal
+    MCP flow exercises the executor for allowlists, frontmost checks,
+    screenshot coordinate scaling, etc. Teach overlay + side-panel are routed
+    through bridge-backed controllers (__initTeachController, __initDockController).
+    Adds plasmashell/Dolphin aliasing + explicit Linux/KDE system-prompt wording.
+
+Shared patches (always applied regardless of mode):
+  * ese Set += "linux"                    → vee()/rj() accept Linux
+  * createDarwinExecutor                  → returns globalThis.__linuxExecutor
+  * ensureOsPermissions                   → {granted:true} on Linux (skip TCC)
+  * mVt()/rj()                            → force true on Linux
+  * cu lock acquire/release               → __setLockHeld hook (kwin-only code,
+                                             optional chaining makes it a no-op
+                                             in regular mode)
+  * screenshot intro note workaround      → linuxVisibleLastScreenshot closure
+  * teach overlay mouse / VM / display    → BrowserWindow workarounds (regular-only
+                                             effect; kwin-wayland returns early via
+                                             __initTeachController capability check)
+
+Runtime text patches use a 3-way ternary:
+    platform==="linux"
+      ? ((process.env.CLAUDE_CU_MODE||"regular")==="kwin-wayland" ? KDE : generic)
+      : macOS
 
 Usage: python3 fix_computer_use_linux.py <path_to_index.js>
 """
@@ -44,529 +59,9 @@ import re
 #
 # Note: execSync is used intentionally for xdotool/scrot/xrandr — these are
 # hardcoded system commands, not user-controlled input.
-LINUX_EXECUTOR_JS = r"""
-(function(){
-var _cp=require("child_process"),_path=require("path"),_fs=require("fs"),_os=require("os"),_electron=require("electron");
-function _exec(cmd){return _cp.execSync(cmd,{encoding:"utf-8",timeout:15000}).trim()}
-function _execBuf(cmd){return _cp.execSync(cmd,{timeout:15000})}
-function _isWayland(){var st=(process.env.XDG_SESSION_TYPE||"").toLowerCase();if(st==="wayland")return true;if(st==="x11")return false;return!!process.env.WAYLAND_DISPLAY}
-var _wayland=_isWayland();
-function _isWlroots(){return!!process.env.SWAYSOCK||!!process.env.HYPRLAND_INSTANCE_SIGNATURE}
-try{var _virt=_cp.execSync("systemd-detect-virt 2>/dev/null",{encoding:"utf-8",timeout:3000}).trim();globalThis.__isVM=_virt!=="none"&&_virt!==""}catch(e){globalThis.__isVM=!1}
-if(globalThis.__isVM)console.log("[claude-cu] VM detected ("+_virt+") — teach overlay uses dark backdrop fallback");
-var _cmdCache={};
-function _hasCmd(cmd){if(_cmdCache[cmd]!==void 0)return _cmdCache[cmd];try{_exec("which "+cmd+" 2>/dev/null");_cmdCache[cmd]=true}catch(e){_cmdCache[cmd]=false}return _cmdCache[cmd]}
-function _desktopId(){return(process.env.XDG_CURRENT_DESKTOP||"").toLowerCase()}
-var _ydotoolOk=null;
-function _checkYdotool(){if(_ydotoolOk!==null)return _ydotoolOk;if(!_hasCmd("ydotool")){_ydotoolOk=false;return false}try{_cp.execSync("pgrep -x ydotoold",{timeout:2000,stdio:"pipe"});_ydotoolOk=true}catch(e){var sock=(process.env.YDOTOOL_SOCKET||"")||((process.env.XDG_RUNTIME_DIR||"/tmp")+"/.ydotool_socket");try{_fs.accessSync(sock);_ydotoolOk=true}catch(se){console.warn("[claude-cu] ydotool found but ydotoold not running — falling back to xdotool");_ydotoolOk=false}}return _ydotoolOk}
-function _readClean(f){var buf=_fs.readFileSync(f);try{_fs.unlinkSync(f)}catch(e){}return buf.toString("base64")}
-var _portalTokenPath=_path.join(_os.homedir(),".config","Claude","pipewire-restore-token");
-var _portalPyCode="import sys,os,signal,subprocess\nTOKEN_FILE=os.path.expanduser('~/.config/Claude/pipewire-restore-token')\nTIMEOUT_SECS=10\ndef main():\n    if len(sys.argv)<2:\n        print('Usage: gnome-portal-screenshot.py <output.png> [x y w h]',file=sys.stderr);return 1\n    output_path=sys.argv[1]\n    crop=tuple(int(x) for x in sys.argv[2:6]) if len(sys.argv)>=6 else None\n    try:\n        import gi\n        gi.require_version('Gst','1.0')\n        from gi.repository import GLib,Gio,Gst\n    except (ImportError,ValueError) as e:\n        print(f'[portal-screenshot] missing deps: {e}',file=sys.stderr);return 2\n    Gst.init(None)\n    restore_token=''\n    try:\n        with open(TOKEN_FILE) as f: restore_token=f.read().strip()\n    except FileNotFoundError: pass\n    bus=Gio.bus_get_sync(Gio.BusType.SESSION)\n    loop=GLib.MainLoop()\n    state={'node_id':None,'new_token':'','session':'','error':None,'done':False}\n    unique_name=bus.get_unique_name().replace('.','_').replace(':','')\n    counter=[0]\n    def next_token():\n        counter[0]+=1;return f'claude_{os.getpid()}_{counter[0]}'\n    def subscribe_response(handle_path,callback):\n        sub_id=[None]\n        def on_signal(_conn,_sender,_path,_iface,_sig,params):\n            bus.signal_unsubscribe(sub_id[0]);resp,results=params.unpack();callback(resp,results)\n        sub_id[0]=bus.signal_subscribe('org.freedesktop.portal.Desktop','org.freedesktop.portal.Request','Response',handle_path,None,0,on_signal);return sub_id[0]\n    def portal_call(method,args_variant):\n        return bus.call_sync('org.freedesktop.portal.Desktop','/org/freedesktop/portal/desktop','org.freedesktop.portal.ScreenCast',method,args_variant,None,0,TIMEOUT_SECS*1000,None)\n    def fail(msg):\n        state['error']=msg\n        if loop.is_running(): loop.quit()\n    def do_start():\n        ht=next_token();hp=f'/org/freedesktop/portal/desktop/request/{unique_name}/{ht}'\n        def on_start(resp,results):\n            if resp!=0: fail(f'Start rejected ({resp})');return\n            streams=results.get('streams',None);new_tok=results.get('restore_token','')\n            if new_tok: state['new_token']=new_tok\n            if streams:\n                sl=streams.unpack() if hasattr(streams,'unpack') else streams\n                if sl: state['node_id']=sl[0][0] if isinstance(sl[0],tuple) else sl[0]\n            state['done']=True;loop.quit()\n        subscribe_response(hp,on_start)\n        portal_call('Start',GLib.Variant('(osa{sv})',(state['session'],'',{'handle_token':GLib.Variant('s',ht)})))\n    def do_select():\n        ht=next_token();hp=f'/org/freedesktop/portal/desktop/request/{unique_name}/{ht}'\n        def on_select(resp,_results):\n            if resp!=0: fail(f'SelectSources rejected ({resp})');return\n            do_start()\n        subscribe_response(hp,on_select)\n        opts={'handle_token':GLib.Variant('s',ht),'types':GLib.Variant('u',1),'multiple':GLib.Variant('b',False),'persist_mode':GLib.Variant('u',2)}\n        if restore_token: opts['restore_token']=GLib.Variant('s',restore_token)\n        portal_call('SelectSources',GLib.Variant('(oa{sv})',(state['session'],opts)))\n    def do_create():\n        ht=next_token();st=f'claude_sess_{os.getpid()}'\n        hp=f'/org/freedesktop/portal/desktop/request/{unique_name}/{ht}'\n        def on_create(resp,results):\n            if resp!=0: fail(f'CreateSession rejected ({resp})');return\n            sh=results.get('session_handle','')\n            if not sh: fail('No session handle');return\n            state['session']=sh;do_select()\n        subscribe_response(hp,on_create)\n        portal_call('CreateSession',GLib.Variant('(a{sv})',({'handle_token':GLib.Variant('s',ht),'session_handle_token':GLib.Variant('s',st)},)))\n    GLib.timeout_add_seconds(TIMEOUT_SECS,lambda:(fail('timeout') if not state['done'] else None,False)[-1])\n    try: do_create();loop.run()\n    except Exception as e: fail(str(e))\n    if state['error']:\n        print(f'[portal-screenshot] {state[\"error\"]}',file=sys.stderr);return 1\n    if not state['node_id']:\n        print('[portal-screenshot] no PipeWire node',file=sys.stderr);return 1\n    if state['new_token']:\n        try:\n            os.makedirs(os.path.dirname(TOKEN_FILE),exist_ok=True)\n            with open(TOKEN_FILE,'w') as f: f.write(state['new_token'])\n        except OSError: pass\n    node_id=state['node_id']\n    try:\n        pipeline=Gst.parse_launch(f'pipewiresrc path={node_id} num-buffers=1 ! videoconvert ! pngenc ! filesink location=\"{output_path}\"')\n        pipeline.set_state(Gst.State.PLAYING)\n        gst_bus=pipeline.get_bus()\n        msg=gst_bus.timed_pop_filtered(5*Gst.SECOND,Gst.MessageType.EOS|Gst.MessageType.ERROR)\n        if msg and msg.type==Gst.MessageType.ERROR:\n            err,_=msg.parse_error();print(f'[portal-screenshot] GStreamer: {err.message}',file=sys.stderr)\n            pipeline.set_state(Gst.State.NULL);return 1\n        pipeline.set_state(Gst.State.NULL)\n    except Exception as e:\n        print(f'[portal-screenshot] GStreamer failed: {e}',file=sys.stderr);return 1\n    if not os.path.exists(output_path): return 1\n    if crop:\n        cx,cy,cw,ch=crop\n        try:\n            from gi.repository import GdkPixbuf\n            pb=GdkPixbuf.Pixbuf.new_from_file(output_path)\n            pw,ph=pb.get_width(),pb.get_height()\n            cx=min(cx,pw-1);cy=min(cy,ph-1);cw=min(cw,pw-cx);ch=min(ch,ph-cy)\n            cr=GdkPixbuf.Pixbuf.new(GdkPixbuf.Colorspace.RGB,pb.get_has_alpha(),8,cw,ch)\n            pb.copy_area(cx,cy,cw,ch,cr,0,0);cr.savev(output_path,'png',[],[])\n        except ImportError:\n            try: subprocess.run(['convert',output_path,'-crop',f'{cw}x{ch}+{cx}+{cy}','+repage',output_path],timeout=5,check=True,capture_output=True)\n            except Exception: pass\n    if state['session']:\n        try: bus.call_sync('org.freedesktop.portal.Desktop',state['session'],'org.freedesktop.portal.Session','Close',None,None,0,1000,None)\n        except Exception: pass\n    return 0\nif __name__=='__main__':\n    signal.signal(signal.SIGALRM,lambda *_:sys.exit(1));signal.alarm(TIMEOUT_SECS+5);sys.exit(main())";
-function _hasPortalDeps(){return _hasCmd("python3")&&_hasCmd("gst-launch-1.0")}
-function _hasPortalToken(){try{_fs.accessSync(_portalTokenPath);return true}catch(e){return false}}
-async function _portalScreenshot(tmp,x,y,w,h){
-  return new Promise(function(resolve){var ch=_cp.spawn("python3",["-",tmp,String(x),String(y),String(w),String(h)],{stdio:["pipe","pipe","pipe"]});ch.stdin.write(_portalPyCode);ch.stdin.end();var se="";ch.stderr.on("data",function(d){se+=d.toString()});var timer=setTimeout(function(){ch.kill("SIGKILL");resolve({status:1,stderr:"timeout"})},15000);ch.on("close",function(code){clearTimeout(timer);resolve({status:code,stderr:se})});ch.on("error",function(e){clearTimeout(timer);resolve({status:1,stderr:e.message})})});
-}
-async function _captureRegion(x,y,w,h){
-  var tmp=_path.join(_os.tmpdir(),"claude-cu-"+Date.now()+"-"+Math.random().toString(36).slice(2)+".png");
-  var _de=_desktopId();
-  if(process.env.COWORK_SCREENSHOT_CMD){
-    try{var cmd=process.env.COWORK_SCREENSHOT_CMD.replace(/\{FILE\}/g,tmp).replace(/\{X\}/g,x).replace(/\{Y\}/g,y).replace(/\{W\}/g,w).replace(/\{H\}/g,h);
-    _cp.execSync(cmd,{timeout:15000});console.log("[claude-cu] screenshot: captured via COWORK_SCREENSHOT_CMD");return _readClean(tmp)}catch(e){console.warn("[claude-cu] COWORK_SCREENSHOT_CMD failed: "+e.message)}
-  }
-  if(_wayland&&_isWlroots()&&_hasCmd("grim")){
-    try{_cp.execSync('grim -g "'+x+","+y+" "+w+"x"+h+'" "'+tmp+'"',{timeout:10000});console.log("[claude-cu] screenshot: captured via grim (wlroots)");return _readClean(tmp)}catch(e){console.warn("[claude-cu] grim failed: "+e.message)}
-  }
-  if(_wayland&&_de.indexOf("gnome")>=0&&_hasPortalToken()&&_hasPortalDeps()){
-    try{var ret=await _portalScreenshot(tmp,x,y,w,h);
-    if(ret.status===0&&_fs.existsSync(tmp)){console.log("[claude-cu] screenshot: captured via portal+pipewire (GNOME, restore token)");return _readClean(tmp)}
-    if(ret.status===2){console.warn("[claude-cu] portal screenshot: missing python deps (python3-gi, gstreamer)")}
-    else{console.warn("[claude-cu] portal screenshot failed (exit="+ret.status+"): "+(ret.stderr?ret.stderr.trim():""))}}catch(e){console.warn("[claude-cu] portal screenshot error: "+e.message)}
-  }
-  if(_wayland&&_de.indexOf("gnome")>=0&&_hasCmd("gnome-screenshot")){
-    try{var _gstmp=_path.join(_os.tmpdir(),"claude-cu-gnome-"+Date.now()+".png");
-    _cp.execSync('gnome-screenshot -f "'+_gstmp+'"',{timeout:10000});
-    if(_fs.existsSync(_gstmp)){if(_hasCmd("convert")){try{_cp.execSync('convert "'+_gstmp+'" -crop '+w+"x"+h+"+"+x+"+"+y+' +repage "'+tmp+'"',{timeout:5000});try{_fs.unlinkSync(_gstmp)}catch(e){}console.log("[claude-cu] screenshot: captured via gnome-screenshot+convert (Wayland GNOME)");return _readClean(tmp)}catch(ce){try{_fs.renameSync(_gstmp,tmp)}catch(re){}console.log("[claude-cu] screenshot: captured via gnome-screenshot (Wayland GNOME, uncropped)");return _readClean(tmp)}}else{try{_fs.renameSync(_gstmp,tmp)}catch(re){}console.log("[claude-cu] screenshot: captured via gnome-screenshot (Wayland GNOME, uncropped)");return _readClean(tmp)}}
-    }catch(e){console.warn("[claude-cu] gnome-screenshot (Wayland) failed: "+e.message)}
-  }
-  if(_wayland&&_de.indexOf("gnome")>=0&&_hasCmd("gdbus")){
-    try{_cp.execSync("gdbus call --session --dest org.gnome.Shell.Screenshot --object-path /org/gnome/Shell/Screenshot --method org.gnome.Shell.Screenshot.ScreenshotArea "+x+" "+y+" "+w+" "+h+" false '"+tmp+"'",{timeout:10000});
-    if(_fs.existsSync(tmp)){console.log("[claude-cu] screenshot: captured via gdbus (GNOME Shell Screenshot D-Bus)");return _readClean(tmp)}}catch(e){console.warn("[claude-cu] GNOME D-Bus screenshot failed: "+e.message)}
-  }
-  if(_wayland&&_de.indexOf("gnome")>=0&&!_hasPortalToken()&&_hasPortalDeps()){
-    try{var ret=await _portalScreenshot(tmp,x,y,w,h);
-    if(ret.status===0&&_fs.existsSync(tmp)){console.log("[claude-cu] screenshot: captured via portal+pipewire (GNOME, first-run)");return _readClean(tmp)}
-    if(ret.status===2){console.warn("[claude-cu] portal screenshot: missing python deps (python3-gi, gstreamer)")}
-    else{console.warn("[claude-cu] portal screenshot failed (exit="+ret.status+"): "+(ret.stderr?ret.stderr.trim():""))}}catch(e){console.warn("[claude-cu] portal screenshot error: "+e.message)}
-  }
-  if(_de.indexOf("kde")>=0&&_hasCmd("spectacle")){
-    try{var stmp=_path.join(_os.tmpdir(),"claude-cu-spectacle-"+Date.now()+".png");
-    _cp.execSync('spectacle -b -n -f -o "'+stmp+'"',{timeout:10000});
-    if(_fs.existsSync(stmp)){try{_cp.execSync('convert "'+stmp+'" -crop '+w+"x"+h+"+"+x+"+"+y+' +repage "'+tmp+'"',{timeout:5000});try{_fs.unlinkSync(stmp)}catch(e){}console.log("[claude-cu] screenshot: captured via spectacle+convert (KDE)");return _readClean(tmp)}catch(ce){try{_fs.renameSync(stmp,tmp)}catch(re){}console.log("[claude-cu] screenshot: captured via spectacle (KDE, uncropped)");return _readClean(tmp)}}
-    }catch(e){console.warn("[claude-cu] spectacle failed: "+e.message)}
-  }
-  if(!_wayland&&_de.indexOf("gnome")>=0&&_hasCmd("gnome-screenshot")){
-    try{_cp.execSync('gnome-screenshot -f "'+tmp+'"',{timeout:10000});if(_fs.existsSync(tmp)){console.log("[claude-cu] screenshot: captured via gnome-screenshot (X11)");return _readClean(tmp)}}catch(e){console.warn("[claude-cu] gnome-screenshot failed: "+e.message)}
-  }
-  if(!_wayland&&_hasCmd("scrot")){
-    try{_cp.execSync("scrot -a "+x+","+y+","+w+","+h+' -o "'+tmp+'"',{timeout:10000});console.log("[claude-cu] screenshot: captured via scrot (X11)");return _readClean(tmp)}catch(e){console.warn("[claude-cu] scrot failed: "+e.message)}
-  }
-  if(!_wayland){try{_cp.execSync('import -window root -crop '+w+"x"+h+"+"+x+"+"+y+' "'+tmp+'"',{timeout:10000});console.log("[claude-cu] screenshot: captured via import (ImageMagick, X11)");return _readClean(tmp)}catch(e2){console.warn("[claude-cu] import (ImageMagick) failed: "+(e2.message||e2))}}
-  try{var _sources=await _electron.desktopCapturer.getSources({types:["screen"],thumbnailSize:{width:w+x,height:h+y}});if(_sources&&_sources.length>0){var _img=_sources[0].thumbnail;if(_img&&!_img.isEmpty()){var _cropped=_img.crop({x:x,y:y,width:w,height:h});_fs.writeFileSync(tmp,_cropped.toPNG());console.log("[claude-cu] screenshot: captured via desktopCapturer (Electron fallback)");return _readClean(tmp)}}}catch(dce){console.warn("[claude-cu] desktopCapturer fallback failed: "+dce.message)}
-  throw new Error("Screenshot failed — install scrot (X11), grim (Wayland wlroots), or set COWORK_SCREENSHOT_CMD env var.")
-}
-if(_wayland){console.log("[claude-cu] Wayland session detected — using native Wayland tools")}
-(function(){
-  var _de=_desktopId();var _wlr=_wayland?_isWlroots():false;
-  var _isGnome=_de.indexOf("gnome")>=0;var _isKde=_de.indexOf("kde")>=0;
-  var _isHypr=!!process.env.HYPRLAND_INSTANCE_SIGNATURE;var _isSway=!!process.env.SWAYSOCK;
-  var _relevant=[];
-  if(_wayland&&_wlr)_relevant.push("grim");
-  if(_wayland&&_isGnome){_relevant.push("gst-launch-1.0");_relevant.push("gnome-screenshot");_relevant.push("gdbus")}
-  if(_isKde){_relevant.push("spectacle");_relevant.push("convert")}
-  if(!_wayland&&_isGnome)_relevant.push("gnome-screenshot");
-  if(!_wayland)_relevant.push("scrot","import");
-  if(_wayland)_relevant.push("ydotool");
-  _relevant.push("xdotool");
-  if(!_wayland)_relevant.push("wmctrl");
-  if(_isHypr)_relevant.push("hyprctl");
-  if(_isSway){_relevant.push("swaymsg");_relevant.push("jq")}
-  _relevant.push("xdg-open");
-  var avail=_relevant.filter(function(t){return _hasCmd(t)});
-  var missing=_relevant.filter(function(t){return !_hasCmd(t)});
-  console.log("[claude-cu] diagnostics: session="+(_wayland?"wayland":"x11")+" de="+(_de||"unknown")+" wlroots="+_wlr+" vm="+!!globalThis.__isVM);
-  console.log("[claude-cu] diagnostics: available=["+avail.join(", ")+"]");
-  if(missing.length)console.warn("[claude-cu] diagnostics: missing=["+missing.join(", ")+"] (install for full functionality)");
-  if(_wayland){
-    var ydOk=_checkYdotool();
-    console.log("[claude-cu] diagnostics: input-backend="+(ydOk?"ydotool":"xdotool (XWayland fallback)"));
-  }else{
-    console.log("[claude-cu] diagnostics: input-backend=xdotool");
-  }
-  var _hasToken=_hasPortalToken();var _hasPDeps=_hasPortalDeps();
-  var order=[];
-  if(process.env.COWORK_SCREENSHOT_CMD)order.push("COWORK_SCREENSHOT_CMD");
-  if(_wayland&&_wlr&&_hasCmd("grim"))order.push("grim");
-  if(_wayland&&_isGnome&&_hasToken&&_hasPDeps)order.push("portal+pipewire");
-  if(_wayland&&_isGnome&&_hasCmd("gnome-screenshot"))order.push("gnome-screenshot");
-  if(_wayland&&_isGnome&&_hasCmd("gdbus"))order.push("gdbus");
-  if(_wayland&&_isGnome&&!_hasToken&&_hasPDeps)order.push("portal+pipewire");
-  if(_isKde&&_hasCmd("spectacle"))order.push("spectacle");
-  if(!_wayland&&_isGnome&&_hasCmd("gnome-screenshot"))order.push("gnome-screenshot");
-  if(!_wayland&&_hasCmd("scrot"))order.push("scrot");
-  if(!_wayland&&_hasCmd("import"))order.push("import");
-  order.push("desktopCapturer");
-  console.log("[claude-cu] diagnostics: screenshot-cascade=["+order.join(" > ")+"]");
-  if(_wayland&&_isGnome){console.log("[claude-cu] diagnostics: pipewire-restore-token="+(_hasToken?"found (portal screenshots will skip permission dialog)":"none (first portal screenshot will show permission dialog)"))}
-})();
-var _defaultMon={displayId:0,width:1920,height:1080,originX:0,originY:0,scaleFactor:1,isPrimary:true,label:"default"};
-function _getMonitors(){
-  try{
-    var displays=_electron.screen.getAllDisplays();
-    if(displays&&displays.length>0){
-      var primary=_electron.screen.getPrimaryDisplay();
-      var primaryId=primary?primary.id:displays[0].id;
-      return displays.map(function(d,idx){return{displayId:idx,width:d.size.width,height:d.size.height,originX:d.bounds.x,originY:d.bounds.y,scaleFactor:d.scaleFactor||1,isPrimary:d.id===primaryId,label:d.label||("display-"+idx)}});
-    }
-  }catch(ee){}
-  return[_defaultMon];
-}
-function _findMon(displayId){
-  var mons=_getMonitors();
-  if(displayId!=null){
-    for(var i=0;i<mons.length;i++){if(mons[i].displayId===displayId)return mons[i]}
-    var displays=_electron.screen.getAllDisplays();
-    for(var i=0;i<displays.length;i++){if(displays[i].id===displayId&&i<mons.length)return mons[i]}
-  }
-  for(var i=0;i<mons.length;i++){if(mons[i].isPrimary)return mons[i]}
-  return mons[0];
-}
-var _inputLogDone={mouse:false,click:false,key:false,type:false,scroll:false,drag:false,window:false,app:false};
-function _logFirstUse(op,backend){if(!_inputLogDone[op]){_inputLogDone[op]=true;console.log("[claude-cu] "+op+": using "+backend)}}
-function _moveMouse(x,y){
-  if(_wayland&&_checkYdotool()){
-    try{_logFirstUse("mouse","ydotool");_exec("ydotool mousemove --absolute 0 0");_cp.execSync("sleep 0.05");_exec("ydotool mousemove "+Math.round(x)+" "+Math.round(y));return}catch(e){console.warn("[claude-cu] ydotool mousemove failed, falling back to xdotool: "+e.message)}
-  }else{
-    if(_wayland&&!_checkYdotool())console.warn("[claude-cu] ydotool not available on Wayland, falling back to xdotool via XWayland");
-  }
-  _logFirstUse("mouse","xdotool");
-  _exec("xdotool mousemove --sync "+Math.round(x)+" "+Math.round(y));
-}
-function _mapKey(k){
-  var l=k.trim().toLowerCase();
-  if(l==="ctrl"||l==="control")return"ctrl";
-  if(l==="alt")return"alt";if(l==="shift")return"shift";
-  if(l==="super"||l==="meta"||l==="cmd"||l==="command")return"super";
-  if(l==="enter"||l==="return")return"Return";
-  if(l==="backspace")return"BackSpace";
-  if(l==="delete")return"Delete";
-  if(l==="escape"||l==="esc")return"Escape";
-  if(l==="tab")return"Tab";
-  if(l==="space"||l===" ")return"space";
-  if(l==="up")return"Up";if(l==="down")return"Down";
-  if(l==="left")return"Left";if(l==="right")return"Right";
-  if(l==="home")return"Home";if(l==="end")return"End";
-  if(l==="pageup")return"Prior";if(l==="pagedown")return"Next";
-  if(l==="capslock")return"Caps_Lock";
-  return k.trim();
-}
-function _mapKeyWayland(k){
-  var _kmap={"ctrl":29,"control":29,"leftctrl":29,"rightctrl":97,
-    "alt":56,"leftalt":56,"rightalt":100,"shift":42,"leftshift":42,"rightshift":54,
-    "super":125,"meta":125,"cmd":125,"command":125,"leftmeta":125,"rightmeta":126,
-    "enter":28,"return":28,"backspace":14,"delete":111,"escape":1,"esc":1,"tab":15,
-    "space":57,"up":103,"down":108,"left":105,"right":106,
-    "home":102,"end":107,"pageup":104,"pagedown":109,"insert":110,
-    "capslock":58,"numlock":69,"scrolllock":70,"pause":119,"sysrq":99,
-    "f1":59,"f2":60,"f3":61,"f4":62,"f5":63,"f6":64,
-    "f7":65,"f8":66,"f9":67,"f10":68,"f11":87,"f12":88,
-    "a":30,"b":48,"c":46,"d":32,"e":18,"f":33,"g":34,"h":35,"i":23,"j":36,
-    "k":37,"l":38,"m":50,"n":49,"o":24,"p":25,"q":16,"r":19,"s":31,"t":20,
-    "u":22,"v":47,"w":17,"x":45,"y":21,"z":44,
-    "1":2,"2":3,"3":4,"4":5,"5":6,"6":7,"7":8,"8":9,"9":10,"0":11,
-    "minus":12,"equal":13,"leftbrace":26,"rightbrace":27,
-    "semicolon":39,"apostrophe":40,"grave":41,"backslash":43,
-    "comma":51,"dot":52,"slash":53,"kpasterisk":55,"kpminus":74,"kpplus":78};
-  var l=k.trim().toLowerCase();
-  return String(_kmap[l]||l);
-}
-async function _screenshotMon(mon){return await _captureRegion(mon.originX,mon.originY,mon.width,mon.height)}
-function _getActiveWindowWayland(){
-  try{
-    if(process.env.HYPRLAND_INSTANCE_SIGNATURE&&_hasCmd("hyprctl")){
-      var out=_exec("hyprctl activewindow -j 2>/dev/null");
-      var w=JSON.parse(out);
-      if(w&&(w.class||w.title)){_logFirstUse("window","hyprctl");return{bundleId:w.class||w.title,displayName:w.title||w.class}}
-    }
-  }catch(he){}
-  try{
-    if(process.env.SWAYSOCK&&_hasCmd("swaymsg")&&_hasCmd("jq")){
-      var out=_exec("swaymsg -t get_tree 2>/dev/null|jq -r '.. | select(.focused? == true) | {app_id, name}'");
-      var w=JSON.parse(out);
-      if(w&&(w.app_id||w.name)){_logFirstUse("window","swaymsg+jq");return{bundleId:w.app_id||w.name,displayName:w.name||w.app_id}}
-    }
-  }catch(se){}
-  return null;
-}
-function _listRunningAppsWayland(){
-  var apps=[],seen={};
-  try{
-    if(process.env.HYPRLAND_INSTANCE_SIGNATURE&&_hasCmd("hyprctl")){
-      console.log("[claude-cu] listRunningApps: using hyprctl clients");
-      var out=_exec("hyprctl clients -j 2>/dev/null");
-      var clients=JSON.parse(out);
-      for(var i=0;i<clients.length;i++){
-        var c=clients[i];
-        var id=c.class||c.title;
-        if(id&&!seen[id]){seen[id]=true;apps.push({bundleId:c.class||c.title,displayName:c.title||c.class})}
-      }
-      return apps;
-    }
-  }catch(he){}
-  try{
-    if(process.env.SWAYSOCK&&_hasCmd("swaymsg")&&_hasCmd("jq")){
-      console.log("[claude-cu] listRunningApps: using swaymsg+jq");
-      var out=_exec("swaymsg -t get_tree 2>/dev/null|jq -r '.. | select(.pid? > 0 and .visible? == true) | {app_id, name}'");
-      var lines=out.split("\n");
-      for(var i=0;i<lines.length;i++){
-        try{
-          var w=JSON.parse(lines[i]);
-          var id=w.app_id||w.name;
-          if(id&&!seen[id]){seen[id]=true;apps.push({bundleId:w.app_id||w.name,displayName:w.name||w.app_id})}
-        }catch(pe){}
-      }
-      return apps;
-    }
-  }catch(se){}
-  return apps;
-}
-function _getWinInfo(wid){
-  try{
-    var cls=_exec("xdotool getwindowclassname "+wid);
-    var name=_exec("xdotool getwindowname "+wid);
-    return{bundleId:cls,displayName:name||cls};
-  }catch(e){return null}
-}
-globalThis.__linuxExecutor={
-  capabilities:{screenshotFiltering:"none",platform:"linux",hostBundleId:"claude-desktop"},
-  async listDisplays(){return _getMonitors()},
-  async getDisplaySize(displayId){
-    var m=_findMon(displayId);
-    return{width:m.width,height:m.height,scaleFactor:m.scaleFactor,originX:m.originX||0,originY:m.originY||0};
-  },
-  async screenshot(opts){
-    var mon=_findMon(opts&&opts.displayId);
-    var b64=await _screenshotMon(mon);
-    return{base64:b64};
-  },
-  async resolvePrepareCapture(opts){
-    var did=opts&&opts.preferredDisplayId;
-    var mon=_findMon(did);
-    var b64=await _screenshotMon(mon);
-    return{base64:b64,width:mon.width,height:mon.height,displayWidth:mon.width,displayHeight:mon.height,displayId:mon.displayId,originX:mon.originX,originY:mon.originY,hidden:[]};
-  },
-  async zoom(rect,scale,displayId){
-    var b64=await _captureRegion(rect.x,rect.y,rect.w,rect.h);
-    return{base64:b64};
-  },
-  async prepareForAction(bundleIds,displayId){return[]},
-  async previewHideSet(bundleIds,displayId){return[]},
-  async findWindowDisplays(bundleIds){return[]},
-  async listInstalledApps(){
-    var apps=[];
-    var seen={};
-    function _add(bid,dname,p){var k=bid+"|"+dname.toLowerCase();if(!seen[k]){seen[k]=1;apps.push({bundleId:bid,displayName:dname,path:p})}}
-    try{
-      var dirs=["/usr/share/applications",_path.join(_os.homedir(),".local/share/applications"),"/var/lib/flatpak/exports/share/applications",_path.join(_os.homedir(),".local/share/flatpak/exports/share/applications")];
-      for(var d=0;d<dirs.length;d++){
-        try{
-          var files=_fs.readdirSync(dirs[d]);
-          for(var i=0;i<files.length;i++){
-            if(files[i].indexOf(".desktop")===-1)continue;
-            try{
-              var fp=_path.join(dirs[d],files[i]);
-              var content=_fs.readFileSync(fp,"utf-8");
-              var nameMatch=content.match(/^Name=(.+)$/m);
-              var execMatch=content.match(/^Exec=(\S+)/m);
-              var iconMatch=content.match(/^Icon=(.+)$/m);
-              if(nameMatch&&execMatch){
-                var fullName=nameMatch[1].trim();
-                var execName=execMatch[1].replace(/%.*/,"").trim();
-                var baseName=_path.basename(execName);
-                _add(baseName,fullName,fp);
-                var parts=fullName.split(/\s+/);
-                if(parts.length>1){_add(baseName,parts[0],fp)}
-                _add(baseName,baseName,fp);
-                if(iconMatch){
-                  var icon=iconMatch[1].trim();
-                  if(icon.indexOf(".")!==-1){_add(icon,fullName,fp);if(parts.length>1){_add(icon,parts[0],fp)}}
-                }
-                var dfn=files[i].replace(/\.desktop$/,"");
-                if(dfn!==baseName){_add(dfn,fullName,fp)}
-              }
-            }catch(fe){}
-          }
-        }catch(de){}
-      }
-    }catch(e){}
-    return apps;
-  },
-  async listRunningApps(){
-    if(_wayland){return _listRunningAppsWayland()}
-    var apps=[];
-    try{
-      console.log("[claude-cu] listRunningApps: using wmctrl/xdotool (X11)");
-      var out=_exec("wmctrl -l 2>/dev/null||xdotool search --onlyvisible --name \"\" getwindowname 2>/dev/null||true");
-      var lines=out.split("\n");
-      var seen={};
-      for(var i=0;i<lines.length;i++){
-        var line=lines[i].trim();if(!line)continue;
-        var parts=line.split(/\s+/);
-        if(parts.length>=5){
-          var wid=parts[0];
-          try{
-            var cls=_exec("xdotool getwindowclassname "+wid+" 2>/dev/null");
-            var title=parts.slice(4).join(" ");
-            if(!seen[cls]){seen[cls]=true;apps.push({bundleId:cls,displayName:title||cls})}
-          }catch(we){
-            var title=parts.slice(4).join(" ");
-            if(title&&!seen[title]){seen[title]=true;apps.push({bundleId:title,displayName:title})}
-          }
-        }
-      }
-    }catch(e){}
-    return apps;
-  },
-  async getFrontmostApp(){
-    if(_wayland){return _getActiveWindowWayland()}
-    try{
-      _logFirstUse("window","xdotool");
-      var wid=_exec("xdotool getactivewindow");
-      return _getWinInfo(wid);
-    }catch(e){return null}
-  },
-  async appUnderPoint(x,y){
-    if(_wayland){return null}
-    try{
-      var oldPos=_electron.screen.getCursorScreenPoint();
-      _moveMouse(x,y);
-      var locOut=_exec("xdotool getmouselocation --shell 2>/dev/null");
-      var wMatch=locOut.match(/WINDOW=(\d+)/);
-      _moveMouse(oldPos.x,oldPos.y);
-      if(wMatch){return _getWinInfo(wMatch[1])}
-      return null;
-    }catch(e){return null}
-  },
-  async getAppIcon(appPath){return null},
-  async openApp(name){
-    function _resolveApp(n){
-      var dirs=["/usr/share/applications",_path.join(_os.homedir(),".local/share/applications"),"/var/lib/flatpak/exports/share/applications",_path.join(_os.homedir(),".local/share/flatpak/exports/share/applications")];
-      var nl=n.toLowerCase();
-      for(var d=0;d<dirs.length;d++){
-        try{
-          var files=_fs.readdirSync(dirs[d]);
-          for(var i=0;i<files.length;i++){
-            if(files[i].indexOf(".desktop")===-1)continue;
-            try{
-              var content=_fs.readFileSync(_path.join(dirs[d],files[i]),"utf-8");
-              var nameMatch=content.match(/^Name=(.+)$/m);
-              var execMatch=content.match(/^Exec=(\S+)/m);
-              if(nameMatch&&execMatch){
-                var dname=nameMatch[1].trim().toLowerCase();
-                var dfn=files[i].replace(/\.desktop$/,"").toLowerCase();
-                var execCmd=execMatch[1].replace(/%.*/,"").trim();
-                if(dname===nl||dfn===nl||_path.basename(execCmd).toLowerCase()===nl)return execCmd;
-              }
-            }catch(fe){}
-          }
-        }catch(de){}
-      }
-      return null;
-    }
-    var resolved=_resolveApp(name);
-    var cmd=resolved||name;
-    try{
-      console.log("[claude-cu] openApp: launching via setsid "+cmd);
-      _cp.exec("setsid "+JSON.stringify(cmd)+" >/dev/null 2>&1");
-    }catch(e){
-      try{
-        console.log("[claude-cu] openApp: fallback to xdg-open "+name);
-        _cp.exec("setsid xdg-open "+JSON.stringify(name)+" >/dev/null 2>&1");
-      }catch(e2){throw new Error("Could not open "+name+(resolved?" (resolved to "+resolved+")":""))}
-    }
-  },
-  async moveMouse(x,y){_moveMouse(x,y)},
-  async click(x,y,button,count,holdKeys){
-    _moveMouse(x,y);
-    var rep=count||1;
-    if(_wayland&&_checkYdotool()){
-      _logFirstUse("click","ydotool");
-      var ybtn={left:"0xC0",right:"0xC1",middle:"0xC2"}[button]||"0xC0";
-      if(holdKeys&&holdKeys.length>0){
-        var downParts=[],upParts=[];
-        for(var i=0;i<holdKeys.length;i++){var mk=_mapKeyWayland(holdKeys[i]);downParts.push(mk+":1");upParts.unshift(mk+":0")}
-        _exec("ydotool key "+downParts.join(" "));
-        for(var _ri=0;_ri<rep;_ri++){if(_ri>0)_cp.execSync("sleep 0.05");_exec("ydotool click "+ybtn)}
-        _exec("ydotool key "+upParts.join(" "));
-      }else{
-        for(var _ri=0;_ri<rep;_ri++){if(_ri>0)_cp.execSync("sleep 0.05");_exec("ydotool click "+ybtn)}
-      }
-    }else{
-      _logFirstUse("click","xdotool");
-      var btn={left:1,right:3,middle:2}[button]||1;
-      if(holdKeys&&holdKeys.length>0){
-        for(var i=0;i<holdKeys.length;i++)_exec("xdotool keydown "+_mapKey(holdKeys[i]));
-        _exec("xdotool click --repeat "+rep+" --delay 50 "+btn);
-        for(var i=0;i<holdKeys.length;i++)_exec("xdotool keyup "+_mapKey(holdKeys[i]));
-      }else{
-        _exec("xdotool click --repeat "+rep+" --delay 50 "+btn);
-      }
-    }
-  },
-  async mouseDown(){
-    if(_wayland&&_checkYdotool()){_logFirstUse("drag","ydotool");_exec("ydotool click 0x40")}
-    else{_logFirstUse("drag","xdotool");_exec("xdotool mousedown 1")}
-  },
-  async mouseUp(){
-    if(_wayland&&_checkYdotool()){_exec("ydotool click 0x80")}
-    else{_exec("xdotool mouseup 1")}
-  },
-  async getCursorPosition(){
-    var p=_electron.screen.getCursorScreenPoint();
-    return{x:p.x,y:p.y};
-  },
-  async drag(start,end){
-    if(start)_moveMouse(start.x,start.y);
-    if(_wayland&&_checkYdotool()){
-      _logFirstUse("drag","ydotool");
-      _exec("ydotool click 0x40");
-      _exec("ydotool mousemove --absolute 0 0");_cp.execSync("sleep 0.05");_exec("ydotool mousemove "+Math.round(end.x)+" "+Math.round(end.y));
-      _cp.execSync("sleep 0.05");
-      _exec("ydotool click 0x80");
-    }else{
-      _logFirstUse("drag","xdotool");
-      _exec("xdotool mousedown 1");
-      _exec("xdotool mousemove --sync "+Math.round(end.x)+" "+Math.round(end.y));
-      _cp.execSync("sleep 0.05");
-      _exec("xdotool mouseup 1");
-    }
-  },
-  async scroll(x,y,horizontal,vertical){
-    _moveMouse(x,y);
-    if(_wayland&&_checkYdotool()){
-      _logFirstUse("scroll","ydotool");
-      if(vertical&&vertical!==0){var vamt=-Math.round(vertical);_exec("ydotool mousemove -w -- 0 "+vamt)}
-      if(horizontal&&horizontal!==0){var hamt=Math.round(horizontal);_exec("ydotool mousemove -w -- "+hamt+" 0")}
-    }else{
-      _logFirstUse("scroll","xdotool");
-      if(vertical&&vertical!==0){var vb=vertical>0?5:4;_exec("xdotool click --repeat "+Math.abs(Math.round(vertical))+" --delay 30 "+vb)}
-      if(horizontal&&horizontal!==0){var hb=horizontal>0?7:6;_exec("xdotool click --repeat "+Math.abs(Math.round(horizontal))+" --delay 30 "+hb)}
-    }
-  },
-  async key(combo,count){
-    var n=count||1;
-    if(_wayland&&_checkYdotool()){
-      _logFirstUse("key","ydotool");
-      var parts=combo.split("+").map(_mapKeyWayland);
-      if(parts.length===1){
-        for(var i=0;i<n;i++){if(i>0)_cp.execSync("sleep 0.008");_exec("ydotool key "+parts[0]+":1 "+parts[0]+":0")}
-      }else{
-        var downSeq=[],upSeq=[];
-        for(var j=0;j<parts.length;j++){downSeq.push(parts[j]+":1");upSeq.unshift(parts[j]+":0")}
-        var seq=downSeq.concat(upSeq).join(" ");
-        for(var i=0;i<n;i++){if(i>0)_cp.execSync("sleep 0.008");_exec("ydotool key "+seq)}
-      }
-    }else{
-      _logFirstUse("key","xdotool");
-      var mapped=combo.split("+").map(_mapKey).join("+");
-      for(var i=0;i<n;i++){if(i>0)_cp.execSync("sleep 0.008");_exec("xdotool key --clearmodifiers "+mapped)}
-    }
-  },
-  async holdKey(keyName,seconds){
-    var secs=Math.min(seconds||0.5,10);
-    if(_wayland&&_checkYdotool()){
-      _logFirstUse("key","ydotool");
-      var k=_mapKeyWayland(keyName);
-      _exec("ydotool key "+k+":1");
-      _cp.execSync("sleep "+secs);
-      _exec("ydotool key "+k+":0");
-    }else{
-      _logFirstUse("key","xdotool");
-      var k=_mapKey(keyName);
-      _exec("xdotool keydown "+k);
-      _cp.execSync("sleep "+secs);
-      _exec("xdotool keyup "+k);
-    }
-  },
-  async type(text,opts){
-    if(_wayland&&_checkYdotool()){
-      _logFirstUse("type","ydotool"+(opts&&opts.viaClipboard?" (clipboard)":""));
-      if(opts&&opts.viaClipboard){
-        _electron.clipboard.writeText(text,"clipboard");
-        _exec("ydotool key 29:1 47:1 47:0 29:0");
-      }else{
-        _cp.execSync("ydotool type -- "+JSON.stringify(text),{timeout:15000});
-      }
-    }else{
-      _logFirstUse("type","xdotool"+(opts&&opts.viaClipboard?" (clipboard)":""));
-      if(opts&&opts.viaClipboard){
-        _electron.clipboard.writeText(text,"clipboard");
-        _exec("xdotool key --clearmodifiers ctrl+v");
-      }else{
-        _cp.execSync("xdotool type --clearmodifiers -- "+JSON.stringify(text),{timeout:15000});
-      }
-    }
-  },
-  async readClipboard(){
-    try{return _electron.clipboard.readText("clipboard")||""}
-    catch(e){return""}
-  },
-  async writeClipboard(text){
-    _electron.clipboard.writeText(text||"","clipboard");
-  }
-};
-})();
-"""
+_CU_HERE = os.path.dirname(os.path.abspath(__file__))
+with open(os.path.join(_CU_HERE, "../js/cu_linux_executor.js"), "r", encoding="utf-8") as _f:
+    LINUX_EXECUTOR_JS = _f.read()
 
 
 # Linux hybrid handler — injected at the top of handleToolCall as an early-return block.
@@ -584,47 +79,98 @@ globalThis.__linuxExecutor={
 #
 # __DISPATCHER__ is replaced at patch time with the actual session dispatcher function
 # name (e.g. EZr). __SELF__ is replaced with the object name (e.g. nnt).
-LINUX_HANDLER_INJECTION_JS = r"""if(process.platform==="linux"){
-var __lxTeachTools=["request_teach_access","teach_step","teach_batch"];
-if(__lxTeachTools.indexOf(t)>=0){const __n=__DISPATCHER__(r);const{save_to_disk:__sd,...__s}=e;return await __n(t,__s)}
-if(t==="request_access"){var __apps=e.apps||[];var __granted=__apps.map(function(a){return{bundleId:a,displayName:a,grantedAt:Date.now(),tier:"full"}});return{content:[{type:"text",text:JSON.stringify({granted:__granted,denied:[],screenshotFiltering:"none"})}]}}
-var ex=globalThis.__linuxExecutor;
-if(!ex)return{content:[{type:"text",text:"Linux executor not initialized"}],isError:!0};
-globalThis.__cuActiveOrigin=globalThis.__cuActiveOrigin||{x:0,y:0};
-function __txC(c){var o=globalThis.__cuActiveOrigin;return[(c[0]||0)+(o?o.x:0),(c[1]||0)+(o?o.y:0)]}
-function __untxC(x,y){var o=globalThis.__cuActiveOrigin;return[(x||0)-(o?o.x:0),(y||0)-(o?o.y:0)]}
-var __actionTools=new Set(["left_click","right_click","double_click","triple_click","middle_click","left_click_drag","mouse_move","scroll","key","type","hold_key","left_mouse_down","left_mouse_up","computer_batch"]);
-async function __hideWindows(fn){var __bws=require("electron").BrowserWindow.getAllWindows().filter(function(w){return!w.isDestroyed()});for(var __i=0;__i<__bws.length;__i++)__bws[__i].setIgnoreMouseEvents(true);try{await new Promise(function(r){setTimeout(r,50)});return await fn()}finally{for(var __i=0;__i<__bws.length;__i++){if(!__bws[__i].isDestroyed())__bws[__i].setIgnoreMouseEvents(false)}}}
-if(__actionTools.has(t)){return await __hideWindows(async function(){switch(t){
-case"left_click":{var __lc=__txC(e.coordinate||[e.x,e.y]);await ex.click(__lc[0],__lc[1],"left",1);return{content:[{type:"text",text:"Clicked at ("+__lc[0]+","+__lc[1]+")"}]}}
-case"right_click":{var __rc=__txC(e.coordinate||[e.x,e.y]);await ex.click(__rc[0],__rc[1],"right",1);return{content:[{type:"text",text:"Right clicked"}]}}
-case"double_click":{var __dc=__txC(e.coordinate||[e.x,e.y]);await ex.click(__dc[0],__dc[1],"left",2);return{content:[{type:"text",text:"Double clicked"}]}}
-case"triple_click":{var __tc=__txC(e.coordinate||[e.x,e.y]);await ex.click(__tc[0],__tc[1],"left",3);return{content:[{type:"text",text:"Triple clicked"}]}}
-case"middle_click":{var __mc=__txC(e.coordinate||[e.x,e.y]);await ex.click(__mc[0],__mc[1],"middle",1);return{content:[{type:"text",text:"Middle clicked"}]}}
-case"type":{await ex.type(e.text||"",{viaClipboard:!1});return{content:[{type:"text",text:"Typed text"}]}}
-case"key":{await ex.key(e.key||e.text||"",e.count||1);return{content:[{type:"text",text:"Pressed key: "+(e.key||e.text)}]}}
-case"scroll":{var __sc=__txC(e.coordinate||[e.x||0,e.y||0]),__dir=e.scroll_direction||e.direction||"down",__amt=e.scroll_amount||e.amount||3,__sv=__dir==="down"?__amt:__dir==="up"?-__amt:0,__sh=__dir==="right"?__amt:__dir==="left"?-__amt:0;await ex.scroll(__sc[0],__sc[1],__sh,__sv);return{content:[{type:"text",text:"Scrolled "+__dir}]}}
-case"left_click_drag":{var __dsc=e.start_coordinate?__txC(e.start_coordinate):null,__den=__txC(e.coordinate);await ex.drag(__dsc?{x:__dsc[0],y:__dsc[1]}:void 0,{x:__den[0],y:__den[1]});return{content:[{type:"text",text:"Dragged"}]}}
-case"mouse_move":{var __mv=__txC(e.coordinate||[e.x,e.y]);await ex.moveMouse(__mv[0],__mv[1]);return{content:[{type:"text",text:"Moved to ("+__mv[0]+","+__mv[1]+")"}]}}
-case"hold_key":{await ex.holdKey(e.key||"",e.duration||.5);return{content:[{type:"text",text:"Held key"}]}}
-case"left_mouse_down":{await ex.mouseDown();return{content:[{type:"text",text:"Mouse down"}]}}
-case"left_mouse_up":{await ex.mouseUp();return{content:[{type:"text",text:"Mouse up"}]}}
-case"computer_batch":{var __actions=e.actions||[],__completed=[],__failIdx=-1,__failErr;for(var __bi=0;__bi<__actions.length;__bi++){var __ba=__actions[__bi];try{var __br=await __SELF__.handleToolCall(__ba.action||__ba.type,__ba,r);__completed.push({type:__ba.action||__ba.type,result:__br})}catch(__be){__failIdx=__bi;__failErr=__be.message;break}}var __resp={completed:__completed};if(__failIdx>=0){__resp.failed={index:__failIdx,action:__actions[__failIdx].action||__actions[__failIdx].type,error:__failErr};__resp.remaining=__actions.slice(__failIdx+1).map(function(a){return a.action||a.type})}return{content:[{type:"text",text:JSON.stringify(__resp)}]}}
-default:return{content:[{type:"text",text:"Unknown action tool: "+t}],isError:!0}
-}})}
-try{switch(t){
-case"screenshot":{var __dlist=await ex.listDisplays();var __primaryIdx=0;for(var __pi=0;__pi<__dlist.length;__pi++){if(__dlist[__pi].isPrimary){__primaryIdx=__dlist[__pi].displayId;break}}var __did=globalThis.__cuPinnedDisplay!==void 0?globalThis.__cuPinnedDisplay:(e.display_number||e.display_id||__primaryIdx);var __actMon=__dlist.find(function(d){return d.displayId===__did})||__dlist[0]||{originX:0,originY:0};globalThis.__cuActiveOrigin={x:__actMon.originX||0,y:__actMon.originY||0};var __ss=await ex.screenshot({displayId:__did});return{content:[{type:"image",data:__ss.base64,mimeType:"image/png"}]}}
-case"zoom":{var __zc=__txC(e.coordinate||[960,540]),__sz=e.size||400,__hf=Math.floor(__sz/2),__zr=await ex.zoom({x:Math.max(0,__zc[0]-__hf),y:Math.max(0,__zc[1]-__hf),w:__sz,h:__sz},1,0);return{content:[{type:"image",data:__zr.base64,mimeType:"image/png"}]}}
-case"cursor_position":{var __cp=await ex.getCursorPosition();var __cpr=__untxC(__cp.x,__cp.y);return{content:[{type:"text",text:"("+__cpr[0]+", "+__cpr[1]+")"}]}}
-case"wait":{var __ws=Math.min(e.duration||e.seconds||1,30);await new Promise(function(__rv){setTimeout(__rv,__ws*1000)});return{content:[{type:"text",text:"Waited "+__ws+"s"}]}}
-case"open_application":{await ex.openApp(e.app||e.application||"");return{content:[{type:"text",text:"Opened app"}]}}
-case"switch_display":{var __displays=await ex.listDisplays();var __target=e.display;if(__target==="auto"||!__target){globalThis.__cuPinnedDisplay=void 0;return{content:[{type:"text",text:"Display mode set to auto (follows cursor). Available: "+__displays.map(function(d){return d.label+" ("+d.width+"x"+d.height+")"}).join(", ")}]}}var __found=__displays.find(function(d){return d.label===__target||String(d.displayId)===String(__target)});if(__found){globalThis.__cuPinnedDisplay=__found.displayId;globalThis.__cuActiveOrigin={x:__found.originX||0,y:__found.originY||0};return{content:[{type:"text",text:"Switched to display: "+__found.label+" ("+__found.width+"x"+__found.height+")"}]}}return{content:[{type:"text",text:"Display '"+__target+"' not found. Available: "+__displays.map(function(d){return d.label}).join(", ")}]}}
-case"list_granted_applications":{return{content:[{type:"text",text:"All applications are accessible on Linux (no grants needed)"}]}}
-case"read_clipboard":{var cb=await ex.readClipboard();return{content:[{type:"text",text:cb}]}}
-case"write_clipboard":{await ex.writeClipboard(e.text||"");return{content:[{type:"text",text:"Written to clipboard"}]}}
-default:return{content:[{type:"text",text:"Unknown tool: "+t}],isError:!0}
-}}catch(err){return{content:[{type:"text",text:"Error: "+err.message}],isError:!0}}
-}"""
+with open(os.path.join(_CU_HERE, "../js/cu_handler_injection.js"), "r", encoding="utf-8") as _f:
+    LINUX_HANDLER_INJECTION_JS = _f.read()
+
+
+# kwin-wayland mode loads a separate Node module (js/executor_linux.js)
+# that talks to kwin-portal-bridge. The source uses ES-module imports; we
+# transform those to CommonJS require() calls and strip `export` keywords so
+# the whole file can be injected as an IIFE into the bundled JS.
+def build_kwin_linux_executor_injection():
+    """Read executor_linux.js and transform it into an injectable IIFE for kwin-wayland mode."""
+
+    here = os.path.dirname(__file__)
+    source_path = os.path.join(here, "../js/executor_linux.js")
+    with open(source_path, "r", encoding="utf-8") as f:
+        js = f.read()
+
+    replacements = [
+        (
+            "import { execFile as execFileCb, spawnSync } from 'node:child_process'\n",
+            'var { execFile: execFileCb, spawnSync } = require("node:child_process");\n',
+        ),
+        (
+            "import { execFile as execFileCb } from 'node:child_process'\n",
+            'var { execFile: execFileCb } = require("node:child_process");\n',
+        ),
+        (
+            "import { screen as electronScreen } from 'electron'\n",
+            'var { screen: electronScreen } = require("electron");\n',
+        ),
+        (
+            "import { promisify } from 'node:util'\n",
+            'var { promisify } = require("node:util");\n',
+        ),
+    ]
+    for old, new in replacements:
+        js = js.replace(old, new)
+
+    js = re.sub(r"^export\s+", "", js, flags=re.MULTILINE)
+    js = (
+        js.rstrip()
+        + '\n\nglobalThis.__linuxExecutor = createLinuxExecutor({ hostBundleId: "com.anthropic.claude-desktop" });\n})();\n'
+    )
+    return "(function(){\n" + js
+
+
+# Helpers used by the develop-mode bridge-controller patches (7b, 7c).
+def find_string_marker(content, *messages):
+    """Return the first matching marker index for any quoted or bare message."""
+
+    for message in messages:
+        encoded = message.encode("utf-8")
+        for needle in (b'"' + encoded + b'"', b"'" + encoded + b"'", encoded):
+            index = content.find(needle)
+            if index != -1:
+                return index
+    return -1
+
+
+def find_function_before_marker(content, marker_index):
+    """Locate the nearest `function ... {` header before a marker."""
+
+    function_index = content.rfind(b"function ", 0, marker_index)
+    if function_index == -1:
+        return None
+
+    header_end = content.find(b"{", function_index, marker_index)
+    if header_end == -1:
+        return None
+
+    return {
+        "function_index": function_index,
+        "header_end": header_end,
+        "header": content[function_index : header_end + 1],
+        "body": content[header_end + 1 : marker_index],
+    }
+
+
+# Runtime mode selection injected into the bundle — evaluated at Node startup.
+# Sets globalThis.__cuKwinMode once; downstream text ternaries just read it.
+#
+# Precedence:
+#   1. Explicit CLAUDE_CU_MODE env var wins (values: "regular" / "kwin-wayland",
+#      anything else falls through to regular).
+#   2. Auto-detect: XDG_SESSION_DESKTOP=KDE + XDG_SESSION_TYPE=wayland AND a
+#      kwin-portal-bridge executable is reachable (either via
+#      KWIN_PORTAL_BRIDGE_BIN or the first match on PATH) → kwin-wayland.
+#   3. Fallback: regular (cross-distro).
+#
+# We walk PATH manually with fs.accessSync(X_OK) rather than shelling out to
+# `which` so the check works on minimal distros and stays inside Node.
+with open(os.path.join(_CU_HERE, "../js/cu_mode_preamble.js"), "rb") as _f:
+    MODE_PREAMBLE_JS = _f.read()
 
 
 def patch_computer_use_linux(filepath):
@@ -644,42 +190,78 @@ def patch_computer_use_linux(filepath):
     changes = 0
     patches_applied = 0
 
-    # Expected sub-patches (all must succeed):
-    #  1  = Linux executor injection at app.on("ready")
-    #  2  = ese Set: add "linux"
-    #  4  = createDarwinExecutor: Linux fallback
-    #  5  = ensureOsPermissions: skip TCC on Linux
-    #  6  = handleToolCall: hybrid dispatch
-    #  7  = teach overlay controller: verify CU gate (no content change)
-    #  8  = teach overlay mouse: tooltip-bounds polling
-    #  9a = teach overlay: neutralize setIgnoreMouseEvents in yJt
-    #  9b = teach overlay: neutralize setIgnoreMouseEvents in SUn
-    #  10 = teach overlay: VM-aware transparency
-    #  10b= teach overlay display: force primary monitor
-    #  11 = mVt isEnabled: force true on Linux
-    #  12 = rj chicagoEnabled bypass: force true on Linux
-    #  13a= Lf allowlist gate description
-    #  13b= request_access macOS platform prefix
-    #  13c= request_access apps identifiers
-    #  13d= open_application app identifiers
-    #  13e= open_application description
-    #  13f= screenshot description
-    #  13g= screenshot suffix description
-    #  14a= CU system prompt: "Separate filesystems" → Linux-appropriate text (2 occurrences)
-    #  14b= CU system prompt: "Finder, Photos, System Settings" → generic Linux terms (1 occurrence)
-    #  14c= CU system prompt: File Explorer/Finder → Linux file manager (1 occurrence)
-    EXPECTED_PATCHES = 23
+    # Expected sub-patches (all must succeed — mode-gated branches still apply at
+    # build time; runtime behavior is selected by CLAUDE_CU_MODE).
+    #
+    # Shared (apply in both modes):
+    #   1  = Linux executor injection (both regular + kwin-wayland variants, runtime switch)
+    #   2  = ese Set: add "linux"
+    #   3  = createDarwinExecutor: Linux fallback
+    #   4  = cu lock acquire: __setLockHeld(true) (no-op in regular via optional chaining)
+    #   5  = cu lock release: __setLockHeld(false)
+    #   6  = ensureOsPermissions: skip TCC on Linux
+    #   7  = screenshot intro note workaround (linuxVisibleLastScreenshot)
+    #   9  = teach overlay controller CU gate verify (no content change)
+    #  10  = teach overlay bridge-backed init (capability-gated)
+    #  11  = side-panel bridge-backed init (capability-gated)
+    #  16  = teach overlay: VM-aware transparency
+    #  17  = teach overlay display: force primary monitor
+    #  18  = mVt isEnabled: force true on Linux
+    #  19  = rj chicagoEnabled bypass: force true on Linux
+    #
+    # Regular mode (gated on !globalThis.__cuKwinMode):
+    #   8  = handleToolCall hybrid dispatch
+    #  12  = teach overlay mouse: tooltip-bounds polling
+    #  13  = yJt setIgnoreMouseEvents neutralize
+    #  14  = SUn setIgnoreMouseEvents neutralize
+    #
+    # kwin-wayland mode (gated on globalThis.__cuKwinMode):
+    #  15  = glow overlay disable
+    #  22  = plasmashell alias in request_access
+    #  23  = plasmashell alias in request_teach_access
+    #  24  = desktop shell hint template (plasmashell/Dolphin wording)
+    #  25  = desktop shell grant predicate (plasmashell)
+    #  26  = desktop shell detection (plasmashell)
+    #  35  = CU env prompt: KDE/Dolphin/plasmashell suffix
+    #
+    # Text patches (3-way ternary: kwin-wayland/regular/other):
+    #  20  = 13a Lf allowlist gate description (linux=empty)
+    #  21  = 13b request_access macOS platform prefix → Linux/KDE/generic
+    #  27  = 13c request_access apps: Linux identifiers (WM_CLASS)
+    #  28  = 13d open_application app: Linux identifiers
+    #  29  = 13e open_application desc: no allowlist on Linux
+    #  30  = 13f screenshot desc: clean on Linux
+    #  31  = 13g screenshot suffix: no allowlist error on Linux
+    #  32  = 14a Separate filesystems → Same filesystem (2 occurrences, 3-way wording)
+    #  33  = 14b Finder/Photos → generic Linux app terms
+    #  34  = 14c File Explorer/Finder → Dolphin (kwin-wayland) / Files (regular)
+    EXPECTED_PATCHES = 35
 
-    # Patch 1: Inject Linux executor at app.on("ready")
-    inject_js = LINUX_EXECUTOR_JS.strip().encode("utf-8")
+    # Patch 1: Inject Linux executor at app.on("ready") with runtime mode switch.
+    # Both the regular (inline cross-distro) and kwin-wayland (external file,
+    # kwin-portal-bridge) executors are embedded; one runs based on CLAUDE_CU_MODE.
+    regular_js = LINUX_EXECUTOR_JS.strip().encode("utf-8")
+    kwin_js = build_kwin_linux_executor_injection().strip().encode("utf-8")
+
+    mode_preamble = MODE_PREAMBLE_JS
+
     ready_pattern = rb'(app\.on\("ready",async\(\)=>\{)'
 
     def inject_at_ready(m):
-        return m.group(1) + b'if(process.platform==="linux"){' + inject_js + b"}"
+        return (
+            m.group(1)
+            + b'if(process.platform==="linux"){'
+            + mode_preamble
+            + b"if(globalThis.__cuKwinMode){"
+            + kwin_js
+            + b"}else{"
+            + regular_js
+            + b"}}"
+        )
 
     content, count = re.subn(ready_pattern, inject_at_ready, content, count=1)
     if count >= 1:
-        print(f"  [OK] Linux executor: injected ({count} match)")
+        print(f"  [OK] Linux executor: injected regular + kwin-wayland variants ({count} match)")
         changes += count
         patches_applied += 1
     else:
@@ -720,6 +302,53 @@ def patch_computer_use_linux(filepath):
         print("  [FAIL] createDarwinExecutor pattern: 0 matches")
         return False
 
+    # Patch 4b (kwin-wayland): Tie bridge session lifecycle to the CU lock on Linux.
+    # Upstream acquires/releases a global CU lock via xen.acquire/release. The
+    # kwin-wayland executor exposes __setLockHeld(isHeld) to start/stop the
+    # kwin-portal-bridge session. The regular executor does not expose __setLockHeld
+    # — optional chaining (`.__setLockHeld?.(...)`) makes this a no-op in regular
+    # mode. Safe to always apply.
+    acquire_pattern = rb'this\.holder===void 0&&\(this\.holder=([\w$]+),this\.emit\("cuLockChanged",\{holder:\1\}\),([\w$]+)\(\)\)'
+
+    def patch_lock_acquire(m):
+        holder = m.group(1)
+        callback = m.group(2)
+        return (
+            b"this.holder===void 0&&(this.holder="
+            + holder
+            + b',process.platform==="linux"&&globalThis.__linuxExecutor?.__setLockHeld?.(!0).catch?.(e=>console.warn("[linux-executor] failed to start bridge session on lock acquire",e)),this.emit("cuLockChanged",{holder:'
+            + holder
+            + b"}),"
+            + callback
+            + b"())"
+        )
+
+    content, count = re.subn(acquire_pattern, patch_lock_acquire, content, count=1)
+    if count >= 1:
+        print(f"  [OK] cu lock acquire: start bridge session on Linux ({count} match)")
+        changes += count
+        patches_applied += 1
+    else:
+        print("  [FAIL] cu lock acquire pattern: 0 matches")
+
+    release_pattern = rb'this\.holder===([\w$]+)&&\(this\.holder=void 0,this\.emit\("cuLockChanged",\{holder:void 0\}\)\)'
+
+    def patch_lock_release(m):
+        holder = m.group(1)
+        return (
+            b"this.holder==="
+            + holder
+            + b'&&(this.holder=void 0,process.platform==="linux"&&globalThis.__linuxExecutor?.__setLockHeld?.(!1).catch?.(e=>console.warn("[linux-executor] failed to stop bridge session on lock release",e)),this.emit("cuLockChanged",{holder:void 0}))'
+        )
+
+    content, count = re.subn(release_pattern, patch_lock_release, content, count=1)
+    if count >= 1:
+        print(f"  [OK] cu lock release: stop bridge session on Linux ({count} match)")
+        changes += count
+        patches_applied += 1
+    else:
+        print("  [FAIL] cu lock release pattern: 0 matches")
+
     # Patch 5: Patch ensureOsPermissions to return granted:true on Linux
     # Original: ensureOsPermissions:JLr  (JLr calls claude-swift TCC checks)
     # New: on Linux, return {granted:true} — no TCC permissions needed
@@ -736,6 +365,76 @@ def patch_computer_use_linux(filepath):
         patches_applied += 1
     else:
         print("  [FAIL] ensureOsPermissions pattern: 0 matches")
+
+    # Patch 5b (kwin-wayland): Show the monitor intro note again on the first
+    # screenshot after a Linux wrapper is created from resumed session state.
+    # Upstream caches lastScreenshot across the wrapper lifetime and hydrates it
+    # from persisted screenshot dims, which suppresses the "screenshot taken on
+    # monitor ..." note even before the first fresh screenshot. Keep the old data
+    # available for coordinate-dependent tools but hide it from the *first*
+    # screenshot call while there is no live screenshot yet. Harmless in regular
+    # mode — the hybrid handler intercepts screenshot calls before this wrapper
+    # path runs, so the closure binding is effectively dead code.
+    if b"linuxVisibleLastScreenshot=" in content and (
+        b"lastScreenshot:linuxVisibleLastScreenshot," in content
+    ):
+        print("  [OK] screenshot intro note workaround: already present")
+        patches_applied += 1
+    else:
+        seed_pattern = (
+            rb"async\(([\w$]+),[\w$]+\)=>\{"
+            rb"[\s\S]{0,4000}?"
+            rb";[\w$]+\(\)\}\}const ([\w$]+)=([\w$]+)"
+            rb"\|\|\(([\w$]+)=([\w$]+)\.getLastScreenshotDims\)"
+            rb"==null\?void 0:\4\.call\(\5\),"
+            rb"([\w$]+)=new AbortController,([\w$]+)=\{"
+        )
+        seed_match = re.search(seed_pattern, content)
+        if seed_match is None:
+            print("  [FAIL] screenshot intro note: wrapper seed anchor not found")
+        else:
+            tool_name = seed_match.group(1)
+            dims_var = seed_match.group(2)
+            last_var = seed_match.group(3)
+            injection = (
+                b",linuxVisibleLastScreenshot="
+                b'process.platform==="linux"&&'
+                + last_var
+                + b"===void 0&&"
+                + tool_name
+                + b'==="screenshot"?void 0:'
+                + last_var
+                + b"??("
+                + dims_var
+                + b'?{...'
+                + dims_var
+                + b',base64:""}:void 0)'
+            )
+            split = seed_match.start(6) - 1
+            content = content[:split] + injection + content[split:]
+            changes += 1
+
+            last_screenshot_pattern = (
+                rb"lastScreenshot:"
+                + re.escape(last_var)
+                + rb"\?\?\("
+                + re.escape(dims_var)
+                + rb"\?\{\.\.\."
+                + re.escape(dims_var)
+                + rb',base64:""\}:void 0\),'
+            )
+            content, ls_count = re.subn(
+                last_screenshot_pattern,
+                b"lastScreenshot:linuxVisibleLastScreenshot,",
+                content,
+                count=1,
+            )
+            if ls_count < 1:
+                print("  [FAIL] screenshot intro note: lastScreenshot anchor not found")
+            else:
+                changes += 1
+                patches_applied += 1
+                print("  [OK] screenshot intro note: first wrapper screenshot restored")
 
     # Patch 6: Hybrid handleToolCall — inject early-return block at the top
     # The upstream handleToolCall calls a session-cached dispatcher. On Linux, we
@@ -772,8 +471,16 @@ def patch_computer_use_linux(filepath):
             handler_js = LINUX_HANDLER_INJECTION_JS.strip()
             handler_js = handler_js.replace("__SELF__", obj_name)
             handler_js = handler_js.replace("__DISPATCHER__", dispatcher)
+            # Gate the hybrid dispatcher on regular mode. In kwin-wayland mode,
+            # handleToolCall stays on the upstream path so the MCP layer can
+            # exercise the bridge-backed executor directly.
+            handler_js = handler_js.replace(
+                'if(process.platform==="linux"){',
+                'if(process.platform==="linux"&&!globalThis.__cuKwinMode){',
+                1,
+            )
             content = content[:inject_pos] + handler_js.encode("utf-8") + content[inject_pos:]
-            print("  [OK] handleToolCall: hybrid dispatch (teach→upstream, rest→direct) (1 match)")
+            print("  [OK] handleToolCall: regular-mode hybrid dispatch (gated; kwin-wayland falls through to upstream)")
             changes += 1
             patches_applied += 1
         else:
@@ -803,6 +510,86 @@ def patch_computer_use_linux(filepath):
             print("  [FAIL] teach overlay: CU gate not found after TCC stub — may need manual check")
     else:
         print("  [FAIL] teach overlay: TCC stub pattern not found")
+
+    # Patch 7b (kwin-wayland): Route teach-overlay controller init through the
+    # bridge when the kwin-wayland executor is active. Capability-gated: only fires
+    # when globalThis.__linuxExecutor exposes __initTeachController, which the
+    # regular inline executor does not — so this returns early in kwin-wayland mode
+    # and falls through to upstream BrowserWindow + patches 8-10 in regular mode.
+    if b"globalThis.__linuxExecutor?.__initTeachController" in content:
+        print("  [OK] teach overlay controller: bridge-backed init already present")
+        patches_applied += 1
+    else:
+        marker_index = find_string_marker(content, "[cu-teach] controller initialized")
+        if marker_index == -1:
+            print("  [FAIL] teach overlay controller marker: not found")
+        else:
+            function_info = find_function_before_marker(content, marker_index)
+            if function_info is None:
+                print("  [FAIL] teach overlay controller init header: not found")
+            else:
+                header_match = re.fullmatch(
+                    rb"function [\w$]+\(([\w$]+),([\w$]+)\)\{",
+                    function_info["header"],
+                )
+                if (
+                    not header_match
+                    or b'.on("teachModeChanged"' not in function_info["body"]
+                    or b'.on("teachStepRequested"' not in function_info["body"]
+                ):
+                    print("  [FAIL] teach overlay controller init function shape: unexpected")
+                else:
+                    manager = header_match.group(1).decode("utf-8")
+                    main_window = header_match.group(2).decode("utf-8")
+                    injected = (
+                        f'if(process.platform==="linux"&&globalThis.__linuxExecutor?.__initTeachController){{globalThis.__linuxExecutor.__initTeachController({manager},{main_window});return;}}'
+                    ).encode("utf-8")
+                    content = (
+                        content[: function_info["header_end"] + 1]
+                        + injected
+                        + content[function_info["header_end"] + 1 :]
+                    )
+                    print("  [OK] teach overlay controller: Linux bridge-backed init")
+                    changes += 1
+                    patches_applied += 1
+
+    # Patch 7c (kwin-wayland): Route the CU side-panel controller init through
+    # the bridge's __initDockController when available (kwin-wayland mode). Falls
+    # back to upstream Electron BrowserWindow#setBounds when the executor doesn't
+    # expose this method (regular mode).
+    if b"globalThis.__linuxExecutor?.__initDockController" in content:
+        print("  [OK] cu side-panel: bridge-backed init already present")
+        patches_applied += 1
+    else:
+        marker_index = find_string_marker(content, "[cu-side-panel] initialized")
+        if marker_index == -1:
+            print("  [FAIL] cu side-panel controller marker: not found")
+        else:
+            function_info = find_function_before_marker(content, marker_index)
+            if function_info is None:
+                print("  [FAIL] cu side-panel controller init header: not found")
+            else:
+                header_match = re.fullmatch(
+                    rb"function [\w$]+\(([\w$]+)\)\{", function_info["header"]
+                )
+                if (
+                    not header_match
+                    or b'.on("cuLockChanged"' not in function_info["body"]
+                ):
+                    print("  [FAIL] cu side-panel controller init function shape: unexpected")
+                else:
+                    main_window = header_match.group(1).decode("utf-8")
+                    injected = (
+                        f'if(process.platform==="linux"&&globalThis.__linuxExecutor?.__initDockController){{globalThis.__linuxExecutor.__initDockController({main_window});return;}}'
+                    ).encode("utf-8")
+                    content = (
+                        content[: function_info["header_end"] + 1]
+                        + injected
+                        + content[function_info["header_end"] + 1 :]
+                    )
+                    print("  [OK] cu side-panel: Linux bridge-backed init")
+                    changes += 1
+                    patches_applied += 1
 
     # Patch 8: Fix teach overlay mouse events on Linux
     # On macOS, setIgnoreMouseEvents(true, {forward: true}) makes transparent areas
@@ -894,6 +681,30 @@ def patch_computer_use_linux(filepath):
             patches_applied += 1
         else:
             print("  [FAIL] teach overlay: SUn pattern not found")
+
+    # Patch 8a (kwin-wayland): Disable the CU glow overlay in kwin-wayland mode only.
+    # The glow overlay is a separate BrowserWindow that follows the CU lock holder;
+    # in kwin-wayland mode the bridge provides its own visual feedback. In regular
+    # mode the overlay stays enabled. Pattern: function Eei(t,e){su.on("cuLockChanged",...
+    glow_init_pattern = (
+        rb'(function [\w$]+\(([\w$]+),([\w$]+)\)\{)([\w$]+)\.on\("cuLockChanged",'
+    )
+
+    def patch_glow_init(m):
+        return (
+            m.group(1)
+            + b'if(process.platform==="linux"&&globalThis.__cuKwinMode)return;'
+            + m.group(4)
+            + b'.on("cuLockChanged",'
+        )
+
+    content, count = re.subn(glow_init_pattern, patch_glow_init, content, count=1)
+    if count >= 1:
+        print(f"  [OK] cu glow overlay: disabled in kwin-wayland mode ({count} match)")
+        changes += count
+        patches_applied += 1
+    else:
+        print("  [FAIL] cu glow overlay pattern: 0 matches")
 
     # Patch 10: Fix teach overlay transparency on VMs
     # The fullscreen transparent BrowserWindow causes GPU crashes and cursor artifacts
@@ -1012,28 +823,243 @@ def patch_computer_use_linux(filepath):
         print("  [FAIL] 13a Lf: not found")
 
     # 13b: request_access — "Linux" instead of "macOS"/"Finder"
-    # The ternary t.platform==="win32"?'Windows':'macOS' falls to macOS on
-    # Linux, telling the model "This computer is running macOS" — wrong.
+    # 3-way ternary: kwin-wayland mode gets KDE-specific wording (Dolphin/Plasma),
+    # regular mode gets generic Linux wording, non-Linux keeps upstream macOS text.
     _old_13b = b"""'This computer is running macOS. The file manager is "Finder". '"""
     _new_13b = (
-        b"""(t.platform==="linux"?"""
+        b"""(process.platform==="linux"?(globalThis.__cuKwinMode?"""
+        b"""'This computer is running Linux with KDE Plasma. The file manager is \\"Dolphin\\". '"""
+        b""":"""
         b"""'This computer is running Linux. """
         b"""On Linux, ALL applications are automatically accessible at full """
         b"""tier without explicit permission grants. You do NOT need to call """
         b"""request_access before using other tools. If called, it returns """
         b"""synthetic grant confirmations. The file manager depends on the """
         b"""desktop environment (e.g. Nautilus on GNOME, Dolphin on KDE, """
-        b"""Thunar on XFCE). '"""
+        b"""Thunar on XFCE). ')"""
         b""":"""
         b"""'This computer is running macOS. The file manager is "Finder". ')"""
     )
     if _old_13b in content:
         content = content.replace(_old_13b, _new_13b, 1)
-        print("  [OK] 13b request_access: Linux platform prefix")
+        print("  [OK] 13b request_access: 3-way (kwin-wayland=KDE/Dolphin, regular=generic Linux, other=macOS)")
         desc_changes += 1
         patches_applied += 1
     else:
         print("  [FAIL] 13b request_access macOS prefix: not found")
+
+    # 13b.kwin-alias (kwin-wayland): Map org.kde.plasmashell -> plasmashell in
+    # request_access. The bridge-backed access layer keys off plasmashell, but
+    # upstream schemas still accept the reverse-DNS form. Mode-gated at JS-runtime
+    # so regular mode keeps the original array untouched.
+    request_access_alias_pattern = (
+        rb'(const ([\w$]+)=[\w$]+\.apps;if\(!Array\.isArray\(\2\)\|\|!\2\.every\(([\w$]+)=>typeof \3=="string"\)\)return [\w$]+\(\'"apps" must be an array of strings\.\',"bad_args"\);const )'
+        rb"([\w$]+)=\2(,[\w$]+=\{\};)"
+    )
+
+    def patch_request_access_alias(m):
+        return (
+            m.group(1)
+            + m.group(4)
+            + b"=globalThis.__cuKwinMode?"
+            + m.group(2)
+            + b'.map(v=>v==="org.kde.plasmashell"?"plasmashell":v):'
+            + m.group(2)
+            + m.group(5)
+        )
+
+    content, count = re.subn(
+        request_access_alias_pattern,
+        patch_request_access_alias,
+        content,
+        count=1,
+    )
+    if count >= 1:
+        print("  [OK] 13b.kwin-alias request_access: org.kde.plasmashell -> plasmashell (kwin-wayland mode)")
+        desc_changes += 1
+        patches_applied += 1
+    else:
+        print("  [FAIL] 13b.kwin-alias request_access alias: not found")
+
+    # 13b.kwin-alias-teach (kwin-wayland): Same plasmashell alias for request_teach_access.
+    teach_access_alias_pattern = (
+        rb'(const ([\w$]+)=[\w$]+\.apps;if\(!Array\.isArray\(\2\)\|\|!\2\.every\(([\w$]+)=>typeof \3=="string"\)\)return [\w$]+\(\'"apps" must be an array of strings\.\',"bad_args"\);const )'
+        rb"([\w$]+)=\2(,\{needDialog:)"
+    )
+
+    def patch_teach_access_alias(m):
+        return (
+            m.group(1)
+            + m.group(4)
+            + b"=globalThis.__cuKwinMode?"
+            + m.group(2)
+            + b'.map(v=>v==="org.kde.plasmashell"?"plasmashell":v):'
+            + m.group(2)
+            + m.group(5)
+        )
+
+    content, count = re.subn(
+        teach_access_alias_pattern,
+        patch_teach_access_alias,
+        content,
+        count=1,
+    )
+    if count >= 1:
+        print("  [OK] 13b.kwin-alias-teach request_teach_access: plasmashell alias (kwin-wayland mode)")
+        desc_changes += 1
+        patches_applied += 1
+    else:
+        print("  [FAIL] 13b.kwin-alias-teach request_teach_access alias: not found")
+
+    # 13b.kwin-shell-hint (kwin-wayland): Rewrite the "desktop shell is frontmost"
+    # prompt to point at plasmashell + Dolphin instead of File Explorer/Finder.
+    # kwin-wayland only.
+    desktop_shell_prefix = (
+        b"`The desktop shell is frontmost. Double-click, right-click, and Enter on "
+        b"desktop items can launch applications outside the allowlist. To interact "
+        b"with the desktop, taskbar, Start menu, Search, or file manager, call "
+        b'request_access with exactly "${'
+    )
+    desktop_shell_suffix = (
+        b'==="win32"?"File Explorer":"Finder"}" in the apps array \xe2\x80\x94 '
+        b"that single grant covers all of them. To interact with a different app, "
+        b"use open_application to bring it forward.`"
+    )
+    desktop_shell_pattern = (
+        re.escape(desktop_shell_prefix) + rb"([\w$]+)" + re.escape(desktop_shell_suffix)
+    )
+    shell_match = re.search(desktop_shell_pattern, content)
+    if shell_match:
+        plat_var = shell_match.group(1).decode("utf-8")
+        new_desktop_shell = (
+            b"`${globalThis.__cuKwinMode?`The desktop shell is frontmost. Desktop icons, panels, launchers, and "
+            b'widgets belong to Plasma Shell. To interact with them, call request_access with exactly \\"plasmashell\\" in '
+            b'the apps array. If you need the file manager, request \\"Dolphin\\" separately. To interact with a '
+            b"different app, use open_application to bring it forward.`:`The desktop shell is frontmost. Double-click, "
+            b"right-click, and Enter on desktop items can launch applications outside the allowlist. To interact "
+            b"with the desktop, taskbar, Start menu, Search, or file manager, call request_access with exactly "
+            b'\\"${'
+            + plat_var.encode("utf-8")
+            + b'==="win32"?"File Explorer":"Finder"}\\" in the apps array \xe2\x80\x94 that single grant covers all '
+            b"of them. To interact with a different app, use open_application to bring it forward.`}`"
+        )
+        content = content.replace(shell_match.group(0), new_desktop_shell, 1)
+        print("  [OK] 13b.kwin-shell-hint: kwin-wayland=plasmashell, regular/other=upstream wording")
+        desc_changes += 1
+        patches_applied += 1
+    else:
+        print("  [FAIL] 13b.kwin-shell-hint desktop shell hint: not found")
+
+    # 13b.kwin-shell-grant (kwin-wayland): Teach the grant predicate that plasmashell
+    # bundle IDs satisfy desktop-shell access. Regular mode keeps upstream's
+    # darwin/win32 predicate untouched; kwin-wayland short-circuits on the
+    # plasmashell IDs.
+    shell_grant_pattern = (
+        rb"(function [\w$]+\(([\w$]+),([\w$]+)\)\{)"
+        rb'return \3==="darwin"\?\2\.some\(([\w$]+)=>\4\.bundleId===([\w$]+)\):'
+        rb"\2\.some\(([\w$]+)=>\6\.bundleId\.toLowerCase\(\)===([\w$]+)\)\}"
+    )
+
+    def patch_shell_grant(m):
+        header, apps, plat, darwin_iter, mac_const, win_iter, win_const = (
+            m.group(1),
+            m.group(2),
+            m.group(3),
+            m.group(4),
+            m.group(5),
+            m.group(6),
+            m.group(7),
+        )
+        return (
+            header
+            + b"return "
+            + plat
+            + b'==="darwin"?'
+            + apps
+            + b".some("
+            + darwin_iter
+            + b"=>"
+            + darwin_iter
+            + b".bundleId==="
+            + mac_const
+            + b"):globalThis.__cuKwinMode&&"
+            + plat
+            + b'==="linux"?'
+            + apps
+            + b".some("
+            + darwin_iter
+            + b"=>"
+            + darwin_iter
+            + b'.bundleId==="plasmashell"||'
+            + darwin_iter
+            + b'.bundleId==="org.kde.plasmashell"):'
+            + apps
+            + b".some("
+            + win_iter
+            + b"=>"
+            + win_iter
+            + b".bundleId.toLowerCase()==="
+            + win_const
+            + b")}"
+        )
+
+    content, count = re.subn(shell_grant_pattern, patch_shell_grant, content, count=1)
+    if count >= 1:
+        print("  [OK] 13b.kwin-shell-grant: plasmashell satisfies shell access (kwin-wayland only)")
+        desc_changes += 1
+        patches_applied += 1
+    else:
+        print("  [FAIL] 13b.kwin-shell-grant desktop shell grant predicate: not found")
+
+    # 13b.kwin-shell-detect (kwin-wayland): Short-circuit the shell-process detector
+    # on plasmashell IDs. Same mode gate.
+    shell_detect_pattern = (
+        rb"(function [\w$]+\(([\w$]+)\)\{)"
+        rb"return \2===([\w$]+)\?!0:!([\w$]+)\|\|!([\w$]+)\.has\(([\w$]+)\(\2\)\)"
+        rb"\?!1:\2\.toLowerCase\(\)\.startsWith\(\4\)\}"
+    )
+
+    def patch_shell_detect(m):
+        header, arg, mac_const, win_prefix, win_set, win_norm = (
+            m.group(1),
+            m.group(2),
+            m.group(3),
+            m.group(4),
+            m.group(5),
+            m.group(6),
+        )
+        return (
+            header
+            + b"return "
+            + arg
+            + b"==="
+            + mac_const
+            + b"||globalThis.__cuKwinMode&&("
+            + arg
+            + b'==="plasmashell"||'
+            + arg
+            + b'==="org.kde.plasmashell")?!0:!'
+            + win_prefix
+            + b"||!"
+            + win_set
+            + b".has("
+            + win_norm
+            + b"("
+            + arg
+            + b"))?!1:"
+            + arg
+            + b".toLowerCase().startsWith("
+            + win_prefix
+            + b")}"
+        )
+
+    content, count = re.subn(shell_detect_pattern, patch_shell_detect, content, count=1)
+    if count >= 1:
+        print("  [OK] 13b.kwin-shell-detect: plasmashell recognized as shell (kwin-wayland only)")
+        desc_changes += 1
+        patches_applied += 1
+    else:
+        print("  [FAIL] 13b.kwin-shell-detect desktop shell detection: not found")
 
     # 13c: App identifier (request_access apps schema) — WM_CLASS for Linux
     # macOS uses bundle identifiers (com.tinyspeck.slackmacgap) — N/A on Linux.
@@ -1041,7 +1067,7 @@ def patch_computer_use_linux(filepath):
         b"""'Application display names (e.g. "Slack", "Calendar") or bundle identifiers (e.g. "com.tinyspeck.slackmacgap"). Display names are resolved case-insensitively against installed apps.'"""
     )
     _new_13c = (
-        b"""(t.platform==="linux"?"""
+        b"""(process.platform==="linux"?"""
         b"""'Application names as shown in window titles, or WM_CLASS values """
         b"""(e.g. "firefox", "org.gnome.Nautilus"). """
         b"""On Linux all apps are auto-granted at full tier.'"""
@@ -1061,7 +1087,7 @@ def patch_computer_use_linux(filepath):
     # 13d: App identifier (open_application app schema) — simplified for Linux
     _old_13d = b"""'Display name (e.g. "Slack") or bundle identifier (e.g. "com.tinyspeck.slackmacgap").'"""
     _new_13d = (
-        b"""(t.platform==="linux"?"""
+        b"""(process.platform==="linux"?"""
         b"""'Application name or WM_CLASS (e.g. "firefox", "nautilus").'"""
         b""":"""
         b"""'Display name (e.g. "Slack") or bundle identifier (e.g. "com.tinyspeck.slackmacgap").')"""
@@ -1137,7 +1163,7 @@ def patch_computer_use_linux(filepath):
 
     if desc_changes > 0:
         changes += desc_changes
-        print(f"  [OK] {desc_changes}/7 description patches applied")
+        print(f"  [OK] {desc_changes}/12 description patches applied (7 regular + 5 kwin-wayland KDE)")
     else:
         print("  [FAIL] No description patches applied (descriptions unchanged)")
 
@@ -1189,16 +1215,20 @@ def patch_computer_use_linux(filepath):
     _sep_count = content.count(_sep_old_full2)
     if _sep_count >= 2:
         _sep_new_full = (
-            b'${process.platform==="linux"'
+            b'${process.platform==="linux"?(globalThis.__cuKwinMode'
             b'?"**Same filesystem.** Computer-use actions and your CLI tools operate on the same Linux machine. '
-            b"There is no sandbox \\u2014 files you create are directly accessible to desktop applications and vice versa. "
+            b"Files you create are directly accessible to desktop applications, and files selected or edited in "
+            b"desktop apps are on the same machine you can read from the CLI. "
             b'"'
+            b':"**Same filesystem.** Computer-use actions and your CLI tools operate on the same Linux machine. '
+            b"There is no sandbox \\u2014 files you create are directly accessible to desktop applications and vice versa. "
+            b'")'
             b':"**Separate filesystems.** Computer-use actions (clicks, typing, clipboard writes) '
             b"happen on the user's real computer \xe2\x80\x94 a different system from your sandbox. "
             b'"}'
         )
         content = content.replace(_sep_old_full2, _sep_new_full)
-        print(f"  [OK] 14a separate filesystems: replaced {_sep_count} occurrences with Linux-aware text")
+        print(f"  [OK] 14a separate filesystems: 3-way replace, {_sep_count} occurrences")
         changes += _sep_count
         patches_applied += 1
     else:
@@ -1216,17 +1246,46 @@ def patch_computer_use_linux(filepath):
     else:
         print("  [FAIL] 14b app names: 'Maps, Notes, Finder, Photos, System Settings' not found")
 
-    # 14c: File manager name in host filesystem request_cowork_directory hint
+    # 14c: File manager name in host filesystem request_cowork_directory hint.
+    # 3-way: kwin-wayland=Dolphin, regular=Files, non-Linux=Finder.
     _fm_old = b'"File Explorer":"Finder"'
-    _fm_new = b'"File Explorer":process.platform==="linux"?"Files":"Finder"'
+    _fm_new = b'"File Explorer":process.platform==="linux"?(globalThis.__cuKwinMode?"Dolphin":"Files"):"Finder"'
 
     if _fm_old in content:
         content = content.replace(_fm_old, _fm_new, 1)
-        print("  [OK] 14c file manager name: added Linux branch")
+        print("  [OK] 14c file manager name: 3-way (kwin-wayland=Dolphin, regular=Files, other=Finder)")
         changes += 1
         patches_applied += 1
     else:
         print("  [FAIL] 14c file manager name: pattern not found")
+
+    # 14d (kwin-wayland): Append explicit Linux/KDE environment hint to the CU
+    # system-prompt intro. kwin-wayland only — regular mode keeps the upstream
+    # sentence unchanged so non-KDE users aren't misled. We rewrite the anchor as
+    # a template ternary on globalThis.__cuKwinMode so runtime mode selects.
+    env_prompt_anchor_esc = (
+        r"You have a computer-use MCP available \(tools named \\\`mcp__computer-use__\*\\\`\)\. It lets you take screenshots of the user's desktop and control it with mouse clicks, keyboard input, and scrolling\."
+    )
+    env_prompt_pattern = env_prompt_anchor_esc.encode("utf-8")
+    env_prompt_matches = [m.start() for m in re.finditer(env_prompt_pattern, content)]
+    if env_prompt_matches:
+        env_prompt_new = (
+            b"You have a computer-use MCP available (tools named \\`mcp__computer-use__*\\`). It lets you take "
+            b"screenshots of the user's desktop and control it with mouse clicks, keyboard input, and scrolling."
+            b"${globalThis.__cuKwinMode?' This computer is running Linux with KDE Plasma. The desktop shell is "
+            b"plasmashell. The file manager is Dolphin.':''}"
+        )
+        content, env_prompt_count = re.subn(env_prompt_pattern, env_prompt_new, content)
+        if env_prompt_count > 0:
+            print(
+                f"  [OK] 14d CU env prompt: kwin-wayland-only KDE suffix ({env_prompt_count} occurrence{'s' if env_prompt_count != 1 else ''})"
+            )
+            changes += env_prompt_count
+            patches_applied += 1
+        else:
+            print("  [FAIL] 14d CU env prompt: replace failed")
+    else:
+        print("  [FAIL] 14d CU env prompt: environment sentence anchor not found")
 
     if patches_applied < EXPECTED_PATCHES:
         print(f"  [FAIL] Only {patches_applied}/{EXPECTED_PATCHES} patches applied — check [FAIL] messages above")
