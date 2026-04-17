@@ -693,7 +693,11 @@ export function createRustLinuxBackend() {
     async typePaced(text, delayMs) {
       debugLog('typePaced', { textLength: text.length, delayMs })
       await ensureBridgeSession()
-      await execBridgeJson('type', ['--text', text])
+      const args = ['--text', text]
+      if (typeof delayMs === 'number' && Number.isFinite(delayMs)) {
+        args.push('--delay-ms', String(Math.max(0, Math.round(delayMs))))
+      }
+      await execBridgeJson('type', args)
     },
 
     async readClipboard() {
