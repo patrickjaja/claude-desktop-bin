@@ -48,8 +48,11 @@ package() {
     # Caveat: if the electron package is upgraded, this link still points at
     # the OLD inode until claude-desktop-bin is reinstalled. See .install.
     local electron_bin=/usr/lib/electron/electron
-    if [[ -x $electron_bin ]]; then
-        ln "$electron_bin" "$pkgdir/usr/lib/$pkgname/com.anthropic.claude-desktop"
+    local app_id_bin="$pkgdir/usr/lib/$pkgname/com.anthropic.claude-desktop"
+    if [[ -e $app_id_bin ]]; then
+        : # electron is bundled in the tarball; nothing to do
+    elif [[ -x $electron_bin ]]; then
+        ln "$electron_bin" "$app_id_bin"
     else
         echo "PKGBUILD: /usr/lib/electron/electron not found; WM_CLASS will be wrong until rebuilt against an installed electron" >&2
     fi
