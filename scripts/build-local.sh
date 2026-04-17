@@ -25,18 +25,29 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 # Parse arguments
 INSTALL_AFTER_BUILD=false
-for arg in "$@"; do
-    case $arg in
+ELECTRON_MODE="bundled"
+while [ $# -gt 0 ]; do
+    case "$1" in
         --install|-i)
             INSTALL_AFTER_BUILD=true
             shift
+            ;;
+        --electron=*)
+            ELECTRON_MODE="${1#*=}"
+            shift
+            ;;
+        --electron)
+            ELECTRON_MODE="$2"
+            shift 2
             ;;
         --help|-h)
             echo "Usage: $0 [OPTIONS]"
             echo ""
             echo "Options:"
-            echo "  --install, -i    Install the package after building"
-            echo "  --help, -h       Show this help message"
+            echo "  --install, -i             Install the package after building"
+            echo "  --electron=bundled        Ship Electron inside the tarball (default)"
+            echo "  --electron=system         Use system electron (matches master branch)"
+            echo "  --help, -h                Show this help message"
             echo ""
             echo "This script:"
             echo "  1. Downloads Claude Desktop for Windows (if not present)"
@@ -45,8 +56,20 @@ for arg in "$@"; do
             echo "  4. Optionally installs it"
             exit 0
             ;;
+        *)
+            log_error "Unknown argument: $1"
+            exit 1
+            ;;
     esac
 done
+
+case "$ELECTRON_MODE" in
+    bundled|system) ;;
+    *)
+        log_error "Invalid --electron value: '$ELECTRON_MODE' (expected 'bundled' or 'system')"
+        exit 1
+        ;;
+esac
 
 # Check dependencies
 log_info "Checking build dependencies..."
@@ -127,8 +150,8 @@ else
 fi
 
 # Build the patched tarball
-log_info "Building patched tarball..."
-"$SCRIPT_DIR/build-patched-tarball.sh" "$EXE_FILE" "$BUILD_DIR"
+log_info "Building patched tarball (electron=$ELECTRON_MODE)..."
+"$SCRIPT_DIR/build-patched-tarball.sh" --electron="$ELECTRON_MODE" "$EXE_FILE" "$BUILD_DIR"
 
 # Read build info
 source "$BUILD_DIR/build-info.txt"
@@ -138,7 +161,7 @@ log_info "SHA256: $SHA256"
 
 # Generate PKGBUILD
 log_info "Generating PKGBUILD..."
-"$SCRIPT_DIR/generate-pkgbuild.sh" "$VERSION" "$SHA256" "file://$TARBALL" > "$BUILD_DIR/PKGBUILD"
+"$SCRIPT_DIR/generate-pkgbuild.sh" "$VERSION" "$SHA256" "file://$TARBALL" 200 > "$BUILD_DIR/PKGBUILD"
 
 # Build the package with makepkg
 log_info "Building Arch package..."
