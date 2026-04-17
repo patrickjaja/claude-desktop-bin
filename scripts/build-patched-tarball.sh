@@ -375,6 +375,6 @@ echo "  SHA256:   $SHA256"
 # Write metadata file for CI
 cat > "$OUTPUT_DIR/build-info.txt" << EOF
 VERSION=$VERSION
-TARBALL=$TARBALL_FILE
+TARBALL="$TARBALL_FILE"
 SHA256=$SHA256
 EOF
