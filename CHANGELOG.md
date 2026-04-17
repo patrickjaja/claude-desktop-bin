@@ -2,6 +2,15 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-18 — Fix computer-use broken by upstream parameter reorder
+
+### Fixed
+- **All computer-use tools returning `Unknown tool: [object Object]`**: Upstream reordered the `handleToolCall(toolName, input, sessionCtx)` parameters. Our `LINUX_HANDLER_INJECTION_JS` template used hardcoded `e`/`t`/`r` matching the old order where `t` was the tool name. After the upstream swap, `t` became the session context object, causing every tool dispatch to hit the `default` branch and stringify the object.
+- **Fix**: Replaced hardcoded single-letter param references with placeholders (`__TOOL_NAME__`, `__INPUT__`, `__SESSION__`) that are dynamically substituted with the captured minified parameter names from the regex match at patch time. This makes the injection resilient to future parameter renamings or reorderings.
+- **`ese` Set false-positive "already applied"**: Upstream added `"linux"` to an *unrelated* Set (not the computer-use gate `BmA`). Initial fix detected it as "already applied" and skipped the real `BmA` Set, leaving `SdA()` returning `false` on Linux — computer-use MCP server never registered (0 tools). Fixed: always apply to all `["darwin","win32"]` Sets first, only fall back to "already applied" if zero unpatched Sets remain.
+
+---
+
 ## 2026-04-17 — Fix computer-use zoom on HiDPI / multi-monitor (issue #32)
 
 ### Fixed
