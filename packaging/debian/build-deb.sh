@@ -108,6 +108,13 @@ mkdir -p "$DEB_ROOT/usr/share/icons/hicolor/256x256/apps"
 log_info "Extracting Electron..."
 unzip -q "$ELECTRON_ZIP" -d "$DEB_ROOT/usr/lib/claude-desktop"
 
+# Rename the Electron binary to APP_ID. Electron ignores Chromium's --class
+# flag and derives Wayland app_id / X11 WM_CLASS from the binary basename.
+# The name must match .desktop filename + StartupWMClass so xdg-desktop-portal
+# (and window-manager icon binding) can resolve us via app_id.
+mv "$DEB_ROOT/usr/lib/claude-desktop/electron" \
+   "$DEB_ROOT/usr/lib/claude-desktop/com.anthropic.claude-desktop"
+
 # Set SUID permission on chrome-sandbox (required by Chromium's sandbox)
 if [ -f "$DEB_ROOT/usr/lib/claude-desktop/chrome-sandbox" ]; then
     chmod 4755 "$DEB_ROOT/usr/lib/claude-desktop/chrome-sandbox"

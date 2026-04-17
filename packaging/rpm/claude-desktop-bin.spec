@@ -71,6 +71,13 @@ mkdir -p %{buildroot}/usr/lib/claude-desktop
 cp -a electron/* %{buildroot}/usr/lib/claude-desktop/
 cp -a tarball/app/* %{buildroot}/usr/lib/claude-desktop/resources/
 
+# Rename the Electron binary to APP_ID. Electron ignores Chromium's --class
+# flag and derives Wayland app_id / X11 WM_CLASS from the binary basename.
+# The name must match the .desktop filename + StartupWMClass so portals and
+# window-manager icon binding can resolve us by app_id.
+mv %{buildroot}/usr/lib/claude-desktop/electron \
+   %{buildroot}/usr/lib/claude-desktop/com.anthropic.claude-desktop
+
 # Install launcher (full launcher from tarball with Wayland/X11 detection,
 # GPU fallback, SingletonLock cleanup, cowork socket cleanup, and logging)
 mkdir -p %{buildroot}/usr/bin

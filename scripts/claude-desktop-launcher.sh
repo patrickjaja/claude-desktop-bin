@@ -15,10 +15,12 @@
 
 set -euo pipefail
 
-# Reverse-URL application id for xdg-desktop-portal identification.
-# Portals resolve unsandboxed apps via systemd-scope / cgroup name and match
-# against the installed .desktop file. Must match the .desktop filename
-# (minus the .desktop suffix) and the StartupWMClass entry in it.
+# Reverse-URL application id used everywhere identity matters:
+#   - .desktop filename (minus the .desktop suffix)
+#   - StartupWMClass in the .desktop
+#   - Bundled Electron binary basename (Electron ignores Chromium's --class
+#     flag; Wayland app_id and X11 WM_CLASS both derive from the binary name)
+#   - systemd --user scope name (cgroup → portal identity)
 APP_ID='com.anthropic.claude-desktop'
 
 # ---------------------------------------------------------------------------
@@ -28,15 +30,21 @@ APP_ID='com.anthropic.claude-desktop'
 ELECTRON_BIN="${CLAUDE_ELECTRON:-}"
 APP_ASAR="${CLAUDE_APP_ASAR:-}"
 
+# The bundled Electron binary must be named after APP_ID so Wayland app_id /
+# X11 WM_CLASS match our .desktop file. Electron ignores Chromium's --class
+# flag and derives the window identity from the binary name instead. We
+# prefer the renamed binary; fall back to `electron` for mid-upgrade installs.
 if [[ -z "$ELECTRON_BIN" ]]; then
-    # Try bundled Electron first (RPM/DEB with bundled Electron)
-    for candidate in /usr/lib/claude-desktop/electron; do
+    for candidate in \
+        "/usr/lib/claude-desktop/${APP_ID}" \
+        "/usr/lib/claude-desktop-bin/${APP_ID}" \
+        /usr/lib/claude-desktop/electron \
+        ; do
         if [[ -x "$candidate" ]]; then
             ELECTRON_BIN="$candidate"
             break
         fi
     done
-    # Fall back to system Electron (Arch, DEB with system electron)
     if [[ -z "$ELECTRON_BIN" ]]; then
         ELECTRON_BIN="electron"
     fi
@@ -368,10 +376,6 @@ ELECTRON_ARGS+=('--disable-features=CustomTitlebar')
 # behind the rounded card" symptom (issue #39) on most Wayland configs.
 ELECTRON_ARGS+=('--enable-transparent-visuals')
 
-# Wayland app_id / X11 WM_CLASS — must match APP_ID so xdg-desktop-portal
-# can resolve the reverse-URL id to our installed .desktop file.
-ELECTRON_ARGS+=("--class=${APP_ID}")
-
 case $platform_mode in
     x11)
         log 'X11 session detected'
@@ -486,10 +490,9 @@ fi
 
 log "Launching: $ELECTRON_BIN $APP_ASAR ${ELECTRON_ARGS[*]} $*"
 
-# Launch inside a named systemd user scope so xdg-desktop-portal identifies
-# us via cgroup → scope unit name → matching .desktop file. Without this,
-# the scope name embeds Electron's product name ("Claude"), which is not a
-# reverse-URL and cannot be resolved to our .desktop entry by the portal.
+# Launch inside a named systemd user scope. The scope name (cgroup) gives
+# xdg-desktop-portal a second identity signal alongside the Wayland app_id /
+# X11 WM_CLASS, which come from the binary basename. Both must match APP_ID.
 # Fall back to direct exec in environments without user systemd (rare).
 if command -v systemd-run &>/dev/null && [[ -n "${XDG_RUNTIME_DIR:-}" ]]; then
     exec systemd-run --user --scope --quiet \
