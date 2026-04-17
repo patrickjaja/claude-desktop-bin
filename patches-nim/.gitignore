@@ -1,0 +1,5 @@
+# Compiled Nim patch binaries (rebuilt from *.nim via Makefile)
+*
+!.gitignore
+!Makefile
+!*.nim
