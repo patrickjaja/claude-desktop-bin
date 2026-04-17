@@ -544,8 +544,8 @@ jobs:
 
             # 3. Verify inner contents
             test -f /tmp/squashfs-root/usr/lib/claude-desktop/resources/app.asar
-            test -x /tmp/squashfs-root/usr/lib/claude-desktop/claude-desktop
-            file /tmp/squashfs-root/usr/lib/claude-desktop/claude-desktop | grep -q 'aarch64\|ARM aarch64'
+            test -x /tmp/squashfs-root/usr/lib/claude-desktop/com.anthropic.claude-desktop
+            file /tmp/squashfs-root/usr/lib/claude-desktop/com.anthropic.claude-desktop | grep -q 'aarch64\|ARM aarch64'
             echo "aarch64 AppImage smoke test passed"
             rm -rf /tmp/squashfs-root
           else
@@ -566,7 +566,7 @@ jobs:
 
                 SKIP_SANDBOX_CHECK=1 bash /scripts/smoke-test.sh \
                   /tmp/squashfs-root/usr/lib/claude-desktop/resources/app.asar \
-                  /tmp/squashfs-root/usr/lib/claude-desktop/claude-desktop
+                  /tmp/squashfs-root/usr/lib/claude-desktop/com.anthropic.claude-desktop
               "
           fi
 
