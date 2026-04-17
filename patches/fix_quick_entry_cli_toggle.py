@@ -90,9 +90,9 @@ def patch_cli_toggle(filepath):
         #   2: enum var name (e.g. Iw)
         #   3: full arrow function text `()=>{ ... }`
         pat_a = re.compile(
-            rb"([\w$]+)"                      # 1: register fn
+            rb"([\w$]+)"  # 1: register fn
             rb"\("
-            rb"([\w$]+)\.QUICK_ENTRY,"        # 2: enum var
+            rb"([\w$]+)\.QUICK_ENTRY,"  # 2: enum var
             rb"(\(\)=>\{[\w$]+&&![\w$]+\.isDestroyed\(\)&&[\w$]+\.isFullScreen\(\)\?\([\w$]+\.focus\(\),[\w$]+\(\)\):[\w$]+\(\)\})"  # 3: arrow fn
             rb"\)"
         )
@@ -104,9 +104,8 @@ def patch_cli_toggle(filepath):
             # Parse the arrow function body out of the matched text so we
             # can wrap it with a debounce guard. The matched arrow has the
             # exact form `()=>{<body>}` — strip the braces and re-wrap.
-            assert arrow.startswith(b"()=>{") and arrow.endswith(b"}"), \
-                f"unexpected arrow shape: {arrow!r}"
-            body = arrow[len(b"()=>{"):-1]
+            assert arrow.startswith(b"()=>{") and arrow.endswith(b"}"), f"unexpected arrow shape: {arrow!r}"
+            body = arrow[len(b"()=>{") : -1]
 
             # A: register with assignment to globalThis AND a debounce guard.
             #
@@ -123,13 +122,7 @@ def patch_cli_toggle(filepath):
             # double-fire and still narrow enough that a deliberate
             # user-driven second press (to toggle-close the window) after
             # a legitimate pause still works.
-            arrow_wrapped = (
-                b"()=>{var __t=Date.now();"
-                b"if(globalThis.__ceQEInvokedAt&&__t-globalThis.__ceQEInvokedAt<900)return;"
-                b"globalThis.__ceQEInvokedAt=__t;"
-                + body +
-                b"}"
-            )
+            arrow_wrapped = b"()=>{var __t=Date.now();if(globalThis.__ceQEInvokedAt&&__t-globalThis.__ceQEInvokedAt<900)return;globalThis.__ceQEInvokedAt=__t;" + body + b"}"
             assign = b"globalThis." + HANDLER_GLOBAL.encode("utf-8") + b"=" + arrow_wrapped
             # C: schedule a one-shot argv check for first-instance launches.
             # Runs after handler capture. 500ms lets the main window finish
@@ -144,14 +137,15 @@ def patch_cli_toggle(filepath):
             first_instance = (
                 b",setTimeout(()=>{"
                 b'try{if(Array.isArray(process.argv)&&process.argv.includes("'
-                + TRIGGER_FLAG.encode("utf-8") + b'")&&globalThis.'
-                + HANDLER_GLOBAL.encode("utf-8") + b")globalThis."
-                + HANDLER_GLOBAL.encode("utf-8") + b"()}catch(e){}"
+                + TRIGGER_FLAG.encode("utf-8")
+                + b'")&&globalThis.'
+                + HANDLER_GLOBAL.encode("utf-8")
+                + b")globalThis."
+                + HANDLER_GLOBAL.encode("utf-8")
+                + b"()}catch(e){}"
                 b"},500)"
             )
-            return (
-                reg_fn + b"(" + enum_var + b".QUICK_ENTRY," + assign + b")" + first_instance
-            )
+            return reg_fn + b"(" + enum_var + b".QUICK_ENTRY," + assign + b")" + first_instance
 
         content, count_a = pat_a.subn(repl_a, content)
         if count_a == 1:
@@ -182,9 +176,9 @@ def patch_cli_toggle(filepath):
         applied += 1
     else:
         pat_b = re.compile(
-            rb'(\.on\("second-instance",\()'   # 1: `.on("second-instance",(`
-            rb"([\w$]+),([\w$]+),([\w$]+)"      # 2,3,4: arg names (event, argv, cwd)
-            rb"(\)=>\{)"                         # 5: `)=>{`
+            rb'(\.on\("second-instance",\()'  # 1: `.on("second-instance",(`
+            rb"([\w$]+),([\w$]+),([\w$]+)"  # 2,3,4: arg names (event, argv, cwd)
+            rb"(\)=>\{)"  # 5: `)=>{`
         )
 
         def repl_b(m):
@@ -194,10 +188,17 @@ def patch_cli_toggle(filepath):
             _cwd = m.group(4)
             tail = m.group(5)
             check = (
-                b"if(Array.isArray(" + argv + b')&&' + argv
-                + b'.includes("' + TRIGGER_FLAG.encode("utf-8") + b'"))'
-                + b"{try{globalThis." + HANDLER_GLOBAL.encode("utf-8")
-                + b"&&globalThis." + HANDLER_GLOBAL.encode("utf-8")
+                b"if(Array.isArray("
+                + argv
+                + b")&&"
+                + argv
+                + b'.includes("'
+                + TRIGGER_FLAG.encode("utf-8")
+                + b'"))'
+                + b"{try{globalThis."
+                + HANDLER_GLOBAL.encode("utf-8")
+                + b"&&globalThis."
+                + HANDLER_GLOBAL.encode("utf-8")
                 + b"()}catch(e){}return}"
             )
             return head + m.group(2) + b"," + argv + b"," + m.group(4) + tail + check

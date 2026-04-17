@@ -34,8 +34,8 @@
 
 let
   # Updated automatically by CI (build-and-release.yml) on each release.
-  version = "1.2773.0";
-  hash = "sha256-niPSJDTHMMKUPO4GeniC9FKRtDaPoUyNgTFRT1LVsBg=";
+  version = "1.3109.0";
+  hash = "sha256-ZP0GqFOgg+jZY8wAJObKPLx882wV4EBSdjU9jyKgy8A=";
 in
 stdenvNoCC.mkDerivation {
   pname = "claude-desktop-bin";
@@ -51,8 +51,10 @@ stdenvNoCC.mkDerivation {
   nativeBuildInputs = [ makeWrapper copyDesktopItems ];
 
   # Reverse-URL name ("name") becomes the .desktop filename; startupWMClass
-  # must match what Electron actually reports (set via --class=$APP_ID below).
-  # Both are needed so xdg-desktop-portal can resolve our app identity.
+  # must match Electron's reported app_id. Electron ignores Chromium's --class
+  # flag *and* argv[0] (both silently dropped) — it reads /proc/self/exe and
+  # takes the basename as the Wayland app_id / X11 WM_CLASS instance. So we
+  # materialise a copy of Electron's libexec dir with the binary renamed.
   desktopItems = [
     (makeDesktopItem {
       name = "com.anthropic.claude-desktop";
@@ -74,15 +76,23 @@ stdenvNoCC.mkDerivation {
     mkdir -p $out/lib/claude-desktop/resources
     cp -r app/* $out/lib/claude-desktop/resources/
 
+    # Materialise Electron's libexec dir inside our derivation with the binary
+    # renamed to APP_ID. /proc/self/exe at runtime will resolve to this path
+    # so the basename drives the Wayland app_id / X11 WM_CLASS.
+    mkdir -p $out/libexec/claude-desktop
+    cp -rL ${electron}/libexec/electron/. $out/libexec/claude-desktop/
+    mv $out/libexec/claude-desktop/electron \
+       $out/libexec/claude-desktop/com.anthropic.claude-desktop
+    chmod +x $out/libexec/claude-desktop/com.anthropic.claude-desktop
+
     # Install launcher
     mkdir -p $out/bin
-    makeWrapper ${electron}/bin/electron $out/bin/claude-desktop \
+    makeWrapper $out/libexec/claude-desktop/com.anthropic.claude-desktop $out/bin/claude-desktop \
       --set ELECTRON_OZONE_PLATFORM_HINT "auto" \
       --set ELECTRON_FORCE_IS_PACKAGED "true" \
       --set ELECTRON_USE_SYSTEM_TITLE_BAR "1" \
       --add-flags "--disable-features=CustomTitlebar" \
       --add-flags "--enable-transparent-visuals" \
-      --add-flags "--class=com.anthropic.claude-desktop" \
       ${lib.optionalString (xdotool != null) "--prefix PATH : ${xdotool}/bin"} \
       ${lib.optionalString (scrot != null) "--prefix PATH : ${scrot}/bin"} \
       ${lib.optionalString (imagemagick != null) "--prefix PATH : ${imagemagick}/bin"} \

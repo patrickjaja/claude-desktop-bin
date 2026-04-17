@@ -60,6 +60,17 @@ Quick start:
 ./scripts/build-local.sh --install
 ```
 
+### Building on Ubuntu / Debian
+
+```bash
+# this is how you build it on ubuntu
+SKIP_SMOKE_TEST=1 ./scripts/build-ubuntu-local.sh
+```
+
+Flags can be combined (e.g. `--no-smoke-test --install`). Setting
+`SKIP_SMOKE_TEST=1` in the environment also skips the smoke test when
+invoking `scripts/build-patched-tarball.sh` directly.
+
 See also: [validate_and_fix_claude-setup-x64.md](validate_and_fix_claude-setup-x64.md) for step-by-step patch debugging, and [UPDATE-PROMPT-CC-INPUT-MANUAL.md](UPDATE-PROMPT-CC-INPUT-MANUAL.md) for the one-liner to kick off the process.
 
 ## Debugging Patch Failures

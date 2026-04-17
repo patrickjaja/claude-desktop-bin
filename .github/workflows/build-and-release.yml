@@ -544,8 +544,8 @@ jobs:
 
             # 3. Verify inner contents
             test -f /tmp/squashfs-root/usr/lib/claude-desktop/resources/app.asar
-            test -x /tmp/squashfs-root/usr/lib/claude-desktop/claude-desktop
-            file /tmp/squashfs-root/usr/lib/claude-desktop/claude-desktop | grep -q 'aarch64\|ARM aarch64'
+            test -x /tmp/squashfs-root/usr/lib/claude-desktop/com.anthropic.claude-desktop
+            file /tmp/squashfs-root/usr/lib/claude-desktop/com.anthropic.claude-desktop | grep -q 'aarch64\|ARM aarch64'
             echo "aarch64 AppImage smoke test passed"
             rm -rf /tmp/squashfs-root
           else
@@ -566,7 +566,7 @@ jobs:
 
                 SKIP_SANDBOX_CHECK=1 bash /scripts/smoke-test.sh \
                   /tmp/squashfs-root/usr/lib/claude-desktop/resources/app.asar \
-                  /tmp/squashfs-root/usr/lib/claude-desktop/claude-desktop
+                  /tmp/squashfs-root/usr/lib/claude-desktop/com.anthropic.claude-desktop
               "
           fi
 
@@ -639,7 +639,7 @@ jobs:
                 export DEBIAN_FRONTEND=noninteractive
                 apt-get update
                 apt-get install -y /dist/claude-desktop-bin_*_arm64.deb
-                test -f /usr/lib/claude-desktop/electron
+                test -f /usr/lib/claude-desktop/com.anthropic.claude-desktop
                 test -f /usr/lib/claude-desktop/resources/app.asar
                 test -x /usr/bin/claude-desktop
                 echo 'ARM64 Debian package installed successfully'
@@ -656,7 +656,7 @@ jobs:
                 apt-get install -y xvfb /dist/claude-desktop-bin_*_amd64.deb
                 bash /scripts/smoke-test.sh \
                   /usr/lib/claude-desktop/resources/app.asar \
-                  /usr/lib/claude-desktop/electron
+                  /usr/lib/claude-desktop/com.anthropic.claude-desktop
               "
           fi
 
@@ -729,7 +729,7 @@ jobs:
               bash -c "
                 set -e
                 dnf install -y /dist/claude-desktop-bin-*.aarch64.rpm
-                test -f /usr/lib/claude-desktop/electron
+                test -f /usr/lib/claude-desktop/com.anthropic.claude-desktop
                 test -f /usr/lib/claude-desktop/resources/app.asar
                 test -x /usr/bin/claude-desktop
                 echo 'aarch64 RPM package installed successfully'
@@ -744,7 +744,7 @@ jobs:
                 dnf install -y xorg-x11-server-Xvfb /dist/claude-desktop-bin-*.x86_64.rpm
                 bash /scripts/smoke-test.sh \
                   /usr/lib/claude-desktop/resources/app.asar \
-                  /usr/lib/claude-desktop/electron
+                  /usr/lib/claude-desktop/com.anthropic.claude-desktop
               "
           fi
 

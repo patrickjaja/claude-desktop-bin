@@ -96,29 +96,24 @@ def patch_blur_guard(filepath):
     # target inside the replacement — we preserve whatever minified name
     # upstream chose.
     pat = re.compile(
-        rb'([\w$]+)\.on\("blur",'     # 1: Po
-        rb'\(\)=>\{'
-        rb'([\w$]+)\(null\)'           # 2: EHA
-        rb'\}\)'
+        rb'([\w$]+)\.on\("blur",'  # 1: Po
+        rb"\(\)=>\{"
+        rb"([\w$]+)\(null\)"  # 2: EHA
+        rb"\}\)"
     )
 
     def repl(m):
         win = m.group(1)  # Po
-        fn = m.group(2)   # EHA
+        fn = m.group(2)  # EHA
         fg = FOCUS_GLOBAL.encode("utf-8")
         # Replace the single blur listener with four listeners that
         # collectively track whether Po ever gained focus before a blur.
         # If it didn't, the blur is a phantom (Wayland activation race)
         # and we ignore it.
         return (
-            win + b'.on("focus",()=>{globalThis.' + fg + b"=!0}),"
-            + win + b'.on("blur",()=>{'
-              b"if(!globalThis." + fg + b")return;"
-              b"globalThis." + fg + b"=!1;"
-              + fn + b"(null)"
-            + b"}),"
-            + win + b'.on("show",()=>{globalThis.' + fg + b"=!1}),"
-            + win + b'.on("hide",()=>{globalThis.' + fg + b"=!1})"
+            win + b'.on("focus",()=>{globalThis.' + fg + b"=!0})," + win + b'.on("blur",()=>{'
+            b"if(!globalThis." + fg + b")return;"
+            b"globalThis." + fg + b"=!1;" + fn + b"(null)" + b"})," + win + b'.on("show",()=>{globalThis.' + fg + b"=!1})," + win + b'.on("hide",()=>{globalThis.' + fg + b"=!1})"
         )
 
     content, count = pat.subn(repl, content)

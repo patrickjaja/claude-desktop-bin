@@ -2,6 +2,37 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-17 — Fix computer-use zoom on HiDPI / multi-monitor (issue #32)
+
+### Fixed
+- **Zoom returns incorrect region on HiDPI / multi-monitor setups**: `_captureRegion` now accepts and applies a `scaleFactor` parameter, converting Electron's logical pixel coordinates to physical pixels before passing to screenshot tools (grim, spectacle+convert, scrot, etc.). Previously coordinates were passed unscaled, causing wrong crop regions when `scaleFactor > 1`.
+- **Zoom ignored active display**: The zoom handler passed hardcoded `displayId=0` instead of the user's pinned display (`switch_display`). Now passes `__cuPinnedDisplay` when set, otherwise auto-detects the monitor from the zoom coordinates.
+
+### Added
+- **`_findMonByPoint(px, py)`** helper: determines which monitor contains a given coordinate point, used by both zoom and `_captureRegion` for automatic scaleFactor detection.
+- **Display diagnostics at startup**: `[claude-cu] diagnostics: displays=[...]` now logs all detected monitors with dimensions, origins, and scale factors — visible when running `claude-desktop` from a terminal.
+- **Zoom debug logging**: `[claude-cu] zoom: rect=... sf=...` logs coordinates, scaleFactor, and target monitor for each zoom call.
+
+---
+
+## 2026-04-17 — Cowork crash fix (`t.platform` → `e.platform`) + patch strictness hardening
+
+### Fixed
+- **`patches/fix_computer_use_linux.py`** sub-patches 13b/13c/13d injected `(t.platform==="linux"?...)` inside function `qir(e,A,t)`. In that scope `t` is the installed-apps array (no `.platform`) and `e` is the CU config. On win32 the ternary short-circuited; on darwin/linux every cowork session init crashed with `Cannot read properties of undefined (reading 'platform')`, blocking the CLI spawn entirely. Fixed by using the correct parameter `e`. Comment at line 1015–1019 now documents the scope to prevent regression.
+
+### Changed — patch strictness (prevention for the class of bug above)
+Four patches previously allowed `[WARN]` + continue / no counter, so silent anchor drift after an upstream release could hide as "everything's fine" while a feature was broken. All four now enforce `EXPECTED_PATCHES` / `patches_applied` with loud `[FAIL]` on any sub-patch miss (see CLAUDE.md §5b):
+
+- `patches/enable_local_agent_mode.py` — `EXPECTED_PATCHES=11`; yukonSilver NH, coworkKappa flag, navigator spoof, single-file test mode all converted WARN→FAIL; idempotency counting added across 6 sub-patches.
+- `patches/fix_cowork_spaces.py` — `EXPECTED_PATCHES=3`; silent `"__spaceMgr__"` fallback (the exact silent-bug class) **removed** — missing singleton regex now fails with an investigation hint.
+- `patches/fix_asar_folder_drop.py` — `EXPECTED_PATCHES=2`; second-instance argv parser miss no longer marked "non-critical".
+- `patches/fix_dock_bounce.py` — `EXPECTED_PATCHES=4`; `requestUserAttention` required (Option A — drift should surface); `app.focus({steal})` split into real-idempotent vs miss.
+
+### Other
+- `scripts/claude-desktop-launcher.sh` — cowork socket age-based cleanup disabled (kept as commented-out block). The 24 h `find -mmin +1440` heuristic was deleting live sockets of healthy long-running daemons; pending replacement with a proper connect-probe health check.
+
+---
+
 ## 2026-04-17 — Quick Entry hotkey: GNOME bypass via `gsettings` + CLI trigger (issue #38)
 
 The portal-based path from commit 814e8fb is correct for KDE/Hyprland but unreliable on GNOME — the xdg-desktop-portal GlobalShortcuts approval notification is easy to miss, and Electron's `globalShortcut.register()` returns `true` either way, so the hotkey silently doesn't fire. Empirical check: on this project's Ubuntu GNOME Shell 48 VM, `gsettings get org.gnome.settings-daemon.global-shortcuts applications` was `@as []` — no app had completed the approval flow — despite the portal being available and all identity signals correctly aligned.

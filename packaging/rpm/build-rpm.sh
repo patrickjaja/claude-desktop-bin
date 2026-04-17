@@ -129,7 +129,7 @@ echo "  SHA256:   $SHA256"
 
 # Write build info
 cat > "$OUTPUT_DIR/rpm-info.txt" << EOF
-VERSION=$VERSION
-RPM=$RPM_PATH
-SHA256=$SHA256
+VERSION="$VERSION"
+RPM="$RPM_PATH"
+SHA256="$SHA256"
 EOF

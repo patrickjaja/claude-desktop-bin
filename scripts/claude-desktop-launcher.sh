@@ -22,10 +22,12 @@
 
 set -euo pipefail
 
-# Reverse-URL application id for xdg-desktop-portal identification.
-# Portals resolve unsandboxed apps via systemd-scope / cgroup name and match
-# against the installed .desktop file. Must match the .desktop filename
-# (minus the .desktop suffix) and the StartupWMClass entry in it.
+# Reverse-URL application id used everywhere identity matters:
+#   - .desktop filename (minus the .desktop suffix)
+#   - StartupWMClass in the .desktop
+#   - Bundled Electron binary basename (Electron ignores Chromium's --class
+#     flag; Wayland app_id and X11 WM_CLASS both derive from the binary name)
+#   - systemd --user scope name (cgroup → portal identity)
 APP_ID='com.anthropic.claude-desktop'
 
 # ---------------------------------------------------------------------------
@@ -50,9 +52,14 @@ APP_ID='com.anthropic.claude-desktop'
 ELECTRON_BIN="${CLAUDE_ELECTRON:-}"
 APP_ASAR="${CLAUDE_APP_ASAR:-}"
 
+# The bundled Electron binary must be named after APP_ID so Wayland app_id /
+# X11 WM_CLASS match our .desktop file. Electron ignores Chromium's --class
+# flag and derives the window identity from the binary name instead. We
+# prefer the renamed binary; fall back to `electron` for mid-upgrade installs.
 if [[ -z "$ELECTRON_BIN" ]]; then
     for candidate in \
-        /usr/lib/claude-desktop-bin/com.anthropic.claude-desktop \
+        "/usr/lib/claude-desktop/${APP_ID}" \
+        "/usr/lib/claude-desktop-bin/${APP_ID}" \
         /usr/lib/claude-desktop/electron \
         ; do
         if [[ -x "$candidate" ]]; then
@@ -174,7 +181,6 @@ ELECTRON_ARGS+=('--disable-features=CustomTitlebar')
 # behind the rounded card" symptom (issue #39) on most Wayland configs.
 ELECTRON_ARGS+=('--enable-transparent-visuals')
 
-
 case $platform_mode in
     x11)
         log 'X11 session detected'
@@ -243,31 +249,36 @@ if [[ -L "$lock_file" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Cowork socket cleanup
+# Cowork socket cleanup (DISABLED)
 # ---------------------------------------------------------------------------
-# The cowork-vm-service daemon creates a Unix socket. After a crash the
-# socket file persists but nothing is listening (ECONNREFUSED vs ENOENT).
+# The intent was to clear stale cowork-vm-service sockets left by a crashed
+# daemon. In practice the age-based fallback (used when socat is missing)
+# deletes live sockets of healthy long-running services — a running daemon
+# whose socket file is older than 24h is normal, not stale. Removing the
+# filesystem entry leaves the kernel socket listening but makes new
+# connect() calls return ENOENT.
+#
+# Left commented-out pending a proper health check (e.g. a Python
+# connect-probe) rather than age-based heuristics.
 
-cowork_sock="${XDG_RUNTIME_DIR:-/tmp}/cowork-vm-service.sock"
-
-if [[ -S "$cowork_sock" ]]; then
-    stale=false
-    if command -v socat &>/dev/null; then
-        # Try connecting -- if it fails, the socket is stale
-        if ! socat -u OPEN:/dev/null UNIX-CONNECT:"$cowork_sock" 2>/dev/null; then
-            stale=true
-        fi
-    else
-        # No socat: fall back to age-based check (>24 h = stale)
-        if [[ -n $(find "$cowork_sock" -mmin +1440 2>/dev/null) ]]; then
-            stale=true
-        fi
-    fi
-    if [[ $stale == true ]]; then
-        rm -f "$cowork_sock"
-        log 'Removed stale cowork-vm-service socket'
-    fi
-fi
+# cowork_sock="${XDG_RUNTIME_DIR:-/tmp}/cowork-vm-service.sock"
+#
+# if [[ -S "$cowork_sock" ]]; then
+#     stale=false
+#     if command -v socat &>/dev/null; then
+#         if ! socat -u OPEN:/dev/null UNIX-CONNECT:"$cowork_sock" 2>/dev/null; then
+#             stale=true
+#         fi
+#     else
+#         if [[ -n $(find "$cowork_sock" -mmin +1440 2>/dev/null) ]]; then
+#             stale=true
+#         fi
+#     fi
+#     if [[ $stale == true ]]; then
+#         rm -f "$cowork_sock"
+#         log 'Removed stale cowork-vm-service socket'
+#     fi
+# fi
 
 # ---------------------------------------------------------------------------
 # Launch
@@ -284,10 +295,9 @@ fi
 
 log "Launching: ${LAUNCH_ARGV[*]}"
 
-# Launch inside a named systemd user scope so xdg-desktop-portal identifies
-# us via cgroup → scope unit name → matching .desktop file. Without this,
-# the scope name embeds Electron's product name ("Claude"), which is not a
-# reverse-URL and cannot be resolved to our .desktop entry by the portal.
+# Launch inside a named systemd user scope. The scope name (cgroup) gives
+# xdg-desktop-portal a second identity signal alongside the Wayland app_id /
+# X11 WM_CLASS, which come from the binary basename. Both must match APP_ID.
 # Fall back to direct exec in environments without user systemd (rare).
 if command -v systemd-run &>/dev/null && [[ -n "${XDG_RUNTIME_DIR:-}" ]]; then
     exec systemd-run --user --scope --quiet \

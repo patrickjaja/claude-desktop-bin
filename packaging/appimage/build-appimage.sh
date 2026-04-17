@@ -117,8 +117,12 @@ log_info "Installing application files..."
 mkdir -p "$APPDIR/usr/lib/claude-desktop/resources"
 cp -r "$WORK_DIR/tarball/app/"* "$APPDIR/usr/lib/claude-desktop/resources/"
 
-# Rename electron binary to claude-desktop
-mv "$APPDIR/usr/lib/claude-desktop/electron" "$APPDIR/usr/lib/claude-desktop/claude-desktop"
+# Rename the Electron binary to APP_ID. Electron ignores Chromium's --class
+# flag and derives Wayland app_id / X11 WM_CLASS from the binary basename.
+# The name must match the .desktop filename + StartupWMClass so portals and
+# window-manager icon binding can resolve us by app_id.
+mv "$APPDIR/usr/lib/claude-desktop/electron" \
+   "$APPDIR/usr/lib/claude-desktop/com.anthropic.claude-desktop"
 
 # Install full launcher from tarball
 log_info "Installing launcher..."
@@ -135,7 +139,7 @@ export PATH="${HERE}/usr/bin:${PATH}"
 export LD_LIBRARY_PATH="${HERE}/usr/lib/claude-desktop:${LD_LIBRARY_PATH}"
 
 # Tell the launcher where the bundled Electron and app.asar live
-export CLAUDE_ELECTRON="${HERE}/usr/lib/claude-desktop/claude-desktop"
+export CLAUDE_ELECTRON="${HERE}/usr/lib/claude-desktop/com.anthropic.claude-desktop"
 export CLAUDE_APP_ASAR="${HERE}/usr/lib/claude-desktop/resources/app.asar"
 
 # Support --appimage-update flag for self-updating
@@ -242,7 +246,7 @@ fi
 
 # Write build info
 cat > "$OUTPUT_DIR/appimage-info.txt" << EOF
-VERSION=$VERSION
-APPIMAGE=$APPIMAGE_PATH
-SHA256=$SHA256
+VERSION="$VERSION"
+APPIMAGE="$APPIMAGE_PATH"
+SHA256="$SHA256"
 EOF
