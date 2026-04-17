@@ -2,24 +2,52 @@
 # @patch-target: app.asar.contents/.vite/build/index.js
 # @patch-type: python
 """
-Enable Cowork VM features on Linux.
+Enable Cowork on Linux with runtime backend selection.
 
-Three-part patch:
-A. Extend the TypeScript VM client (vZe) to load on Linux, not just Windows.
-   The original code checks Li (process.platform==="win32") to decide whether
-   to use the TypeScript VM client or the native Swift module. We extend the
-   check to include Linux.
-B. Replace Windows Named Pipe path with a Unix domain socket path on Linux.
-   The original hardcodes "\\\\.\\pipe\\cowork-vm-service" for Windows.
-   On Linux we use $XDG_RUNTIME_DIR/cowork-vm-service.sock (or /tmp fallback).
-C. Add Linux to the _i.files bundle configuration with an empty file list.
-   Since our native Go backend runs Claude Code directly on the host (no VM),
-   we don't need any VM bundle files. An empty array makes C$() return true
-   (vacuously — 0 files all "ready"), so z2e() sets status=Ready without
-   attempting any download. This avoids ENOSPC (tmpfs full) and EXDEV errors.
+The claude-cowork-service daemon can run in either "native" mode (executes
+Claude Code directly on the host; no VM) or "kvm" mode (boots a QEMU/KVM
+guest using the Windows VM bundle artefacts). Each mode creates a different
+Unix socket so Claude Desktop can auto-detect which one is running:
 
-Requires claude-cowork-service daemon running on the host to actually work.
-Without the daemon, Cowork UI will show connection errors naturally.
+    native → $XDG_RUNTIME_DIR/cowork-vm-service.sock
+    kvm    → $XDG_RUNTIME_DIR/cowork-kvm-service.sock
+
+Runtime selection precedence (evaluated in the bundle preamble, below):
+  1. Explicit COWORK_VM_BACKEND env var wins (values: "native" / "kvm",
+     anything else falls through to native).
+  2. Auto-detect: if the kvm socket exists, run in kvm mode.
+  3. Fallback: native.
+
+The choice is stored on globalThis.__coworkKvmMode. Patches gate behavior on
+it via JS ternaries so a single patched bundle runs either backend based on
+what the user has started.
+
+Patches:
+  0. Mode preamble — detects backend + sets globalThis.__coworkKvmMode.
+  A. VM client loader — extend Li (win32 check) to include Linux so the
+     TypeScript VM client loads instead of the macOS Swift module.
+  B. Socket path — replace Windows named pipe with the Linux Unix socket
+     (kvm name vs native name picked at runtime).
+  C. Bundle config — two edits that cooperate:
+       C1) inject ",linux:{x64:[]}" so native mode sees an empty file list
+           (C$() vacuously true → z2e() sets status=Ready, no download),
+       C2) alias linux→win32 at the two Xs.files[process.platform] lookup
+           sites *only when kvm mode is active*, so kvm downloads the same
+           VM artefacts Windows does (rootfs.vhdx, vmlinuz, initrd).
+  D. pathToClaudeCodeExecutable — dynamic resolution on Linux.
+  E. Error detection — extend "/usr/local/bin/claude" includes check to
+     match the Linux paths too.
+  F. present_files — allow host outputs dir paths on native backend.
+  G. vmProcessId guards — remove the early-return guards that fire after
+     idle teardown; the daemon handles mountPath/delete-permission without
+     needing vmProcessId. Applied unconditionally (upstream bug affecting
+     both backends).
+  H. smol-bin copy — gate the "copy smol-bin.vhdx into session dir" step so
+     it runs on Linux *only in kvm mode* (native has no VM to boot).
+
+Patches always run on clean, freshly-extracted bundles. There are NO
+"already patched" fast paths — a missing anchor is a hard failure so we
+notice upstream churn immediately.
 
 Usage: python3 fix_cowork_linux.py <path_to_index.js>
 """
@@ -29,8 +57,20 @@ import os
 import re
 
 
+EXPECTED_PATCHES = 11  # preamble + A + B + C1 + C2 + D + E + F + G-mount + G-delete + H
+
+
+# Runtime mode selector JS snippet, loaded from the sibling file that both
+# this script and the Nim port share. Keeping the source on disk as plain
+# .js (rather than a Python string constant) means there's one canonical
+# copy — no codegen step, no drift between Python and Nim implementations.
+_HERE = os.path.dirname(os.path.abspath(__file__))
+with open(os.path.join(_HERE, "../js/cowork_mode_preamble.js"), "rb") as _f:
+    MODE_PREAMBLE_JS = _f.read()
+
+
 def patch_cowork_linux(filepath):
-    """Enable Cowork VM client and socket path on Linux."""
+    """Enable Cowork VM features on Linux with runtime native/kvm switching."""
 
     print("=== Patch: fix_cowork_linux ===")
     print(f"  Target: {filepath}")
@@ -42,94 +82,75 @@ def patch_cowork_linux(filepath):
     with open(filepath, "rb") as f:
         content = f.read()
 
-    original_content = content
     patches_applied = 0
 
-    # Patch A: Extend TypeScript VM client to Linux
+    # ── Patch 0: Mode preamble at file start (right after "use strict";) ──
     #
-    # The VM module loader selects by platform:
-    #   Li ? ef={vm:vZe} : ef=(await import("@ant/claude-swift")).default
-    # where Li = process.platform==="win32"
-    #
-    # We change the condition to: (Li||process.platform==="linux")
-    # so Linux uses the TypeScript VM client (vZe) instead of trying
-    # to load the native Swift module (which doesn't exist on Linux).
-    #
-    # Capture groups:
-    #   1 = Li (condition variable)
-    #   2 = ef (assignment target variable)
-    #   3 = {vm:vZe} (the VM client object literal)
-    #   \2 backreference matches the same variable name in the else branch
+    # Must run before any module-level const that contains a template
+    # literal with ${globalThis.__coworkKvmMode?…} — sandbox_refs B/C wrap
+    # substrings inside such templates, and those templates are constructed
+    # as soon as their enclosing function/object initializer runs (which
+    # can happen during module load, before app.on("ready") would fire).
+    strict_marker = b'"use strict";'
+    strict_idx = content.find(strict_marker)
+    if strict_idx == 0:
+        insertion_point = len(strict_marker)
+        content = content[:insertion_point] + MODE_PREAMBLE_JS + content[insertion_point:]
+        print('  [OK] 0 mode preamble: injected after "use strict"')
+        patches_applied += 1
+    else:
+        print('  [FAIL] 0 mode preamble: "use strict"; not at file start')
+
+    # ── Patch A: VM client loader — extend Li check to include Linux ───
     vm_client_pattern = rb'([\w$]+)\?([\w$]+)=(\{vm:[\w$]+\}):\2=\(await import\("@ant/claude-swift"\)\)\.default'
 
     def vm_client_replacement(m):
-        li_var = m.group(1)  # Li
-        ef_var = m.group(2)  # ef
-        vm_obj = m.group(3)  # {vm:vZe}
+        li_var = m.group(1)
+        ef_var = m.group(2)
+        vm_obj = m.group(3)
         return b"(" + li_var + b'||process.platform==="linux")?' + ef_var + b"=" + vm_obj + b":" + ef_var + b'=(await import("@ant/claude-swift")).default'
 
     content, count_a = re.subn(vm_client_pattern, vm_client_replacement, content)
     if count_a >= 1:
-        print(f"  [OK] VM client loader: extended to Linux ({count_a} match)")
+        print(f"  [OK] A VM client loader: extended to Linux ({count_a} match)")
         patches_applied += 1
     else:
-        print("  [FAIL] VM client loader: 0 matches")
+        print("  [FAIL] A VM client loader: 0 matches")
 
-    # Patch B: Socket path for Linux
-    #
-    # Currently hardcoded Windows named pipe:
-    #   cxe="\\\\.\\pipe\\cowork-vm-service"
-    #
-    # Replace with platform-conditional:
-    #   cxe = process.platform==="linux"
-    #     ? (process.env.XDG_RUNTIME_DIR||"/tmp")+"/cowork-vm-service.sock"
-    #     : "\\\\.\\pipe\\cowork-vm-service"
-    #
-    # We use bytes.replace() instead of regex to avoid backslash escaping hell.
-    # The pipe path is a unique literal string in the bundle.
+    # ── Patch B: Socket path — mode-aware Unix socket on Linux ──────
     pipe_path = b'"\\\\\\\\.\\\\pipe\\\\cowork-vm-service"'
     pipe_search = b"=" + pipe_path
 
     if pipe_search in content:
-        # Find the variable name before the = sign
         idx = content.index(pipe_search)
-        # Walk backwards to find start of variable name
         start = idx - 1
         while start >= 0 and (content[start : start + 1].isalnum() or content[start : start + 1] in (b"_", b"$")):
             start -= 1
         start += 1
         var_name = content[start:idx]
 
-        replacement = var_name + b'=process.platform==="linux"?(process.env.XDG_RUNTIME_DIR||"/tmp")+"/cowork-vm-service.sock":' + pipe_path
+        replacement = (
+            var_name
+            + b'=process.platform==="linux"?'
+            + b'(process.env.XDG_RUNTIME_DIR||"/tmp")+(globalThis.__coworkKvmMode?"/cowork-kvm-service.sock":"/cowork-vm-service.sock")'
+            + b":"
+            + pipe_path
+        )
         content = content[:start] + replacement + content[idx + len(pipe_search) :]
-        print(f"  [OK] Socket path: Unix socket on Linux (var={var_name.decode()})")
+        print(f"  [OK] B socket path: runtime-selected Unix socket on Linux (var={var_name.decode()})")
         patches_applied += 1
     else:
-        print("  [WARN] Socket path: pipe path not found")
+        print("  [FAIL] B socket path: pipe path not found")
 
-    # Patch C: Add Linux to _i.files bundle config with EMPTY file list
-    #
-    # The bundle configuration looks like:
-    #   files:{darwin:{arm64:[...]},win32:{arm64:[...],x64:[FILE_LIST]}}
-    #
-    # We inject: ,linux:{x64:[]}  (empty array)
-    # An empty array means: no VM files needed. C$() returns true vacuously
-    # (0 files, all "ready"), so z2e() sets status=Ready without downloading.
-    #
-    # Strategy: find the win32 block's closing }, then inject after it.
-
-    # Find the bundle config by its unique structure marker
+    # ── Patch C1: Inject ",linux:{x64:[]}" into bundle files config ──
     win32_marker = b"win32:{"
     win32_idx = content.find(win32_marker)
+    c1_ok = False
     if win32_idx >= 0:
-        # Find ,x64:[ within the win32 block to locate the end
         x64_marker = b",x64:["
-        x64_search_start = win32_idx
-        x64_idx = content.find(x64_marker, x64_search_start)
-
+        x64_idx = content.find(x64_marker, win32_idx)
         if x64_idx >= 0:
-            # Skip past the x64 array (balanced bracket matching)
-            array_start = x64_idx + len(x64_marker) - 1  # Position of '['
+            array_start = x64_idx + len(x64_marker) - 1
             depth = 0
             pos = array_start
             while pos < len(content):
@@ -141,37 +162,45 @@ def patch_cowork_linux(filepath):
                         break
                 pos += 1
 
-            # After x64 array ends at pos+1, expect }}} (close win32, files, _i)
             after_array = pos + 1
-            # Skip the win32 closing }
             if content[after_array : after_array + 1] == b"}":
-                # Insert ,linux:{x64:[]} right after win32's }
                 inject = b",linux:{x64:[]}"
                 content = content[: after_array + 1] + inject + content[after_array + 1 :]
-                print("  [OK] Bundle config: Linux platform added (empty file list — no VM download)")
+                print("  [OK] C1 bundle config: linux platform added (empty file list)")
                 patches_applied += 1
+                c1_ok = True
             else:
-                print("  [WARN] Bundle config: unexpected structure after x64 array")
+                print("  [FAIL] C1 bundle config: unexpected structure after x64 array")
         else:
-            print("  [WARN] Bundle config: x64 array not found in win32 block")
+            print("  [FAIL] C1 bundle config: x64 array not found in win32 block")
     else:
-        print("  [WARN] Bundle config: win32 block not found")
+        print("  [FAIL] C1 bundle config: win32 block not found")
 
-    # Patch D: Fix pathToClaudeCodeExecutable for Linux
-    #
-    # The Local Agent Mode session manager hardcodes the macOS path:
-    #   pathToClaudeCodeExecutable:"/usr/local/bin/claude"
-    #
-    # On Linux, claude may be at /usr/bin/claude, ~/.local/bin/claude, or
-    # any user-specific location (e.g. ~/.npm-global/bin/claude).
-    # Replace with a dynamic IIFE that checks known locations first, then
-    # falls back to `which claude` to resolve via PATH dynamically.
-    # This ensures the Go daemon receives an absolute path even when claude
-    # is installed in a non-standard location.
-    #
-    # Also fix the error detection pattern that checks for "/usr/local/bin/claude"
-    # in error messages — extend it to also match the Linux paths.
+    # ── Patch C2: Alias linux→win32 at the Xs.files[…] lookup sites
+    #             (runtime-gated on globalThis.__coworkKvmMode). ─────
+    bundle_lookup_re = re.compile(
+        rb"(const ([\w$]+)=)process\.platform"
+        rb"(,[\w$]+=[\w$]+\(\);return [\w$]+\.files\[\2\])"
+    )
 
+    def bundle_lookup_replacement(m):
+        return (
+            m.group(1)
+            + b'(globalThis.__coworkKvmMode?(process.platform==="linux"?"win32":process.platform):process.platform)'
+            + m.group(3)
+        )
+
+    content, c2_count = bundle_lookup_re.subn(bundle_lookup_replacement, content)
+    if c2_count >= 1:
+        print(f"  [OK] C2 bundle lookup alias: linux→win32 when kvm mode ({c2_count} site(s))")
+        patches_applied += 1
+    else:
+        print("  [FAIL] C2 bundle lookup alias: no matching sites found")
+
+    # Silence unused variable warning on c1_ok — kept for readability.
+    del c1_ok
+
+    # ── Patch D: pathToClaudeCodeExecutable — dynamic on Linux ──────
     claude_path_old = b'pathToClaudeCodeExecutable:"/usr/local/bin/claude"'
     claude_path_new = (
         b"pathToClaudeCodeExecutable:"
@@ -188,13 +217,12 @@ def patch_cowork_linux(filepath):
 
     if claude_path_old in content:
         content = content.replace(claude_path_old, claude_path_new, 1)
-        print("  [OK] Claude Code path: dynamic resolution on Linux")
+        print("  [OK] D Claude Code path: dynamic resolution on Linux")
         patches_applied += 1
     else:
-        print("  [WARN] Claude Code path: pattern not found")
+        print("  [FAIL] D Claude Code path: pattern not found")
 
-    # Also extend the error detection to recognize Linux paths
-    # Use regex to match any variable name before .includes
+    # ── Patch E: Error detection — extend Linux paths ───────────────
     error_detect_pattern = rb'([\w$]+)(\.includes\("/usr/local/bin/claude"\))'
 
     def error_detect_replacement(m):
@@ -203,34 +231,12 @@ def patch_cowork_linux(filepath):
 
     content, error_count = re.subn(error_detect_pattern, error_detect_replacement, content, count=1)
     if error_count >= 1:
-        print("  [OK] Error detection: extended for Linux paths")
+        print("  [OK] E error detection: extended for Linux paths")
         patches_applied += 1
     else:
-        print("  [WARN] Error detection: pattern not found")
+        print("  [FAIL] E error detection: pattern not found")
 
-    # Patch F: Fix present_files to accept native host paths on Linux
-    #
-    # On native Linux (no VM), the cowork service runs Claude Code directly on the host
-    # and the /sessions/<name> symlink may not exist (requires root to create /sessions/).
-    # In that case:
-    #   - reverseMap is disabled in the cowork service → model gets real host paths
-    #   - present_files checks: (c?$w(p,c):null)===null && u.push(f)
-    #   - $w() returns null for any non-/sessions/ path → ALL native paths fail
-    #   - Result: "Cannot present X file(s) — not accessible on the user's computer"
-    #
-    # Fix: after the VM-path check returns null, additionally allow paths that are
-    # within the session's host outputs directory (t.getHostOutputsDir()).
-    # This is safe: the host outputs dir is already a user-approved location.
-    #
-    # Pattern (variable names change between versions — use wildcards):
-    #   for(const{file_path:f,vmPath:p}of l){
-    #     if(L$e(p,t.vmProcessName))continue;
-    #     (c?$w(p,c):null)===null&&u.push(f)    ← patched line
-    #   }
-    #
-    # Replacement: wrap the push in an IIFE that first checks if the path is
-    # in the host outputs dir — if so, skip the push (file is allowed).
-
+    # ── Patch F: present_files — allow host outputs dir paths ───────
     present_files_old_pattern = (
         rb"for\(const\{file_path:([\w$]+),vmPath:([\w$]+)\}of ([\w$]+)\)\{"
         rb"if\(([\w$]+)\(\2,([\w$]+)\.vmProcessName\)\)continue;"
@@ -244,7 +250,7 @@ def patch_cowork_linux(filepath):
         scratchpad_fn = m.group(4)
         t_var = m.group(5)
         c_var = m.group(6)
-        resolve_fn = m.group(7)  # was $w, now ub or similar
+        resolve_fn = m.group(7)
         u_var = m.group(8)
         return (
             b"for(const{file_path:" + f_var + b",vmPath:" + p_var + b"}of " + l_var + b"){"
@@ -254,37 +260,62 @@ def patch_cowork_linux(filepath):
             b"if(_ho&&(" + f_var + b"===_ho||" + f_var + b'.startsWith(_ho+"/")))return;' + u_var + b".push(" + f_var + b")})()}"
         )
 
-    already_f = b".getHostOutputsDir();if(_ho&&(" in content
-    if already_f:
-        print("  [OK] F present_files native paths: already patched (skipped)")
+    content, count_f = re.subn(present_files_old_pattern, present_files_replacement, content)
+    if count_f >= 1:
+        print(f"  [OK] F present_files: host outputs dir allowed ({count_f} match)")
         patches_applied += 1
     else:
-        content, count_f = re.subn(present_files_old_pattern, present_files_replacement, content)
-        if count_f >= 1:
-            print(f"  [OK] F present_files native paths: host outputs dir allowed ({count_f} match)")
-            patches_applied += 1
-        else:
-            print("  [FAIL] F present_files native paths: pattern not found")
+        print("  [FAIL] F present_files: pattern not found")
 
-    # Check results
-    EXPECTED_PATCHES = 6  # A, B, C, D, E, F
+    # ── Patch G-mount: remove mountFolderForSession vmProcessId guard ──
+    mount_guard_re = re.compile(
+        rb"if\s*\(\s*!\s*[a-zA-Z_$][\w$]*\s*\|\|\s*!\s*[a-zA-Z_$][\w$]*\s*\)"
+        rb"\s*return\s*\{\s*ok\s*:\s*!\s*1\s*,\s*error\s*:\s*"
+        rb'"Session VM process not available\. '
+        rb'The session may not be fully initialized\."\s*\}\s*;?'
+    )
+    content, mount_n = mount_guard_re.subn(b"", content)
+    if mount_n >= 1:
+        print(f"  [OK] G-mount vmProcessId guard: removed ({mount_n} match)")
+        patches_applied += 1
+    else:
+        print("  [FAIL] G-mount vmProcessId guard: pattern not found")
+
+    # ── Patch G-delete: remove delete-permission tool vmProcessId guard ─
+    delete_guard_re = re.compile(
+        rb"if\s*\(\s*!\s*[a-zA-Z_$][\w$]*\s*\)\s*return\s*\{\s*content\s*:"
+        rb"\s*\[\s*\{\s*type\s*:\s*\"text\"\s*,\s*text\s*:\s*"
+        rb'"Session VM process not available\. '
+        rb'The session may not be fully initialized\."\s*\}\s*\]\s*,'
+        rb"\s*isError\s*:\s*!\s*0\s*\}\s*;?"
+    )
+    content, delete_n = delete_guard_re.subn(b"", content)
+    if delete_n >= 1:
+        print(f"  [OK] G-delete vmProcessId guard: removed ({delete_n} match)")
+        patches_applied += 1
+    else:
+        print("  [FAIL] G-delete vmProcessId guard: pattern not found")
+
+    # ── Patch H: smol-bin copy gate — runtime-gated on kvm mode ─────
+    smol_bin_gate_re = re.compile(
+        rb'if\(process\.platform==="win32"\)(\{const [\w$]+=[\w$]+\(\),'
+        rb'[\w$]+=[\w$]+\.join\(process\.resourcesPath,`smol-bin\.)'
+    )
+    content, smol_n = smol_bin_gate_re.subn(
+        rb'if(process.platform==="win32"||process.platform==="linux"&&globalThis.__coworkKvmMode)\1',
+        content,
+    )
+    if smol_n >= 1:
+        print(f"  [OK] H smol-bin copy gate: kvm-mode Linux opt-in ({smol_n} match)")
+        patches_applied += 1
+    else:
+        print("  [FAIL] H smol-bin copy gate: win32 gate pattern not found")
+
+    # ── Checks ───────────────────────────────────────────────────────
     if patches_applied < EXPECTED_PATCHES:
         print(f"  [FAIL] Only {patches_applied}/{EXPECTED_PATCHES} patches applied — check [WARN]/[FAIL] messages above")
         return False
 
-    if content == original_content:
-        print(f"  [OK] All {patches_applied} patches already applied (no changes needed)")
-        return True
-
-    # Verify our patches didn't introduce a brace imbalance
-    original_delta = original_content.count(b"{") - original_content.count(b"}")
-    patched_delta = content.count(b"{") - content.count(b"}")
-    if original_delta != patched_delta:
-        diff = patched_delta - original_delta
-        print(f"  [FAIL] Patch introduced brace imbalance: {diff:+d} unmatched braces")
-        return False
-
-    # Write back
     with open(filepath, "wb") as f:
         f.write(content)
     print(f"  [PASS] {patches_applied} patches applied")
