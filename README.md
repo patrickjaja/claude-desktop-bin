@@ -30,6 +30,8 @@ sudo pacman -S --needed ydotool grim hyprland
 sudo pacman -S --needed ydotool xdotool spectacle imagemagick
 # Wayland (GNOME):
 sudo pacman -S --needed ydotool xdotool glib2 gnome-screenshot imagemagick python-gobject gst-plugin-pipewire
+# GNOME Wayland: enable Quick Entry hotkey (one-time, after install):
+# claude-desktop --install-gnome-hotkey
 # Optional: socat (cowork socket health checks, has fallback)
 # sudo pacman -S --needed socat
 ```
@@ -57,6 +59,8 @@ sudo apt install ydotool grim hyprland
 sudo apt install ydotool xdotool kde-spectacle imagemagick
 # Wayland (GNOME):
 sudo apt install ydotool xdotool libglib2.0-bin gnome-screenshot imagemagick python3-gi gstreamer1.0-pipewire
+# GNOME Wayland: enable Quick Entry hotkey (one-time, after install):
+# claude-desktop --install-gnome-hotkey
 # Optional: socat (cowork socket health checks, has fallback)
 # sudo apt install socat
 ```
@@ -94,6 +98,8 @@ sudo dnf install ydotool grim hyprland
 sudo dnf install ydotool xdotool spectacle ImageMagick
 # Wayland (GNOME):
 sudo dnf install ydotool xdotool glib2 gnome-screenshot ImageMagick python3-gobject gstreamer1-plugin-pipewire
+# GNOME Wayland: enable Quick Entry hotkey (one-time, after install):
+# claude-desktop --install-gnome-hotkey
 # Optional: socat (cowork socket health checks, has fallback)
 # sudo dnf install socat
 ```
@@ -134,6 +140,8 @@ claude-desktop.override {
   # Wayland (GNOME):
   # ydotool = pkgs.ydotool; xdotool = pkgs.xdotool;
   # glib = pkgs.glib; gnome-screenshot = pkgs.gnome-screenshot;
+  # GNOME Wayland: enable Quick Entry hotkey (one-time, after install):
+  # Run: claude-desktop --install-gnome-hotkey
   # Optional: socat (cowork socket health checks, has fallback)
   # socat = pkgs.socat;
 }
@@ -515,21 +523,18 @@ On Windows/Mac, dispatch runs inside a VM. On Linux, [claude-cowork-service](htt
 
 ## Known Limitations
 
-### Global hotkey on Wayland
+### Quick Entry hotkey on GNOME Wayland
 
-The Quick Entry global hotkey (default Ctrl+Alt+Space) goes through one of two paths on Wayland:
+The Quick Entry global hotkey (default `Ctrl+Alt+Space`) works out of the box on **KDE Plasma**, **Hyprland**, and **Sway** via `xdg-desktop-portal` GlobalShortcuts.
 
-1. **`xdg-desktop-portal` GlobalShortcuts** (default). Works reliably on **KDE Plasma** (one-time `kglobalaccel` approval, then persists), **Hyprland** (`xdg-desktop-portal-hyprland`), and **Sway** (`xdg-desktop-portal-wlr` — install it explicitly; not pulled in by every Sway setup). On **GNOME**, the portal approval notification is easy to miss and Electron's `globalShortcut.register()` returns `true` either way — the hotkey silently doesn't fire.
+On **GNOME**, the portal silently fails to register the hotkey. Run once after install:
 
-2. **GNOME custom keybinding via `gsettings`** (opt-in, recommended on GNOME). Binds the accelerator directly to `claude-desktop --toggle-quick-entry`, bypassing the portal entirely. Run `claude-desktop --install-gnome-hotkey` once after install — see [wayland.md](wayland.md#quick-entry-hotkey-not-firing-on-gnome) for commands, accelerator syntax, and verification steps.
+```bash
+claude-desktop --install-gnome-hotkey                 # default Ctrl+Alt+Space
+claude-desktop --install-gnome-hotkey '<Super>space'  # or any accelerator
+```
 
-For triaging portal vs. gsettings issues, `claude-desktop --diagnose` prints session type, Electron version, portal availability, and whether the GNOME hotkey slot is installed.
-
-**Electron `<40` bug.** Separately, Electron versions before 40 have a DBus signal-signature bug ([electron/electron#49806](https://github.com/electron/electron/issues/49806), fixed in #49842 / 40.x+ / 41.x+) that breaks the portal path even on compositors where it otherwise works. The launcher logs a warning if it detects Electron `<40`.
-
-- **Fedora / Debian / AppImage / Nix**: Electron is bundled (`41.x+`) — portal path works on KDE/Hyprland/Sway; GNOME users should use `--install-gnome-hotkey`.
-- **Arch AUR (`claude-desktop-bin`)**: uses system `electron`. Update with `sudo pacman -Syu electron` until Arch is on 40+.
-- **Last-resort escape hatch**: `CLAUDE_USE_XWAYLAND=1` forces XWayland so `XGrabKey` runs instead. GNOME 49 has tightened XWayland key-grab policy, so this is not reliable on recent GNOME — the `gsettings` path above is preferred.
+This binds the key directly via `gsettings`, bypassing the portal. See [wayland.md](wayland.md#quick-entry-hotkey-not-firing-on-gnome) for details. Run `claude-desktop --diagnose` to check hotkey status.
 
 ### App identity on Wayland
 
@@ -540,7 +545,7 @@ and install the `.desktop` file under the matching reverse-URL name.
 
 - **Pinned taskbar entries**: if you had the old `claude-desktop.desktop` pinned, re-pin once after this update.
 - **Custom X11 WM rules**: `WM_CLASS` / Wayland `app_id` changed from `Claude` to `com.anthropic.claude-desktop`. Users with i3 / xmonad / awesome / bspwm / KWin rules matching the old class will need to update them.
-- **NixOS gap**: the Nix package wraps Electron via `makeWrapper` rather than the shared launcher script, so it receives `--class` and `--enable-transparent-visuals` but **not** the `systemd-run --scope` wrap. xdg-desktop-portal identity on NixOS GNOME Wayland may therefore break — use the `--install-gnome-hotkey` path instead. Other sessions (KDE, Hyprland, Sway, X11) are unaffected.
+- **NixOS**: the Nix package materialises a renamed Electron binary (`com.anthropic.claude-desktop`) for correct Wayland `app_id`, but does not use `systemd-run --scope`. Portal identity may not resolve on GNOME Wayland — use `--install-gnome-hotkey` instead. Other sessions (KDE, Hyprland, Sway, X11) are unaffected.
 
 ## Tips
 - Press **Alt** to toggle the app menu bar (Electron default)
