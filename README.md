@@ -10,6 +10,26 @@
 
 Unofficial Linux packages for Claude Desktop AI assistant with automated updates.
 
+## About this fork
+
+**Experimental.** Only `./scripts/build-local.sh --install` (Arch pacman package) is tested. The badges above, the AUR/APT/DNF/AppImage/Nix install paths, and the CI pipeline all point at upstream [patrickjaja/claude-desktop-bin](https://github.com/patrickjaja/claude-desktop-bin) — **none of them are exercised here**. Build locally, or use upstream.
+
+Differences relative to upstream (compared against `master`):
+
+**Runtime behavior**
+
+- **Cowork native/kvm runtime switch.** A single build handles both cowork backends. The injected preamble detects the backend at Electron startup: if `$XDG_RUNTIME_DIR/cowork-kvm-service.sock` exists, kvm mode is configured; otherwise native. Override with `COWORK_VM_BACKEND=kvm|native`. Sandbox/VM system-prompt strings are wrapped in `globalThis.__coworkKvmMode ? kvm : native` ternaries rather than branched at build time, so one .asar covers both upstream `claude-cowork-service` modes.
+- **Computer Use — KDE Wayland `kwin-portal-bridge` backend.** On top of the cross-distro executor (xdotool/ydotool + scrot/grim/spectacle/gnome-screenshot), this fork adds a second Computer Use backend that drives input and screen capture through **`kwin-portal-bridge`** — a KDE-side helper that holds a long-lived `xdg-desktop-portal` RemoteDesktop + ScreenCast session so clicks and screenshots don't trigger a permission prompt on every call. `kwin-portal-bridge` is a **separate project that is not yet released** — once it is, setting `CLAUDE_CU_MODE=kwin-wayland` (or having the binary on `$PATH` under KDE Wayland) switches Computer Use to the portal-backed path. Auto-detect: `XDG_SESSION_DESKTOP=KDE` + `XDG_SESSION_TYPE=wayland` + `kwin-portal-bridge` reachable (via `$PATH` or `KWIN_PORTAL_BRIDGE_BIN`) → kwin-wayland; otherwise regular. Both executors are embedded in the bundle and the active one is picked at startup.
+- **Bundled Electron by default, for portal identity.** `scripts/build-local.sh --electron=bundled|system` (default `bundled`) selects whether the tarball ships its own Electron runtime or relies on system `electron`. Master ships system-electron only. The reason to bundle is **desktop-portal identity, not size**: under Wayland, `xdg-desktop-portal` identifies the caller via the systemd user scope name and the cgroup path, and every Electron subprocess (main, renderer, GPU, utility processes spawned for MCP servers / node-pty / bridges) must resolve to the same `com.anthropic.claude-desktop.*.scope` identity or the portal treats them as separate apps. With the distro `electron` binary in play, Wayland `app_id` and `WM_CLASS` can flip between `Claude` and `electron` across processes, GlobalShortcuts silently stop firing, ScreenCast restore tokens get rejected, and GlobalShortcuts approvals don't persist. A bundled runtime exec'd directly under `systemd-run --user --scope app-com.anthropic.claude-desktop-*.scope` keeps every child inside the same cgroup and gives every process one `app_id`. `--electron=system` is kept for parity with master-branch behavior.
+
+**Build internals**
+
+- **Nim patch ports.** `patches-nim/` contains a Nim port of every Python patch in `patches/`, verified byte-identical by `scripts/test-nim-vs-python.sh` (all pairs match SHA-256). Roughly ~10× faster on the minified-JS regex workload. `scripts/apply_patches.py` prefers the compiled Nim binary when one exists and transparently falls back to Python.
+- **Shared JS snippets in `js/`.** The large injected blobs — Computer Use regular executor, `kwin-portal-bridge` executor, handler injection, cowork/CU mode preambles — live as checked-in files under `js/` and are embedded at patch time. Python reads them via `open().read()`, Nim via `staticRead`. No codegen step; single source of truth for both implementations.
+- **Single-process patch runner.** `scripts/apply_patches.py` parses `@patch-target`/`@patch-type` headers, groups patches by target file, stages the target once on tmpfs, and applies every patch in one Python process via `runpy` — no per-patch interpreter spawn.
+- **Strict patching.** No "already patched" idempotency. Matching an already-applied signature is a failure, not a success, so upstream drift surfaces loudly instead of hiding behind silent no-ops.
+- **Smart Nim compile cascade.** `scripts/compile-nim-patches.sh` tries native `nim` first, runs `nimble install regex` if the package is missing, and falls back to a `nimlang/nim` Docker container (installing only `make`; `libpcre2-8` is `dlopen`'d at runtime, not linked).
+
 ## Installation
 
 > After installing, see [Optional Dependencies](#optional-dependencies) to enable Computer Use, Cowork, and more.
