@@ -295,11 +295,28 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          submodules: true
 
       - name: Download exe artifact
         uses: actions/download-artifact@v4
         with:
           name: claude-setup-exe
+
+      - name: Build kwin-portal-bridge
+        run: |
+          if [ -d kwin-portal-bridge ] && [ -f kwin-portal-bridge/Cargo.toml ]; then
+            echo "=== Installing Rust toolchain ==="
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+            source "$HOME/.cargo/env"
+            echo "=== Building kwin-portal-bridge ==="
+            cd kwin-portal-bridge
+            cargo build --release
+            cd ..
+            echo "kwin-portal-bridge built successfully"
+          else
+            echo "kwin-portal-bridge submodule not present — skipping"
+          fi
 
       - name: Build Patched Tarball
         id: build
@@ -309,6 +326,11 @@ jobs:
           mkdir -p /tmp/build-input /tmp/build-output
           cp Claude-Setup-x64.exe /tmp/build-input/
           cp -r scripts patches js /tmp/build-input/
+          # Copy kwin-portal-bridge binary if compiled
+          if [ -f kwin-portal-bridge/target/release/kwin-portal-bridge ]; then
+            mkdir -p /tmp/build-input/kwin-portal-bridge/target/release
+            cp kwin-portal-bridge/target/release/kwin-portal-bridge /tmp/build-input/kwin-portal-bridge/target/release/
+          fi
 
           docker run --rm \
             -v /tmp/build-input:/input:ro \

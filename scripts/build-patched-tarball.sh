@@ -253,6 +253,14 @@ if [ -f "$WORK_DIR/extract/lib/net45/resources/cowork-plugin-shim.sh" ]; then
     cp "$WORK_DIR/extract/lib/net45/resources/cowork-plugin-shim.sh" "$WORK_DIR/app/locales/"
 fi
 
+# Copy kwin-portal-bridge binary if compiled (for KDE Plasma 6.6+ Wayland computer-use)
+if [ -f "$SCRIPT_DIR/../kwin-portal-bridge/target/release/kwin-portal-bridge" ]; then
+    log_info "Copying kwin-portal-bridge binary..."
+    cp "$SCRIPT_DIR/../kwin-portal-bridge/target/release/kwin-portal-bridge" "$WORK_DIR/app/kwin-portal-bridge"
+    chmod +x "$WORK_DIR/app/kwin-portal-bridge"
+    log_info "  [OK] kwin-portal-bridge binary included"
+fi
+
 # Run Electron smoke test if dependencies are available
 if [ "${SKIP_SMOKE_TEST:-0}" = "1" ]; then
     log_warn "Skipping smoke test (SKIP_SMOKE_TEST=1)"

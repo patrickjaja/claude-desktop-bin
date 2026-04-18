@@ -122,6 +122,12 @@ fi
 log_info "Installing application files..."
 cp -r "$WORK_DIR/tarball/app/"* "$DEB_ROOT/usr/lib/claude-desktop/resources/"
 
+# Install kwin-portal-bridge for KDE Wayland computer-use
+if [ -f "$WORK_DIR/tarball/app/kwin-portal-bridge" ]; then
+    install -m755 "$WORK_DIR/tarball/app/kwin-portal-bridge" "$DEB_ROOT/usr/lib/claude-desktop/kwin-portal-bridge"
+    log_info "Installed kwin-portal-bridge binary"
+fi
+
 # Install launcher (full launcher from tarball with Wayland/X11 detection,
 # GPU fallback, SingletonLock cleanup, cowork socket cleanup, and logging)
 install -m755 "$WORK_DIR/tarball/launcher/claude-desktop" "$DEB_ROOT/usr/bin/claude-desktop"

@@ -1,0 +1,3 @@
+[submodule "kwin-portal-bridge"]
+	path = kwin-portal-bridge
+	url = https://github.com/patrickjaja/kwin-portal-bridge.git
