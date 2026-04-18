@@ -31,8 +31,7 @@ optdepends=('nodejs: System Node.js for MCP extensions that require specific ver
 provides=('claude-desktop')
 conflicts=('claude-desktop')
 _electron_ver={{ELECTRON_VERSION}}
-source_x86_64=("claude-desktop-${pkgver}-${pkgrel}-linux.tar.gz::{{DOWNLOAD_URL}}"
-               "electron-v${_electron_ver}-linux-x64.zip::https://github.com/electron/electron/releases/download/v${_electron_ver}/electron-v${_electron_ver}-linux-x64.zip")
+source_x86_64=("claude-desktop-${pkgver}-${pkgrel}-linux.tar.gz::{{DOWNLOAD_URL}}" "electron-v${_electron_ver}-linux-x64.zip::https://github.com/electron/electron/releases/download/v${_electron_ver}/electron-v${_electron_ver}-linux-x64.zip")
 sha256sums_x86_64=('{{SHA256SUM}}' 'SKIP')
 options=('!strip')
 

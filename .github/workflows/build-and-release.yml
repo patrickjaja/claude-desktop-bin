@@ -893,7 +893,7 @@ jobs:
           # Extract electron version from PKGBUILD to keep the electron source intact
           ELECTRON_VER=$(grep '^_electron_ver=' PKGBUILD | cut -d= -f2)
 
-          # Override only the tarball source; keep the electron zip source as-is
+          # Override tarball source with local file; keep electron zip URL
           ELECTRON_SRC="electron-v${ELECTRON_VER}-linux-x64.zip::https://github.com/electron/electron/releases/download/v${ELECTRON_VER}/electron-v${ELECTRON_VER}-linux-x64.zip"
           sed -i "s|^source_x86_64=.*|source_x86_64=(\"${TARBALL}\" \"${ELECTRON_SRC}\")|" PKGBUILD
           sed -i "s|^sha256sums_x86_64=.*|sha256sums_x86_64=('${TARBALL_SHA}' 'SKIP')|" PKGBUILD
