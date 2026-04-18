@@ -2,6 +2,16 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-18 — Bundle Electron instead of depending on system package
+
+### Changed
+- **AUR PKGBUILD bundles Electron** from GitHub releases instead of depending on the system `electron` package (flagged out-of-date on Arch, installs to version-specific paths that broke the build). Matches how deb/rpm/AppImage packages already work.
+- **Runtime deps** changed from `electron` to `alsa-lib`, `gtk3`, `nss` (the shared libraries bundled Electron links against).
+- **Electron version fallback removed** across all packaging scripts (deb, AppImage, AUR). Build now fails with a clear error if the GitHub API is unreachable, instead of silently bundling a stale version.
+- **Launcher** updated to search `resources/app.asar` path (new bundled Electron layout).
+
+---
+
 ## 2026-04-18 — Fix .gitignore excluding Nim patch sources from CI
 
 ### Fixed

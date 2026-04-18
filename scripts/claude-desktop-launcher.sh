@@ -52,6 +52,7 @@ fi
 
 if [[ -z "$APP_ASAR" ]]; then
     for candidate in \
+        /usr/lib/claude-desktop-bin/resources/app.asar \
         /usr/lib/claude-desktop-bin/app.asar \
         /usr/lib/claude-desktop/resources/app.asar \
         /usr/lib/claude-desktop/app.asar \
@@ -65,7 +66,7 @@ fi
 
 if [[ -z "$APP_ASAR" || ! -f "$APP_ASAR" ]]; then
     echo >&2 'claude-desktop: app.asar not found.'
-    echo >&2 'Searched: /usr/lib/claude-desktop-bin/app.asar, /usr/lib/claude-desktop/resources/app.asar, /usr/lib/claude-desktop/app.asar'
+    echo >&2 'Searched: /usr/lib/claude-desktop-bin/resources/app.asar, /usr/lib/claude-desktop-bin/app.asar, /usr/lib/claude-desktop/resources/app.asar, /usr/lib/claude-desktop/app.asar'
     echo >&2 'Set CLAUDE_APP_ASAR=/path/to/app.asar to override.'
     exit 1
 fi

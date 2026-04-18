@@ -503,17 +503,9 @@ jobs:
           TARBALL="claude-desktop-${{ needs.check-version.outputs.version }}-linux.tar.gz"
           bash scripts/rebuild-pty-for-arch.sh --arch aarch64 "$TARBALL"
 
-      - name: Get Electron version
-        id: electron
-        run: |
-          ELECTRON_VERSION=$(curl -s https://api.github.com/repos/electron/electron/releases/latest | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/')
-          echo "Using Electron version: ${ELECTRON_VERSION}"
-          echo "electron_version=${ELECTRON_VERSION}" >> $GITHUB_OUTPUT
-
       - name: Build AppImage (${{ matrix.arch }})
         env:
           VERSION: ${{ needs.check-version.outputs.version }}
-          ELECTRON_VERSION: ${{ steps.electron.outputs.electron_version }}
         run: |
           TARBALL="claude-desktop-${VERSION}-linux.tar.gz"
 
@@ -894,10 +886,17 @@ jobs:
         run: |
           # Point the PKGBUILD source at the local tarball so makepkg doesn't
           # need to download anything (the release hasn't been published yet).
+          # The electron zip is fetched by makepkg from GitHub (not overridden).
           TARBALL="claude-desktop-${VERSION}-linux.tar.gz"
           TARBALL_SHA=$(sha256sum "$TARBALL" | cut -d' ' -f1)
-          sed -i "s|^source_x86_64=.*|source_x86_64=(\"${TARBALL}\")|" PKGBUILD
-          sed -i "s|^sha256sums_x86_64=.*|sha256sums_x86_64=('${TARBALL_SHA}')|" PKGBUILD
+
+          # Extract electron version from PKGBUILD to keep the electron source intact
+          ELECTRON_VER=$(grep '^_electron_ver=' PKGBUILD | cut -d= -f2)
+
+          # Override only the tarball source; keep the electron zip source as-is
+          ELECTRON_SRC="electron-v${ELECTRON_VER}-linux-x64.zip::https://github.com/electron/electron/releases/download/v${ELECTRON_VER}/electron-v${ELECTRON_VER}-linux-x64.zip"
+          sed -i "s|^source_x86_64=.*|source_x86_64=(\"${TARBALL}\" \"${ELECTRON_SRC}\")|" PKGBUILD
+          sed -i "s|^sha256sums_x86_64=.*|sha256sums_x86_64=('${TARBALL_SHA}' 'SKIP')|" PKGBUILD
 
           # Copy everything into a staging dir for the Docker bind-mount
           mkdir -p /tmp/pkgbuild-test
@@ -910,16 +909,15 @@ jobs:
             bash -c '
               set -euo pipefail
 
-              # Install build deps (electron is both depends and makedepends)
+              # Install build deps (electron is bundled, not a system dependency)
               pacman -Syu --noconfirm
-              pacman -S --noconfirm electron namcap
+              pacman -S --noconfirm unzip namcap
 
               # Set up a non-root builder (makepkg refuses to run as root)
               useradd -m builder
               echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 
-              # Use tmpfs as the build directory — this is a DIFFERENT filesystem
-              # from /usr/lib/electron/, which catches cross-device hard link bugs
+              # Use tmpfs as the build directory — tests on a different filesystem
               BUILD_DIR=/tmp/cross-device/pkgbuild
               mkdir -p "$BUILD_DIR"
               cp /input/* "$BUILD_DIR/"

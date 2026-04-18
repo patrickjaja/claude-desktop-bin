@@ -32,6 +32,13 @@ if [ -z "$DOWNLOAD_URL" ]; then
     DOWNLOAD_URL="https://github.com/patrickjaja/claude-desktop-bin/releases/download/v${VERSION}/claude-desktop-${VERSION}-linux.tar.gz"
 fi
 
+# Fetch latest stable Electron version from GitHub
+ELECTRON_VERSION=$(curl -sf https://api.github.com/repos/electron/electron/releases/latest | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/' || true)
+if [ -z "$ELECTRON_VERSION" ]; then
+    echo "Error: Could not fetch latest Electron version from GitHub API." >&2
+    exit 1
+fi
+
 # Find the template
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
@@ -48,6 +55,7 @@ sed \
     -e "s/{{PKGREL}}/$PKGREL/g" \
     -e "s/{{SHA256SUM}}/$SHA256SUM/g" \
     -e "s|{{DOWNLOAD_URL}}|$DOWNLOAD_URL|g" \
+    -e "s/{{ELECTRON_VERSION}}/$ELECTRON_VERSION/g" \
     -e "s/{{MAINTAINER_NAME}}/$MAINTAINER_NAME/g" \
     -e "s/{{MAINTAINER_EMAIL}}/$MAINTAINER_EMAIL/g" \
     "$TEMPLATE_FILE"
