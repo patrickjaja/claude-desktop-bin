@@ -938,9 +938,11 @@ jobs:
                 NAMCAP_OUT=$(namcap "$PKG" 2>&1 || true)
                 echo "$NAMCAP_OUT"
 
-                # Fail on dependency-related errors (missing deps, broken links)
-                if echo "$NAMCAP_OUT" | grep -qiE "dependency.*detected|missing.*dependency"; then
-                  echo "::error::namcap detected dependency issues in the built package"
+                # Fail only on namcap errors (E:), not warnings (W:)
+                # W: lines about implicitly satisfied deps, unstripped ELF, etc. are expected
+                # for packages that bundle Electron binaries
+                if echo "$NAMCAP_OUT" | grep -qE "^claude-desktop-bin E:.*dependency"; then
+                  echo "::error::namcap detected dependency errors in the built package"
                   exit 1
                 fi
 
