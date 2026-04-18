@@ -103,59 +103,13 @@ if ls "$WORK_DIR/extract/lib/net45/resources/"*.json 1> /dev/null 2>&1; then
     cp "$WORK_DIR/extract/lib/net45/resources/"*.json app.asar.contents/resources/i18n/
 fi
 
-# Apply all patches
+# Compile Nim patches (native build or Docker fallback)
+log_info "Compiling Nim patches..."
+"$SCRIPT_DIR/compile-nim-patches.sh"
+
+# Apply all patches via orchestrator
 log_info "Applying patches..."
-PATCH_FAILED=false
-
-for patch_file in "$PATCHES_DIR"/*; do
-    [ -f "$patch_file" ] || continue
-
-    filename=$(basename "$patch_file")
-    patch_target=$(grep -m1 '@patch-target:' "$patch_file" | sed 's/.*@patch-target:[[:space:]]*//' | tr -d '\r')
-    patch_type=$(grep -m1 '@patch-type:' "$patch_file" | sed 's/.*@patch-type:[[:space:]]*//' | tr -d '\r')
-
-    if [ -z "$patch_target" ] || [ -z "$patch_type" ]; then
-        log_warn "Skipping $filename - missing @patch-target or @patch-type"
-        continue
-    fi
-
-    echo "  Applying: $filename"
-
-    case "$patch_type" in
-        replace)
-            # For replace type, create parent dir and copy file
-            target_path="$WORK_DIR/app/$patch_target"
-            mkdir -p "$(dirname "$target_path")"
-            cp "$patch_file" "$target_path"
-            ;;
-        python)
-            # For python patches, handle glob patterns
-            if [[ "$patch_target" == *"*"* ]]; then
-                dir_part=$(dirname "$patch_target")
-                file_pattern=$(basename "$patch_target")
-                target_file=$(find "$WORK_DIR/app/$dir_part" -name "$file_pattern" 2>/dev/null | head -1)
-            else
-                target_file="$WORK_DIR/app/$patch_target"
-            fi
-
-            if [ -z "$target_file" ] || [ ! -f "$target_file" ]; then
-                log_error "Target not found for $filename: $patch_target"
-                PATCH_FAILED=true
-                continue
-            fi
-
-            if ! python3 "$patch_file" "$target_file"; then
-                log_error "Patch $filename FAILED"
-                PATCH_FAILED=true
-            fi
-            ;;
-        *)
-            log_warn "Unknown patch type '$patch_type' for $filename"
-            ;;
-    esac
-done
-
-if [ "$PATCH_FAILED" = true ]; then
+if ! python3 "$SCRIPT_DIR/apply_patches.py" "$PATCHES_DIR" "$WORK_DIR/app"; then
     log_error "One or more patches failed to apply"
     exit 1
 fi

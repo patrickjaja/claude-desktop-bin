@@ -2,6 +2,33 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-18 — Fix PKGBUILD cross-device link failure + add makepkg CI test
+
+### Fixed
+- **Build fails on cross-device setups** (CachyOS, separate /home partition, btrfs subvolumes): `ln` (hard link) in PKGBUILD can't cross filesystem boundaries. Now falls back to `cp` when hard link fails.
+- **namcap "missing libffmpeg.so" warning**: cosmetic issue from hardlinked electron binary; the `cp` fallback avoids it on cross-device builds.
+
+### Added
+- **CI: `test-pkgbuild` job** — runs `makepkg` on a tmpfs (cross-device) inside an Arch container, then runs `namcap` to catch dependency issues before release.
+
+---
+
+## 2026-04-18 — Migrate patch system from Python to Nim
+
+### Changed
+- **All 41 patches rewritten in Nim** for ~10x faster build times. Python interpreter startup overhead eliminated.
+- Patches compile to native binaries via `patches/Makefile` (`make -j$(nproc)`).
+- New orchestrator `scripts/apply_patches.py` runs compiled Nim binaries, stages files on tmpfs.
+- `scripts/compile-nim-patches.sh` handles Nim compilation with Docker fallback.
+- Large inline JS snippets extracted to `js/` directory (shared between patches via `staticRead`).
+- CI updated: Nim + nimble installed in build container, ruff lint replaced with Nim compile check.
+
+### Removed
+- All `patches/*.py` files (replaced by `patches/*.nim`)
+- `pyproject.toml` (was only for ruff linting of Python patches)
+
+---
+
 ## 2026-04-18 — Fix computer-use broken by upstream parameter reorder
 
 ### Fixed

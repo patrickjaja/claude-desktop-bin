@@ -65,8 +65,9 @@ Copy-paste this into Claude Code when a new version is available:
 >
 > 4. For each failing patch:
 >    - Use `rg` to find the new code pattern in the extracted JS
->    - Update the regex in `patches/*.py` — use `\w+` (or `[\w$]+` if the minified name can start with `$`) for variable names
->    - Test the individual patch: `python3 patches/PATCH.py /tmp/test_index.js`
+>    - Update the regex in `patches/*.nim` — use `\w+` (or `[\w$]+` if the minified name can start with `$`) for variable names
+>    - Recompile: `cd patches && make PATCH_NAME && cd ..`
+>    - Test the individual patch: `patches/PATCH_NAME /tmp/test_index.js`
 >    - Verify syntax: `node --check /tmp/test_index.js`
 >
 > 5. Rebuild: `./scripts/build-local.sh`
@@ -74,7 +75,7 @@ Copy-paste this into Claude Code when a new version is available:
 > 6. Verify all patches pass and JS syntax is valid:
 >    ```bash
 >    # Count patches (should match build output)
->    ls patches/*.py | wc -l
+>    ls patches/*.nim | wc -l
 >    ```
 >
 > 7. Run the Feature Flag Audit (Prompt 3) to check for new/changed flags
@@ -191,7 +192,7 @@ Run this on EVERY version update to catch new/changed feature flags:
 >    rg -o '.{0,40}async\(\)=>\(\{.{0,60}' /tmp/claude-new/app/.vite/build/index.js | head -5
 >    ```
 >
-> 6. Check if `enable_local_agent_mode.py` needs new flags in its override list
+> 6. Check if `enable_local_agent_mode.nim` needs new flags in its override list
 >
 > 7. Verify the feature schema includes all flags we override:
 >    ```bash
@@ -240,9 +241,9 @@ Minified names change every release. The pattern is always the same — just the
 
 | What changes | How to detect | Impact |
 |-------------|---------------|--------|
-| Minified variable names | Build fails — patch regex doesn't match | Update `\w+` patterns in `patches/*.py` |
+| Minified variable names | Build fails — patch regex doesn't match | Update `\w+` patterns in `patches/*.nim`, recompile |
 | New platform gate (`darwin`/`win32`) | Prompt 2 step 2 — `process.platform` diff | New patch needed to add Linux support |
-| New feature flag | Prompt 3 — static registry diff | Add to `enable_local_agent_mode.py` override |
+| New feature flag | Prompt 3 — static registry diff | Add to `enable_local_agent_mode.nim` override |
 | Feature flag removed | Prompt 3 — flag missing from registry | Remove from override, update docs |
 | New IPC handler | Prompt 2 step 5 — `handle("...")` diff | May need Linux implementation |
 | Structural JS refactor | Multiple patches fail + new code shape | Rewrite affected patches to match new structure |

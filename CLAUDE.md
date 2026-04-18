@@ -34,7 +34,7 @@ These files embed assumptions about upstream internals and **must be challenged 
 
 | File | What's fragile | Update workflow |
 |------|---------------|-----------------|
-| `patches/*.py` | Regex patterns matching minified JS | Build fails → fix patterns → `node --check` |
+| `patches/*.nim` | Regex patterns matching minified JS | Build fails → fix patterns → `make` → `node --check` |
 | `CLAUDE_FEATURE_FLAGS.md` | Function names, GrowthBook IDs, architecture details | Run Feature Flag Audit (Prompt 3 in update-prompt.md) |
 | `README.md` | Patch table (break risk, debug `rg` patterns), feature descriptions. **NOT** install command version numbers — those are updated automatically by CI. | Review after patches are fixed |
 | `CLAUDE_BUILT_IN_MCP.md` | Built-in MCP server names, registration patterns | Check `registerInternalMcpServer` calls in new JS |
@@ -97,10 +97,15 @@ asar extract /tmp/claude-patch-test/nupkg/lib/net45/resources/app.asar /tmp/clau
 ./scripts/validate-patches.sh /tmp/claude-patch-test/app.asar.contents
 ```
 
-**Note:** The validation script has a bug - it checks `sed`'s exit code instead of `python3`'s due to piping. Test patches directly:
+Test individual patches directly using compiled Nim binaries:
 
 ```bash
-python3 patches/fix_quick_entry_position.py /tmp/claude-patch-test/app.asar.contents/.vite/build/index.js
+# Compile first (or use Docker fallback)
+cd patches && make -j$(nproc) && cd ..
+
+# Run a single patch on a copy
+cp /tmp/claude-patch-test/app.asar.contents/.vite/build/index.js /tmp/test-index.js
+patches/fix_quick_entry_position /tmp/test-index.js
 echo "Exit code: $?"
 ```
 
@@ -133,19 +138,18 @@ Minified variable names change between versions. Examples from v1.0.1217 → v1.
 
 Instead of hardcoding variable names, use `[\w$]+` wildcards with replacement functions:
 
-```python
+```nim
 # BAD - hardcoded variable names (breaks on updates)
-pattern = rb'function pTe\(\)\{const t=ce\.screen\.getPrimaryDisplay\(\)'
+let pattern = re2"function pTe\(\)\{const t=ce\.screen\.getPrimaryDisplay\(\)"
 
 # GOOD - flexible pattern with capture groups
-pattern = rb'(function [\w$]+\(\)\{const t=)([\w$]+)(\.screen\.)getPrimaryDisplay\(\)'
+let pattern = re2"(function [\w$]+\(\)\{const t=)([\w$]+)(\.screen\.)getPrimaryDisplay\(\)"
 
-def replacement_func(m):
-    electron_var = m.group(2).decode('utf-8')
-    return (m.group(1) + m.group(2) + m.group(3) +
-            f'getDisplayNearestPoint({electron_var}.screen.getCursorScreenPoint())'.encode('utf-8'))
-
-content, count = re.subn(pattern, replacement_func, content)
+result = content.replace(pattern, proc(m: RegexMatch2, s: string): string =
+  let electronVar = s[m.group(1)]
+  s[m.group(0)] & electronVar & s[m.group(2)] &
+    "getDisplayNearestPoint(" & electronVar & ".screen.getCursorScreenPoint())"
+)
 ```
 
 **Important:** Always use `[\w$]+` (not bare `\w+`) for matching JS identifiers. Minified variable names can contain `$` (e.g., `F$e`, `$S`). Using bare `\w+` will silently fail to match.
@@ -158,17 +162,17 @@ content, count = re.subn(pattern, replacement_func, content)
 - Silent failures hide regressions that only surface as broken features at runtime
 - The correct response to a failed match is *investigation*, not silent acceptance
 
-**Required pattern for multi-patch scripts:**
+**Required pattern for multi-patch Nim scripts:**
 
-```python
-EXPECTED_PATCHES = 5  # A, B, C, D, E — list all expected sub-patches
-patches_applied = 0
+```nim
+const EXPECTED_PATCHES = 5  # A, B, C, D, E
+var patchesApplied = 0
 
-# ... each successful sub-patch increments patches_applied ...
+# ... each successful sub-patch increments patchesApplied ...
 
-if patches_applied < EXPECTED_PATCHES:
-    print(f"  [FAIL] Only {patches_applied}/{EXPECTED_PATCHES} patches applied")
-    return False
+if patchesApplied < EXPECTED_PATCHES:
+  echo &"  [FAIL] Only {patchesApplied}/{EXPECTED_PATCHES} patches applied"
+  quit(1)
 ```
 
 **Rules:**
@@ -180,7 +184,7 @@ if patches_applied < EXPECTED_PATCHES:
    - **Code refactored:** The target code was restructured — rewrite the patch approach
    - **Feature removed:** The code we patched no longer exists — the patch can be removed
    - **Feature upstreamed:** Anthropic added native Linux support — the patch can be removed
-5. Never add a new patch with `[WARN]`-on-failure or `patches_applied == 0` as the only check
+5. Never add a new patch with `[WARN]`-on-failure or `patchesApplied == 0` as the only check
 
 ### 6. Verify Syntax After Patching
 
@@ -209,11 +213,11 @@ sudo pacman -U build/claude-desktop-bin-*.pkg.tar.zst
 ### 8. Commit Convention
 
 ```bash
-git add patches/*.py CHANGELOG.md
+git add patches/*.nim js/*.js CHANGELOG.md
 git commit -m "$(cat <<'EOF'
 Fix patch patterns for Claude Desktop vX.X.XXXX
 
-Update [patch_name].py to use flexible regex patterns with dynamic
+Update [patch_name].nim to use flexible regex patterns with dynamic
 variable capture instead of hardcoded names.
 
 Changes:
@@ -230,16 +234,17 @@ git push
 ## File Structure
 
 ```
-patches/     # Python/JS patches applied to the extracted app (ls patches/)
+patches/     # Nim patch sources (.nim) + Makefile, compiled to native binaries (ls patches/*.nim)
+js/          # Shared JS snippets embedded by Nim patches via staticRead
 scripts/     # Build, validation, and launcher scripts (ls scripts/)
 docs/        # Screenshots (chat, code, cowork, global UI)
 ```
 
-Each patch has a header comment describing its target and purpose. The [Patches table in README.md](README.md#patches) lists break risk and debug `rg` patterns — but use `ls patches/` as the single source of truth for what exists.
+Each patch has a `# @patch-target:` and `# @patch-type: nim` header. The Makefile compiles them to native binaries. The orchestrator (`scripts/apply_patches.py`) runs the binaries. Use `ls patches/*.nim` as the single source of truth for what exists.
 
 ## Feature Flag System
 
-See [CLAUDE_FEATURE_FLAGS.md](CLAUDE_FEATURE_FLAGS.md) for the full reference: feature flag catalog, 3-layer override architecture (static registry → async merger → IPC), GrowthBook flag IDs, and how `enable_local_agent_mode.py` bypasses the production gate.
+See [CLAUDE_FEATURE_FLAGS.md](CLAUDE_FEATURE_FLAGS.md) for the full reference: feature flag catalog, 3-layer override architecture (static registry → async merger → IPC), GrowthBook flag IDs, and how `enable_local_agent_mode.nim` bypasses the production gate.
 
 **Note:** Function names in CLAUDE_FEATURE_FLAGS.md are version-specific (they change every release). The version history table at the bottom tracks the renames across versions.
 

@@ -42,14 +42,14 @@ package() {
     cp -r app/* "$pkgdir/usr/lib/$pkgname/"
 
     # Hardlink system electron into our prefix under the APP_ID name. Electron
-    # ignores Chromium's --class flag and argv[0]; it reads /proc/self/exe and
-    # uses the basename as the Wayland app_id / X11 WM_CLASS. A hardlink lets
-    # us appear as com.anthropic.claude-desktop without duplicating 200 MB.
-    # Caveat: if the electron package is upgraded, this link still points at
-    # the OLD inode until claude-desktop-bin is reinstalled. See .install.
+    # reads /proc/self/exe for Wayland app_id / X11 WM_CLASS, so the binary
+    # name must match the .desktop StartupWMClass. Hardlink avoids duplicating
+    # ~200 MB; falls back to cp on cross-device setups (separate /home partition,
+    # btrfs subvolumes) where hard links are not possible.
     local electron_bin=/usr/lib/electron/electron
     if [[ -x $electron_bin ]]; then
-        ln "$electron_bin" "$pkgdir/usr/lib/$pkgname/com.anthropic.claude-desktop"
+        ln "$electron_bin" "$pkgdir/usr/lib/$pkgname/com.anthropic.claude-desktop" 2>/dev/null \
+            || cp "$electron_bin" "$pkgdir/usr/lib/$pkgname/com.anthropic.claude-desktop"
     else
         echo "PKGBUILD: /usr/lib/electron/electron not found; WM_CLASS will be wrong until rebuilt against an installed electron" >&2
     fi
