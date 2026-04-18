@@ -519,7 +519,6 @@ Phone → Anthropic API → SSE → Claude Desktop → Ditto agent (via cowork-s
 
 On Windows/Mac, dispatch runs inside a VM. On Linux, [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service) handles it natively with several adaptations (stripping VM-only tool restrictions, path mapping, local `present_files` interception). See the [Dispatch Support](https://github.com/patrickjaja/claude-cowork-service#dispatch-support) section in claude-cowork-service for full technical details.
 
-**History:** `SendUserMessage` was broken in CLI v2.1.79–2.1.85 ([anthropics/claude-code#35076](https://github.com/anthropics/claude-code/issues/35076)). Fixed in v2.1.86. See [SEND_USER_MESSAGE_STATUS.md](SEND_USER_MESSAGE_STATUS.md) for the investigation.
 
 ## Known Limitations
 
