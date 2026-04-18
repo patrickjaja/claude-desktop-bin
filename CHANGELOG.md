@@ -13,8 +13,7 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 ## 2026-04-18 — Fix PKGBUILD cross-device link failure + add makepkg CI test
 
 ### Fixed
-- **Build fails on cross-device setups** (CachyOS, separate /home partition, btrfs subvolumes): `ln` (hard link) in PKGBUILD can't cross filesystem boundaries. Now falls back to `cp` when hard link fails.
-- **namcap "missing libffmpeg.so" warning**: cosmetic issue from hardlinked electron binary; the `cp` fallback avoids it on cross-device builds.
+- **Build fails on cross-device setups** (CachyOS, separate /home partition, btrfs subvolumes): `ln` (hard link) in PKGBUILD can't cross filesystem boundaries. Replaced with `cp` for consistent behavior across all systems.
 
 ### Added
 - **CI: `test-pkgbuild` job** — runs `makepkg` on a tmpfs (cross-device) inside an Arch container, then runs `namcap` to catch dependency issues before release.

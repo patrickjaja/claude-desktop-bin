@@ -871,7 +871,7 @@ jobs:
           retention-days: 1
 
   # ================================================================
-  # Job 3f: Test PKGBUILD with makepkg (cross-device) — catches ln/dep bugs
+  # Job 3f: Test PKGBUILD with makepkg + namcap — catches packaging bugs
   # ================================================================
   test-pkgbuild:
     needs: [check-version, build-tarball, generate-pkgbuild]

@@ -41,15 +41,12 @@ package() {
     install -dm755 "$pkgdir/usr/lib/$pkgname"
     cp -r app/* "$pkgdir/usr/lib/$pkgname/"
 
-    # Hardlink system electron into our prefix under the APP_ID name. Electron
+    # Copy system electron into our prefix under the APP_ID name. Electron
     # reads /proc/self/exe for Wayland app_id / X11 WM_CLASS, so the binary
-    # name must match the .desktop StartupWMClass. Hardlink avoids duplicating
-    # ~200 MB; falls back to cp on cross-device setups (separate /home partition,
-    # btrfs subvolumes) where hard links are not possible.
+    # name must match the .desktop StartupWMClass.
     local electron_bin=/usr/lib/electron/electron
     if [[ -x $electron_bin ]]; then
-        ln "$electron_bin" "$pkgdir/usr/lib/$pkgname/com.anthropic.claude-desktop" 2>/dev/null \
-            || cp "$electron_bin" "$pkgdir/usr/lib/$pkgname/com.anthropic.claude-desktop"
+        cp "$electron_bin" "$pkgdir/usr/lib/$pkgname/com.anthropic.claude-desktop"
     else
         echo "PKGBUILD: /usr/lib/electron/electron not found; WM_CLASS will be wrong until rebuilt against an installed electron" >&2
     fi
