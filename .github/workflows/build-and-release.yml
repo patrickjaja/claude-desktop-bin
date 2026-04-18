@@ -308,7 +308,7 @@ jobs:
 
           mkdir -p /tmp/build-input /tmp/build-output
           cp Claude-Setup-x64.exe /tmp/build-input/
-          cp -r scripts patches /tmp/build-input/
+          cp -r scripts patches js /tmp/build-input/
 
           docker run --rm \
             -v /tmp/build-input:/input:ro \
