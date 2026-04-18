@@ -295,8 +295,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          submodules: true
 
       - name: Download exe artifact
         uses: actions/download-artifact@v4
@@ -305,18 +303,16 @@ jobs:
 
       - name: Build kwin-portal-bridge
         run: |
-          if [ -d kwin-portal-bridge ] && [ -f kwin-portal-bridge/Cargo.toml ]; then
-            echo "=== Installing Rust toolchain ==="
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
-            source "$HOME/.cargo/env"
-            echo "=== Building kwin-portal-bridge ==="
-            cd kwin-portal-bridge
-            cargo build --release
-            cd ..
-            echo "kwin-portal-bridge built successfully"
-          else
-            echo "kwin-portal-bridge submodule not present — skipping"
-          fi
+          echo "=== Installing Rust toolchain ==="
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+          source "$HOME/.cargo/env"
+          echo "=== Cloning kwin-portal-bridge ==="
+          git clone --depth 1 https://github.com/patrickjaja/kwin-portal-bridge.git
+          echo "=== Building kwin-portal-bridge ==="
+          cd kwin-portal-bridge
+          cargo build --release
+          cd ..
+          echo "kwin-portal-bridge built successfully"
 
       - name: Build Patched Tarball
         id: build

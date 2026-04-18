@@ -2,6 +2,24 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-19 — Cowork KVM backend + KDE Wayland Computer Use
+
+### Added
+- **Cowork native/KVM runtime switch**: A single build now supports both native and KVM cowork backends, selected at runtime via `COWORK_VM_BACKEND` or auto-detected by socket presence. Sandbox and VM-specific strings are wrapped in runtime ternaries.
+- **KDE Wayland Computer Use backend**: KDE Plasma 6.6+ users on Wayland get a specialized executor via `kwin-portal-bridge` that uses RemoteDesktop + ScreenCast portals — one permission prompt per session, real Wayland input, native KDE integration.
+- **kwin-portal-bridge binary**: Compiled from Rust source in CI and shipped in all packages (AUR, DEB, RPM, AppImage). Non-KDE users are unaffected.
+- **Shared JS snippets**: `js/cowork_mode_preamble.js`, `js/cu_mode_preamble.js`, `js/executor_linux.js` — runtime mode detection and KDE executor, embedded at patch compile time via `staticRead`.
+
+### Changed
+- **fix_cowork_linux.nim**: Expanded from 6 to 11 sub-patches (mode preamble injection, KVM-gated socket selection, bundle lookup alias, vmProcessId guard removal, smol-bin copy gate).
+- **fix_cowork_sandbox_refs.nim**: Rewritten to use context-aware runtime ternaries (`globalThis.__coworkKvmMode`) instead of flat string replacements. Supports both backtick and double-quote JS contexts.
+- **fix_computer_use_linux.nim**: Expanded from 23 to 35 sub-patches (kwin mode preamble, dual executor injection, lock callbacks, teach/dock controller routing, glow overlay gate, 3-way KDE tool descriptions, KDE system prompt augmentation).
+
+### Contributors
+- [mosi0815](https://github.com/mosi0815) — Original implementation of the cowork KVM switch, kwin-portal-bridge integration, and shared JS snippets.
+
+---
+
 ## 2026-04-18 — Include patch release in version badges
 
 ### Fixed

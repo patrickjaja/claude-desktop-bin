@@ -506,6 +506,9 @@ Patches are written in Nim and compiled to native binaries by `patches/Makefile`
 | `CLAUDE_ELECTRON` | path | Override Electron binary path |
 | `CLAUDE_APP_ASAR` | path | Override app.asar path |
 | `ELECTRON_ENABLE_LOGGING` | `1` | Log Electron main process to stderr |
+| `COWORK_VM_BACKEND` | `native`, `kvm` | Force cowork backend (default: auto-detect, falls back to native) |
+| `CLAUDE_CU_MODE` | `regular`, `kwin-wayland` | Force Computer Use executor (default: auto-detect based on desktop/compositor) |
+| `KWIN_PORTAL_BRIDGE_BIN` | path | Override kwin-portal-bridge binary location |
 
 Set permanently in `~/.bashrc` or `~/.zshrc`, or pass per-launch: `CLAUDE_DISABLE_GPU=1 claude-desktop`
 
