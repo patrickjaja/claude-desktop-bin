@@ -284,7 +284,7 @@ Restart Claude Desktop after setup.
 - **Hardware Buddy (Nibblet)** - BLE companion device (M5StickC Plus) showing animated session state. Access via app menu → Developer → Open Hardware Buddy… (requires `bluez`)
 - **Multi-monitor Quick Entry** - Global hotkey (Ctrl+Alt+Space) opens on the monitor where your cursor is
 - Automated daily version checks
-- …and [38+ more patches](#patches) for native Linux integration (tray icons, window management, enterprise config, detected projects, and more)
+- …and [42+ more patches](#patches) for native Linux integration (tray icons, window management, enterprise config, detected projects, and more)
 
 ## Claude Chat
 
@@ -419,12 +419,16 @@ The package applies several patches to make Claude Desktop work on Linux. Each p
 | `fix_enterprise_config_linux.nim` | Reads enterprise config from `/etc/claude-desktop/enterprise.json` | `rg -o 'enterprise.json' index.js` |
 | `fix_imagine_linux.nim` | Enables Imagine/Visualize — forces GrowthBook flag for inline SVG/HTML rendering | `rg -o '3444158716' index.js` |
 | `fix_locale_paths.nim` | Redirects locale file paths to Linux install location | Global string replace on `process.resourcesPath` |
+| `fix_locale_paths_pre.nim` | Redirects locale file paths in bootstrap pre-loader (`index.pre.js`) | Global string replace on `process.resourcesPath` |
 | `fix_marketplace_linux.nim` | Forces host-local mode for plugin operations (no VM) | `rg -o 'function \w+\(\w+\)\{return\(\w+==null.*mode.*ccd' index.js` |
 | `fix_native_frame.nim` | Native window frames on Linux, preserves Quick Entry transparency | `rg -o 'titleBarStyle.{0,30}' index.js` |
 | `fix_office_addin_linux.nim` | Extends Office Addin MCP server to include Linux | `rg -o '.{0,30}louderPenguinEnabled.{0,30}' index.js` |
 | `fix_process_argv_renderer.nim` | Injects `process.argv=[]` in renderer preload to prevent TypeError | `rg -o '.{0,30}\.argv.{0,30}' mainView.js` |
+| `fix_quick_entry_app_id.nim` | Gives Quick Entry a distinct Wayland `app_id` so shell-extension users can blacklist it independently ([#39](https://github.com/patrickjaja/claude-desktop-bin/issues/39)) | `rg -o '.{0,30}BrowserWindow.*titleBarStyle.*hidden.{0,30}' index.js` |
+| `fix_quick_entry_cli_toggle.nim` | Enables `claude-desktop --toggle-quick-entry` CLI trigger | `rg -o 'QUICK_ENTRY.{0,80}' index.js` |
 | `fix_quick_entry_position.nim` | Quick Entry opens on cursor's monitor (multi-monitor) | `rg -o 'getPrimaryDisplay.{0,50}' index.js` |
 | `fix_quick_entry_ready_wayland.nim` | Adds 200ms timeout to Quick Entry ready-to-show wait (Wayland hang fix) | `rg -o 'ready-to-show.{0,50}' index.js` |
+| `fix_quick_entry_wayland_blur_guard.nim` | Guards Quick Entry blur-to-dismiss against spurious Wayland blur events | `rg -o '.{0,30}blur.{0,30}null.{0,30}' index.js` |
 | ~~`fix_read_terminal_linux.py`~~ | **Removed in v1.2.234** — upstream now natively supports Linux | N/A |
 | `fix_startup_settings.nim` | Skips startup/login settings to avoid validation errors | `rg -o 'isStartupOnLoginEnabled.{0,50}' index.js` |
 | `fix_tray_dbus.nim` | Prevents DBus race conditions with mutex and cleanup delay | `rg -o 'menuBarEnabled.*function' index.js` |

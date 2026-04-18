@@ -2,6 +2,13 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-19 — Add missing patches to README table
+
+### Fixed
+- **README patch table** was missing 4 patches: `fix_locale_paths_pre.nim`, `fix_quick_entry_app_id.nim` ([#39](https://github.com/patrickjaja/claude-desktop-bin/issues/39), [PR #46](https://github.com/patrickjaja/claude-desktop-bin/pull/46)), `fix_quick_entry_cli_toggle.nim`, `fix_quick_entry_wayland_blur_guard.nim`. Updated patch count from 38+ to 42+.
+
+---
+
 ## 2026-04-18 — Include patch release in version badges
 
 ### Fixed
