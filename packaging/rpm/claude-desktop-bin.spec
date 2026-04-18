@@ -71,11 +71,6 @@ mkdir -p %{buildroot}/usr/lib/claude-desktop
 cp -a electron/* %{buildroot}/usr/lib/claude-desktop/
 cp -a tarball/app/* %{buildroot}/usr/lib/claude-desktop/resources/
 
-# Install kwin-portal-bridge for KDE Wayland computer-use
-if [ -f tarball/app/kwin-portal-bridge ]; then
-    install -m755 tarball/app/kwin-portal-bridge %{buildroot}/usr/lib/claude-desktop/kwin-portal-bridge
-fi
-
 # Rename the Electron binary to APP_ID. Electron ignores Chromium's --class
 # flag and derives Wayland app_id / X11 WM_CLASS from the binary basename.
 # The name must match the .desktop filename + StartupWMClass so portals and

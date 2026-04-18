@@ -429,12 +429,6 @@ esac
 export ELECTRON_FORCE_IS_PACKAGED=true
 export ELECTRON_USE_SYSTEM_TITLE_BAR=1
 
-# Export kwin-portal-bridge path if binary exists in package dir
-_kwin_bridge="/usr/lib/claude-desktop/kwin-portal-bridge"
-if [[ -x "$_kwin_bridge" ]]; then
-    export KWIN_PORTAL_BRIDGE_BIN="$_kwin_bridge"
-fi
-
 # Pass through CLAUDE_MENU_BAR if set (auto/visible/hidden)
 if [[ -n "${CLAUDE_MENU_BAR:-}" ]]; then
     export CLAUDE_MENU_BAR

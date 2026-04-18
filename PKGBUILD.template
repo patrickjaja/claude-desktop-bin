@@ -76,11 +76,6 @@ MimeType=x-scheme-handler/claude;
 StartupWMClass=com.anthropic.claude-desktop
 EOF
 
-    # Install kwin-portal-bridge for KDE Wayland computer-use
-    if [ -f "${srcdir}/app/kwin-portal-bridge" ]; then
-        install -Dm755 "${srcdir}/app/kwin-portal-bridge" "${pkgdir}/usr/lib/claude-desktop/kwin-portal-bridge"
-    fi
-
     # Install icon (included in tarball)
     if [ -f "$srcdir/icons/claude-desktop.png" ]; then
         install -Dm644 "$srcdir/icons/claude-desktop.png" \

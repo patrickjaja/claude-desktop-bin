@@ -53,7 +53,7 @@ function buildBridgeCommand(command, args) {
   } else {
     try {
       const fs = require('node:fs')
-      const packagedPath = '/usr/lib/claude-desktop/kwin-portal-bridge'
+      const packagedPath = require('path').join(process.resourcesPath || '', 'app', 'kwin-portal-bridge')
       if (fs.existsSync(packagedPath)) {
         bridgeBin = packagedPath
       }
