@@ -290,17 +290,17 @@ Restart Claude Desktop after setup.
 
 The main Chat tab running natively on Linux.
 
-![Claude Chat](cc.png)
+![Claude Chat](docs/chat/cc.png)
 
 ## Claude Code Integration
 
 This package patches Claude Desktop to work with system-installed Claude Code on Linux.
 
-![Claude Code in Claude Desktop](cc_in_cd.png)
+![Claude Code in Claude Desktop](docs/code/cc_in_cd.png)
 
 | | |
 |:---:|:---:|
-| <img src="cc_in_cd_preview.png" width="180"> | <img src="docs/code/terminal.png" width="180"> |
+| <img src="docs/code/cc_in_cd_preview.png" width="180"> | <img src="docs/code/terminal.png" width="180"> |
 | Code Preview | Integrated Terminal |
 
 To use Claude Code (and Cowork) features, install the CLI following the [official setup guide](https://code.claude.com/docs/en/setup), then verify it's accessible:
@@ -314,11 +314,11 @@ The patch auto-detects claude in `/usr/bin`, `~/.local/bin`, and `/usr/local/bin
 
 Cowork is Claude Desktop's agentic workspace feature. This package patches it to work on Linux using a native backend daemon instead of the macOS/Windows VM.
 
-![Cowork in Claude Desktop](co_in_cd.png)
+![Cowork in Claude Desktop](docs/cowork/co_in_cd.png)
 
 | | | | | | |
 |:---:|:---:|:---:|:---:|:---:|:---:|
-| <img src="co_in_cd_bar.png" width="180"> | <img src="co_in_cd_flow.png" width="180"> | <img src="co_in_cd_mock.png" width="180"> | <img src="co_in_cd_mock_db.png" width="180"> | <img src="co_in_cd_pie.png" width="180"> | <img src="co_in_cd_qa.png" width="180"> |
+| <img src="docs/cowork/co_in_cd_bar.png" width="180"> | <img src="docs/cowork/co_in_cd_flow.png" width="180"> | <img src="docs/cowork/co_in_cd_mock.png" width="180"> | <img src="docs/cowork/co_in_cd_mock_db.png" width="180"> | <img src="docs/cowork/co_in_cd_pie.png" width="180"> | <img src="docs/cowork/co_in_cd_qa.png" width="180"> |
 
 Requires Claude Code CLI (see above) and [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service). See its Installation section for distro-specific instructions ([APT](https://github.com/patrickjaja/claude-cowork-service#debian--ubuntu-apt-repository), [DNF](https://github.com/patrickjaja/claude-cowork-service#fedora--rhel-dnf-repository), [AUR](https://github.com/patrickjaja/claude-cowork-service#arch-linux-aur), [Nix](https://github.com/patrickjaja/claude-cowork-service#nixos), or [binary install](https://github.com/patrickjaja/claude-cowork-service#quick-install-any-distro-x86_64--arm64)).
 
@@ -342,7 +342,7 @@ Example prompt: *"Can you use computer use MCP to explain me the PhpStorm applic
 
 | Welcome | Menu Bar | Toolbar |
 |---------|----------|---------|
-| ![Learn Tool - Welcome](co_computer_use_learn_tool.png) | ![Learn Tool - Menu Bar](co_computer_use_learn_tool2.png) | ![Learn Tool - Toolbar](co_computer_use_learn_tool3.png) |
+| ![Learn Tool - Welcome](docs/cowork/co_computer_use_learn_tool.png) | ![Learn Tool - Menu Bar](docs/cowork/co_computer_use_learn_tool2.png) | ![Learn Tool - Toolbar](docs/cowork/co_computer_use_learn_tool3.png) |
 
 **How it works on Linux:** Upstream Computer Use is macOS-only — gated behind `process.platform==="darwin"` checks, macOS TCC permissions, and a native Swift executor. The patch ([fix_computer_use_linux.nim](patches/fix_computer_use_linux.nim)) removes 3 platform gates, bypasses TCC with a no-op `{granted: true}`, and injects a Linux executor that auto-detects your session type and uses the right tools. See [Optional Dependencies](#optional-dependencies) for the full package list.
 
@@ -358,7 +358,7 @@ See [CLAUDE_BUILT_IN_MCP.md](CLAUDE_BUILT_IN_MCP.md#14-computer-use) for the ful
 
 Hardware Buddy connects Claude Desktop to a [Nibblet](https://github.com/felixrieseberg/nibblet) — a small M5StickC Plus BLE companion device that displays animated characters reflecting Claude's session state (idle, busy, celebrating, etc.).
 
-<img src="buddy.png" alt="Hardware Buddy (Nibblet)" width="330">
+<img src="docs/global/buddy.png" alt="Hardware Buddy (Nibblet)" width="330">
 
 **Access:** App menu → Developer → Open Hardware Buddy…
 
@@ -504,7 +504,7 @@ CLAUDE_DEV_TOOLS=detach ELECTRON_ENABLE_LOGGING=1 claude-desktop 2>&1 | tee /tmp
 
 Dispatch lets you send tasks from the Claude mobile app to your Linux desktop. It's fully native — no VM, no emulation.
 
-<img src="android_dispatch_feature.png" alt="Dispatch on Android" width="300">
+<img src="docs/global/android_dispatch_feature.png" alt="Dispatch on Android" width="300">
 
 Claude Desktop spawns a long-running **dispatch orchestrator agent** (Anthropic internally calls it "Ditto"). This agent receives messages from your phone, delegates work to child sessions, and sends responses back via `SendUserMessage`.
 
