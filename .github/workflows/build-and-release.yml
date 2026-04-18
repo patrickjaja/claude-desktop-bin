@@ -1163,7 +1163,7 @@ jobs:
           {
             "schemaVersion": 1,
             "label": "Claude Desktop",
-            "message": "v${VERSION} (latest)",
+            "message": "v${VERSION}-${PKGREL} (latest)",
             "color": "brightgreen"
           }
           BADGE_EOF
@@ -1180,7 +1180,7 @@ jobs:
           {
             "schemaVersion": 1,
             "label": "APT repo",
-            "message": "v${VERSION} (${DEB_ARCHS:-none})",
+            "message": "v${VERSION}-${PKGREL} (${DEB_ARCHS:-none})",
             "color": "blue"
           }
           BADGE_EOF
@@ -1189,7 +1189,7 @@ jobs:
           {
             "schemaVersion": 1,
             "label": "RPM repo",
-            "message": "v${VERSION} (${RPM_ARCHS:-none})",
+            "message": "v${VERSION}-${PKGREL} (${RPM_ARCHS:-none})",
             "color": "blue"
           }
           BADGE_EOF
@@ -1202,7 +1202,7 @@ jobs:
           {
             "schemaVersion": 1,
             "label": "AppImage",
-            "message": "v${VERSION} (${APPIMAGE_ARCHS:-none})",
+            "message": "v${VERSION}-${PKGREL} (${APPIMAGE_ARCHS:-none})",
             "color": "blue"
           }
           BADGE_EOF
@@ -1212,7 +1212,7 @@ jobs:
           {
             "schemaVersion": 1,
             "label": "Nix flake",
-            "message": "v${VERSION}",
+            "message": "v${VERSION}-${PKGREL}",
             "color": "blue"
           }
           BADGE_EOF

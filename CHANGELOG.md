@@ -2,6 +2,13 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-18 — Include patch release in version badges
+
+### Fixed
+- **Badge version mismatch**: APT, RPM, AppImage, Nix, and version-check badges showed only the base version (e.g. `v1.3109.0`) while AUR showed the full version with patch release (`v1.3109.0-5`). All badges now include `${PKGREL}` to match.
+
+---
+
 ## 2026-04-18 — Bundle Electron instead of depending on system package
 
 ### Changed
