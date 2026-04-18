@@ -14,6 +14,18 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 PATCHES_DIR="$PROJECT_DIR/patches"
 
+# If patches dir is read-only (e.g. CI bind-mount), copy to a writable location
+# so Nim can write .nimcache and compiled binaries alongside the sources.
+if [ -d "$PATCHES_DIR" ] && ! touch "$PATCHES_DIR/.write-test" 2>/dev/null; then
+    WRITABLE_PATCHES="$(mktemp -d)/patches"
+    cp -r "$PATCHES_DIR" "$WRITABLE_PATCHES"
+    # Also copy js/ dir (Nim patches embed snippets via staticRead with ../js/ paths)
+    [ -d "$PROJECT_DIR/js" ] && cp -r "$PROJECT_DIR/js" "$(dirname "$WRITABLE_PATCHES")/js"
+    PATCHES_DIR="$WRITABLE_PATCHES"
+else
+    rm -f "$PATCHES_DIR/.write-test" 2>/dev/null
+fi
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -105,7 +117,7 @@ fi
 
 # Compile Nim patches (native build or Docker fallback)
 log_info "Compiling Nim patches..."
-"$SCRIPT_DIR/compile-nim-patches.sh"
+"$SCRIPT_DIR/compile-nim-patches.sh" "$PATCHES_DIR"
 
 # Apply all patches via orchestrator
 log_info "Applying patches..."

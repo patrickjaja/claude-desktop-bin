@@ -13,7 +13,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(dirname "$SCRIPT_DIR")"
-PATCHES_DIR="$REPO_DIR/patches"
+PATCHES_DIR="${1:-$REPO_DIR/patches}"
 
 if [ ! -d "$PATCHES_DIR" ] || ! ls "$PATCHES_DIR"/*.nim &>/dev/null; then
     echo "[nim] No .nim files found in patches/ — nothing to compile"

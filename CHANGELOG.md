@@ -6,6 +6,7 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 
 ### Fixed
 - **CI build broken**: `patches/.gitignore` patterns (`fix_*`, `add_*`, `enable_*`) excluded `.nim` source files from git. All 41 Nim patches were never committed, causing CI to apply zero patches and crash on `en-US.json` ENOENT. Added `!*.nim` negation to track sources while still ignoring compiled binaries.
+- **Nim compile fails on read-only mount**: CI bind-mounts `/input` as read-only, so Nim can't write `.nimcache` or compiled binaries. Build script now copies patches to a writable temp dir when the source dir is read-only.
 
 ---
 
