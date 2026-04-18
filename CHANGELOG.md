@@ -2,6 +2,15 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-19 — Reduce Quick Entry opening timeouts
+
+### Changed
+- **`fix_quick_entry_ready_wayland`**: Wayland `ready-to-show` fallback timeout 200ms → 100ms ([#47](https://github.com/patrickjaja/claude-desktop-bin/issues/47))
+- **`fix_quick_entry_cli_toggle`**: First-instance argv schedule 500ms → 250ms ([#47](https://github.com/patrickjaja/claude-desktop-bin/issues/47))
+- **`fix_quick_entry_position`**: Cursor detection subprocess timeouts (xdotool, hyprctl) 200ms → 100ms each ([#47](https://github.com/patrickjaja/claude-desktop-bin/issues/47))
+
+---
+
 ## 2026-04-19 — Add missing patches to README table
 
 ### Fixed

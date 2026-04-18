@@ -7,7 +7,7 @@
 # BrowserWindows on native Wayland. The Quick Entry window (Mlr function)
 # awaits this event indefinitely, causing the overlay to never appear.
 #
-# This patch adds a 200ms timeout to the ready-to-show wait so the Quick
+# This patch adds a 100ms timeout to the ready-to-show wait so the Quick
 # Entry window proceeds to show even if the event never fires.
 
 import std/[os, strutils, options]
@@ -25,9 +25,9 @@ proc apply*(input: string): string =
     let match = m.get
     let flagVar = match.captures[0]
     let promiseVar = match.captures[1]
-    let newStr = flagVar & "||await Promise.race([" & promiseVar & "==null?void 0:" & promiseVar & """.catch(n=>{R.error("Quick Entry: Error waiting for ready %o",{error:n})}),new Promise(_r=>setTimeout(_r,200))])"""
+    let newStr = flagVar & "||await Promise.race([" & promiseVar & "==null?void 0:" & promiseVar & """.catch(n=>{R.error("Quick Entry: Error waiting for ready %o",{error:n})}),new Promise(_r=>setTimeout(_r,100))])"""
     result = input[0 ..< match.matchBounds.a] & newStr & input[match.matchBounds.b + 1 .. ^1]
-    echo "  [OK] ready-to-show timeout (200ms) added (vars: " & flagVar & ", " & promiseVar & ")"
+    echo "  [OK] ready-to-show timeout (100ms) added (vars: " & flagVar & ", " & promiseVar & ")"
   else:
     echo "  [FAIL] ready-to-show wait pattern not found"
     quit(1)

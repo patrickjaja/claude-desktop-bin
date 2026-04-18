@@ -52,7 +52,7 @@ proc apply*(input: string): string =
           ")globalThis." &
           HANDLER_GLOBAL &
           "()}catch(e){}" &
-          "},500)"
+          "},250)"
 
         resultStr &= regFn & "(" & enumVar & ".QUICK_ENTRY," & assign & ")" & firstInstance
         lastEnd = bounds.b + 1
