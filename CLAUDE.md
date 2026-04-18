@@ -75,26 +75,38 @@ See also: [validate_and_fix_claude-setup-x64.md](validate_and_fix_claude-setup-x
 
 ## Debugging Patch Failures
 
+**IMPORTANT:** Always work against a **freshly extracted** bundle in `./tmp/` (project-local, gitignored). If the `Claude-Setup-x64.exe` or any extracted `index.js` in `./tmp/` is older than today, re-fetch from upstream and re-extract before doing any patch work (review, debugging, writing). Stale extracts have different minified variable names and will lead to wrong conclusions.
+
+```bash
+# Re-download + extract in one step (compares local vs upstream version automatically):
+./scripts/build-local.sh
+
+# Or manually: download latest, extract to ./tmp/:
+mkdir -p tmp
+./scripts/build-patched-tarball.sh Claude-Setup-x64.exe ./tmp
+# The unpatched index.js is at: ./tmp/app/app.asar.contents/.vite/build/index.js
+```
+
 When patches fail after a new Claude Desktop release, follow this workflow:
 
 ### 1. Extract and Test Locally
 
 ```bash
 # Extract the exe (place Claude-Setup-x64.exe in project root first)
-mkdir -p /tmp/claude-patch-test
-7z x -o/tmp/claude-patch-test Claude-Setup-x64.exe -y
+mkdir -p tmp
+7z x -o./tmp Claude-Setup-x64.exe -y
 
 # Extract the nupkg (version number will vary)
-7z x -o/tmp/claude-patch-test/nupkg /tmp/claude-patch-test/AnthropicClaude-*.nupkg -y
+7z x -o./tmp/nupkg ./tmp/AnthropicClaude-*.nupkg -y
 
 # Extract app.asar
-asar extract /tmp/claude-patch-test/nupkg/lib/net45/resources/app.asar /tmp/claude-patch-test/app.asar.contents
+asar extract ./tmp/nupkg/lib/net45/resources/app.asar ./tmp/app.asar.contents
 ```
 
 ### 2. Run Validation Script
 
 ```bash
-./scripts/validate-patches.sh /tmp/claude-patch-test/app.asar.contents
+./scripts/validate-patches.sh ./tmp/app.asar.contents
 ```
 
 Test individual patches directly using compiled Nim binaries:
@@ -104,8 +116,8 @@ Test individual patches directly using compiled Nim binaries:
 cd patches && make -j$(nproc) && cd ..
 
 # Run a single patch on a copy
-cp /tmp/claude-patch-test/app.asar.contents/.vite/build/index.js /tmp/test-index.js
-patches/fix_quick_entry_position /tmp/test-index.js
+cp ./tmp/app.asar.contents/.vite/build/index.js ./tmp/test-index.js
+patches/fix_quick_entry_position ./tmp/test-index.js
 echo "Exit code: $?"
 ```
 
@@ -115,13 +127,13 @@ When patterns don't match, the minified variable names likely changed. Search fo
 
 ```bash
 # Find getPrimaryDisplay patterns (for quick_entry patch)
-rg -o '.{0,50}getPrimaryDisplay.{0,50}' /tmp/claude-patch-test/app.asar.contents/.vite/build/index.js
+rg -o '.{0,50}getPrimaryDisplay.{0,50}' ./tmp/app.asar.contents/.vite/build/index.js
 
 # Find resourcesPath patterns (for tray_path patch)
-rg -o 'function [a-zA-Z]+\(\)\{return [a-zA-Z]+\.app\.isPackaged\?[a-zA-Z]+\.resourcesPath.{0,50}' /tmp/claude-patch-test/app.asar.contents/.vite/build/index.js
+rg -o 'function [a-zA-Z]+\(\)\{return [a-zA-Z]+\.app\.isPackaged\?[a-zA-Z]+\.resourcesPath.{0,50}' ./tmp/app.asar.contents/.vite/build/index.js
 
 # Find specific function patterns
-rg -o 'function [a-zA-Z]+\(\)\{const t=[a-zA-Z]+\.screen\.getPrimaryDisplay' /tmp/claude-patch-test/app.asar.contents/.vite/build/index.js
+rg -o 'function [a-zA-Z]+\(\)\{const t=[a-zA-Z]+\.screen\.getPrimaryDisplay' ./tmp/app.asar.contents/.vite/build/index.js
 ```
 
 ### 4. Common Variable Name Changes
@@ -191,7 +203,7 @@ if patchesApplied < EXPECTED_PATCHES:
 Always check JavaScript syntax after applying patches:
 
 ```bash
-node --check /tmp/claude-patch-test/app.asar.contents/.vite/build/index.js
+node --check ./tmp/app.asar.contents/.vite/build/index.js
 echo "Syntax check exit: $?"
 ```
 

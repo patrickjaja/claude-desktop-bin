@@ -14,6 +14,7 @@ claude-desktop-linux-flake/
 *.log
 *.tmp
 .SRCINFO
+/tmp/
 
 # IDE files
 .idea/
