@@ -9,6 +9,13 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 
 ---
 
+## 2026-04-18 — Quick Entry gets its own Wayland app_id ([PR #46](https://github.com/patrickjaja/claude-desktop-bin/pull/46) by [@boommasterxd](https://github.com/boommasterxd))
+
+### Fixed
+- **Quick Entry window inherits main window's Wayland `app_id`**, causing shell extensions like GNOME Blur My Shell to apply blur/animations to it. New patch `fix_quick_entry_app_id.nim` sets a distinct `app_id` so compositors can treat Quick Entry differently. Fixes [#39](https://github.com/patrickjaja/claude-desktop-bin/issues/39).
+
+---
+
 ## 2026-04-18 — Include patch release in version badges
 
 ### Fixed
