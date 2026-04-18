@@ -1,152 +1,208 @@
 # @patch-target: app.asar.contents/.vite/build/index.js
 # @patch-type: nim
 #
-# Enable Cowork VM features on Linux.
+# Enable Cowork VM features on Linux with native/KVM runtime switch.
 #
-# Six-part patch:
-# A. Extend the TypeScript VM client to load on Linux, not just Windows.
-# B. Replace Windows Named Pipe path with a Unix domain socket on Linux.
-# C. Add Linux to _i.files bundle config with an empty file list.
-# D. Fix pathToClaudeCodeExecutable for Linux (dynamic resolution).
-# E. Extend error detection to recognize Linux paths.
-# F. Fix present_files to accept native host paths on Linux.
+# The MODE_PREAMBLE_JS snippet lives in js/cowork_mode_preamble.js and is
+# embedded at compile time via staticRead. It sets globalThis.__coworkKvmMode
+# at runtime, allowing the same patched bundle to work in both native and
+# KVM modes.
+#
+# Eleven sub-patches:
+#   0       Mode preamble at "use strict"; start
+#   A       VM client loader (extends Li check to include Linux)
+#   B       Socket path (mode-selected Unix socket)
+#   C1      Bundle config (inject linux:{x64:[]})
+#   C2      Bundle lookup alias (runtime-gated linux->win32)
+#   D       pathToClaudeCodeExecutable (dynamic on Linux)
+#   E       Error detection (extend /usr/local/bin/claude check)
+#   F       present_files (allow host outputs dir)
+#   G-mount   vmProcessId guard removal (mountFolderForSession)
+#   G-delete  vmProcessId guard removal (delete permission)
+#   H       smol-bin copy gate (runtime-gated on kvm mode)
+#
+# Patches always run on clean bundles — no "already patched" fast path.
 
-import std/[os, strformat, strutils]
+import std/[os, strformat, strutils, options]
 import std/nre
 
-const EXPECTED_PATCHES = 6
+const MODE_PREAMBLE_JS = staticRead("../js/cowork_mode_preamble.js")
+const EXPECTED_PATCHES = 11
+
+proc replaceFirst(content: var string, pattern: Regex,
+                  subFn: proc(m: RegexMatch): string): int =
+  ## Replace only the first match of `pattern` in `content`.
+  let maybe = content.find(pattern)
+  if maybe.isNone: return 0
+  let m = maybe.get()
+  let bounds = m.matchBounds
+  content = content[0 ..< bounds.a] & subFn(m) & content[bounds.b + 1 .. ^1]
+  return 1
+
+proc replaceAllRegex(content: var string, pattern: Regex,
+                     subFn: proc(m: RegexMatch): string): int =
+  ## Replace all matches of `pattern` in `content`.
+  var count = 0
+  content = content.replace(pattern, proc(m: RegexMatch): string =
+    inc count
+    subFn(m)
+  )
+  return count
 
 proc apply*(input: string): string =
-  result = input
+  var content = input
   var patchesApplied = 0
+
+  # -- Patch 0: Mode preamble at file start (right after "use strict";) --
+  block:
+    const strictMarker = "\"use strict\";"
+    let strictIdx = content.find(strictMarker)
+    if strictIdx == 0:
+      let insertionPoint = strictMarker.len
+      content = content[0 ..< insertionPoint] & MODE_PREAMBLE_JS & content[insertionPoint .. ^1]
+      echo "  [OK] 0 mode preamble: injected after \"use strict\""
+      inc patchesApplied
+    else:
+      echo "  [FAIL] 0 mode preamble: \"use strict\"; not at file start"
 
   # -- Patch A: Extend TypeScript VM client to Linux --
   # Uses backreference: \2 ensures same variable in both branches
-  let vmClientPattern = re"([\w$]+)\?([\w$]+)=(\{vm:[\w$]+\}):\2=\(await import\(""@ant/claude-swift""\)\)\.default"
-
-  var countA = 0
-  let newResult = result.replace(vmClientPattern, proc(m: RegexMatch): string =
-    inc countA
-    let liVar = m.captures[0]    # Li
-    let efVar = m.captures[1]    # ef
-    let vmObj = m.captures[2]    # {vm:vZe}
-    "(" & liVar & "||process.platform===\"linux\")?" & efVar & "=" & vmObj & ":" & efVar & "=(await import(\"@ant/claude-swift\")).default"
-  )
-  if countA >= 1:
-    result = newResult
-    echo &"  [OK] VM client loader: extended to Linux ({countA} match)"
-    inc patchesApplied
-  else:
-    echo "  [FAIL] VM client loader: 0 matches"
-
-  # -- Patch B: Socket path for Linux --
-  # Uses literal bytes search (no regex) to avoid backslash escaping hell
-  let pipePath = "\"\\\\\\\\.\\\\pipe\\\\cowork-vm-service\""
-  let pipeSearch = "=" & pipePath
-
-  let pipeIdx = result.find(pipeSearch)
-  if pipeIdx >= 0:
-    # Walk backwards to find start of variable name
-    var start = pipeIdx - 1
-    while start >= 0 and (result[start].isAlphaNumeric() or result[start] == '_' or result[start] == '$'):
-      dec start
-    inc start
-    let varName = result[start ..< pipeIdx]
-    let replacement = varName & "=process.platform===\"linux\"?(process.env.XDG_RUNTIME_DIR||\"/tmp\")+\"/cowork-vm-service.sock\":" & pipePath
-    result = result[0 ..< start] & replacement & result[pipeIdx + pipeSearch.len .. ^1]
-    echo &"  [OK] Socket path: Unix socket on Linux (var={varName})"
-    inc patchesApplied
-  else:
-    echo "  [WARN] Socket path: pipe path not found"
-
-  # -- Patch C: Add Linux to _i.files bundle config with EMPTY file list --
-  let win32Marker = "win32:{"
-  let win32Idx = result.find(win32Marker)
-  if win32Idx >= 0:
-    let x64Marker = ",x64:["
-    let x64Idx = result.find(x64Marker, win32Idx)
-    if x64Idx >= 0:
-      # Skip past the x64 array (balanced bracket matching)
-      let arrayStart = x64Idx + x64Marker.len - 1  # Position of '['
-      var depth = 0
-      var pos = arrayStart
-      while pos < result.len:
-        if result[pos] == '[':
-          inc depth
-        elif result[pos] == ']':
-          dec depth
-          if depth == 0:
-            break
-        inc pos
-
-      # After x64 array ends at pos+1, expect } (close win32)
-      let afterArray = pos + 1
-      if afterArray < result.len and result[afterArray] == '}':
-        let inject = ",linux:{x64:[]}"
-        result = result[0 ..< afterArray + 1] & inject & result[afterArray + 1 .. ^1]
-        echo "  [OK] Bundle config: Linux platform added (empty file list -- no VM download)"
-        inc patchesApplied
-      else:
-        echo "  [WARN] Bundle config: unexpected structure after x64 array"
+  block:
+    let pat = re"([\w$]+)\?([\w$]+)=(\{vm:[\w$]+\}):\2=\(await import\(""@ant/claude-swift""\)\)\.default"
+    let n = replaceAllRegex(content, pat, proc(m: RegexMatch): string =
+      let liVar = m.captures[0]
+      let efVar = m.captures[1]
+      let vmObj = m.captures[2]
+      "(" & liVar & "||process.platform===\"linux\")?" & efVar & "=" & vmObj & ":" & efVar & "=(await import(\"@ant/claude-swift\")).default"
+    )
+    if n >= 1:
+      echo &"  [OK] A VM client loader: extended to Linux ({n} match)"
+      inc patchesApplied
     else:
-      echo "  [WARN] Bundle config: x64 array not found in win32 block"
-  else:
-    echo "  [WARN] Bundle config: win32 block not found"
+      echo "  [FAIL] A VM client loader: 0 matches"
+
+  # -- Patch B: Socket path — mode-aware Unix socket on Linux --
+  block:
+    let pipePath = "\"\\\\\\\\.\\\\pipe\\\\cowork-vm-service\""
+    let pipeSearch = "=" & pipePath
+
+    let idx = content.find(pipeSearch)
+    if idx >= 0:
+      # Walk backwards to find start of variable name
+      var start = idx - 1
+      while start >= 0 and (content[start].isAlphaNumeric() or content[start] == '_' or content[start] == '$'):
+        dec start
+      inc start
+      let varName = content[start ..< idx]
+      let replacement = varName &
+        "=process.platform===\"linux\"?" &
+        "(process.env.XDG_RUNTIME_DIR||\"/tmp\")+(globalThis.__coworkKvmMode?\"/cowork-kvm-service.sock\":\"/cowork-vm-service.sock\")" &
+        ":" & pipePath
+      content = content[0 ..< start] & replacement & content[idx + pipeSearch.len .. ^1]
+      echo &"  [OK] B socket path: runtime-selected Unix socket on Linux (var={varName})"
+      inc patchesApplied
+    else:
+      echo "  [FAIL] B socket path: pipe path not found"
+
+  # -- Patch C1: Add Linux to _i.files bundle config with EMPTY file list --
+  block:
+    let win32Marker = "win32:{"
+    let win32Idx = content.find(win32Marker)
+    if win32Idx >= 0:
+      let x64Marker = ",x64:["
+      let x64Idx = content.find(x64Marker, win32Idx)
+      if x64Idx >= 0:
+        # Skip past the x64 array (balanced bracket matching)
+        let arrayStart = x64Idx + x64Marker.len - 1  # Position of '['
+        var depth = 0
+        var pos = arrayStart
+        var matched = false
+        while pos < content.len:
+          if content[pos] == '[':
+            inc depth
+          elif content[pos] == ']':
+            dec depth
+            if depth == 0:
+              matched = true
+              break
+          inc pos
+
+        if matched:
+          # After x64 array ends at pos+1, expect } (close win32)
+          let afterArray = pos + 1
+          if afterArray < content.len and content[afterArray] == '}':
+            let inject = ",linux:{x64:[]}"
+            content = content[0 .. afterArray] & inject & content[afterArray + 1 .. ^1]
+            echo "  [OK] C1 bundle config: linux platform added (empty file list)"
+            inc patchesApplied
+          else:
+            echo "  [FAIL] C1 bundle config: unexpected structure after x64 array"
+        else:
+          echo "  [FAIL] C1 bundle config: x64 array not balanced"
+      else:
+        echo "  [FAIL] C1 bundle config: x64 array not found in win32 block"
+    else:
+      echo "  [FAIL] C1 bundle config: win32 block not found"
+
+  # -- Patch C2: Alias linux->win32 at Xs.files[...] lookup sites --
+  block:
+    let pat = re"""(const ([\w$]+)=)process\.platform(,[\w$]+=[\w$]+\(\);return [\w$]+\.files\[\2\])"""
+    let n = replaceAllRegex(content, pat, proc(m: RegexMatch): string =
+      m.captures[0] &
+        "(globalThis.__coworkKvmMode?(process.platform===\"linux\"?\"win32\":process.platform):process.platform)" &
+        m.captures[2]
+    )
+    if n >= 1:
+      echo &"  [OK] C2 bundle lookup alias: linux->win32 when kvm mode ({n} site(s))"
+      inc patchesApplied
+    else:
+      echo "  [FAIL] C2 bundle lookup alias: no matching sites found"
 
   # -- Patch D: Fix pathToClaudeCodeExecutable for Linux --
-  let claudePathOld = "pathToClaudeCodeExecutable:\"/usr/local/bin/claude\""
-  let claudePathNew = "pathToClaudeCodeExecutable:" &
-    "(()=>{if(process.platform!==\"linux\")return\"/usr/local/bin/claude\";" &
-    "const fs=require(\"fs\");" &
-    "for(const p of[\"/usr/bin/claude\"," &
-    "(process.env.HOME||\"\")+\"/.local/bin/claude\"," &
-    "\"/usr/local/bin/claude\"])" &
-    "if(fs.existsSync(p))return p;" &
-    "try{return require(\"child_process\").execSync(\"which claude\",{encoding:\"utf-8\"}).trim()}" &
-    "catch(e){}" &
-    "return\"claude\"})()"
+  block:
+    let claudePathOld = "pathToClaudeCodeExecutable:\"/usr/local/bin/claude\""
+    let claudePathNew = "pathToClaudeCodeExecutable:" &
+      "(()=>{if(process.platform!==\"linux\")return\"/usr/local/bin/claude\";" &
+      "const fs=require(\"fs\");" &
+      "for(const p of[\"/usr/bin/claude\"," &
+      "(process.env.HOME||\"\")+\"/.local/bin/claude\"," &
+      "\"/usr/local/bin/claude\"])" &
+      "if(fs.existsSync(p))return p;" &
+      "try{return require(\"child_process\").execSync(\"which claude\",{encoding:\"utf-8\"}).trim()}" &
+      "catch(e){}" &
+      "return\"claude\"})()"
 
-  if claudePathOld in result:
-    result = result.replace(claudePathOld, claudePathNew)
-    echo "  [OK] Claude Code path: dynamic resolution on Linux"
-    inc patchesApplied
-  else:
-    echo "  [WARN] Claude Code path: pattern not found"
+    let idx = content.find(claudePathOld)
+    if idx >= 0:
+      content = content[0 ..< idx] & claudePathNew & content[idx + claudePathOld.len .. ^1]
+      echo "  [OK] D Claude Code path: dynamic resolution on Linux"
+      inc patchesApplied
+    else:
+      echo "  [FAIL] D Claude Code path: pattern not found"
 
   # -- Patch E: Extend error detection to recognize Linux paths --
-  let errorDetectPattern = re"([\w$]+)(\.includes\(""/usr/local/bin/claude""\))"
-
-  var errorCount = 0
-  let errorResult = result.replace(errorDetectPattern, proc(m: RegexMatch): string =
-    inc errorCount
-    if errorCount > 1:
-      return m.match  # only replace first
-    let varName = m.captures[0]
-    "(" & varName & ".includes(\"/usr/local/bin/claude\")||" &
-      varName & ".includes(\"/usr/bin/claude\")||" &
-      varName & ".includes(\"/.local/bin/claude\"))"
-  )
-  if errorCount >= 1:
-    result = errorResult
-    echo "  [OK] Error detection: extended for Linux paths"
-    inc patchesApplied
-  else:
-    echo "  [WARN] Error detection: pattern not found"
+  block:
+    let pat = re"""([\w$]+)(\.includes\("/usr/local/bin/claude"\))"""
+    let n = replaceFirst(content, pat, proc(m: RegexMatch): string =
+      let v = m.captures[0]
+      "(" & v & ".includes(\"/usr/local/bin/claude\")||" &
+        v & ".includes(\"/usr/bin/claude\")||" &
+        v & ".includes(\"/.local/bin/claude\"))"
+    )
+    if n >= 1:
+      echo "  [OK] E error detection: extended for Linux paths"
+      inc patchesApplied
+    else:
+      echo "  [FAIL] E error detection: pattern not found"
 
   # -- Patch F: Fix present_files to accept native host paths on Linux --
-  let alreadyF = ".getHostOutputsDir();if(_ho&&(" in result
-  if alreadyF:
-    echo "  [OK] F present_files native paths: already patched (skipped)"
-    inc patchesApplied
-  else:
-    let presentFilesPattern = re(
+  block:
+    let pat = re(
       r"for\(const\{file_path:([\w$]+),vmPath:([\w$]+)\}of ([\w$]+)\)\{" &
       r"if\(([\w$]+)\(\2,([\w$]+)\.vmProcessName\)\)continue;" &
       r"\(([\w$]+)\?([\w$]+)\(\2,\6\):null\)===null&&([\w$]+)\.push\(\1\)\}"
     )
-    let pfMatch = result.find(presentFilesPattern)
-    if pfMatch.isSome:
-      let m = pfMatch.get()
+    let n = replaceAllRegex(content, pat, proc(m: RegexMatch): string =
       let fVar = m.captures[0]
       let pVar = m.captures[1]
       let lVar = m.captures[2]
@@ -155,33 +211,66 @@ proc apply*(input: string): string =
       let cVar = m.captures[5]
       let resolveFn = m.captures[6]
       let uVar = m.captures[7]
-      let replacement =
-        "for(const{file_path:" & fVar & ",vmPath:" & pVar & "}of " & lVar & "){" &
+      "for(const{file_path:" & fVar & ",vmPath:" & pVar & "}of " & lVar & "){" &
         "if(" & scratchpadFn & "(" & pVar & "," & tVar & ".vmProcessName))continue;" &
         "(" & cVar & "?" & resolveFn & "(" & pVar & "," & cVar & "):null)===null&&" &
         "(()=>{const _ho=" & tVar & ".getHostOutputsDir();" &
         "if(_ho&&(" & fVar & "===_ho||" & fVar & ".startsWith(_ho+\"/\")))return;" &
         uVar & ".push(" & fVar & ")})()}"
-      let bounds = m.matchBounds
-      result = result[0 ..< bounds.a] & replacement & result[bounds.b + 1 .. ^1]
-      echo &"  [OK] F present_files native paths: host outputs dir allowed (1 match)"
+    )
+    if n >= 1:
+      echo &"  [OK] F present_files: host outputs dir allowed ({n} match)"
       inc patchesApplied
     else:
-      echo "  [FAIL] F present_files native paths: pattern not found"
+      echo "  [FAIL] F present_files: pattern not found"
+
+  # -- Patch G-mount: Remove mountFolderForSession vmProcessId guard --
+  block:
+    let pat = re"""if\s*\(\s*!\s*[a-zA-Z_$][\w$]*\s*\|\|\s*!\s*[a-zA-Z_$][\w$]*\s*\)\s*return\s*\{\s*ok\s*:\s*!\s*1\s*,\s*error\s*:\s*"Session VM process not available\. The session may not be fully initialized\."\s*\}\s*;?"""
+    let n = replaceAllRegex(content, pat, proc(m: RegexMatch): string = "")
+    if n >= 1:
+      echo &"  [OK] G-mount vmProcessId guard: removed ({n} match)"
+      inc patchesApplied
+    else:
+      echo "  [FAIL] G-mount vmProcessId guard: pattern not found"
+
+  # -- Patch G-delete: Remove delete-permission vmProcessId guard --
+  block:
+    let pat = re"""if\s*\(\s*!\s*[a-zA-Z_$][\w$]*\s*\)\s*return\s*\{\s*content\s*:\s*\[\s*\{\s*type\s*:\s*"text"\s*,\s*text\s*:\s*"Session VM process not available\. The session may not be fully initialized\."\s*\}\s*\]\s*,\s*isError\s*:\s*!\s*0\s*\}\s*;?"""
+    let n = replaceAllRegex(content, pat, proc(m: RegexMatch): string = "")
+    if n >= 1:
+      echo &"  [OK] G-delete vmProcessId guard: removed ({n} match)"
+      inc patchesApplied
+    else:
+      echo "  [FAIL] G-delete vmProcessId guard: pattern not found"
+
+  # -- Patch H: smol-bin copy gate — runtime-gated on kvm mode --
+  block:
+    let pat = re"""if\(process\.platform==="win32"\)(\{const [\w$]+=[\w$]+\(\),[\w$]+=[\w$]+\.join\(process\.resourcesPath,`smol-bin\.)"""
+    let n = replaceAllRegex(content, pat, proc(m: RegexMatch): string =
+      "if(process.platform===\"win32\"||process.platform===\"linux\"&&globalThis.__coworkKvmMode)" & m.captures[0]
+    )
+    if n >= 1:
+      echo &"  [OK] H smol-bin copy gate: kvm-mode Linux opt-in ({n} match)"
+      inc patchesApplied
+    else:
+      echo "  [FAIL] H smol-bin copy gate: win32 gate pattern not found"
 
   # -- Check results --
   if patchesApplied < EXPECTED_PATCHES:
-    echo &"  [FAIL] Only {patchesApplied}/{EXPECTED_PATCHES} patches applied -- check [WARN]/[FAIL] messages above"
-    quit(1)
+    raise newException(ValueError,
+      &"Only {patchesApplied}/{EXPECTED_PATCHES} patches applied -- check [WARN]/[FAIL] messages above")
 
   # Verify brace balance
-  if result != input:
+  if content != input:
     let originalDelta = input.count('{') - input.count('}')
-    let patchedDelta = result.count('{') - result.count('}')
+    let patchedDelta = content.count('{') - content.count('}')
     if originalDelta != patchedDelta:
       let diff = patchedDelta - originalDelta
-      echo &"  [FAIL] Patch introduced brace imbalance: {diff:+d} unmatched braces"
-      quit(1)
+      raise newException(ValueError,
+        &"Patch introduced brace imbalance: {diff:+d} unmatched braces")
+
+  result = content
 
 when isMainModule:
   if paramCount() != 1:
@@ -199,8 +288,8 @@ when isMainModule:
   let input = readFile(filePath)
   let output = apply(input)
 
-  if output == input:
-    echo &"  [OK] All {EXPECTED_PATCHES} patches already applied (no changes needed)"
-  else:
+  if output != input:
     writeFile(filePath, output)
     echo &"  [PASS] {EXPECTED_PATCHES} patches applied"
+  else:
+    echo &"  [OK] All {EXPECTED_PATCHES} patches already applied (no changes needed)"
