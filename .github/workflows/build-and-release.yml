@@ -903,7 +903,7 @@ jobs:
           cp PKGBUILD .SRCINFO "$TARBALL" /tmp/pkgbuild-test/
 
           docker run --rm \
-            --tmpfs /tmp/cross-device:exec,size=512m \
+            --tmpfs /tmp/cross-device:exec,size=2g \
             -v /tmp/pkgbuild-test:/input:ro \
             archlinux:base-devel \
             bash -c '
