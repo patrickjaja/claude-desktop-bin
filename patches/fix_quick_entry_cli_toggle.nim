@@ -39,7 +39,7 @@ proc apply*(input: string): string =
         let body = arrow[len("()=>{") ..< arrow.len - 1]
 
         # A: register with assignment to globalThis AND a debounce guard
-        let arrowWrapped = "()=>{var __t=Date.now();if(globalThis.__ceQEInvokedAt&&__t-globalThis.__ceQEInvokedAt<900)return;globalThis.__ceQEInvokedAt=__t;" & body & "}"
+        let arrowWrapped = "()=>{var __t=Date.now();if(globalThis.__ceQEInvokedAt&&__t-globalThis.__ceQEInvokedAt<500)return;globalThis.__ceQEInvokedAt=__t;" & body & "}"
         let assign = "globalThis." & HANDLER_GLOBAL & "=" & arrowWrapped
 
         # C: schedule first-instance check

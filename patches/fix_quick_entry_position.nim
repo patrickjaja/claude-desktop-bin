@@ -110,7 +110,7 @@ proc apply*(input: string): string =
       "const cp=require(\"child_process\");" &
       "const wid=" & w & ".getNativeWindowHandle().readUInt32LE(0);" &
       "cp.execFile(\"xdotool\",[\"windowactivate\",\"--sync\",String(wid)]," &
-      "{timeout:500},(e)=>{if(!" & w & ".isDestroyed()){_ef()}});" &
+      "{timeout:300},(e)=>{if(!" & w & ".isDestroyed()){_ef()}});" &
       "}catch(e){_ef()}};" &
       "const _ff=()=>{_ef();if(_isX11){_xf()}};" &
       w & ".setBounds(_b);" &
