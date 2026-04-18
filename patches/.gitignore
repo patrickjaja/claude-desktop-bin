@@ -3,6 +3,9 @@ fix_*
 add_*
 enable_*
 
+# But DO track the Nim source files
+!*.nim
+
 # Nim build cache
 .nimcache/
 

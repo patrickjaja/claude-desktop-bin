@@ -2,6 +2,13 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-18 — Fix .gitignore excluding Nim patch sources from CI
+
+### Fixed
+- **CI build broken**: `patches/.gitignore` patterns (`fix_*`, `add_*`, `enable_*`) excluded `.nim` source files from git. All 41 Nim patches were never committed, causing CI to apply zero patches and crash on `en-US.json` ENOENT. Added `!*.nim` negation to track sources while still ignoring compiled binaries.
+
+---
+
 ## 2026-04-18 — Fix PKGBUILD cross-device link failure + add makepkg CI test
 
 ### Fixed
