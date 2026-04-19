@@ -41,7 +41,7 @@ Suggests:       gstreamer1-plugin-pipewire
 Suggests:       gnome-screenshot
 # Computer Use — Hyprland-specific
 Suggests:       hyprland
-# Cowork socket health check
+# Faster Quick Entry toggle via socket (~2ms vs ~25ms python3 — not required)
 Suggests:       socat
 # MCP servers requiring system Node.js
 Suggests:       nodejs

@@ -26,7 +26,7 @@
 # Claude Code CLI — required for Cowork, Dispatch, and Code integration
 , claude-code ? null    # auto-resolved by callPackage if in nixpkgs
 # Other optional
-, socat ? null          # cowork socket health check
+, socat ? null          # faster Quick Entry toggle (~2ms vs ~25ms python3)
 , nodejs ? null         # third-party MCP servers
 # Extra PATH entries for binaries not packaged in Nix (e.g. npm global, nvm)
 , extraSessionPaths ? []
@@ -85,14 +85,17 @@ stdenvNoCC.mkDerivation {
        $out/libexec/claude-desktop/com.anthropic.claude-desktop
     chmod +x $out/libexec/claude-desktop/com.anthropic.claude-desktop
 
-    # Install launcher
+    # Install launcher script (handles --toggle, --install-gnome-hotkey, --diagnose
+    # and all Wayland/X11 detection, GPU fallback, etc.)
     mkdir -p $out/bin
-    makeWrapper $out/libexec/claude-desktop/com.anthropic.claude-desktop $out/bin/claude-desktop \
+    cp launcher/claude-desktop $out/lib/claude-desktop/launcher.sh
+    chmod +x $out/lib/claude-desktop/launcher.sh
+    makeWrapper $out/lib/claude-desktop/launcher.sh $out/bin/claude-desktop \
+      --set CLAUDE_ELECTRON "$out/libexec/claude-desktop/com.anthropic.claude-desktop" \
+      --set CLAUDE_APP_ASAR "$out/lib/claude-desktop/resources/app.asar" \
       --set ELECTRON_OZONE_PLATFORM_HINT "auto" \
       --set ELECTRON_FORCE_IS_PACKAGED "true" \
       --set ELECTRON_USE_SYSTEM_TITLE_BAR "1" \
-      --add-flags "--disable-features=CustomTitlebar" \
-      --add-flags "--enable-transparent-visuals" \
       ${lib.optionalString (xdotool != null) "--prefix PATH : ${xdotool}/bin"} \
       ${lib.optionalString (scrot != null) "--prefix PATH : ${scrot}/bin"} \
       ${lib.optionalString (imagemagick != null) "--prefix PATH : ${imagemagick}/bin"} \
@@ -110,8 +113,7 @@ stdenvNoCC.mkDerivation {
       ${lib.concatMapStringsSep " \\\n      " (p:
         let path = if builtins.isString p then p else "${p}/bin";
         in "--prefix PATH : ${path}"
-      ) extraSessionPaths} \
-      --add-flags "$out/lib/claude-desktop/resources/app.asar"
+      ) extraSessionPaths}
 
     # Install icon
     if [ -f icons/claude-desktop.png ]; then

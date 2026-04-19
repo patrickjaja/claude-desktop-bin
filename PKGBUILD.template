@@ -27,7 +27,7 @@ optdepends=('nodejs: System Node.js for MCP extensions that require specific ver
             'gst-plugin-pipewire: Portal screenshot PipeWire frame capture on GNOME Wayland 46+'
             'gnome-screenshot: Computer Use screenshot fallback (GNOME)'
             'hyprland: Quick Entry cursor positioning on Hyprland Wayland (hyprctl)'
-            'socat: Cowork socket health check in launcher (fallback: age-based check)')
+            'socat: Faster Quick Entry toggle via socket (~2ms vs ~25ms python3 — not required)')
 provides=('claude-desktop')
 conflicts=('claude-desktop')
 _electron_ver={{ELECTRON_VERSION}}

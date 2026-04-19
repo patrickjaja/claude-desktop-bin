@@ -2,6 +2,34 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-19 — Quick Entry: socket trigger + Wayland retry gate + timeout reductions (#47, based on PR #50 by @boommasterxd)
+
+### Added
+- **`claude-desktop --toggle`**: Fast Quick Entry toggle via Unix domain socket.
+  Toggles in ~5-25 ms instead of ~300 ms (no Electron process spawn). Starts the
+  app automatically if not running.
+  **GNOME users:** run `claude-desktop --install-gnome-hotkey` once to update the
+  stored shortcut command.
+
+### Performance
+- **`fix_quick_entry_cli_toggle`** (sub-patch D): Unix domain socket server
+  injected on startup. Any connection directly calls the Quick Entry toggle
+  handler, bypassing the Electron process-spawn + `second-instance` IPC path.
+- **`fix_quick_entry_cli_toggle`**: Debounce window reduced from 900 ms to
+  100 ms. The GNOME double-fire regression (issue #38) is eliminated by the
+  socket path bypassing `second-instance` entirely.
+- **`fix_quick_entry_position`**: Position+focus retries (50/150/300 ms) gated
+  to X11 only. On Wayland the compositor never repositions windows after
+  `show()`, so the retries caused jitter with no benefit.
+- **`fix_quick_entry_ready_wayland`**: `ready-to-show` timeout reduced from
+  200 ms to 100 ms (Chromium first-paint on Wayland: typically 30-50 ms).
+- **`fix_quick_entry_cli_toggle`**: First-instance trigger delay reduced from
+  500 ms to 250 ms.
+- **`fix_quick_entry_position`**: `execFileSync` timeouts for `xdotool` and
+  `hyprctl` reduced from 200 ms to 100 ms.
+
+---
+
 ## 2026-04-19 — Add missing patches to README table
 
 ### Fixed

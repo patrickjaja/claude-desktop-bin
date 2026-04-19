@@ -72,14 +72,15 @@ if [[ -z "$APP_ASAR" || ! -f "$APP_ASAR" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# CLI subcommands: --install-gnome-hotkey / --uninstall-gnome-hotkey / --diagnose
+# CLI subcommands: --install-gnome-hotkey / --uninstall-gnome-hotkey / --toggle / --diagnose
 # ---------------------------------------------------------------------------
 # Early-exit subcommands intercepted BEFORE Electron is launched. These do
 # not bring up the app — they configure the environment or report diagnostics.
 #
-# `--toggle-quick-entry` is deliberately NOT handled here: it must reach
-# Electron so the second-instance handler (patched in index.js) can see it
-# in argv and dispatch to the Quick Entry show function.
+# `--toggle` tries the fast socket path first (~5-25 ms). If the socket is
+# unavailable (app not running), it falls through to launch Electron with
+# --toggle in argv so the patched second-instance / first-instance handler
+# can fire the Quick Entry show function.
 #
 # Slot path for the gsettings GNOME custom keybinding. Stable across runs so
 # --install/--uninstall can find it.
@@ -133,10 +134,10 @@ print(repr(arr))
     gsettings set "$GNOME_HOTKEY_ROOT" custom-keybindings "$new_array"
     # Per-slot schema writes. Use ':' form to scope the schema to our slot.
     gsettings set "${GNOME_HOTKEY_ROOT}.custom-keybinding:${GNOME_HOTKEY_SLOT}" name 'Claude Desktop Quick Entry'
-    gsettings set "${GNOME_HOTKEY_ROOT}.custom-keybinding:${GNOME_HOTKEY_SLOT}" command 'claude-desktop --toggle-quick-entry'
+    gsettings set "${GNOME_HOTKEY_ROOT}.custom-keybinding:${GNOME_HOTKEY_SLOT}" command 'claude-desktop --toggle'
     gsettings set "${GNOME_HOTKEY_ROOT}.custom-keybinding:${GNOME_HOTKEY_SLOT}" binding "$accel"
 
-    echo "Installed GNOME hotkey: $accel → claude-desktop --toggle-quick-entry"
+    echo "Installed GNOME hotkey: $accel → claude-desktop --toggle"
     echo "Test it by pressing $accel from any window (Claude does not need to be focused)."
     echo "To change the accelerator later: claude-desktop --install-gnome-hotkey '<Super>space'"
     echo "To remove: claude-desktop --uninstall-gnome-hotkey"
@@ -257,6 +258,39 @@ _diagnose() {
 }
 
 case "${1:-}" in
+    --help|-h)
+        cat <<'HELP'
+Usage: claude-desktop [OPTION]
+
+Launch Claude Desktop, or run a subcommand.
+
+Options:
+  --toggle                  Toggle Quick Entry overlay (~5-25 ms via Unix
+                            socket when app is running; launches app on cold
+                            start). Bind this to a global keyboard shortcut.
+  --toggle-quick-entry      Alias for --toggle (backward-compatible).
+  --install-gnome-hotkey [ACCEL]
+                            Install a GNOME custom keybinding for Quick Entry.
+                            Default accelerator: <Primary><Alt>space
+                            Example: claude-desktop --install-gnome-hotkey '<Super>space'
+  --uninstall-gnome-hotkey  Remove the GNOME custom keybinding.
+  --diagnose                Print session type, Electron version, portal status,
+                            GNOME hotkey slot, and recent launcher log. Paste
+                            output into issue reports.
+  --help, -h                Show this help message.
+
+Environment variables:
+  CLAUDE_USE_XWAYLAND=1     Force XWayland instead of native Wayland.
+  CLAUDE_MENU_BAR=visible   Menu bar mode: auto (default), visible, hidden.
+  CLAUDE_DISABLE_GPU=1      Disable GPU compositing (white screen fix).
+  CLAUDE_DISABLE_GPU=full   Disable GPU entirely (more aggressive fallback).
+  CLAUDE_ELECTRON=PATH      Override path to Electron binary.
+  CLAUDE_APP_ASAR=PATH      Override path to app.asar.
+
+All other arguments are passed through to Electron.
+HELP
+        exit 0
+        ;;
     --install-gnome-hotkey)
         shift
         _install_gnome_hotkey "$@"
@@ -266,6 +300,21 @@ case "${1:-}" in
         shift
         _uninstall_gnome_hotkey
         exit $?
+        ;;
+    --toggle|--toggle-quick-entry)
+        # Fast Quick Entry toggle via Unix domain socket (~5-25 ms).
+        # Falls through to Electron if socket unavailable (cold start).
+        # --toggle-quick-entry is the original flag; --toggle is the short alias.
+        _SOCK="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/claude-desktop-qe.sock"
+        if [ -S "$_SOCK" ]; then
+            if command -v socat >/dev/null 2>&1; then
+                socat /dev/null "UNIX-CLIENT:$_SOCK" 2>/dev/null && exit 0
+            fi
+            if command -v python3 >/dev/null 2>&1; then
+                python3 -c "import socket,sys;s=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM);s.settimeout(0.5);s.connect(sys.argv[1]);s.close()" "$_SOCK" 2>/dev/null && exit 0
+            fi
+            echo "[launcher] socket exists but no client (socat/python3) found — falling back to Electron" >&2
+        fi
         ;;
     --diagnose)
         shift

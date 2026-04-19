@@ -13,14 +13,14 @@ proc cursorIife(electronVar: string): string =
   "const cp=require(\"child_process\");" &
   "try{" &
   "const r=cp.execFileSync(\"xdotool\",[\"getmouselocation\",\"--shell\"]," &
-  "{timeout:200,encoding:\"utf-8\"});" &
+  "{timeout:100,encoding:\"utf-8\"});" &
   "const x=parseInt(r.match(/X=(\\d+)/)?.[1]);" &
   "const y=parseInt(r.match(/Y=(\\d+)/)?.[1]);" &
   "if(!isNaN(x)&&!isNaN(y)){if(!globalThis.__qeCursorLogged){globalThis.__qeCursorLogged=true;console.log(\"[quick-entry] cursor: using xdotool\")}return{x,y}}" &
   "}catch(e){}" &
   "try{" &
   "const r=cp.execFileSync(\"hyprctl\",[\"cursorpos\"]," &
-  "{timeout:200,encoding:\"utf-8\"});" &
+  "{timeout:100,encoding:\"utf-8\"});" &
   "const m=r.match(/(\\d+),\\s*(\\d+)/);" &
   "if(m){if(!globalThis.__qeCursorLogged){globalThis.__qeCursorLogged=true;console.log(\"[quick-entry] cursor: using hyprctl\")}return{x:parseInt(m[1]),y:parseInt(m[2])}}" &
   "}catch(e){}" &
@@ -83,7 +83,11 @@ proc apply*(input: string): string =
   else:
     echo "  [INFO] position restore override: 0 matches (older version without saved position)"
 
-  # Patch 4: Fix show/positioning + focus on Linux -- uses \1, \2 backreferences
+  # Patch 4: Fix show/positioning + focus on Linux -- uses \1, \2 backreferences.
+  # The 50/150/300 ms retries (moveTop + setBounds + focus) are gated behind _isX11.
+  # On Wayland the compositor never repositions windows after show(), so the retries
+  # were pointless and caused visible jitter on every open. On X11 (WM smart placement)
+  # they are still needed to fight back-to-front reordering.
   let pattern4 = nre.re"([\w$]+)\.show\(\)\}return \1\.setPosition\(Math\.round\(([\w$]+)\.x\),Math\.round\(\2\.y\)\),!0\}"
   let m4 = result.find(pattern4)
   if m4.isSome:
@@ -117,9 +121,11 @@ proc apply*(input: string): string =
       w & ".show();" &
       "_r();" &
       "_ff();" &
+      "if(_isX11){" &
       "setTimeout(()=>{if(!" & w & ".isDestroyed()){_r();_ff()}},50);" &
       "setTimeout(()=>{if(!" & w & ".isDestroyed()){_r();_ff()}},150);" &
       "setTimeout(()=>{if(!" & w & ".isDestroyed()){_r();_ff()}},300)" &
+      "}" &
       "})()}" &
       "return!0}"
     result = result[0 ..< m.matchBounds.a] & replacement & result[m.matchBounds.b + 1 .. ^1]

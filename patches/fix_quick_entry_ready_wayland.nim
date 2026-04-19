@@ -7,8 +7,11 @@
 # BrowserWindows on native Wayland. The Quick Entry window (Mlr function)
 # awaits this event indefinitely, causing the overlay to never appear.
 #
-# This patch adds a 200ms timeout to the ready-to-show wait so the Quick
+# This patch adds a 100ms timeout to the ready-to-show wait so the Quick
 # Entry window proceeds to show even if the event never fires.
+# The timeout is 100ms (reduced from 200ms): Chromium first-paint on Wayland
+# typically completes in 30-50ms, so 100ms still provides comfortable headroom
+# while saving 100ms on every Quick Entry open.
 
 import std/[os, strutils, options]
 import std/nre
@@ -17,7 +20,7 @@ proc apply*(input: string): string =
   # The Quick Entry show function waits for ready-to-show:
   #   <VAR>||await(<VAR2>==null?void 0:<VAR2>.catch(n=>{R.error("Quick Entry: Error waiting for ready %o",{error:n})}))
   # Variable names change every release (NEe/YEe, nK/AK, etc.).
-  # We wrap this in Promise.race with a 200ms timeout.
+  # We wrap this in Promise.race with a 100ms timeout.
   let pat = re"""([\w$]+)\|\|await\(([\w$]+)==null\?void 0:\2\.catch\([\w$]+=>\{[\w$]+\.error\("Quick Entry: Error waiting for ready %o",\{error:[\w$]+\}\)\}\)\)"""
 
   let m = input.find(pat)
@@ -25,9 +28,9 @@ proc apply*(input: string): string =
     let match = m.get
     let flagVar = match.captures[0]
     let promiseVar = match.captures[1]
-    let newStr = flagVar & "||await Promise.race([" & promiseVar & "==null?void 0:" & promiseVar & """.catch(n=>{R.error("Quick Entry: Error waiting for ready %o",{error:n})}),new Promise(_r=>setTimeout(_r,200))])"""
+    let newStr = flagVar & "||await Promise.race([" & promiseVar & "==null?void 0:" & promiseVar & """.catch(n=>{R.error("Quick Entry: Error waiting for ready %o",{error:n})}),new Promise(_r=>setTimeout(_r,100))])"""
     result = input[0 ..< match.matchBounds.a] & newStr & input[match.matchBounds.b + 1 .. ^1]
-    echo "  [OK] ready-to-show timeout (200ms) added (vars: " & flagVar & ", " & promiseVar & ")"
+    echo "  [OK] ready-to-show timeout (100ms) added (vars: " & flagVar & ", " & promiseVar & ")"
   else:
     echo "  [FAIL] ready-to-show wait pattern not found"
     quit(1)

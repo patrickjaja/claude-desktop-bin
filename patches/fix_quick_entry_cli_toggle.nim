@@ -1,12 +1,21 @@
 # @patch-target: app.asar.contents/.vite/build/index.js
 # @patch-type: nim
-# Enable `claude-desktop --toggle-quick-entry` CLI trigger for Quick Entry.
-# Three sub-patches: A (handler capture), B (second-instance argv), C (first-instance schedule).
+# Enable `claude-desktop --toggle` CLI trigger for Quick Entry.
+# Four sub-patches:
+#   A - capture the Quick Entry show handler into globalThis.__ceQuickEntryShow
+#       with a 100ms debounce guard (prevents GNOME double-firing second-instance)
+#   B - prepend argv check to second-instance handler (warm-start hotkey path)
+#   C - schedule first-instance check after 250ms (cold-start: app just launched
+#       with --toggle; reduced from 500ms, enough for Electron init)
+#   D - create Unix domain socket at $XDG_RUNTIME_DIR/claude-desktop-qe.sock
+#       for fast toggle (~5-25ms, no Electron process spawn)
+# EXPECTED = 3 because A+C+D share one regex match slot; B is the other.
 
 import std/[os, strformat, strutils]
 import regex
 
 const TRIGGER_FLAG = "--toggle-quick-entry"
+const TRIGGER_FLAG_SHORT = "--toggle"
 const HANDLER_GLOBAL = "__ceQuickEntryShow"
 const EXPECTED = 3
 
@@ -38,23 +47,59 @@ proc apply*(input: string): string =
 
         let body = arrow[len("()=>{") ..< arrow.len - 1]
 
-        # A: register with assignment to globalThis AND a debounce guard
-        let arrowWrapped = "()=>{var __t=Date.now();if(globalThis.__ceQEInvokedAt&&__t-globalThis.__ceQEInvokedAt<900)return;globalThis.__ceQEInvokedAt=__t;" & body & "}"
+        # A: register with assignment to globalThis AND a debounce guard.
+        # 100ms debounce: safety net against any remaining edge cases.
+        # The original 900ms was added for GNOME's duplicate second-instance
+        # delivery (issue #38, double-fires within 1-5ms), but with the socket
+        # trigger (sub-patch D) the second-instance path is no longer taken when
+        # the app is running -- the socket calls __ceQuickEntryShow() directly,
+        # bypassing second-instance entirely. GNOME has nothing left to double-fire.
+        # 100ms is kept as a cheap safety net; it no longer affects normal usage.
+        let arrowWrapped = "()=>{var __t=Date.now();if(globalThis.__ceQEInvokedAt&&__t-globalThis.__ceQEInvokedAt<100)return;globalThis.__ceQEInvokedAt=__t;" & body & "}"
         let assign = "globalThis." & HANDLER_GLOBAL & "=" & arrowWrapped
 
         # C: schedule first-instance check
         let firstInstance =
           ",setTimeout(()=>{" &
-          "try{if(Array.isArray(process.argv)&&process.argv.includes(\"" &
+          "try{if(Array.isArray(process.argv)&&(process.argv.includes(\"" &
           TRIGGER_FLAG &
-          "\")&&globalThis." &
+          "\")||process.argv.includes(\"" &
+          TRIGGER_FLAG_SHORT &
+          "\"))&&globalThis." &
           HANDLER_GLOBAL &
           ")globalThis." &
           HANDLER_GLOBAL &
           "()}catch(e){}" &
-          "},500)"
+          "},250)"
 
-        resultStr &= regFn & "(" & enumVar & ".QUICK_ENTRY," & assign & ")" & firstInstance
+        # D: Unix domain socket trigger -- fast hotkey path on Linux.
+        #
+        # Without the socket, `claude-desktop --toggle-quick-entry` (or `--toggle`)
+        # spawns a full Electron process just to IPC to the running instance
+        # (~300 ms overhead per keypress). Instead, on startup the app creates a
+        # Unix domain socket. Any connection toggles Quick Entry in ~5-25 ms (no
+        # process spawn). The launcher connects via socat (~2 ms) or python3
+        # (~25 ms), falling back to the Electron path when the app is not running.
+        #
+        # Uses XDG_RUNTIME_DIR with /run/user/<uid> fallback (cowork socket uses
+        # /tmp fallback instead; /run/user/<uid> is safer as it's always user-private).
+        let socketTrigger =
+          ",(()=>{" &
+          "if(process.platform!==\"linux\")return;" &
+          "try{" &
+          "const _qeS=(process.env.XDG_RUNTIME_DIR||(\"/run/user/\"+process.getuid()))+\"/claude-desktop-qe.sock\";" &
+          "try{require(\"fs\").unlinkSync(_qeS)}catch(e){}" &
+          "require(\"net\").createServer(c=>{" &
+          "c.on(\"error\",e=>{console.warn(\"[quick-entry] socket connection error:\",e.message)});" &
+          "c.end();" &
+          "try{if(globalThis." & HANDLER_GLOBAL & ")globalThis." & HANDLER_GLOBAL & "()}catch(e){}" &
+          "}).on(\"error\",e=>{console.warn(\"[quick-entry] socket server error:\",e.message)}).listen(_qeS);" &
+          "if(!globalThis.__qeTriggerLogged){globalThis.__qeTriggerLogged=true;" &
+          "console.log(\"[quick-entry] socket trigger ready: \"+_qeS)}" &
+          "}catch(e){}" &
+          "})()"
+
+        resultStr &= regFn & "(" & enumVar & ".QUICK_ENTRY," & assign & ")" & firstInstance & socketTrigger
         lastEnd = bounds.b + 1
         inc countA
         break
@@ -70,7 +115,7 @@ proc apply*(input: string): string =
       raise newException(ValueError, "fix_quick_entry_cli_toggle: sub-patch A did not match QUICK_ENTRY handler registration")
 
   # Sub-patch B: prepend argv check to second-instance handler
-  let bMarker = "\"" & TRIGGER_FLAG & "\")){try{globalThis."
+  let bMarker = "\"" & TRIGGER_FLAG & "\")||"
   if bMarker in result:
     echo "  [INFO] sub-patch B already applied -- skipped"
     applied += 1
@@ -92,8 +137,9 @@ proc apply*(input: string): string =
         let tail = result[m.group(4)]
 
         let check =
-          "if(Array.isArray(" & argv & ")&&" & argv &
-          ".includes(\"" & TRIGGER_FLAG & "\"))" &
+          "if(Array.isArray(" & argv & ")&&(" & argv &
+          ".includes(\"" & TRIGGER_FLAG & "\")||" & argv &
+          ".includes(\"" & TRIGGER_FLAG_SHORT & "\")))" &
           "{try{globalThis." & HANDLER_GLOBAL &
           "&&globalThis." & HANDLER_GLOBAL &
           "()}catch(e){}return}"
