@@ -13,14 +13,14 @@ proc cursorIife(electronVar: string): string =
   "const cp=require(\"child_process\");" &
   "try{" &
   "const r=cp.execFileSync(\"xdotool\",[\"getmouselocation\",\"--shell\"]," &
-  "{timeout:100,encoding:\"utf-8\"});" &
+  "{timeout:200,encoding:\"utf-8\"});" &
   "const x=parseInt(r.match(/X=(\\d+)/)?.[1]);" &
   "const y=parseInt(r.match(/Y=(\\d+)/)?.[1]);" &
   "if(!isNaN(x)&&!isNaN(y)){if(!globalThis.__qeCursorLogged){globalThis.__qeCursorLogged=true;console.log(\"[quick-entry] cursor: using xdotool\")}return{x,y}}" &
   "}catch(e){}" &
   "try{" &
   "const r=cp.execFileSync(\"hyprctl\",[\"cursorpos\"]," &
-  "{timeout:100,encoding:\"utf-8\"});" &
+  "{timeout:200,encoding:\"utf-8\"});" &
   "const m=r.match(/(\\d+),\\s*(\\d+)/);" &
   "if(m){if(!globalThis.__qeCursorLogged){globalThis.__qeCursorLogged=true;console.log(\"[quick-entry] cursor: using hyprctl\")}return{x:parseInt(m[1]),y:parseInt(m[2])}}" &
   "}catch(e){}" &

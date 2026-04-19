@@ -2,7 +2,7 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
-## 2026-04-19 - Quick Entry: socket trigger + Wayland retry gate + timeout reductions (#47)
+## 2026-04-19 - Quick Entry: socket trigger + Wayland retry gate (#47)
 
 ### Added
 - **`claude-desktop-toggle`**: New helper script installed to `/usr/bin` by all package
@@ -22,22 +22,10 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
   keypress). As a side effect, the GNOME double-fire regression from issue #38 is
   eliminated: `second-instance` is never triggered while the app is running, so there is
   nothing left to double-fire.
-- **`fix_quick_entry_cli_toggle`**: Debounce window reduced from 900 ms to 100 ms. The
-  guard catches GNOME's duplicate `second-instance` delivery (fires within 1-5 ms,
-  issue #38). 900 ms blocked normal rapid open/close sequences; 100 ms is still 20x the
-  double-fire window.
 - **`fix_quick_entry_position`**: Position+focus retries (50/150/300 ms) gated to X11
   only (`if(_isX11)`). On Wayland the compositor never repositions windows after `show()`,
   so the retries were pointless and caused visible jitter on every open. X11 behaviour
   is unchanged.
-- **`fix_quick_entry_ready_wayland`**: `ready-to-show` timeout reduced from 200 ms to
-  100 ms. Chromium first-paint on Wayland is typically 30-50 ms; 100 ms still provides
-  comfortable headroom.
-- **`fix_quick_entry_cli_toggle`**: First-instance trigger delay reduced from 500 ms to
-  250 ms, saving 250 ms on cold-start CLI opens (e.g. hotkey with app not yet running).
-- **`fix_quick_entry_position`**: `execFileSync` timeouts for `xdotool` and `hyprctl`
-  reduced from 200 ms to 100 ms. Both commands respond in under 20 ms; 100 ms is still
-  5x headroom before falling back to the Electron API.
 
 ---
 

@@ -5,8 +5,8 @@
 #   A - capture the Quick Entry show handler into globalThis.__ceQuickEntryShow
 #       with a 900ms debounce guard (prevents GNOME double-firing second-instance)
 #   B - prepend argv check to second-instance handler (warm-start hotkey path)
-#   C - schedule first-instance check after 250ms (cold-start: app just launched
-#       with --toggle-quick-entry; reduced from 500ms, enough for Electron init)
+#   C - schedule first-instance check after 500ms (cold-start: app just launched
+#       with --toggle-quick-entry; gives Electron enough time to initialise)
 #   D - create Unix domain socket at /run/user/<uid>/claude-desktop-qe.sock
 #       so claude-desktop-toggle can trigger Quick Entry in ~5-25ms instead of
 #       ~300ms (no Electron process spawn for every keypress)
@@ -47,14 +47,12 @@ proc apply*(input: string): string =
         let body = arrow[len("()=>{") ..< arrow.len - 1]
 
         # A: register with assignment to globalThis AND a debounce guard.
-        # 100ms debounce: safety net against any remaining edge cases.
-        # The original 900ms was added for GNOME's duplicate second-instance
-        # delivery (issue #38, double-fires within 1-5ms), but with the socket
-        # trigger (sub-patch D) the second-instance path is no longer taken when
-        # the app is running -- the socket calls __ceQuickEntryShow() directly,
-        # bypassing second-instance entirely. GNOME has nothing left to double-fire.
-        # 100ms is kept as a cheap safety net; it no longer affects normal usage.
-        let arrowWrapped = "()=>{var __t=Date.now();if(globalThis.__ceQEInvokedAt&&__t-globalThis.__ceQEInvokedAt<100)return;globalThis.__ceQEInvokedAt=__t;" & body & "}"
+        # 900ms debounce: guards against GNOME's duplicate second-instance delivery
+        # (issue #38, double-fires within 1-5ms). Even though the socket trigger
+        # (sub-patch D) bypasses second-instance entirely while the app is running,
+        # the 900ms guard still protects cold-start CLI opens where second-instance
+        # is the only path (socket not yet up).
+        let arrowWrapped = "()=>{var __t=Date.now();if(globalThis.__ceQEInvokedAt&&__t-globalThis.__ceQEInvokedAt<900)return;globalThis.__ceQEInvokedAt=__t;" & body & "}"
         let assign = "globalThis." & HANDLER_GLOBAL & "=" & arrowWrapped
 
         # C: schedule first-instance check
@@ -67,7 +65,7 @@ proc apply*(input: string): string =
           ")globalThis." &
           HANDLER_GLOBAL &
           "()}catch(e){}" &
-          "},250)"
+          "},500)"
 
         # D: Unix domain socket trigger -- fast hotkey path on Linux.
         #
