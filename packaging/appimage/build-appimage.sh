@@ -125,6 +125,7 @@ mv "$APPDIR/usr/lib/claude-desktop/electron" \
 log_info "Installing launcher..."
 mkdir -p "$APPDIR/usr/bin"
 install -m755 "$WORK_DIR/tarball/launcher/claude-desktop" "$APPDIR/usr/bin/claude-desktop"
+install -m755 "$WORK_DIR/tarball/launcher/claude-desktop-toggle" "$APPDIR/usr/bin/claude-desktop-toggle"
 
 # Create AppRun (delegates to full launcher with AppImage-specific path overrides)
 log_info "Creating AppRun..."

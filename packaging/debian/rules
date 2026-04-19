@@ -11,6 +11,7 @@ override_dh_auto_install:
 	# Install launcher (full launcher with Wayland/X11 detection, GPU fallback, etc.)
 	install -d debian/claude-desktop/usr/bin
 	install -m755 launcher/claude-desktop debian/claude-desktop/usr/bin/claude-desktop
+	install -m755 launcher/claude-desktop-toggle debian/claude-desktop/usr/bin/claude-desktop-toggle
 
 	# Install desktop file (reverse-URL name must match APP_ID in the launcher)
 	install -d debian/claude-desktop/usr/share/applications

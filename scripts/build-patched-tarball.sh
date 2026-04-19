@@ -278,6 +278,10 @@ cp -r "$WORK_DIR/app"/* "$TARBALL_DIR/app/"
 cp "$SCRIPT_DIR/claude-desktop-launcher.sh" "$TARBALL_DIR/launcher/claude-desktop"
 chmod +x "$TARBALL_DIR/launcher/claude-desktop"
 
+# Copy Quick Entry toggle helper
+cp "$SCRIPT_DIR/claude-desktop-toggle.sh" "$TARBALL_DIR/launcher/claude-desktop-toggle"
+chmod +x "$TARBALL_DIR/launcher/claude-desktop-toggle"
+
 # Validate launcher with shellcheck (catches shebang issues, syntax errors, common bugs)
 if command -v shellcheck &>/dev/null; then
     if ! shellcheck -S error "$TARBALL_DIR/launcher/claude-desktop"; then

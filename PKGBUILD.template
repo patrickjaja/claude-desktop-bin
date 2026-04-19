@@ -59,6 +59,9 @@ package() {
     # Install launcher script (Wayland/X11 detection, env setup, lock cleanup)
     install -Dm755 "$srcdir/launcher/claude-desktop" "$pkgdir/usr/bin/claude-desktop"
 
+    # Install Quick Entry toggle helper (fast hotkey via Unix socket, ~5-25 ms vs ~300 ms)
+    install -Dm755 "$srcdir/launcher/claude-desktop-toggle" "$pkgdir/usr/bin/claude-desktop-toggle"
+
     # Install desktop entry.
     # Filename must match APP_ID in the launcher (com.anthropic.claude-desktop)
     # so xdg-desktop-portal can resolve our systemd-scope / cgroup identity.

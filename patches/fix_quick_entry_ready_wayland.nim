@@ -9,6 +9,9 @@
 #
 # This patch adds a 100ms timeout to the ready-to-show wait so the Quick
 # Entry window proceeds to show even if the event never fires.
+# The timeout is 100ms (reduced from 200ms): Chromium first-paint on Wayland
+# typically completes in 30-50ms, so 100ms still provides comfortable headroom
+# while saving 100ms on every Quick Entry open.
 
 import std/[os, strutils, options]
 import std/nre

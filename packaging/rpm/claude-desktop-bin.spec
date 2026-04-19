@@ -82,6 +82,7 @@ mv %{buildroot}/usr/lib/claude-desktop/electron \
 # GPU fallback, SingletonLock cleanup, cowork socket cleanup, and logging)
 mkdir -p %{buildroot}/usr/bin
 install -m755 tarball/launcher/claude-desktop %{buildroot}/usr/bin/claude-desktop
+install -m755 tarball/launcher/claude-desktop-toggle %{buildroot}/usr/bin/claude-desktop-toggle
 
 # Install desktop file.
 # Filename must match APP_ID in the launcher (com.anthropic.claude-desktop)
@@ -136,5 +137,6 @@ fi
 %files
 /usr/lib/claude-desktop/
 /usr/bin/claude-desktop
+/usr/bin/claude-desktop-toggle
 /usr/share/applications/com.anthropic.claude-desktop.desktop
 /usr/share/icons/hicolor/256x256/apps/claude-desktop.png

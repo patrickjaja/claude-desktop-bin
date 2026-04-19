@@ -133,10 +133,10 @@ print(repr(arr))
     gsettings set "$GNOME_HOTKEY_ROOT" custom-keybindings "$new_array"
     # Per-slot schema writes. Use ':' form to scope the schema to our slot.
     gsettings set "${GNOME_HOTKEY_ROOT}.custom-keybinding:${GNOME_HOTKEY_SLOT}" name 'Claude Desktop Quick Entry'
-    gsettings set "${GNOME_HOTKEY_ROOT}.custom-keybinding:${GNOME_HOTKEY_SLOT}" command 'claude-desktop --toggle-quick-entry'
+    gsettings set "${GNOME_HOTKEY_ROOT}.custom-keybinding:${GNOME_HOTKEY_SLOT}" command 'claude-desktop-toggle'
     gsettings set "${GNOME_HOTKEY_ROOT}.custom-keybinding:${GNOME_HOTKEY_SLOT}" binding "$accel"
 
-    echo "Installed GNOME hotkey: $accel → claude-desktop --toggle-quick-entry"
+    echo "Installed GNOME hotkey: $accel → claude-desktop-toggle"
     echo "Test it by pressing $accel from any window (Claude does not need to be focused)."
     echo "To change the accelerator later: claude-desktop --install-gnome-hotkey '<Super>space'"
     echo "To remove: claude-desktop --uninstall-gnome-hotkey"

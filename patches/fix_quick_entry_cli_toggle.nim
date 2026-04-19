@@ -1,7 +1,15 @@
 # @patch-target: app.asar.contents/.vite/build/index.js
 # @patch-type: nim
 # Enable `claude-desktop --toggle-quick-entry` CLI trigger for Quick Entry.
-# Three sub-patches: A (handler capture), B (second-instance argv), C (first-instance schedule).
+# Four sub-patches (A and C share a counter slot):
+#   A - capture the Quick Entry show handler into globalThis.__ceQuickEntryShow
+#       with a 900ms debounce guard (prevents GNOME double-firing second-instance)
+#   B - prepend argv check to second-instance handler (warm-start hotkey path)
+#   C - schedule first-instance check after 250ms (cold-start: app just launched
+#       with --toggle-quick-entry; reduced from 500ms, enough for Electron init)
+#   D - create Unix domain socket at /run/user/<uid>/claude-desktop-qe.sock
+#       so claude-desktop-toggle can trigger Quick Entry in ~5-25ms instead of
+#       ~300ms (no Electron process spawn for every keypress)
 
 import std/[os, strformat, strutils]
 import regex
@@ -38,8 +46,15 @@ proc apply*(input: string): string =
 
         let body = arrow[len("()=>{") ..< arrow.len - 1]
 
-        # A: register with assignment to globalThis AND a debounce guard
-        let arrowWrapped = "()=>{var __t=Date.now();if(globalThis.__ceQEInvokedAt&&__t-globalThis.__ceQEInvokedAt<900)return;globalThis.__ceQEInvokedAt=__t;" & body & "}"
+        # A: register with assignment to globalThis AND a debounce guard.
+        # 100ms debounce: safety net against any remaining edge cases.
+        # The original 900ms was added for GNOME's duplicate second-instance
+        # delivery (issue #38, double-fires within 1-5ms), but with the socket
+        # trigger (sub-patch D) the second-instance path is no longer taken when
+        # the app is running -- the socket calls __ceQuickEntryShow() directly,
+        # bypassing second-instance entirely. GNOME has nothing left to double-fire.
+        # 100ms is kept as a cheap safety net; it no longer affects normal usage.
+        let arrowWrapped = "()=>{var __t=Date.now();if(globalThis.__ceQEInvokedAt&&__t-globalThis.__ceQEInvokedAt<100)return;globalThis.__ceQEInvokedAt=__t;" & body & "}"
         let assign = "globalThis." & HANDLER_GLOBAL & "=" & arrowWrapped
 
         # C: schedule first-instance check
@@ -54,7 +69,38 @@ proc apply*(input: string): string =
           "()}catch(e){}" &
           "},250)"
 
-        resultStr &= regFn & "(" & enumVar & ".QUICK_ENTRY," & assign & ")" & firstInstance
+        # D: Unix domain socket trigger -- fast hotkey path on Linux.
+        #
+        # Problem: `claude-desktop --toggle-quick-entry` spawns a full Electron process
+        # just to IPC to the running instance (~300 ms cold overhead per keypress).
+        #
+        # Solution: on startup the app creates a Unix domain socket at
+        # /run/user/<uid>/claude-desktop-qe.sock. Any connection toggles Quick Entry in
+        # ~5-25 ms (no process spawn). The packaged `claude-desktop-toggle` script tries
+        # socat (~2 ms) or python3 (~25 ms) first, then falls back to the old Electron
+        # path when the app is not running.
+        #
+        # Hotkey command: claude-desktop-toggle   (installed in /usr/bin by all packages)
+        #
+        # Falls back gracefully: if /run/user/ is unavailable the try/catch swallows
+        # the error and the old --toggle-quick-entry path continues to work.
+        let socketTrigger =
+          ",(()=>{" &
+          "if(process.platform!==\"linux\")return;" &
+          "try{" &
+          "const _qeS=`/run/user/${process.getuid()}/claude-desktop-qe.sock`;" &
+          "try{require(\"fs\").unlinkSync(_qeS)}catch(e){}" &
+          "require(\"net\").createServer(c=>{" &
+          "c.on(\"error\",()=>{});" &
+          "c.end();" &
+          "try{if(globalThis." & HANDLER_GLOBAL & ")globalThis." & HANDLER_GLOBAL & "()}catch(e){}" &
+          "}).listen(_qeS);" &
+          "if(!globalThis.__qeTriggerLogged){globalThis.__qeTriggerLogged=true;" &
+          "console.log(\"[quick-entry] socket trigger ready: \"+_qeS)}" &
+          "}catch(e){}" &
+          "})()"
+
+        resultStr &= regFn & "(" & enumVar & ".QUICK_ENTRY," & assign & ")" & firstInstance & socketTrigger
         lastEnd = bounds.b + 1
         inc countA
         break
