@@ -258,6 +258,39 @@ _diagnose() {
 }
 
 case "${1:-}" in
+    --help|-h)
+        cat <<'HELP'
+Usage: claude-desktop [OPTION]
+
+Launch Claude Desktop, or run a subcommand.
+
+Options:
+  --toggle                  Toggle Quick Entry overlay (~5-25 ms via Unix
+                            socket when app is running; launches app on cold
+                            start). Bind this to a global keyboard shortcut.
+  --toggle-quick-entry      Alias for --toggle (backward-compatible).
+  --install-gnome-hotkey [ACCEL]
+                            Install a GNOME custom keybinding for Quick Entry.
+                            Default accelerator: <Primary><Alt>space
+                            Example: claude-desktop --install-gnome-hotkey '<Super>space'
+  --uninstall-gnome-hotkey  Remove the GNOME custom keybinding.
+  --diagnose                Print session type, Electron version, portal status,
+                            GNOME hotkey slot, and recent launcher log. Paste
+                            output into issue reports.
+  --help, -h                Show this help message.
+
+Environment variables:
+  CLAUDE_USE_XWAYLAND=1     Force XWayland instead of native Wayland.
+  CLAUDE_MENU_BAR=visible   Menu bar mode: auto (default), visible, hidden.
+  CLAUDE_DISABLE_GPU=1      Disable GPU compositing (white screen fix).
+  CLAUDE_DISABLE_GPU=full   Disable GPU entirely (more aggressive fallback).
+  CLAUDE_ELECTRON=PATH      Override path to Electron binary.
+  CLAUDE_APP_ASAR=PATH      Override path to app.asar.
+
+All other arguments are passed through to Electron.
+HELP
+        exit 0
+        ;;
     --install-gnome-hotkey)
         shift
         _install_gnome_hotkey "$@"
