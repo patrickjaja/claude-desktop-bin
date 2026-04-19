@@ -33,7 +33,7 @@ sudo pacman -S --needed ydotool xdotool glib2 gnome-screenshot imagemagick pytho
 # GNOME Wayland: enable Quick Entry hotkey (one-time, after install):
 # claude-desktop --install-gnome-hotkey
 # Optional: socat (faster Quick Entry toggle, ~2ms vs ~25ms python3 — not required)
-# sudo pacman -S --needed socat
+sudo pacman -S --needed socat
 ```
 On Wayland, the `ydotoold` daemon must be running — see [ydotool setup](#ydotool-setup-wayland).
 
@@ -62,7 +62,7 @@ sudo apt install ydotool xdotool libglib2.0-bin gnome-screenshot imagemagick pyt
 # GNOME Wayland: enable Quick Entry hotkey (one-time, after install):
 # claude-desktop --install-gnome-hotkey
 # Optional: socat (faster Quick Entry toggle, ~2ms vs ~25ms python3 — not required)
-# sudo apt install socat
+sudo apt install socat
 ```
 
 > **Wayland users:** [Computer Use](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool) requires ydotool v1.0+, but Ubuntu/Debian ship v0.1.8 which is **too old**. Run the [ydotool setup script](#ydotool-setup-wayland) — without this, clicks will not work.
@@ -101,7 +101,7 @@ sudo dnf install ydotool xdotool glib2 gnome-screenshot ImageMagick python3-gobj
 # GNOME Wayland: enable Quick Entry hotkey (one-time, after install):
 # claude-desktop --install-gnome-hotkey
 # Optional: socat (faster Quick Entry toggle, ~2ms vs ~25ms python3 — not required)
-# sudo dnf install socat
+sudo dnf install socat
 ```
 On Wayland, the `ydotoold` daemon must be running — see [ydotool setup](#ydotool-setup-wayland).
 
@@ -143,7 +143,7 @@ claude-desktop.override {
   # GNOME Wayland: enable Quick Entry hotkey (one-time, after install):
   # Run: claude-desktop --install-gnome-hotkey
   # Optional: socat (faster Quick Entry toggle, ~2ms vs ~25ms python3 — not required)
-  # socat = pkgs.socat;
+  socat = pkgs.socat;
 }
 ```
 
