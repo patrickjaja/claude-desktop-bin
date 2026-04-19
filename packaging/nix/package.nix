@@ -26,8 +26,7 @@
 # Claude Code CLI — required for Cowork, Dispatch, and Code integration
 , claude-code ? null    # auto-resolved by callPackage if in nixpkgs
 # Other optional
-, socat ? null          # cowork socket health check; also used by claude-desktop-toggle
-, python3 ? null        # claude-desktop-toggle fallback connector (when socat is unavailable)
+, socat ? null          # cowork socket health check
 , nodejs ? null         # third-party MCP servers
 # Extra PATH entries for binaries not packaged in Nix (e.g. npm global, nvm)
 , extraSessionPaths ? []
@@ -113,33 +112,6 @@ stdenvNoCC.mkDerivation {
         in "--prefix PATH : ${path}"
       ) extraSessionPaths} \
       --add-flags "$out/lib/claude-desktop/resources/app.asar"
-
-    # Install Quick Entry toggle helper (fast hotkey via Unix socket, ~5-25 ms vs ~300 ms).
-    # Hotkey command: claude-desktop-toggle
-    # Falls back to claude-desktop --toggle-quick-entry if socket unavailable.
-    cat > $out/bin/claude-desktop-toggle << 'TOGGLE_EOF'
-#!/bin/sh
-SOCK="/run/user/$(id -u)/claude-desktop-qe.sock"
-if [ -S "$SOCK" ]; then
-    if command -v socat >/dev/null 2>&1; then
-        socat /dev/null "UNIX-CLIENT:$SOCK" 2>/dev/null && exit 0
-    fi
-    if command -v python3 >/dev/null 2>&1; then
-        python3 -c "
-import socket, os, sys
-s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-s.settimeout(0.5)
-s.connect(sys.argv[1])
-s.sendall(b'1')
-s.close()
-" "$SOCK" 2>/dev/null && exit 0
-    fi
-fi
-exec claude-desktop --toggle-quick-entry
-TOGGLE_EOF
-    chmod +x $out/bin/claude-desktop-toggle
-    ${lib.optionalString (socat != null) "wrapProgram $out/bin/claude-desktop-toggle --prefix PATH : ${socat}/bin"}
-    ${lib.optionalString (python3 != null) "wrapProgram $out/bin/claude-desktop-toggle --prefix PATH : ${python3}/bin"}
 
     # Install icon
     if [ -f icons/claude-desktop.png ]; then

@@ -32,8 +32,7 @@ sudo pacman -S --needed ydotool xdotool spectacle imagemagick
 sudo pacman -S --needed ydotool xdotool glib2 gnome-screenshot imagemagick python-gobject gst-plugin-pipewire
 # GNOME Wayland: enable Quick Entry hotkey (one-time, after install):
 # claude-desktop --install-gnome-hotkey
-# Set your hotkey command to: claude-desktop-toggle  (fast socket trigger, ~5-25 ms)
-# Optional: socat (faster socket client, ~2 ms -- claude-desktop-toggle uses python3 fallback)
+# Optional: socat (faster Quick Entry toggle, ~2ms vs ~25ms python3 — not required)
 # sudo pacman -S --needed socat
 ```
 On Wayland, the `ydotoold` daemon must be running — see [ydotool setup](#ydotool-setup-wayland).
@@ -62,8 +61,7 @@ sudo apt install ydotool xdotool kde-spectacle imagemagick
 sudo apt install ydotool xdotool libglib2.0-bin gnome-screenshot imagemagick python3-gi gstreamer1.0-pipewire
 # GNOME Wayland: enable Quick Entry hotkey (one-time, after install):
 # claude-desktop --install-gnome-hotkey
-# Set your hotkey command to: claude-desktop-toggle  (fast socket trigger, ~5-25 ms)
-# Optional: socat (faster socket client, ~2 ms -- claude-desktop-toggle uses python3 fallback)
+# Optional: socat (faster Quick Entry toggle, ~2ms vs ~25ms python3 — not required)
 # sudo apt install socat
 ```
 
@@ -102,8 +100,7 @@ sudo dnf install ydotool xdotool spectacle ImageMagick
 sudo dnf install ydotool xdotool glib2 gnome-screenshot ImageMagick python3-gobject gstreamer1-plugin-pipewire
 # GNOME Wayland: enable Quick Entry hotkey (one-time, after install):
 # claude-desktop --install-gnome-hotkey
-# Set your hotkey command to: claude-desktop-toggle  (fast socket trigger, ~5-25 ms)
-# Optional: socat (faster socket client, ~2 ms -- claude-desktop-toggle uses python3 fallback)
+# Optional: socat (faster Quick Entry toggle, ~2ms vs ~25ms python3 — not required)
 # sudo dnf install socat
 ```
 On Wayland, the `ydotoold` daemon must be running — see [ydotool setup](#ydotool-setup-wayland).
@@ -145,8 +142,7 @@ claude-desktop.override {
   # glib = pkgs.glib; gnome-screenshot = pkgs.gnome-screenshot;
   # GNOME Wayland: enable Quick Entry hotkey (one-time, after install):
   # Run: claude-desktop --install-gnome-hotkey
-  # Set your hotkey command to: claude-desktop-toggle  (fast socket trigger, ~5-25 ms)
-  # Optional: socat (faster socket client, ~2 ms -- claude-desktop-toggle uses python3 fallback)
+  # Optional: socat (faster Quick Entry toggle, ~2ms vs ~25ms python3 — not required)
   # socat = pkgs.socat;
 }
 ```
@@ -429,7 +425,7 @@ The package applies several patches to make Claude Desktop work on Linux. Each p
 | `fix_office_addin_linux.nim` | Extends Office Addin MCP server to include Linux | `rg -o '.{0,30}louderPenguinEnabled.{0,30}' index.js` |
 | `fix_process_argv_renderer.nim` | Injects `process.argv=[]` in renderer preload to prevent TypeError | `rg -o '.{0,30}\.argv.{0,30}' mainView.js` |
 | `fix_quick_entry_app_id.nim` | Gives Quick Entry a distinct Wayland `app_id` so shell-extension users can blacklist it independently ([#39](https://github.com/patrickjaja/claude-desktop-bin/issues/39)) | `rg -o '.{0,30}BrowserWindow.*titleBarStyle.*hidden.{0,30}' index.js` |
-| `fix_quick_entry_cli_toggle.nim` | Enables `claude-desktop --toggle-quick-entry` CLI trigger + Unix socket for fast hotkey (`claude-desktop-toggle`, ~5-25 ms vs ~300 ms) | `rg -o 'QUICK_ENTRY.{0,80}' index.js` |
+| `fix_quick_entry_cli_toggle.nim` | Enables `claude-desktop --toggle` Quick Entry hotkey (~5-25 ms via Unix socket) | `rg -o 'QUICK_ENTRY.{0,80}' index.js` |
 | `fix_quick_entry_position.nim` | Quick Entry opens on cursor's monitor (multi-monitor); position+focus retries gated to X11 only (Wayland: no jitter) | `rg -o 'getPrimaryDisplay.{0,50}' index.js` |
 | `fix_quick_entry_ready_wayland.nim` | Adds 100ms timeout to Quick Entry ready-to-show wait (Wayland hang fix; `ready-to-show` never fires for frameless transparent windows) | `rg -o 'ready-to-show.{0,50}' index.js` |
 | `fix_quick_entry_wayland_blur_guard.nim` | Guards Quick Entry blur-to-dismiss against spurious Wayland blur events | `rg -o '.{0,30}blur.{0,30}null.{0,30}' index.js` |
@@ -543,17 +539,15 @@ claude-desktop --install-gnome-hotkey '<Super>space'  # or any accelerator
 
 This binds the key directly via `gsettings`, bypassing the portal. See [wayland.md](wayland.md#quick-entry-hotkey-not-firing-on-gnome) for details. Run `claude-desktop --diagnose` to check hotkey status.
 
-### Hotkey command: use `claude-desktop-toggle` for fast response
+### Quick Entry hotkey command
 
-The default `claude-desktop --toggle-quick-entry` spawns a full Electron process per keypress (~300 ms overhead). Use `claude-desktop-toggle` instead:
+Set your keyboard shortcut (GNOME, KDE, Sway, Hyprland) to:
 
 ```bash
-claude-desktop-toggle
+claude-desktop --toggle
 ```
 
-This script connects to a Unix domain socket the app creates on startup (`/run/user/<uid>/claude-desktop-qe.sock`) and toggles Quick Entry in ~5-25 ms. It falls back to `claude-desktop --toggle-quick-entry` automatically when the app is not running.
-
-Set your keyboard shortcut (GNOME, KDE, Sway, Hyprland) to run `claude-desktop-toggle` as the command.
+This toggles Quick Entry in ~5-25 ms via a Unix domain socket. If the app is not running, it starts it automatically.
 
 ### App identity on Wayland
 

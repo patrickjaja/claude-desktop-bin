@@ -1,20 +1,19 @@
 # @patch-target: app.asar.contents/.vite/build/index.js
 # @patch-type: nim
-# Enable `claude-desktop --toggle-quick-entry` CLI trigger for Quick Entry.
+# Enable `claude-desktop --toggle` CLI trigger for Quick Entry.
 # Four sub-patches (A and C share a counter slot):
 #   A - capture the Quick Entry show handler into globalThis.__ceQuickEntryShow
-#       with a 900ms debounce guard (prevents GNOME double-firing second-instance)
+#       with a 100ms debounce guard (prevents GNOME double-firing second-instance)
 #   B - prepend argv check to second-instance handler (warm-start hotkey path)
 #   C - schedule first-instance check after 250ms (cold-start: app just launched
-#       with --toggle-quick-entry; reduced from 500ms, enough for Electron init)
-#   D - create Unix domain socket at /run/user/<uid>/claude-desktop-qe.sock
-#       so claude-desktop-toggle can trigger Quick Entry in ~5-25ms instead of
-#       ~300ms (no Electron process spawn for every keypress)
+#       with --toggle; reduced from 500ms, enough for Electron init)
+#   D - create Unix domain socket at $XDG_RUNTIME_DIR/claude-desktop-qe.sock
+#       for fast toggle (~5-25ms, no Electron process spawn)
 
 import std/[os, strformat, strutils]
 import regex
 
-const TRIGGER_FLAG = "--toggle-quick-entry"
+const TRIGGER_FLAG = "--toggle"
 const HANDLER_GLOBAL = "__ceQuickEntryShow"
 const EXPECTED = 3
 
@@ -71,24 +70,20 @@ proc apply*(input: string): string =
 
         # D: Unix domain socket trigger -- fast hotkey path on Linux.
         #
-        # Problem: `claude-desktop --toggle-quick-entry` spawns a full Electron process
-        # just to IPC to the running instance (~300 ms cold overhead per keypress).
+        # `claude-desktop --toggle-quick-entry` spawns a full Electron process just to
+        # IPC to the running instance (~300 ms overhead per keypress). Instead, on
+        # startup the app creates a Unix domain socket. Any connection toggles Quick
+        # Entry in ~5-25 ms (no process spawn). The launcher's `--toggle` subcommand
+        # connects via socat (~2 ms) or python3 (~25 ms), falling back to the old
+        # Electron path when the app is not running.
         #
-        # Solution: on startup the app creates a Unix domain socket at
-        # /run/user/<uid>/claude-desktop-qe.sock. Any connection toggles Quick Entry in
-        # ~5-25 ms (no process spawn). The packaged `claude-desktop-toggle` script tries
-        # socat (~2 ms) or python3 (~25 ms) first, then falls back to the old Electron
-        # path when the app is not running.
-        #
-        # Hotkey command: claude-desktop-toggle   (installed in /usr/bin by all packages)
-        #
-        # Falls back gracefully: if /run/user/ is unavailable the try/catch swallows
-        # the error and the old --toggle-quick-entry path continues to work.
+        # Uses XDG_RUNTIME_DIR with /run/user/<uid> fallback, matching the cowork
+        # socket pattern (fix_cowork_linux.nim).
         let socketTrigger =
           ",(()=>{" &
           "if(process.platform!==\"linux\")return;" &
           "try{" &
-          "const _qeS=`/run/user/${process.getuid()}/claude-desktop-qe.sock`;" &
+          "const _qeS=(process.env.XDG_RUNTIME_DIR||(\"/run/user/\"+process.getuid()))+\"/claude-desktop-qe.sock\";" &
           "try{require(\"fs\").unlinkSync(_qeS)}catch(e){}" &
           "require(\"net\").createServer(c=>{" &
           "c.on(\"error\",()=>{});" &
