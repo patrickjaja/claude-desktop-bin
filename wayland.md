@@ -39,7 +39,8 @@ gsettings get org.gnome.settings-daemon.plugins.media-keys custom-keybindings
 ### First launch with hotkey
 
 `claude-desktop --toggle` on a cold start launches Claude and opens Quick
-Entry as soon as the app is ready (≈250 ms). No separate launch step needed.
+Entry ≈250 ms after the app finishes initializing (total cold-start time
+depends on hardware and Electron boot). No separate launch step needed.
 
 ### Diagnose
 

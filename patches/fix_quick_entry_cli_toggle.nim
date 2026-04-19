@@ -1,7 +1,7 @@
 # @patch-target: app.asar.contents/.vite/build/index.js
 # @patch-type: nim
 # Enable `claude-desktop --toggle` CLI trigger for Quick Entry.
-# Four sub-patches (A and C share a counter slot):
+# Four sub-patches:
 #   A - capture the Quick Entry show handler into globalThis.__ceQuickEntryShow
 #       with a 100ms debounce guard (prevents GNOME double-firing second-instance)
 #   B - prepend argv check to second-instance handler (warm-start hotkey path)
@@ -9,6 +9,7 @@
 #       with --toggle; reduced from 500ms, enough for Electron init)
 #   D - create Unix domain socket at $XDG_RUNTIME_DIR/claude-desktop-qe.sock
 #       for fast toggle (~5-25ms, no Electron process spawn)
+# EXPECTED = 3 because A+C+D share one regex match slot; B is the other.
 
 import std/[os, strformat, strutils]
 import regex
@@ -73,12 +74,12 @@ proc apply*(input: string): string =
 
         # D: Unix domain socket trigger -- fast hotkey path on Linux.
         #
-        # `claude-desktop --toggle` (old: `--toggle-quick-entry`) spawns a full Electron process just to
-        # IPC to the running instance (~300 ms overhead per keypress). Instead, on
-        # startup the app creates a Unix domain socket. Any connection toggles Quick
-        # Entry in ~5-25 ms (no process spawn). The launcher's `--toggle` subcommand
-        # connects via socat (~2 ms) or python3 (~25 ms), falling back to the old
-        # Electron path when the app is not running.
+        # Without the socket, `claude-desktop --toggle-quick-entry` (or `--toggle`)
+        # spawns a full Electron process just to IPC to the running instance
+        # (~300 ms overhead per keypress). Instead, on startup the app creates a
+        # Unix domain socket. Any connection toggles Quick Entry in ~5-25 ms (no
+        # process spawn). The launcher connects via socat (~2 ms) or python3
+        # (~25 ms), falling back to the Electron path when the app is not running.
         #
         # Uses XDG_RUNTIME_DIR with /run/user/<uid> fallback (cowork socket uses
         # /tmp fallback instead; /run/user/<uid> is safer as it's always user-private).

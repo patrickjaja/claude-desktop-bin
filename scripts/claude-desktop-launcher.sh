@@ -311,8 +311,9 @@ HELP
                 socat /dev/null "UNIX-CLIENT:$_SOCK" 2>/dev/null && exit 0
             fi
             if command -v python3 >/dev/null 2>&1; then
-                python3 -c "import socket,sys;s=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM);s.settimeout(0.5);s.connect(sys.argv[1]);s.sendall(b'1');s.close()" "$_SOCK" 2>/dev/null && exit 0
+                python3 -c "import socket,sys;s=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM);s.settimeout(0.5);s.connect(sys.argv[1]);s.close()" "$_SOCK" 2>/dev/null && exit 0
             fi
+            echo "[launcher] socket exists but no client (socat/python3) found — falling back to Electron" >&2
         fi
         ;;
     --diagnose)
