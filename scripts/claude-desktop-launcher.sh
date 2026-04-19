@@ -268,9 +268,10 @@ case "${1:-}" in
         _uninstall_gnome_hotkey
         exit $?
         ;;
-    --toggle)
+    --toggle|--toggle-quick-entry)
         # Fast Quick Entry toggle via Unix domain socket (~5-25 ms).
         # Falls through to Electron if socket unavailable (cold start).
+        # --toggle-quick-entry is the original flag; --toggle is the short alias.
         _SOCK="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/claude-desktop-qe.sock"
         if [ -S "$_SOCK" ]; then
             if command -v socat >/dev/null 2>&1; then

@@ -13,7 +13,8 @@
 import std/[os, strformat, strutils]
 import regex
 
-const TRIGGER_FLAG = "--toggle"
+const TRIGGER_FLAG = "--toggle-quick-entry"
+const TRIGGER_FLAG_SHORT = "--toggle"
 const HANDLER_GLOBAL = "__ceQuickEntryShow"
 const EXPECTED = 3
 
@@ -59,9 +60,11 @@ proc apply*(input: string): string =
         # C: schedule first-instance check
         let firstInstance =
           ",setTimeout(()=>{" &
-          "try{if(Array.isArray(process.argv)&&process.argv.includes(\"" &
+          "try{if(Array.isArray(process.argv)&&(process.argv.includes(\"" &
           TRIGGER_FLAG &
-          "\")&&globalThis." &
+          "\")||process.argv.includes(\"" &
+          TRIGGER_FLAG_SHORT &
+          "\"))&&globalThis." &
           HANDLER_GLOBAL &
           ")globalThis." &
           HANDLER_GLOBAL &
@@ -111,7 +114,7 @@ proc apply*(input: string): string =
       raise newException(ValueError, "fix_quick_entry_cli_toggle: sub-patch A did not match QUICK_ENTRY handler registration")
 
   # Sub-patch B: prepend argv check to second-instance handler
-  let bMarker = "\"" & TRIGGER_FLAG & "\")){try{globalThis."
+  let bMarker = "\"" & TRIGGER_FLAG & "\")||"
   if bMarker in result:
     echo "  [INFO] sub-patch B already applied -- skipped"
     applied += 1
@@ -133,8 +136,9 @@ proc apply*(input: string): string =
         let tail = result[m.group(4)]
 
         let check =
-          "if(Array.isArray(" & argv & ")&&" & argv &
-          ".includes(\"" & TRIGGER_FLAG & "\"))" &
+          "if(Array.isArray(" & argv & ")&&(" & argv &
+          ".includes(\"" & TRIGGER_FLAG & "\")||" & argv &
+          ".includes(\"" & TRIGGER_FLAG_SHORT & "\")))" &
           "{try{globalThis." & HANDLER_GLOBAL &
           "&&globalThis." & HANDLER_GLOBAL &
           "()}catch(e){}return}"
