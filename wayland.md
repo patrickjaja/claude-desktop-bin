@@ -10,9 +10,9 @@ approval went through — so the hotkey silently doesn't fire and the symptom
 is "only works when Claude has focus" (issue [#38](https://github.com/patrickjaja/claude-desktop-bin/issues/38)).
 
 The reliable fix on GNOME is to bind a GNOME custom keybinding directly to
-`claude-desktop --toggle-quick-entry` — a CLI trigger that the running Claude
-instance responds to through Electron's single-instance mechanism, bypassing
-the portal entirely.
+`claude-desktop --toggle` — a CLI trigger that toggles Quick Entry via a Unix
+domain socket (~5-25 ms) or, if the app is not running, launches it through
+Electron's single-instance mechanism. Both paths bypass the portal entirely.
 
 ### Install the GNOME hotkey
 
@@ -38,9 +38,8 @@ gsettings get org.gnome.settings-daemon.plugins.media-keys custom-keybindings
 
 ### First launch with hotkey
 
-`claude-desktop --toggle-quick-entry` on a cold start launches Claude and
-opens Quick Entry as soon as the app is ready (≈500 ms). No separate launch
-step needed.
+`claude-desktop --toggle` on a cold start launches Claude and opens Quick
+Entry as soon as the app is ready (≈250 ms). No separate launch step needed.
 
 ### Diagnose
 

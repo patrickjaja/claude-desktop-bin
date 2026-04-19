@@ -70,15 +70,15 @@ proc apply*(input: string): string =
 
         # D: Unix domain socket trigger -- fast hotkey path on Linux.
         #
-        # `claude-desktop --toggle-quick-entry` spawns a full Electron process just to
+        # `claude-desktop --toggle` (old: `--toggle-quick-entry`) spawns a full Electron process just to
         # IPC to the running instance (~300 ms overhead per keypress). Instead, on
         # startup the app creates a Unix domain socket. Any connection toggles Quick
         # Entry in ~5-25 ms (no process spawn). The launcher's `--toggle` subcommand
         # connects via socat (~2 ms) or python3 (~25 ms), falling back to the old
         # Electron path when the app is not running.
         #
-        # Uses XDG_RUNTIME_DIR with /run/user/<uid> fallback, matching the cowork
-        # socket pattern (fix_cowork_linux.nim).
+        # Uses XDG_RUNTIME_DIR with /run/user/<uid> fallback (cowork socket uses
+        # /tmp fallback instead; /run/user/<uid> is safer as it's always user-private).
         let socketTrigger =
           ",(()=>{" &
           "if(process.platform!==\"linux\")return;" &
@@ -86,10 +86,10 @@ proc apply*(input: string): string =
           "const _qeS=(process.env.XDG_RUNTIME_DIR||(\"/run/user/\"+process.getuid()))+\"/claude-desktop-qe.sock\";" &
           "try{require(\"fs\").unlinkSync(_qeS)}catch(e){}" &
           "require(\"net\").createServer(c=>{" &
-          "c.on(\"error\",()=>{});" &
+          "c.on(\"error\",e=>{console.warn(\"[quick-entry] socket connection error:\",e.message)});" &
           "c.end();" &
           "try{if(globalThis." & HANDLER_GLOBAL & ")globalThis." & HANDLER_GLOBAL & "()}catch(e){}" &
-          "}).listen(_qeS);" &
+          "}).on(\"error\",e=>{console.warn(\"[quick-entry] socket server error:\",e.message)}).listen(_qeS);" &
           "if(!globalThis.__qeTriggerLogged){globalThis.__qeTriggerLogged=true;" &
           "console.log(\"[quick-entry] socket trigger ready: \"+_qeS)}" &
           "}catch(e){}" &
