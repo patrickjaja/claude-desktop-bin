@@ -188,6 +188,7 @@ __cdb_css+=""
 var __cdb_font=__cdb_vars.chatFont||(__cdb_cfg.chatFont);
 if(__cdb_font){
 __cdb_css+=".font-claude-response-body,.font-claude-response-title,.font-claude-response{font-family:"+__cdb_font+"!important}";
+__cdb_css+=":root{--theme-font-override:1}";
 __cdb_fontFlag=true;
 console.log("[CustomThemes] Font override: "+__cdb_font);
 }

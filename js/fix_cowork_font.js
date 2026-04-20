@@ -1,6 +1,6 @@
 (function(){
 if(window.__coworkFontFixed)return;
-if(window.__themeFontOverride)return;
+if(getComputedStyle(document.documentElement).getPropertyValue("--theme-font-override").trim())return;
 window.__coworkFontFixed=true;
 var FONTS={
 "sans":"'Anthropic Sans',ui-sans-serif,system-ui,sans-serif,'Apple Color Emoji','Segoe UI Emoji'",
