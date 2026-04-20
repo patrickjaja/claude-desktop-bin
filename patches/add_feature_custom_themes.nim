@@ -184,6 +184,11 @@ __cdb_css+=""
 +"[role=dialog]{box-shadow:0 0 0 1px hsl(var(--accent-main-100) / 0.35),0 12px 40px rgba(0,0,0,0.5),0 0 30px hsl(var(--accent-main-100) / 0.1)!important}"
 +"[role=menu],[role=listbox]{box-shadow:0 0 0 1px hsl(var(--accent-main-100) / 0.3),0 8px 24px rgba(0,0,0,0.4)!important}"
 +"[role=tooltip]{box-shadow:0 0 0 1px hsl(var(--accent-main-100) / 0.25),0 4px 12px rgba(0,0,0,0.4)!important}";
+var __cdb_font=__cdb_vars.chatFont||(__cdb_cfg.chatFont);
+if(__cdb_font){
+__cdb_css+=".font-claude-response-body,.font-claude-response-title,.font-claude-response{font-family:"+__cdb_font+"!important}";
+console.log("[CustomThemes] Font override: "+__cdb_font);
+}
 }
 console.log("[CustomThemes] Loaded "+__cdb_src+" theme '"+__cdb_name+"' with "+__cdb_rules.length+" CSS vars + element overrides");
 }catch(e){
