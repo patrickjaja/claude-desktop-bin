@@ -29,5 +29,7 @@ fix_computer_use_linux: \
   ../js/cu_linux_executor.js \
   ../js/cu_handler_injection.js
 
+fix_cowork_font: ../js/fix_cowork_font.js
+
 clean:
 	@rm -rf $(BINS) .nimcache
