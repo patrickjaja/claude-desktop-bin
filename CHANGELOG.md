@@ -2,6 +2,16 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-20 — Fix Cowork font preference + theme font override ([#52](https://github.com/patrickjaja/claude-desktop-bin/issues/52))
+
+### Fixed
+- **Cowork tab font**: The Cowork tab rendered with default Serif font instead of the user's chosen font preference. The claude.ai SPA lazy-initializes font preferences when the Chat view mounts — if Cowork is visited first, the font was wrong. Fixed by injecting CSS on `dom-ready` that reads the font preference from localStorage and applies it immediately. (`fix_cowork_font.nim`)
+
+### Added
+- **Theme `chatFont` override**: Custom themes can now override the chat font via a `"chatFont"` key in `~/.config/Claude/claude-desktop-bin.json`. Works per-theme or as a global setting. Only system-installed fonts are supported (`fc-list` to browse).
+
+---
+
 ## 2026-04-19 — Quick Entry: socket trigger + Wayland retry gate + timeout reductions (#47, based on PR #50 by @boommasterxd)
 
 ### Added
