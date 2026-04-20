@@ -135,6 +135,7 @@ var __cdb_builtins={
 }
 };
 var __cdb_css="";
+var __cdb_fontFlag=false;
 var __cdb_cfgPath=_path.join(_app.getPath("userData"),"claude-desktop-bin.json");
 try{
 console.log("[CustomThemes] Reading config: "+__cdb_cfgPath);
@@ -187,6 +188,7 @@ __cdb_css+=""
 var __cdb_font=__cdb_vars.chatFont||(__cdb_cfg.chatFont);
 if(__cdb_font){
 __cdb_css+=".font-claude-response-body,.font-claude-response-title,.font-claude-response{font-family:"+__cdb_font+"!important}";
+__cdb_fontFlag=true;
 console.log("[CustomThemes] Font override: "+__cdb_font);
 }
 }
@@ -203,6 +205,7 @@ var url=wc.getURL()||"";
 if(url.indexOf("devtools://")===0)return;
 if(url.indexOf("http://localhost")===0||url.indexOf("http://127.0.0.1")===0||url.indexOf("https://localhost")===0)return;
 wc.insertCSS(__cdb_css);
+if(__cdb_fontFlag){wc.executeJavaScript("window.__themeFontOverride=true").catch(function(){})}
 console.log("[CustomThemes] Injected CSS into "+url);
 }catch(e){console.log("[CustomThemes] insertCSS error: "+e.message)}
 });
