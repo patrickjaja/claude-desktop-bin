@@ -2,6 +2,31 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-20 (v1.3561.0) — Upstream update, all patches applied (no fixes needed)
+
+- **Version bump:** v1.3109.0 → v1.3561.0
+- **All 42 patches applied without modification** — webpack re-minify only, no structural changes
+- **2** new GrowthBook boolean flags: `1496676413` (SSH plugins/MCP forwarding), `2023768496` (trusted device token); **0** removed
+- `123929380` (coworkKappa) promoted to force-ON defaults map — Anthropic enabling consolidate-memory by default
+- **0** new MCP servers, **0** new tools (same 17 servers)
+- **0** new `process.platform` gates — no new Linux restrictions
+- Locale i18n files moved into `ion-dist/i18n/` with `.overrides.json` sidecar files (same language set)
+
+### Upstream diff summary (v1.3109.0 → v1.3561.0)
+
+Variable renames only (all handled by `\w+`/`[\w$]+` wildcards):
+- Static registry: `J0()` → `A_()`
+- Async merger: `ewA` → `gwA`
+- Production gate: `aFA()` → `GGA()`
+- Flag reader: `Ti()` → `fi()`
+- Listener: `wG()` → `bG()`
+- Value flags: `Es()`/`di()` → `zn()`/`f_()`
+- MCP registration: `DfA()` → `gpA()`
+- Platform vars: `ws` → `ys` (win32), `WhA` → `bfA` (darwin||win32), `en` unchanged (darwin)
+- Computer-use Set: `ele` → `rwA`, checker `Jne()` → `nBA()`
+
+---
+
 ## 2026-04-20 — Fix Cowork font preference + theme font override ([#52](https://github.com/patrickjaja/claude-desktop-bin/issues/52))
 
 ### Fixed
