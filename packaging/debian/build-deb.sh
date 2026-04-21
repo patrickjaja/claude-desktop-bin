@@ -10,11 +10,13 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Fetch latest stable Electron version from GitHub
-ELECTRON_VERSION=$(curl -sf https://api.github.com/repos/electron/electron/releases/latest | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/' || true)
+# Fetch latest stable Electron version from GitHub (unless overridden via env)
 if [ -z "$ELECTRON_VERSION" ]; then
-    echo "Error: Could not fetch latest Electron version from GitHub API." >&2
-    exit 1
+    ELECTRON_VERSION=$(curl -sf https://api.github.com/repos/electron/electron/releases/latest | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/' || true)
+    if [ -z "$ELECTRON_VERSION" ]; then
+        echo "Error: Could not fetch latest Electron version from GitHub API." >&2
+        exit 1
+    fi
 fi
 
 # Colors

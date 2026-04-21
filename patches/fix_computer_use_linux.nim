@@ -294,6 +294,8 @@ proc apply*(input: string): string =
       quit(1)
     let htc = maybeHtc.get()
     let objName = htc.captures[1]
+    let toolNameParam = htc.captures[2]
+    let inputParam = htc.captures[3]
     let sessionParam = htc.captures[4]
     let injectPos = htc.matchBounds.b + 1
 
@@ -307,6 +309,9 @@ proc apply*(input: string): string =
     var handlerJs = LINUX_HANDLER_INJECTION_JS.strip()
     handlerJs = handlerJs.replace("__SELF__", objName)
     handlerJs = handlerJs.replace("__DISPATCHER__", dispatcher)
+    handlerJs = handlerJs.replace("__TOOL_NAME__", toolNameParam)
+    handlerJs = handlerJs.replace("__INPUT__", inputParam)
+    handlerJs = handlerJs.replace("__SESSION__", sessionParam)
     # Gate regular-mode handler: kwin-wayland falls through to upstream
     handlerJs = handlerJs.replace(
       "if(process.platform===\"linux\"){",

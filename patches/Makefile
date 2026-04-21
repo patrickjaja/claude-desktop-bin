@@ -31,6 +31,8 @@ fix_computer_use_linux: \
   ../js/cu_mode_preamble.js \
   ../js/executor_linux.js
 
+fix_cowork_font: ../js/fix_cowork_font.js
+
 fix_cowork_linux: \
   ../js/cowork_mode_preamble.js
 
