@@ -67,9 +67,31 @@ Quick start:
 SKIP_SMOKE_TEST=1 ./scripts/build-ubuntu-local.sh
 ```
 
+### Building on Fedora
+
+```bash
+./scripts/build-fedora-local.sh
+```
+
 Flags can be combined (e.g. `--no-smoke-test --install`). Setting
 `SKIP_SMOKE_TEST=1` in the environment also skips the smoke test when
 invoking `scripts/build-patched-tarball.sh` directly.
+
+### Bundled cowork-svc-linux
+
+All local build scripts (`build-local.sh`, `build-ubuntu-local.sh`,
+`build-fedora-local.sh`) call `build-patched-tarball.sh`, which auto-discovers
+the cowork daemon binary in this order:
+
+1. **Local sibling build:** `../claude-cowork-service/cowork-svc-linux` (your dev branch)
+2. **Pre-downloaded:** `cowork-svc/cowork-svc-linux` (manual download)
+3. **Auto-download:** from GitHub releases using the tag in `.cowork-svc-version`
+
+To build against a local cowork-service branch:
+```bash
+cd ../claude-cowork-service && make && cd ../claude-desktop-bin
+./scripts/build-local.sh --install
+```
 
 See also: [validate_and_fix_claude-setup-x64.md](validate_and_fix_claude-setup-x64.md) for step-by-step patch debugging, and [UPDATE-PROMPT-CC-INPUT-MANUAL.md](UPDATE-PROMPT-CC-INPUT-MANUAL.md) for the one-liner to kick off the process.
 
