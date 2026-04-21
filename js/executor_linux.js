@@ -47,8 +47,20 @@ function expandAllowedBundleIds(bundleIds) {
 
 function buildBridgeCommand(command, args) {
   const envBin = process.env.KWIN_PORTAL_BRIDGE_BIN
+  let bridgeBin = 'kwin-portal-bridge'
+  if (envBin) {
+    bridgeBin = envBin
+  } else {
+    try {
+      const fs = require('node:fs')
+      const packagedPath = require('path').join(process.resourcesPath || '', 'app', 'kwin-portal-bridge')
+      if (fs.existsSync(packagedPath)) {
+        bridgeBin = packagedPath
+      }
+    } catch {}
+  }
   const spec = {
-    command: envBin || 'kwin-portal-bridge',
+    command: bridgeBin,
     args: [command, ...args],
   }
   debugLog('bridge command prepared', spec)

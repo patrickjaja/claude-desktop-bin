@@ -1,24 +1,39 @@
 # @patch-target: app.asar.contents/.vite/build/index.js
 # @patch-type: nim
 #
-# Nim port of fix_cowork_sandbox_refs.py — produces byte-identical output.
+# Fix cowork sandbox/VM references for Linux with native/KVM runtime switch.
 #
-# 4 sub-patches, each wraps a sandbox/VM-accurate phrase in a runtime
-# ternary keyed on globalThis.__coworkKvmMode (set by fix_cowork_linux).
+# On macOS/Windows, cowork runs inside a lightweight Linux VM (Ubuntu 22) that
+# provides an isolated sandbox. On Linux with the native Go backend
+# (claude-cowork-service), there is NO VM -- Claude Code runs directly on the
+# host system. In KVM mode, the VM descriptions are accurate.
+#
+# Each patch wraps sandbox-accurate phrases in a runtime ternary keyed on
+# globalThis.__coworkKvmMode (set by fix_cowork_linux). The same patched
+# bundle works for both native and KVM modes.
 #
 # Injection style depends on the enclosing JS string literal:
-#   "…target…"  → close dquote + concat + reopen:
-#                 "…"+(globalThis.__coworkKvmMode?"orig":"new")+"…"
-#   `…target…`  → template interpolation:
-#                 `…${globalThis.__coworkKvmMode?"orig":"new"}…`
+#   "...target..."  -> close dquote + concat + reopen:
+#                     "..."+(globalThis.__coworkKvmMode?"orig":"new")+"..."
+#   `...target...`  -> template interpolation:
+#                     `...${globalThis.__coworkKvmMode?"orig":"new"}...`
 #
-# No "already patched" fast path — missing anchors are hard failures.
+# What we patch:
+#   A) Bash tool description: "isolated Linux workspace" -> runtime ternary
+#   B) Cowork identity prompt: "lightweight Linux VM" -> runtime ternary
+#   C) Computer use explanation: "lightweight Linux VM (Ubuntu 22)" -> runtime ternary
+#   D) System prompt: "isolated Linux environment" -> runtime ternary (3x)
+#
+# No "already patched" fast path -- missing anchors are hard failures.
 
 import std/[os, strformat, strutils, options]
 import std/nre
 
+const EXPECTED_PATCHES = 4
+
 proc replaceFirstRe(content: var string, pattern: Regex,
                     subFn: proc(m: RegexMatch): string): int =
+  ## Replace only the first match of `pattern` in `content`.
   let maybe = content.find(pattern)
   if maybe.isNone: return 0
   let m = maybe.get()
@@ -27,14 +42,14 @@ proc replaceFirstRe(content: var string, pattern: Regex,
   return 1
 
 proc classifyContext(content: string, pos: int): string =
-  ## Whichever of " / ` is nearer before `pos` wins. Matches Python's
-  ## rfind(b"`", 0, pos) / rfind(b'"', 0, pos) comparison: lastBt > lastDq
-  ## means the backtick is closer to pos.
+  ## Determine whether `pos` sits inside a backtick template or a
+  ## double-quoted string. Whichever delimiter is nearer before `pos` wins.
   let lastBt = content.rfind("`", last = pos - 1)
   let lastDq = content.rfind("\"", last = pos - 1)
   if lastBt > lastDq: "backtick" else: "dquote"
 
 proc injectTernary(context, orig, newStr: string): string =
+  ## Produce a runtime ternary wrapped appropriately for the JS string context.
   let ternary = "globalThis.__coworkKvmMode?\"" & orig & "\":\"" & newStr & "\""
   if context == "backtick":
     "${" & ternary & "}"
@@ -64,15 +79,15 @@ proc replaceSubstringContextAware(content: var string, orig, newStr: string): in
 
 proc apply*(input: string): string =
   var content = input
-  let original = input
   var patchesApplied = 0
-  const EXPECTED_PATCHES = 4
 
-  # ── Patch A: Bash tool description ─────────────────────────────
+  # -- Patch A: Bash tool description --
+  # The description has a dynamic concat in the middle (session ID interpolation),
+  # so we need two ternary wraps -- one for each half.
   block:
     let pat = re"""("Run a shell command in the session's isolated Linux workspace\.[^"]*?/sessions/")(\+[\w$.]+\+)("/mnt/[^"]*?")"""
 
-    # Native-mode rewrites (byte-for-byte identical to the Python source).
+    # Native-mode rewrites
     const nativeHalf1 =
       "\"Run a shell command on the host Linux system." &
       " There is no VM or sandbox \\u2014 commands execute directly" &
@@ -95,7 +110,7 @@ proc apply*(input: string): string =
     else:
       echo "  [FAIL] A bash tool description: pattern not found"
 
-  # ── Patch B: Cowork identity system prompt ─────────────────────
+  # -- Patch B: Cowork identity system prompt --
   block:
     const origB = "Claude runs in a lightweight Linux VM on the user's computer, which provides a secure sandbox for executing code while allowing controlled access to a workspace folder."
     const newB = "Claude runs directly on the user's Linux computer with full access to the local filesystem and installed tools. There is no VM or sandbox."
@@ -107,7 +122,7 @@ proc apply*(input: string): string =
     else:
       echo "  [FAIL] B cowork identity prompt: pattern not found"
 
-  # ── Patch C: Computer use high-level explanation ───────────────
+  # -- Patch C: Computer use high-level explanation --
   block:
     const origC = "Claude runs in a lightweight Linux VM (Ubuntu 22) on the user's computer. This VM provides a secure sandbox for executing code while allowing controlled access to user files."
     const newC = "Claude runs directly on the user's Linux computer. Commands execute on the host system with full access to local files and tools. There is no VM or sandbox."
@@ -119,7 +134,7 @@ proc apply*(input: string): string =
     else:
       echo "  [FAIL] C computer use explanation: pattern not found"
 
-  # ── Patch D: "isolated Linux environment" variants ────────────
+  # -- Patch D: "isolated Linux environment" -> "host Linux environment" --
   block:
     let variants = [
       ("The isolated Linux environment", "The host Linux environment"),
@@ -134,25 +149,40 @@ proc apply*(input: string): string =
     else:
       echo "  [FAIL] D isolated Linux environment: pattern not found"
 
-  # ── Checks ────────────────────────────────────────────────────
+  # -- Check results --
   if patchesApplied < EXPECTED_PATCHES:
     raise newException(ValueError,
       &"Only {patchesApplied}/{EXPECTED_PATCHES} patches applied")
 
-  let originalDelta = original.count('{') - original.count('}')
+  # Verify brace balance
+  let originalDelta = input.count('{') - input.count('}')
   let patchedDelta = content.count('{') - content.count('}')
   if originalDelta != patchedDelta:
     let diff = patchedDelta - originalDelta
-    raise newException(ValueError, &"Patch introduced brace imbalance: {diff:+d} unmatched braces")
+    raise newException(ValueError,
+      &"Patch introduced brace imbalance: {diff:+d} unmatched braces")
 
   echo &"  [PASS] All {patchesApplied} sandbox/VM references wrapped for runtime selection"
   result = content
 
 when isMainModule:
-  let file = paramStr(1)
+  if paramCount() != 1:
+    echo "Usage: fix_cowork_sandbox_refs <path_to_index.js>"
+    quit(1)
+
+  let filePath = paramStr(1)
   echo "=== Patch: fix_cowork_sandbox_refs ==="
-  echo &"  Target: {file}"
-  let input = readFile(file)
+  echo "  Target: " & filePath
+
+  if not fileExists(filePath):
+    echo "  [FAIL] File not found: " & filePath
+    quit(1)
+
+  let input = readFile(filePath)
   let output = apply(input)
+
   if output != input:
-    writeFile(file, output)
+    writeFile(filePath, output)
+    echo &"  [PASS] All {EXPECTED_PATCHES} sandbox/VM references fixed for Linux"
+  else:
+    echo "  [OK] Already patched, no changes needed"

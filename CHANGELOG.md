@@ -2,80 +2,21 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
-## 2026-04-20 (v1.3561.0) — Upstream update, all patches applied (no fixes needed)
-
-- **Version bump:** v1.3109.0 → v1.3561.0
-- **All 42 patches applied without modification** — webpack re-minify only, no structural changes
-- **2** new GrowthBook boolean flags: `1496676413` (SSH plugins/MCP forwarding), `2023768496` (trusted device token); **0** removed
-- `123929380` (coworkKappa) promoted to force-ON defaults map — Anthropic enabling consolidate-memory by default
-- **0** new MCP servers, **0** new tools (same 17 servers)
-- **0** new `process.platform` gates — no new Linux restrictions
-- Locale i18n files moved into `ion-dist/i18n/` with `.overrides.json` sidecar files (same language set)
-
-### Upstream diff summary (v1.3109.0 → v1.3561.0)
-
-Variable renames only (all handled by `\w+`/`[\w$]+` wildcards):
-- Static registry: `J0()` → `A_()`
-- Async merger: `ewA` → `gwA`
-- Production gate: `aFA()` → `GGA()`
-- Flag reader: `Ti()` → `fi()`
-- Listener: `wG()` → `bG()`
-- Value flags: `Es()`/`di()` → `zn()`/`f_()`
-- MCP registration: `DfA()` → `gpA()`
-- Platform vars: `ws` → `ys` (win32), `WhA` → `bfA` (darwin||win32), `en` unchanged (darwin)
-- Computer-use Set: `ele` → `rwA`, checker `Jne()` → `nBA()`
-
----
-
-## 2026-04-20 — Fix Cowork font preference + theme font override ([#52](https://github.com/patrickjaja/claude-desktop-bin/issues/52))
-
-### Fixed
-- **Cowork tab font**: The Cowork tab rendered with default Serif font instead of the user's chosen font preference. The claude.ai SPA lazy-initializes font preferences when the Chat view mounts — if Cowork is visited first, the font was wrong. Fixed by injecting CSS on `dom-ready` that reads the font preference from localStorage and applies it immediately. (`fix_cowork_font.nim`)
+## 2026-04-19 — Cowork KVM backend + KDE Wayland Computer Use
 
 ### Added
-- **Theme `chatFont` override**: Custom themes can now override the chat font via a `"chatFont"` key in `~/.config/Claude/claude-desktop-bin.json`. Works per-theme or as a global setting. Only system-installed fonts are supported (`fc-list` to browse).
+- **Cowork native/KVM runtime switch**: A single build now supports both native and KVM cowork backends, selected at runtime via `COWORK_VM_BACKEND` or auto-detected by socket presence. Sandbox and VM-specific strings are wrapped in runtime ternaries.
+- **KDE Wayland Computer Use backend**: KDE Plasma 6.6+ users on Wayland get a specialized executor via `kwin-portal-bridge` that uses RemoteDesktop + ScreenCast portals — one permission prompt per session, real Wayland input, native KDE integration.
+- **kwin-portal-bridge binary**: Compiled from Rust source in CI and shipped in all packages (AUR, DEB, RPM, AppImage). Non-KDE users are unaffected.
+- **Shared JS snippets**: `js/cowork_mode_preamble.js`, `js/cu_mode_preamble.js`, `js/executor_linux.js` — runtime mode detection and KDE executor, embedded at patch compile time via `staticRead`.
 
----
+### Changed
+- **fix_cowork_linux.nim**: Expanded from 6 to 11 sub-patches (mode preamble injection, KVM-gated socket selection, bundle lookup alias, vmProcessId guard removal, smol-bin copy gate).
+- **fix_cowork_sandbox_refs.nim**: Rewritten to use context-aware runtime ternaries (`globalThis.__coworkKvmMode`) instead of flat string replacements. Supports both backtick and double-quote JS contexts.
+- **fix_computer_use_linux.nim**: Expanded from 23 to 35 sub-patches (kwin mode preamble, dual executor injection, lock callbacks, teach/dock controller routing, glow overlay gate, 3-way KDE tool descriptions, KDE system prompt augmentation).
 
-## 2026-04-19 — Quick Entry: socket trigger + Wayland retry gate + timeout reductions (#47, based on PR #50 by @boommasterxd)
-
-### Added
-- **`claude-desktop --toggle`**: Fast Quick Entry toggle via Unix domain socket.
-  Toggles in ~5-25 ms instead of ~300 ms (no Electron process spawn). Starts the
-  app automatically if not running.
-  **GNOME users:** run `claude-desktop --install-gnome-hotkey` once to update the
-  stored shortcut command.
-
-### Performance
-- **`fix_quick_entry_cli_toggle`** (sub-patch D): Unix domain socket server
-  injected on startup. Any connection directly calls the Quick Entry toggle
-  handler, bypassing the Electron process-spawn + `second-instance` IPC path.
-- **`fix_quick_entry_cli_toggle`**: Debounce window reduced from 900 ms to
-  100 ms. The GNOME double-fire regression (issue #38) is eliminated by the
-  socket path bypassing `second-instance` entirely.
-- **`fix_quick_entry_position`**: Position+focus retries (50/150/300 ms) gated
-  to X11 only. On Wayland the compositor never repositions windows after
-  `show()`, so the retries caused jitter with no benefit.
-- **`fix_quick_entry_ready_wayland`**: `ready-to-show` timeout reduced from
-  200 ms to 100 ms (Chromium first-paint on Wayland: typically 30-50 ms).
-- **`fix_quick_entry_cli_toggle`**: First-instance trigger delay reduced from
-  500 ms to 250 ms.
-- **`fix_quick_entry_position`**: `execFileSync` timeouts for `xdotool` and
-  `hyprctl` reduced from 200 ms to 100 ms.
-
----
-
-## 2026-04-19 — Add missing patches to README table
-
-### Fixed
-- **README patch table** was missing 4 patches: `fix_locale_paths_pre.nim`, `fix_quick_entry_app_id.nim` ([#39](https://github.com/patrickjaja/claude-desktop-bin/issues/39), [PR #46](https://github.com/patrickjaja/claude-desktop-bin/pull/46)), `fix_quick_entry_cli_toggle.nim`, `fix_quick_entry_wayland_blur_guard.nim`. Updated patch count from 38+ to 42+.
-
----
-
-## 2026-04-18 — Quick Entry gets its own Wayland app_id ([PR #46](https://github.com/patrickjaja/claude-desktop-bin/pull/46) by [@boommasterxd](https://github.com/boommasterxd))
-
-### Fixed
-- **Quick Entry window inherits main window's Wayland `app_id`**, causing shell extensions like GNOME Blur My Shell to apply blur/animations to it. New patch `fix_quick_entry_app_id.nim` sets a distinct `app_id` so compositors can treat Quick Entry differently. Fixes [#39](https://github.com/patrickjaja/claude-desktop-bin/issues/39).
+### Contributors
+- [mosi0815](https://github.com/mosi0815) — Original implementation of the cowork KVM switch, kwin-portal-bridge integration, and shared JS snippets.
 
 ---
 

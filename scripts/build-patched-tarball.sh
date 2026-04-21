@@ -6,23 +6,13 @@
 # and creates a distributable tarball. The tarball can then be packaged
 # for any Linux distribution (Arch, Debian, Snap, Flatpak, etc.)
 #
-# Usage: ./scripts/build-patched-tarball.sh [--electron=<bundled|system>] <exe_path> <output_dir>
-#
-#   --electron=bundled  (default)  Ship the matching Electron runtime inside
-#                                  the tarball. Larger artifact (~80 MB extra)
-#                                  but the app runs without any host Electron
-#                                  installed.
-#   --electron=system              Don't ship Electron. The launcher picks up
-#                                  `electron` from $PATH (or /usr/lib/claude-
-#                                  desktop/electron). Smaller tarball, matches
-#                                  master-branch behaviour.
+# Usage: ./scripts/build-patched-tarball.sh <exe_path> <output_dir>
 #
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 PATCHES_DIR="$PROJECT_DIR/patches"
-ELECTRON_CACHE_DIR="$PROJECT_DIR/cache"
 
 # If patches dir is read-only (e.g. CI bind-mount), copy to a writable location
 # so Nim can write .nimcache and compiled binaries alongside the sources.
@@ -47,50 +37,15 @@ log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 # Parse arguments
-ELECTRON_MODE="bundled"
-POSITIONAL=()
-while [ $# -gt 0 ]; do
-    case "$1" in
-        --electron=*)
-            ELECTRON_MODE="${1#*=}"
-            shift
-            ;;
-        --electron)
-            ELECTRON_MODE="$2"
-            shift 2
-            ;;
-        --help|-h)
-            sed -n '1,/^set -e$/p' "$0" | sed 's/^# \?//' | head -n -1
-            exit 0
-            ;;
-        *)
-            POSITIONAL+=("$1")
-            shift
-            ;;
-    esac
-done
-
-case "$ELECTRON_MODE" in
-    bundled|system) ;;
-    *)
-        log_error "Invalid --electron value: '$ELECTRON_MODE' (expected 'bundled' or 'system')"
-        exit 1
-        ;;
-esac
-
-EXE_PATH="${POSITIONAL[0]:-}"
-OUTPUT_DIR="${POSITIONAL[1]:-}"
+EXE_PATH="$1"
+OUTPUT_DIR="$2"
 
 if [ -z "$EXE_PATH" ] || [ -z "$OUTPUT_DIR" ]; then
-    echo "Usage: $0 [--electron=<bundled|system>] <exe_path> <output_dir>"
+    echo "Usage: $0 <exe_path> <output_dir>"
     echo ""
     echo "Arguments:"
     echo "  exe_path    Path to Claude-Setup-x64.exe"
     echo "  output_dir  Directory to write tarball and extracted files"
-    echo ""
-    echo "Options:"
-    echo "  --electron=bundled  (default)  Ship matching Electron with the tarball"
-    echo "  --electron=system              Use system electron (matches master branch)"
     echo ""
     echo "Output:"
     echo "  <output_dir>/claude-desktop-<version>-linux.tar.gz"
@@ -123,11 +78,6 @@ mkdir -p "$OUTPUT_DIR"
 WORK_DIR="$OUTPUT_DIR/work"
 rm -rf "$WORK_DIR"
 mkdir -p "$WORK_DIR"
-if [ "$ELECTRON_MODE" = "bundled" ]; then
-    mkdir -p "$ELECTRON_CACHE_DIR"
-fi
-
-log_info "Electron mode: $ELECTRON_MODE"
 
 # Extract the Windows installer
 log_info "Extracting Windows installer..."
@@ -196,16 +146,6 @@ log_info "JavaScript syntax validation passed"
 # Remove Windows native binary (replaced by JS stubs in claude-native.js patch)
 rm -f "$WORK_DIR/app/app.asar.contents/node_modules/@ant/claude-native/claude-native-binding.node"
 rm -f "$WORK_DIR/app/app.asar.unpacked/node_modules/@ant/claude-native/claude-native-binding.node"
-
-# Capture the Electron spec *now* — the app.asar.contents/ tree is about to
-# be repacked and deleted. ELECTRON_MAJOR drives the runtime download later.
-ELECTRON_SPEC=$(node -e "console.log(require('$WORK_DIR/app/app.asar.contents/package.json').devDependencies?.electron || '')" 2>/dev/null || true)
-ELECTRON_MAJOR=$(echo "$ELECTRON_SPEC" | sed -E 's/^[~^=<>v ]+//' | cut -d. -f1)
-if [ -z "$ELECTRON_MAJOR" ]; then
-    log_error "Could not determine Electron major version from app.asar.contents/package.json (devDependencies.electron='$ELECTRON_SPEC')"
-    exit 1
-fi
-log_info "App declares Electron major v$ELECTRON_MAJOR"
 
 # Rebuild node-pty for Linux (upstream ships only Windows binaries)
 # This enables the integrated terminal + read_terminal MCP tool
@@ -313,21 +253,13 @@ if [ -f "$WORK_DIR/extract/lib/net45/resources/cowork-plugin-shim.sh" ]; then
     cp "$WORK_DIR/extract/lib/net45/resources/cowork-plugin-shim.sh" "$WORK_DIR/app/locales/"
 fi
 
-# Copy smol-bin VM image(s) — Desktop's startVM copies these from
-# process.resourcesPath into the per-session bundle dir as
-# `smol-bin.vhdx`, which the claude-cowork-service daemon then converts
-# to qcow2 on first boot. Without this, the guest boots without the SDK
-# binary disk and every spawn fails with "claude: No such file".
-# The Windows installer ships smol-bin.*.vhdx at lib/net45/ (alongside
-# cowork-svc.exe), not inside resources/, so copy from either location.
-log_info "Copying smol-bin VM image(s)..."
-for src in \
-    "$WORK_DIR/extract/lib/net45/smol-bin."*.vhdx \
-    "$WORK_DIR/extract/lib/net45/resources/smol-bin."*.vhdx; do
-    [ -f "$src" ] || continue
-    cp "$src" "$WORK_DIR/app/locales/"
-    log_info "  -> $(basename "$src")"
-done
+# Copy kwin-portal-bridge binary if compiled (for KDE Plasma 6.6+ Wayland computer-use)
+if [ -f "$SCRIPT_DIR/../kwin-portal-bridge/target/release/kwin-portal-bridge" ]; then
+    log_info "Copying kwin-portal-bridge binary..."
+    cp "$SCRIPT_DIR/../kwin-portal-bridge/target/release/kwin-portal-bridge" "$WORK_DIR/app/kwin-portal-bridge"
+    chmod +x "$WORK_DIR/app/kwin-portal-bridge"
+    log_info "  [OK] kwin-portal-bridge binary included"
+fi
 
 # Run Electron smoke test if dependencies are available
 if [ "${SKIP_SMOKE_TEST:-0}" = "1" ]; then
@@ -342,58 +274,13 @@ else
     log_warn "Skipping smoke test (install electron and xorg-server-xvfb to enable)"
 fi
 
-# Create tarball structure. Bundled mode ships a matching Electron runtime
-# alongside the patched app (app/ = Electron binary + app/resources/<patched>);
-# system mode ships only the patched app and relies on the user's Electron
-# (app/ = patched app files, flat).
+# Create tarball structure
 log_info "Creating tarball structure..."
 TARBALL_DIR="$WORK_DIR/tarball"
-mkdir -p "$TARBALL_DIR/icons" "$TARBALL_DIR/launcher"
+mkdir -p "$TARBALL_DIR/app" "$TARBALL_DIR/icons" "$TARBALL_DIR/launcher"
 
-if [ "$ELECTRON_MODE" = "bundled" ]; then
-    # Resolve the latest stable Electron release matching $ELECTRON_MAJOR
-    # (determined earlier, before app.asar.contents was packed away).
-    log_info "Resolving latest stable Electron v$ELECTRON_MAJOR release..."
-    ELECTRON_TAG=$(curl -sSL --fail "https://api.github.com/repos/electron/electron/releases?per_page=100" \
-        | python3 -c '
-import json, sys
-major = sys.argv[1]
-prefix = f"v{major}."
-bad = ("-alpha", "-beta", "-rc", "-nightly")
-for r in json.load(sys.stdin):
-    t = r.get("tag_name", "")
-    if t.startswith(prefix) and not r.get("prerelease", False) and not any(b in t for b in bad):
-        print(t.lstrip("v"))
-        break
-' "$ELECTRON_MAJOR")
-
-    if [ -z "$ELECTRON_TAG" ]; then
-        log_error "No stable Electron v$ELECTRON_MAJOR release found on GitHub"
-        exit 1
-    fi
-    log_info "Using Electron v$ELECTRON_TAG"
-
-    # Cache the zip by version so reruns skip the ~80MB download.
-    ELECTRON_CACHE_DIR="${ELECTRON_CACHE_DIR:-$OUTPUT_DIR}"
-    ELECTRON_ZIP="$ELECTRON_CACHE_DIR/electron-v${ELECTRON_TAG}-linux-x64.zip"
-    if [ ! -s "$ELECTRON_ZIP" ]; then
-        log_info "Downloading Electron v$ELECTRON_TAG..."
-        curl -L --fail --output "$ELECTRON_ZIP" \
-            "https://github.com/electron/electron/releases/download/v${ELECTRON_TAG}/electron-v${ELECTRON_TAG}-linux-x64.zip"
-    fi
-
-    mkdir -p "$TARBALL_DIR/app/resources"
-    unzip -q "$ELECTRON_ZIP" -d "$TARBALL_DIR/app"
-    # Rename the Electron binary so systemd-run scopes and xdg-desktop-portal
-    # identify the process via our reverse-URL APP_ID instead of "electron".
-    mv "$TARBALL_DIR/app/electron" "$TARBALL_DIR/app/com.anthropic.claude-desktop"
-    cp -r "$WORK_DIR/app"/* "$TARBALL_DIR/app/resources/"
-else
-    # System Electron: flat app/ layout, no Electron binary bundled.
-    # `depends=(electron)` in PKGBUILD / package deps provides the runtime.
-    mkdir -p "$TARBALL_DIR/app"
-    cp -r "$WORK_DIR/app"/* "$TARBALL_DIR/app/"
-fi
+# Copy patched app
+cp -r "$WORK_DIR/app"/* "$TARBALL_DIR/app/"
 
 # Copy launcher script
 cp "$SCRIPT_DIR/claude-desktop-launcher.sh" "$TARBALL_DIR/launcher/claude-desktop"
@@ -455,15 +342,13 @@ rm -rf "$WORK_DIR"
 # Output results
 echo ""
 log_info "Build complete!"
-echo "  Version:      $VERSION"
-echo "  Electron:     $ELECTRON_MODE"
-echo "  Tarball:      $TARBALL_FILE"
-echo "  SHA256:       $SHA256"
+echo "  Version:  $VERSION"
+echo "  Tarball:  $TARBALL_FILE"
+echo "  SHA256:   $SHA256"
 
 # Write metadata file for CI
 cat > "$OUTPUT_DIR/build-info.txt" << EOF
 VERSION="$VERSION"
 TARBALL="$TARBALL_FILE"
 SHA256="$SHA256"
-ELECTRON_MODE="$ELECTRON_MODE"
 EOF

@@ -342,6 +342,16 @@ Cowork is Claude Desktop's agentic workspace feature. This package patches it to
 
 Requires Claude Code CLI (see above) and [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service). See its Installation section for distro-specific instructions ([APT](https://github.com/patrickjaja/claude-cowork-service#debian--ubuntu-apt-repository), [DNF](https://github.com/patrickjaja/claude-cowork-service#fedora--rhel-dnf-repository), [AUR](https://github.com/patrickjaja/claude-cowork-service#arch-linux-aur), [Nix](https://github.com/patrickjaja/claude-cowork-service#nixos), or [binary install](https://github.com/patrickjaja/claude-cowork-service#quick-install-any-distro-x86_64--arm64)).
 
+### Cowork Native/KVM Runtime Switch
+
+A single build supports both native and KVM cowork backends. At startup the injected preamble detects the backend:
+
+1. **Environment variable:** `COWORK_VM_BACKEND=native` or `COWORK_VM_BACKEND=kvm`
+2. **Auto-detect:** if `$XDG_RUNTIME_DIR/cowork-kvm-service.sock` exists, KVM mode is used
+3. **Default:** native mode
+
+Native mode runs Claude Code directly on the host via `claude-cowork-service`. KVM mode runs sessions inside a QEMU/KVM microVM. Sandbox and VM system-prompt strings are wrapped in `globalThis.__coworkKvmMode` ternaries so one `.asar` covers both backends without a build-time branch.
+
 ## CoworkSpaces
 
 CoworkSpaces organizes folders, projects, and links into named Spaces for Cowork sessions. On macOS/Windows this is handled by the native backend (`@ant/claude-swift`). On Linux, `fix_cowork_spaces.nim` provides a full file-based implementation:
@@ -373,6 +383,22 @@ Example prompt: *"Can you use computer use MCP to explain me the PhpStorm applic
 **Teach overlay on Linux:** Since Electron's `setIgnoreMouseEvents(true, {forward: true})` is [broken on X11](https://github.com/electron/electron/issues/16777), the teach overlay stays fully interactive (buttons are clickable) but blocks clicks to apps behind it during the guided tour. The tooltip repositions between steps via `anchorLogical` coordinates pointing to UI elements.
 
 See [CLAUDE_BUILT_IN_MCP.md](CLAUDE_BUILT_IN_MCP.md#14-computer-use) for the full tool reference and [Optional Dependencies](#optional-dependencies) for required packages.
+
+### KDE Wayland Computer Use (kwin-portal-bridge)
+
+KDE Plasma 6.6+ users on Wayland get a specialized Computer Use backend that drives input and screen capture through `xdg-desktop-portal` RemoteDesktop + ScreenCast sessions via [kwin-portal-bridge](https://github.com/patrickjaja/kwin-portal-bridge). Benefits over the cross-distro executor:
+
+- **Real Wayland input** — no `xdotool`/`ydotool` fallback needed
+- **One permission prompt per session** — portal restore tokens persist, so subsequent screenshots and clicks are silent
+- **Native KDE integration** — works naturally with Dolphin, Spectacle, plasmashell
+
+**Detection order:**
+
+1. **Environment variable:** `CLAUDE_CU_MODE=kwin-wayland` forces the portal backend
+2. **Auto-detect:** `XDG_SESSION_DESKTOP=KDE` + `XDG_SESSION_TYPE=wayland` + `kwin-portal-bridge` on `$PATH` (or via `KWIN_PORTAL_BRIDGE_BIN`)
+3. **Default:** cross-distro executor (xdotool/ydotool + scrot/grim/spectacle)
+
+Both executors are embedded in the bundle and the active one is selected at startup.
 
 ## Hardware Buddy (Nibblet)
 
@@ -486,9 +512,12 @@ If upstream Claude Desktop changes break a patch:
 ## Repository Structure
 - `.github/workflows/` - GitHub Actions for automation
 - `scripts/` - Build and validation scripts
-- `patches/` - Linux compatibility patches
+- `patches/` - Linux compatibility patches (Nim sources compiled to native binaries)
+- `js/` - Shared JS snippets (Computer Use executors, handler injection, mode preambles) embedded at patch time via `staticRead` (Nim) or `open().read()` (Python)
 - `packaging/` - Debian, RPM, AppImage, and Nix build scripts
 - `PKGBUILD.template` - AUR package template
+
+Patches are written in Nim and compiled to native binaries by `patches/Makefile`. The orchestrator (`scripts/apply_patches.py`) runs the compiled binaries, falling back to Python if a Nim binary is not available.
 
 ## Environment Variables
 
@@ -501,6 +530,9 @@ If upstream Claude Desktop changes break a patch:
 | `CLAUDE_ELECTRON` | path | Override Electron binary path |
 | `CLAUDE_APP_ASAR` | path | Override app.asar path |
 | `ELECTRON_ENABLE_LOGGING` | `1` | Log Electron main process to stderr |
+| `COWORK_VM_BACKEND` | `native`, `kvm` | Force cowork backend (default: auto-detect, falls back to native) |
+| `CLAUDE_CU_MODE` | `regular`, `kwin-wayland` | Force Computer Use executor (default: auto-detect based on desktop/compositor) |
+| `KWIN_PORTAL_BRIDGE_BIN` | path | Override kwin-portal-bridge binary location |
 
 Set permanently in `~/.bashrc` or `~/.zshrc`, or pass per-launch: `CLAUDE_DISABLE_GPU=1 claude-desktop`
 

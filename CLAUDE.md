@@ -249,7 +249,9 @@ git push
 patches/     # Nim patch sources (.nim) + Makefile, compiled to native binaries (ls patches/*.nim)
 js/          # Shared JS snippets embedded by Nim patches via staticRead
 scripts/     # Build, validation, and launcher scripts (ls scripts/)
+packaging/   # Debian, RPM, AppImage, and Nix build scripts
 docs/        # Screenshots (chat, code, cowork, global UI)
+kwin-portal-bridge is cloned and compiled in CI from https://github.com/patrickjaja/kwin-portal-bridge
 ```
 
 Each patch has a `# @patch-target:` and `# @patch-type: nim` header. The Makefile compiles them to native binaries. The orchestrator (`scripts/apply_patches.py`) runs the binaries. Use `ls patches/*.nim` as the single source of truth for what exists.

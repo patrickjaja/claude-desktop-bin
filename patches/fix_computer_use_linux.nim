@@ -1,23 +1,45 @@
 # @patch-target: app.asar.contents/.vite/build/index.js
 # @patch-type: nim
 #
-# Nim port of fix_computer_use_linux.py — produces byte-identical output.
+# Make computer-use work on Linux by removing platform gates and providing
+# a Linux executor.  Supports two backends:
+#   - Regular cross-distro executor (X11/Wayland via xdotool/ydotool/grim/…)
+#   - kwin-portal-bridge executor (KDE Plasma via org.kde.KWin portal)
 #
-# The four JS snippets (regular inline executor, kwin-wayland executor,
-# hybrid handler injection, mode preamble) are checked-in plain .js files
-# under js/ and shared verbatim with the Python implementation. Nim
-# embeds them via staticRead at compile time; Python reads them at runtime.
-# No codegen — the .js files are the single source of truth.
-#
-# All 35 sub-patches use std/nre (PCRE) because many require backreferences.
+# 35 sub-patches covering:
+#   1  Linux executor injection at app.on("ready") — both regular + kwin-wayland
+#   2  ese Set: add "linux"
+#   4  createDarwinExecutor: Linux fallback
+#   4b cu lock acquire: start bridge session
+#   4b.2 cu lock release: stop bridge session
+#   5  ensureOsPermissions: skip TCC on Linux
+#   5b screenshot intro note workaround
+#   6  handleToolCall: hybrid dispatch (gated: regular-only; kwin falls through)
+#   7  teach overlay controller: verify CU gate
+#   7b teach overlay controller: bridge-backed init (kwin-wayland)
+#   7c cu side-panel: bridge-backed init (kwin-wayland)
+#   8  teach overlay mouse: tooltip-bounds polling
+#   8a cu glow overlay: disabled in kwin-wayland mode
+#   9a teach overlay: neutralize setIgnoreMouseEvents in yJt
+#   9b teach overlay: neutralize setIgnoreMouseEvents in SUn
+#  10  teach overlay: VM-aware transparency
+#  10b teach overlay display: force primary monitor
+#  11  mVt isEnabled: force true on Linux
+#  12  rj chicagoEnabled bypass: force true on Linux
+#  13a-13g: Tool description patches (7 sub-patches)
+#  13b.kwin-*: KDE-specific tool description patches (5 sub-patches)
+#  14a-14d: System prompt patches (4 sub-patches, 14d = kwin KDE env prompt)
 
 import std/[os, strformat, strutils, options]
 import std/nre
 
+# Extracted JS loaded via staticRead
 const LINUX_EXECUTOR_JS = staticRead("../js/cu_linux_executor.js")
 const LINUX_HANDLER_INJECTION_JS = staticRead("../js/cu_handler_injection.js")
 const MODE_PREAMBLE_JS = staticRead("../js/cu_mode_preamble.js")
 const KWIN_EXECUTOR_SOURCE = staticRead("../js/executor_linux.js")
+
+const EXPECTED_PATCHES = 35
 
 # ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -67,7 +89,7 @@ proc countOccurrences(content, needle: string): int =
     idx = found + needle.len
 
 proc findStringMarker(content: string, messages: varargs[string]): int =
-  ## Mirrors find_string_marker from the Python source.
+  ## Find a string marker in either single or double quotes.
   for message in messages:
     for quote in ["\"", "'"]:
       let needle = quote & message & quote
@@ -83,7 +105,7 @@ type FunctionInfo = object
   body: string
 
 proc findFunctionBeforeMarker(content: string, markerIndex: int): Option[FunctionInfo] =
-  ## Mirrors find_function_before_marker.
+  ## Find the enclosing function header before a marker index.
   let fnIdx = content.rfind("function ", last = markerIndex - 1)
   if fnIdx == -1: return none(FunctionInfo)
   let headerEnd = content.find('{', start = fnIdx, last = markerIndex - 1)
@@ -97,8 +119,8 @@ proc findFunctionBeforeMarker(content: string, markerIndex: int): Option[Functio
 # ─── kwin-wayland executor transformation ───────────────────────────────────
 
 proc buildKwinLinuxExecutorInjection(): string =
-  ## Mirrors build_kwin_linux_executor_injection: transforms ES-module imports
-  ## to CommonJS requires, strips `export` keywords, wraps in an IIFE.
+  ## Transform ES-module imports to CommonJS requires, strip `export`
+  ## keywords, wrap in an IIFE, and assign to globalThis.__linuxExecutor.
   var js = KWIN_EXECUTOR_SOURCE
   js = js.replace(
     "import { execFile as execFileCb, spawnSync } from 'node:child_process'\n",
@@ -116,8 +138,7 @@ proc buildKwinLinuxExecutorInjection(): string =
     "import { promisify } from 'node:util'\n",
     "var { promisify } = require(\"node:util\");\n",
   )
-  # Strip `export ` at the start of any line. Python used re.sub(r"^export\s+", "", ..., flags=re.MULTILINE);
-  # std/nre's default mode treats ^/$ as buffer boundaries, so enable multiline via (?m).
+  # Strip `export ` at the start of any line (multiline mode)
   js = js.replace(re"(?m)^export\s+", "")
   result = "(function(){\n" & js.strip(leading = false, trailing = true) &
     "\n\nglobalThis.__linuxExecutor = createLinuxExecutor({ hostBundleId: \"com.anthropic.claude-desktop\" });\n})();\n"
@@ -126,10 +147,8 @@ proc buildKwinLinuxExecutorInjection(): string =
 
 proc apply*(input: string): string =
   var content = input
-  let original = input
   var patchesApplied = 0
   var changes = 0
-  const EXPECTED_PATCHES = 35
 
   # ── Patch 1: inject executors + mode preamble at app.on("ready") ───────
   block:
@@ -146,7 +165,7 @@ proc apply*(input: string): string =
       inc patchesApplied
     else:
       echo "  [FAIL] app.on(\"ready\") pattern: 0 matches"
-      return original
+      quit(1)
 
   # ── Patch 2: add "linux" to the platform Set ───────────────────────────
   block:
@@ -158,8 +177,13 @@ proc apply*(input: string): string =
       inc changes, n
       inc patchesApplied
     else:
-      echo "  [FAIL] ese Set pattern: 0 matches"
-      return original
+      let already = content.count("""new Set(["darwin","win32","linux"])""")
+      if already >= 1:
+        echo &"  [OK] ese Set: linux already present in all {already} Set(s)"
+        inc patchesApplied
+      else:
+        echo "  [FAIL] ese Set pattern: 0 matches"
+        quit(1)
 
   # ── Patch 4: createDarwinExecutor Linux fallback ───────────────────────
   block:
@@ -175,7 +199,7 @@ proc apply*(input: string): string =
       inc patchesApplied
     else:
       echo "  [FAIL] createDarwinExecutor pattern: 0 matches"
-      return original
+      quit(1)
 
   # ── Patch 4b (kwin-wayland): cu lock acquire → __setLockHeld(true) ──────
   block:
@@ -243,8 +267,6 @@ proc apply*(input: string): string =
         let injection = ",linuxVisibleLastScreenshot=process.platform===\"linux\"&&" &
           lastVar & "===void 0&&" & toolName & "===\"screenshot\"?void 0:" &
           lastVar & "??(" & dimsVar & "?{..." & dimsVar & ",base64:\"\"}:void 0)"
-        # Python: split = seed_match.start(6) - 1 (index of comma before AbortController var)
-        # Group 6 in Python (1-indexed) is the AbortController var. In nre captures[5].
         let abortBounds = seed.captureBounds[5]
         let splitPoint = abortBounds.a - 1
         content = content[0..<splitPoint] & injection & content[splitPoint..^1]
@@ -269,11 +291,9 @@ proc apply*(input: string): string =
     let maybeHtc = content.find(htcStart)
     if maybeHtc.isNone:
       echo "  [FAIL] handleToolCall pattern: 0 matches"
-      return original
+      quit(1)
     let htc = maybeHtc.get()
     let objName = htc.captures[1]
-    let toolNameParam = htc.captures[2]
-    let inputParam = htc.captures[3]
     let sessionParam = htc.captures[4]
     let injectPos = htc.matchBounds.b + 1
 
@@ -282,14 +302,12 @@ proc apply*(input: string): string =
     let maybeDispatcher = afterBrace.find(dispatcherPat)
     if maybeDispatcher.isNone:
       echo "  [FAIL] handleToolCall dispatcher not found"
-      return original
+      quit(1)
     let dispatcher = maybeDispatcher.get().captures[0]
     var handlerJs = LINUX_HANDLER_INJECTION_JS.strip()
     handlerJs = handlerJs.replace("__SELF__", objName)
     handlerJs = handlerJs.replace("__DISPATCHER__", dispatcher)
-    handlerJs = handlerJs.replace("__TOOL_NAME__", toolNameParam)
-    handlerJs = handlerJs.replace("__INPUT__", inputParam)
-    handlerJs = handlerJs.replace("__SESSION__", sessionParam)
+    # Gate regular-mode handler: kwin-wayland falls through to upstream
     handlerJs = handlerJs.replace(
       "if(process.platform===\"linux\"){",
       "if(process.platform===\"linux\"&&!globalThis.__cuKwinMode){",
@@ -315,7 +333,7 @@ proc apply*(input: string): string =
         echo "  [OK] teach overlay controller: CU gate found (handled by Set fix)"
         inc patchesApplied
       else:
-        echo "  [FAIL] teach overlay: CU gate not found after TCC stub — may need manual check"
+        echo "  [FAIL] teach overlay: CU gate not found after TCC stub"
 
   # ── Patch 7b (kwin-wayland): teach overlay bridge-backed init ──────────
   block:
@@ -398,6 +416,21 @@ proc apply*(input: string): string =
       else:
         echo "  [FAIL] teach overlay mouse: replacement failed"
 
+  # ── Patch 8a (kwin-wayland): disable glow overlay ──────────────────────
+  block:
+    let pat = re"""(function [\w$]+\(([\w$]+),([\w$]+)\)\{)([\w$]+)\.on\("cuLockChanged","""
+    let n = replaceFirst(content, pat, proc(m: RegexMatch): string =
+      m.captures[0] &
+        "if(process.platform===\"linux\"&&globalThis.__cuKwinMode)return;" &
+        m.captures[3] & ".on(\"cuLockChanged\","
+    )
+    if n >= 1:
+      echo &"  [OK] cu glow overlay: disabled in kwin-wayland mode ({n} match)"
+      inc changes, n
+      inc patchesApplied
+    else:
+      echo "  [FAIL] cu glow overlay pattern: 0 matches"
+
   # ── Patch 9a: neutralize setIgnoreMouseEvents in yJt ───────────────────
   if overlayVarOpt.isSome:
     block:
@@ -430,24 +463,8 @@ proc apply*(input: string): string =
       else:
         echo "  [FAIL] teach overlay: SUn pattern not found"
 
-  # ── Patch 8a (kwin-wayland): disable glow overlay ──────────────────────
-  block:
-    let pat = re"""(function [\w$]+\(([\w$]+),([\w$]+)\)\{)([\w$]+)\.on\("cuLockChanged","""
-    let n = replaceFirst(content, pat, proc(m: RegexMatch): string =
-      m.captures[0] &
-        "if(process.platform===\"linux\"&&globalThis.__cuKwinMode)return;" &
-        m.captures[3] & ".on(\"cuLockChanged\","
-    )
-    if n >= 1:
-      echo &"  [OK] cu glow overlay: disabled in kwin-wayland mode ({n} match)"
-      inc changes, n
-      inc patchesApplied
-    else:
-      echo "  [FAIL] cu glow overlay pattern: 0 matches"
-
   # ── Patch 10: teach overlay VM-aware transparency ──────────────────────
   block:
-    # Python walks ALL matches and picks the first whose 80-byte prefix contains "workArea".
     let pat = re"""(=new [\w$]+\.BrowserWindow\(\{[^}]*?)transparent:!0([^}]*?)backgroundColor:"#00000000""""
     var applied = false
     for m in content.findIter(pat):
@@ -461,7 +478,6 @@ proc apply*(input: string): string =
         newS = newS.replace("transparent:!0", "transparent:!globalThis.__isVM")
         newS = newS.replace("backgroundColor:\"#00000000\"",
                             "backgroundColor:globalThis.__isVM?\"#000000\":\"#00000000\"")
-        # Single literal replacement
         discard replaceLiteralFirst(content, old, newS)
         echo "  [OK] teach overlay: VM-aware transparency (transparent on native, dark backdrop on VMs)"
         inc changes
@@ -483,7 +499,7 @@ proc apply*(input: string): string =
       inc changes, n
       inc patchesApplied
     else:
-      echo "  [FAIL] xlr display resolver pattern: 0 matches (teach may appear on wrong monitor)"
+      echo "  [FAIL] xlr display resolver pattern: 0 matches"
 
   # ── Patch 11: force mVt() → true on Linux ──────────────────────────────
   block:
@@ -499,7 +515,7 @@ proc apply*(input: string): string =
       inc changes, n
       inc patchesApplied
     else:
-      echo "  [FAIL] mVt isEnabled pattern: 0 matches (computer-use may not work in cowork/CCD)"
+      echo "  [FAIL] mVt isEnabled pattern: 0 matches"
 
   # ── Patch 12: force rj() → true on Linux ───────────────────────────────
   block:
@@ -515,7 +531,7 @@ proc apply*(input: string): string =
       inc changes, n
       inc patchesApplied
     else:
-      echo "  [FAIL] rj pattern: 0 matches (computer-use tool calls may be blocked)"
+      echo "  [FAIL] rj pattern: 0 matches"
 
   # ─── Tool description patches ────────────────────────────────────────
   echo "  --- Tool description patches (non-fatal) ---"
@@ -535,7 +551,7 @@ proc apply*(input: string): string =
     else:
       echo "  [FAIL] 13a Lf: not found"
 
-  # 13b: request_access macOS prefix → 3-way ternary
+  # 13b: request_access macOS prefix → 3-way ternary (kwin/regular/macOS)
   block:
     let old13b = """'This computer is running macOS. The file manager is "Finder". '"""
     let new13b =
@@ -756,8 +772,8 @@ proc apply*(input: string): string =
   # ─── Patch 14: Linux-aware CU system prompt ──────────────────────────
   # 14a: separate filesystems → 3-way same-filesystem wording (2 occurrences)
   block:
-    let sepOldFull2 = "**Separate filesystems.** Computer-use actions (clicks, typing, clipboard writes) happen on the user's real computer \xe2\x80\x94 a different system from your sandbox. "
-    let sepCount = countOccurrences(content, sepOldFull2)
+    let sepOldFull = "**Separate filesystems.** Computer-use actions (clicks, typing, clipboard writes) happen on the user's real computer \xe2\x80\x94 a different system from your sandbox. "
+    let sepCount = countOccurrences(content, sepOldFull)
     if sepCount >= 2:
       let sepNewFull =
         "${process.platform===\"linux\"?(globalThis.__cuKwinMode" &
@@ -771,7 +787,7 @@ proc apply*(input: string): string =
         ":\"**Separate filesystems.** Computer-use actions (clicks, typing, clipboard writes) " &
         "happen on the user's real computer \xe2\x80\x94 a different system from your sandbox. " &
         "\"}"
-      discard replaceLiteralAll(content, sepOldFull2, sepNewFull)
+      discard replaceLiteralAll(content, sepOldFull, sepNewFull)
       echo &"  [OK] 14a separate filesystems: 3-way replace, {sepCount} occurrences"
       inc changes, sepCount
       inc patchesApplied
@@ -787,7 +803,7 @@ proc apply*(input: string): string =
       inc changes
       inc patchesApplied
     else:
-      echo "  [FAIL] 14b app names: 'Maps, Notes, Finder, Photos, System Settings' not found"
+      echo "  [FAIL] 14b app names: not found"
 
   # 14c: File Explorer/Finder → 3-way (Dolphin/Files/Finder)
   block:
@@ -817,24 +833,33 @@ proc apply*(input: string): string =
     else:
       echo "  [FAIL] 14d CU env prompt: environment sentence anchor not found"
 
+  # Final check
   if patchesApplied < EXPECTED_PATCHES:
-    raise newException(ValueError,
-      &"Only {patchesApplied}/{EXPECTED_PATCHES} patches applied — check [FAIL] messages above")
-
-  if content != original:
-    echo &"  [PASS] {patchesApplied}/{EXPECTED_PATCHES} sub-patches applied ({changes} content changes)"
-  else:
-    raise newException(ValueError, "No changes made")
+    echo &"  [FAIL] Only {patchesApplied}/{EXPECTED_PATCHES} patches applied -- check [FAIL] messages above"
+    # Still write partial changes so the build can be inspected
+    quit(1)
 
   return content
 
 when isMainModule:
   if paramCount() != 1:
-    stderr.writeLine "Usage: fix_computer_use_linux <path_to_index.js>"
+    echo "Usage: fix_computer_use_linux <path_to_index.js>"
     quit(1)
-  let file = paramStr(1)
+
+  let filePath = paramStr(1)
   echo "=== Patch: fix_computer_use_linux ==="
-  echo &"  Target: {file}"
-  let input = readFile(file)
+  echo "  Target: " & filePath
+
+  if not fileExists(filePath):
+    echo "  [FAIL] File not found: " & filePath
+    quit(1)
+
+  let input = readFile(filePath)
   let output = apply(input)
-  writeFile(file, output)
+
+  if output != input:
+    writeFile(filePath, output)
+    echo &"  [PASS] {EXPECTED_PATCHES}/{EXPECTED_PATCHES} sub-patches applied ({output.len - input.len} bytes added)"
+  else:
+    echo "  [FAIL] No changes made"
+    quit(1)

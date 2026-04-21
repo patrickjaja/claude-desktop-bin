@@ -301,6 +301,19 @@ jobs:
         with:
           name: claude-setup-exe
 
+      - name: Build kwin-portal-bridge
+        run: |
+          echo "=== Installing Rust toolchain ==="
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+          source "$HOME/.cargo/env"
+          echo "=== Cloning kwin-portal-bridge ==="
+          git clone --depth 1 https://github.com/patrickjaja/kwin-portal-bridge.git
+          echo "=== Building kwin-portal-bridge ==="
+          cd kwin-portal-bridge
+          cargo build --release
+          cd ..
+          echo "kwin-portal-bridge built successfully"
+
       - name: Build Patched Tarball
         id: build
         run: |
@@ -309,6 +322,11 @@ jobs:
           mkdir -p /tmp/build-input /tmp/build-output
           cp Claude-Setup-x64.exe /tmp/build-input/
           cp -r scripts patches js /tmp/build-input/
+          # Copy kwin-portal-bridge binary if compiled
+          if [ -f kwin-portal-bridge/target/release/kwin-portal-bridge ]; then
+            mkdir -p /tmp/build-input/kwin-portal-bridge/target/release
+            cp kwin-portal-bridge/target/release/kwin-portal-bridge /tmp/build-input/kwin-portal-bridge/target/release/
+          fi
 
           docker run --rm \
             -v /tmp/build-input:/input:ro \
