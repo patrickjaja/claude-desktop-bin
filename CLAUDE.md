@@ -285,6 +285,23 @@ rg -i 'error|exception|fatal' ~/.config/Claude/logs/
 ls -la ~/.config/Claude/crash*
 ```
 
+### Verify KVM Cowork Mode
+
+```bash
+# Is cowork-svc running in KVM mode? (look for --backend kvm + --vfs-helper child)
+pgrep -a cowork-svc
+
+# Which socket? kvm = sandboxed VM, vm = native host
+ls /run/user/1000/cowork-*-service.sock
+
+# VM boot logs (only present in KVM mode — native doesn't produce these)
+grep -a '\[VM:start\]\|\[VM\] Network' ~/.config/Claude/logs/cowork_vm_node.log | tail -10
+
+# Session file ownership: VM uses random usernames (e.g. keen-fervent-clarke), native uses your user
+AUDIT=$(find ~/.config/Claude/local-agent-mode-sessions -name "audit.jsonl" -printf '%T@ %p\n' | sort -n | tail -1 | cut -d' ' -f2)
+ls -la "$(dirname "$AUDIT")/outputs/"
+```
+
 ### Dispatch Debug Workflow
 
 When dispatch responses don't render or features fail, use this sequence:
