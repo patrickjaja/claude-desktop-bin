@@ -53,3 +53,4 @@ resources
 -
 cache
 .codex
+tmp*
