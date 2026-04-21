@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Thin wrapper over patches-nim/Makefile: parallel incremental build of
+# Thin wrapper over patches/Makefile: parallel incremental build of
 # every Nim patch. Called from build-patched-tarball.sh.
 #
 # Fallback cascade:
@@ -8,15 +8,16 @@
 #      package isn't installed), run `nimble install -y regex` and retry.
 #   3. If any native compile still fails, fall back to building inside the
 #      official nimlang/nim Docker image.
-#   4. If none of those work, warn and exit 0 — the Python patches will
-#      run instead (slower, but functional).
+#   4. If none of those work, error out — Nim patches are required.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(dirname "$SCRIPT_DIR")"
-NIM_DIR="$REPO_DIR/patches-nim"
+PATCHES_DIR="${1:-$REPO_DIR/patches}"
+shift 2>/dev/null || true
 
-if [ ! -d "$NIM_DIR" ]; then
+if [ ! -d "$PATCHES_DIR" ] || ! ls "$PATCHES_DIR"/*.nim &>/dev/null; then
+    echo "[nim] No .nim files found in patches/ — nothing to compile"
     exit 0
 fi
 
@@ -26,22 +27,22 @@ MAKE_ARGS=("${@:-all}")
 
 log() { echo "[nim] $*"; }
 
-# Run `make` and capture stdout+stderr. Returns the make exit code; the
-# combined log is written to $1 for inspection.
 run_make() {
     local logfile=$1
     shift
-    (cd "$NIM_DIR" && make -j"$JOBS" "$@") >"$logfile" 2>&1
+    (cd "$PATCHES_DIR" && make -j"$JOBS" "$@") >"$logfile" 2>&1
 }
 
 tail_log() {
-    # Show last 40 lines — enough to see the Nim compiler error without
-    # drowning the terminal in every warning.
     tail -n 40 "$1" | sed 's/^/  /'
 }
 
 is_regex_missing() {
     grep -qE "cannot open file: regex|imported module.*'regex'" "$1"
+}
+
+is_nre_missing() {
+    grep -qE "cannot open file: nre|imported module.*'nre'" "$1"
 }
 
 try_native() {
@@ -84,20 +85,14 @@ try_docker() {
     uid=$(id -u)
     gid=$(id -g)
 
-    # nimlang/nim:latest is Ubuntu 24.04 with nim + nimble + gcc preinstalled
-    # but no make, and no libpcre2 headers. We install both, fetch the
-    # `regex` nimble package, run make, then chown the build artifacts
-    # back to the invoking user so they're not root-owned on the host.
-    # Arch/Ubuntu/Debian all ship libpcre2-8.so.0, so the binary is portable
-    # between the Ubuntu build env and the host runtime env.
     docker run --rm \
         -v "$REPO_DIR:$REPO_DIR" \
-        -w "$NIM_DIR" \
+        -w "$PATCHES_DIR" \
         "$DOCKER_IMAGE" \
         bash -c "set -e
             if ! command -v make >/dev/null; then
                 apt-get update -qq
-                DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \\
+                DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
                     make
             fi
             nimble install -y regex 2>&1 || true
@@ -117,5 +112,5 @@ if try_docker; then
     exit 0
 fi
 
-log "no working Nim toolchain — patches will fall back to Python (slower)"
-exit 0
+log "[ERROR] No working Nim toolchain — cannot compile patches"
+exit 1

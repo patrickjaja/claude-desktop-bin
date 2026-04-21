@@ -58,6 +58,41 @@ Place your theme config at `~/.config/Claude/claude-desktop-bin.json`:
 - Built-in themes: `sweet`, `nord`, `catppuccin-mocha`, `catppuccin-frappe`, `catppuccin-latte`, `catppuccin-macchiato`.
 - Restart Claude Desktop to apply changes.
 
+### Chat Font Override
+
+You can override the chat font per-theme or globally. The value is any valid CSS `font-family` string:
+
+```json
+{
+  "activeTheme": "nord",
+  "chatFont": "'Fira Sans', sans-serif",
+  "themes": {
+    "my-custom-theme": {
+      "--bg-000": "220 17% 20%",
+      "chatFont": "'JetBrains Mono', monospace"
+    }
+  }
+}
+```
+
+- Per-theme `chatFont` (inside a theme object) takes precedence over the global `chatFont`.
+- This overrides the `font-claude-response-body` and `font-claude-response-title` CSS classes used by Claude's message text in both Chat and Cowork tabs.
+- The font must be installed on your system.
+- Only system-installed fonts are supported (no Google Fonts / remote loading).
+
+To find available fonts on your system:
+
+```bash
+# List all installed font families
+fc-list : family | sort -u
+
+# Search for a specific font
+fc-list : family | grep -i "fira"
+
+# Show fonts with style info
+fc-list : family style | grep -i "mono"
+```
+
 ## Extracting HTML & CSS for Reference
 
 To inspect the actual HTML structure and CSS classes used by each window:

@@ -50,7 +50,7 @@ Description: Claude AI Desktop Application
   * gnome-screenshot - Screenshot fallback
  .
  Other optional dependencies:
-  * socat - Cowork socket health check in launcher
+  * socat - Faster Quick Entry toggle via socket (~2ms vs ~25ms python3 — not required)
   * nodejs - For third-party MCP servers requiring system Node.js
  .
  Note: This is an unofficial Linux port of the official Claude

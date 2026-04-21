@@ -35,6 +35,10 @@ if [ ! -d "$APP_CONTENTS/.vite" ]; then
     exit 1
 fi
 
+# Compile Nim patches first (required for validation)
+echo "Compiling Nim patches..."
+"$SCRIPT_DIR/compile-nim-patches.sh"
+
 echo "==================================="
 echo "  Patch Validation Report"
 echo "==================================="
@@ -46,7 +50,7 @@ PASSED=0
 FAILED=0
 SKIPPED=0
 
-for patch_file in "$PATCHES_DIR"/*.py "$PATCHES_DIR"/*.js; do
+for patch_file in "$PATCHES_DIR"/*.nim "$PATCHES_DIR"/*.js; do
     [ -f "$patch_file" ] || continue
 
     TOTAL=$((TOTAL + 1))
@@ -70,18 +74,15 @@ for patch_file in "$PATCHES_DIR"/*.py "$PATCHES_DIR"/*.js; do
 
     # Resolve the target path (handle glob patterns)
     if [[ "$target" == *"*"* ]]; then
-        # Has glob pattern - use find
         dir_part=$(dirname "$target")
         file_pattern=$(basename "$target")
-        # Strip app.asar.contents/ prefix if present
         search_dir="$APP_CONTENTS/${dir_part#app.asar.contents/}"
         actual_target=$(find "$search_dir" -name "$file_pattern" 2>/dev/null | head -1)
     else
-        # Direct path - strip app.asar.contents/ prefix if present
         actual_target="$APP_CONTENTS/${target#app.asar.contents/}"
     fi
 
-    # For replace patches, target doesn't need to exist (we're creating it)
+    # For replace patches, target doesn't need to exist
     if [ "$patch_type" = "replace" ]; then
         echo "  Resolved: (will be created)"
         echo "  Status: PASS (file replacement)"
@@ -92,7 +93,6 @@ for patch_file in "$PATCHES_DIR"/*.py "$PATCHES_DIR"/*.js; do
 
     if [ -z "$actual_target" ] || [ ! -f "$actual_target" ]; then
         echo "  Status: FAIL (target file not found)"
-        echo "  Searched: $search_dir/$file_pattern"
         FAILED=$((FAILED + 1))
         echo ""
         continue
@@ -100,12 +100,20 @@ for patch_file in "$PATCHES_DIR"/*.py "$PATCHES_DIR"/*.js; do
 
     echo "  Resolved: $actual_target"
 
-    # For Python patches, run them on a copy of the file
-    if [ "$patch_type" = "python" ]; then
+    # For Nim patches, run the compiled binary on a copy
+    if [ "$patch_type" = "nim" ]; then
+        nim_bin="$PATCHES_DIR/${filename%.nim}"
+        if [ ! -x "$nim_bin" ]; then
+            echo "  Status: FAIL (compiled binary not found: $nim_bin)"
+            FAILED=$((FAILED + 1))
+            echo ""
+            continue
+        fi
+
         tmp_file=$(mktemp)
         cp "$actual_target" "$tmp_file"
 
-        output=$(python3 "$patch_file" "$tmp_file" 2>&1)
+        output=$("$nim_bin" "$tmp_file" 2>&1)
         result=$?
         echo "$output" | sed 's/^/  /'
         if [ $result -eq 0 ]; then

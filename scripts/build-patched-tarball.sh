@@ -24,6 +24,18 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 PATCHES_DIR="$PROJECT_DIR/patches"
 ELECTRON_CACHE_DIR="$PROJECT_DIR/cache"
 
+# If patches dir is read-only (e.g. CI bind-mount), copy to a writable location
+# so Nim can write .nimcache and compiled binaries alongside the sources.
+if [ -d "$PATCHES_DIR" ] && ! touch "$PATCHES_DIR/.write-test" 2>/dev/null; then
+    WRITABLE_PATCHES="$(mktemp -d)/patches"
+    cp -r "$PATCHES_DIR" "$WRITABLE_PATCHES"
+    # Also copy js/ dir (Nim patches embed snippets via staticRead with ../js/ paths)
+    [ -d "$PROJECT_DIR/js" ] && cp -r "$PROJECT_DIR/js" "$(dirname "$WRITABLE_PATCHES")/js"
+    PATCHES_DIR="$WRITABLE_PATCHES"
+else
+    rm -f "$PATCHES_DIR/.write-test" 2>/dev/null
+fi
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -153,15 +165,11 @@ if ls "$WORK_DIR/extract/lib/net45/resources/"*.json 1> /dev/null 2>&1; then
     cp "$WORK_DIR/extract/lib/net45/resources/"*.json app.asar.contents/resources/i18n/
 fi
 
-# Compile Nim ports of the patches (no-op if already up-to-date). The
-# Python orchestrator below will prefer the native binary when available
-# and fall back to the .py source otherwise, so Nim is optional but gives
-# roughly a 10× speedup on the regex-heavy workload.
-log_info "Compiling Nim patches (if needed)..."
-"$SCRIPT_DIR/compile-nim-patches.sh"
+# Compile Nim patches (native build or Docker fallback)
+log_info "Compiling Nim patches..."
+"$SCRIPT_DIR/compile-nim-patches.sh" "$PATCHES_DIR"
 
-# Apply all patches via the orchestrator. It dispatches to the compiled
-# Nim binary for each patch when present, and to the Python script otherwise.
+# Apply all patches via orchestrator
 log_info "Applying patches..."
 if ! python3 "$SCRIPT_DIR/apply_patches.py" "$PATCHES_DIR" "$WORK_DIR/app"; then
     log_error "One or more patches failed to apply"

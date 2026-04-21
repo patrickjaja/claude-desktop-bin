@@ -1,14 +1,14 @@
 # Claude Desktop Feature Flag Architecture
 
-Reference documentation for the feature flag system in Claude Desktop's Electron app. This documents v1.3109.0 internals to aid patch maintenance.
+Reference documentation for the feature flag system in Claude Desktop's Electron app. This documents v1.3561.0 internals to aid patch maintenance.
 
 ## Overview
 
 19 feature flags are controlled by a 3-layer system:
 
-1. **`J0()` (static)** - Calls individual feature functions, builds base object (18 features)
-2. **`ewA` (async merger)** - Spreads `J0()`, adds `louderPenguin` + `operon` + `coworkKappa` as async overrides
-3. **IPC handler** - Calls `ewA`, validates against schema, sends to renderer
+1. **`A_()` (static)** - Calls individual feature functions, builds base object (18 features)
+2. **`gwA` (async merger)** - Spreads `A_()`, adds `louderPenguin` + `operon` + `coworkKappa` as async overrides
+3. **IPC handler** - Calls `gwA`, validates against schema, sends to renderer
 
 Feature name strings (`chillingSlothFeat`, `louderPenguin`, etc.) are runtime IPC identifiers, **not minified** - they are stable pattern anchors.
 
@@ -16,59 +16,59 @@ Feature name strings (`chillingSlothFeat`, `louderPenguin`, etc.) are runtime IP
 
 | # | Feature | Function | Gate | Purpose |
 |---|---------|----------|------|---------|
-| 1 | `nativeQuickEntry` | `L4n()` | `platform !== "darwin"` + macOS >= 13 | Native Quick Entry (macOS only) |
-| 2 | `quickEntryDictation` | `F4n()` | `platform !== "darwin"` + macOS >= 14.0 + mic | Quick Entry dictation |
-| 3 | `customQuickEntryDictationShortcut` | direct value `SSe` | None | Custom dictation shortcut value |
-| 4 | `plushRaccoon` | `ESe(() => SSe)` | **ESe() production gate** | Custom dictation shortcut (dev-gated) |
-| 5 | `quietPenguin` | `ESe(W4n)` | **ESe()** + inner `W4n()` returns supported on darwin | Code-related feature (dev-gated) |
-| 6 | `louderPenguin` | `await J4n()` in ode only | **async override** in ode; platform gate (darwin/win32) + GrowthBook `4116586025` | **Code tab** |
-| 7 | `chillingSlothFeat` | `j4n()` | `WhA` variable check (darwin\|\|win32) | Local Agent Mode / Cowork |
-| 8 | `chillingSlothEnterprise` | `U4n()` | Org config check | Enterprise disable for Claude Code |
-| 9 | `chillingSlothLocal` | `q4n()` | **None** (always supported) | Local sessions |
-| 10 | `yukonSilver` | `ade()` | Platform/arch gate + org config (has native Linux support!) | Secure VM |
-| 11 | `yukonSilverGems` | `obt()` | Depends on `yukonSilver` (`ade()`) | VM extensions |
-| 12 | `yukonSilverGemsCache` | `obt()` | Depends on `yukonSilver` (`ade()`) | VM extensions cache |
-| 13 | `wakeScheduler` | `ESe(X4n)` | **ESe() gate** + `platform !== "darwin"` + macOS >= 13.0 | macOS Login Items / wake scheduling |
-| 14 | `desktopTopBar` | `K4n()` | **None** (always supported) | Desktop top bar |
-| 15 | `ccdPlugins` | `SSe` (constant) | **None** (always supported) | CCD Plugins UI (Add plugins, Browse plugins) |
-| 16 | `floatingAtoll` | `Z4n()` | **None** (always supported, unconditional) | Floating mini-window |
-| 17 | `operon` | static: `eDn()` (unavailable) + async: `await ior()` in ode | blocks win32, checks yukonSilver + GrowthBook `1306813456` | Nest — 120+ IPC endpoints, 33 sub-interfaces |
-| 18 | `computerUse` | `Y4n()` | Set-based check on `process.platform` | Computer use feature flag (**patched for Linux** via Set modification) |
-| 19 | `coworkKappa` | static: `tDn()` (unavailable) + async: `await rDn()` in ode | Depends on yukonSilver + GrowthBook `123929380` | Memory consolidation — `consolidate-memory` skill |
+| 1 | `nativeQuickEntry` | `Amr()` | `platform !== "darwin"` + macOS >= 13 | Native Quick Entry (macOS only) |
+| 2 | `quickEntryDictation` | `emr()` | `platform !== "darwin"` + macOS >= 14.0 + mic | Quick Entry dictation |
+| 3 | `customQuickEntryDictationShortcut` | direct value `rE` | None | Custom dictation shortcut value |
+| 4 | `plushRaccoon` | `GGA(() => rE)` | **GGA() production gate** | Custom dictation shortcut (dev-gated) |
+| 5 | `quietPenguin` | `GGA(cmr)` | **GGA()** + inner `cmr()` returns supported on darwin | Code-related feature (dev-gated) |
+| 6 | `louderPenguin` | `await Emr()` in gwA only | **async override** in gwA; platform gate (darwin/win32) + GrowthBook `4116586025` | **Code tab** |
+| 7 | `chillingSlothFeat` | `imr()` | `bfA` variable check (darwin\|\|win32) | Local Agent Mode / Cowork |
+| 8 | `chillingSlothEnterprise` | `tmr()` | Org config check | Enterprise disable for Claude Code |
+| 9 | `chillingSlothLocal` | `rmr()` | **None** (always supported) | Local sessions |
+| 10 | `yukonSilver` | `cwA()` | Platform/arch gate + org config (has native Linux support!) | Secure VM |
+| 11 | `yukonSilverGems` | `zxe()` | Depends on `yukonSilver` (`cwA()`) | VM extensions |
+| 12 | `yukonSilverGemsCache` | `zxe()` | Depends on `yukonSilver` (`cwA()`) | VM extensions cache |
+| 13 | `wakeScheduler` | `GGA(Cmr)` | **GGA() gate** + `platform !== "darwin"` + macOS >= 13.0 | macOS Login Items / wake scheduling |
+| 14 | `desktopTopBar` | `lmr()` | **None** (always supported) | Desktop top bar |
+| 15 | `ccdPlugins` | `rE` (constant) | **None** (always supported) | CCD Plugins UI (Add plugins, Browse plugins) |
+| 16 | `floatingAtoll` | `Imr()` | **None** (always supported, unconditional) | Floating mini-window |
+| 17 | `operon` | static: `dmr()` (unavailable) + async: `await` in gwA | blocks win32, checks yukonSilver + GrowthBook `1306813456` | Nest — 120+ IPC endpoints, 33 sub-interfaces |
+| 18 | `computerUse` | `umr()` | Set-based check on `process.platform` | Computer use feature flag (**patched for Linux** via Set modification) |
+| 19 | `coworkKappa` | static: `Bmr()` (unavailable) + async: `await` in gwA | Depends on yukonSilver + GrowthBook `123929380` | Memory consolidation — `consolidate-memory` skill |
 
-## The aFA() Production Gate
+## The GGA() Production Gate
 
 ```javascript
-function aFA(e){return wA.app.isPackaged?{status:"unavailable"}:e()}
+function GGA(e){return pA.app.isPackaged?{status:"unavailable"}:e()}
 ```
 
-In production builds (`app.isPackaged === true`), aFA() returns `{status:"unavailable"}` **without calling** the wrapped function. Only in development builds does it call `e()`.
+In production builds (`app.isPackaged === true`), GGA() returns `{status:"unavailable"}` **without calling** the wrapped function. Only in development builds does it call `e()`.
 
-**Features gated by aFA():** `plushRaccoon`, `quietPenguin`, `wakeScheduler`
+**Features gated by GGA():** `plushRaccoon`, `quietPenguin`, `wakeScheduler`
 
-Note: `louderPenguin` is no longer in nA() at all (was QL()-gated in earlier versions). It exists only in ode as `await J4n()`, which has its own platform gate (darwin/win32 only) + server feature flag check. `operon` now has both a static entry (unconditionally unavailable) and an async override in ode as `await ior()` (with 5-second delay). `coworkKappa` is similarly async-only: static returns unavailable, async `rDn()` checks yukonSilver + flag `123929380`.
+Note: `louderPenguin` is no longer in A_() at all (was QL()-gated in earlier versions). It exists only in gwA as `await Emr()`, which has its own platform gate (darwin/win32 only) + server feature flag check. `operon` now has both a static entry (unconditionally unavailable) and an async override in gwA. `coworkKappa` is similarly async-only: static returns unavailable, async checks yukonSilver + flag `123929380`.
 
-This is why patching the inner functions alone is insufficient - G1e() never calls them in packaged builds.
+This is why patching the inner functions alone is insufficient - GGA() never calls them in packaged builds.
 
 ## The Three Layers
 
-### Layer 1: J0() - Static Registry
+### Layer 1: A_() - Static Registry
 
 ```javascript
-function J0(){
+function A_(){
   return{
     nativeQuickEntry:...,
     quickEntryDictation:...,
     customQuickEntryDictationShortcut:...,
-    plushRaccoon:aFA(()=>...),
-    quietPenguin:aFA(...),
-    chillingSlothFeat:...,             // WhA variable check (darwin||win32)
+    plushRaccoon:GGA(()=>...),
+    quietPenguin:GGA(...),
+    chillingSlothFeat:...,             // bfA variable check (darwin||win32)
     chillingSlothEnterprise:...,
     chillingSlothLocal:...,
     yukonSilver:...,
     yukonSilverGems:...,
     yukonSilverGemsCache:...,
-    wakeScheduler:aFA(...),
+    wakeScheduler:GGA(...),
     operon:...,                        // always unavailable
     desktopTopBar:...,
     ccdPlugins:...,                    // constant {status:"supported"}
@@ -79,18 +79,18 @@ function J0(){
 }
 ```
 
-Returns 18 features synchronously. Features wrapped by `aFA()` are always `{status:"unavailable"}` in packaged builds.
+Returns 18 features synchronously. Features wrapped by `GGA()` are always `{status:"unavailable"}` in packaged builds.
 
-### Layer 2: ewA - Async Merger
+### Layer 2: gwA - Async Merger
 
 ```javascript
-const ewA=async()=>{
+const gwA=async()=>{
   const[e,A,t]=await Promise.all([...,...,...]);
-  return{...J0(),louderPenguin:e,operon:A,coworkKappa:t}
+  return{...A_(),louderPenguin:e,operon:A,coworkKappa:t}
 };
 ```
 
-Uses `Promise.all` to parallelize louderPenguin (`J4n()`), operon (`ior()`), and coworkKappa (`rDn()`) async checks. Spreads `nA()` then adds the three as async overrides. `J4n()` checks platform (darwin/win32) then checks server feature flag `4116586025`. `ior()` introduces a 5-second delay, then blocks win32, checks yukonSilver, and checks GrowthBook flag `1306813456`. `rDn()` checks yukonSilver, waits 5 seconds, then checks GrowthBook flag `123929380`.
+Uses `Promise.all` to parallelize louderPenguin (`Emr()`), operon, and coworkKappa async checks. Spreads `A_()` then adds the three as async overrides. `Emr()` checks platform (darwin/win32) then checks server feature flag `4116586025`. The operon async check introduces a 5-second delay, then blocks win32, checks yukonSilver, and checks GrowthBook flag `1306813456`. The coworkKappa async check checks yukonSilver, waits 5 seconds, then checks GrowthBook flag `123929380`.
 
 **v1.1.3770 → v1.1.3918 changes:**
 - `chillingSlothEnterprise` moved from async-only (mC) to static (Fd)
@@ -141,15 +141,15 @@ Feature flags can also be affected by organization-level admin settings:
 
 Calls `ewA`, validates the result against a Zod schema, and sends it to the renderer process via IPC. The renderer uses these flags to conditionally render UI elements (e.g., Chat|Code toggle).
 
-## GrowthBook Flag Catalog (v1.3109.0)
+## GrowthBook Flag Catalog (v1.3561.0)
 
-### Boolean Flags (Ti())
+### Boolean Flags (fi())
 
 | Flag ID | Purpose | Patched? |
 |---------|---------|----------|
 | `162211072` | Prompt suggestions enable | No |
 | `286376943` | Plugin skills for system prompt — gates `getPluginSkillsForSystemPrompt` (**new in v1.2278.0**) | No |
-| `397125142` | Terminal server — gated: `sessionType==="ccd"` AND `r6e` AND this flag. CCD only, NOT cowork. `r6e` patched by `fix_dispatch_linux.py`; flag itself not patched (enabled server-side) | No |
+| `397125142` | Terminal server — gated: `sessionType==="ccd"` AND `r6e` AND this flag. CCD only, NOT cowork. `r6e` patched by `fix_dispatch_linux.nim`; flag itself not patched (enabled server-side) | No |
 | `714014285` | CLAUDE_CODE_ENABLE_FINE_GRAINED_TOOL_STREAMING | No |
 | `763725229` | Developer menu label/visibility | No |
 | `720735283` | Marketplace migration | No |
@@ -161,7 +161,7 @@ Calls `ewA`, validates the result against a Zod schema, and sends it to the rend
 | `1942781881` | Prompt suggestions in sessions | No |
 | `2051942385` | CIC can-use-tool | No |
 | `2067027393` | canLaunchCodeSession | No |
-| `2216414644` | Remote session control (Dispatch mobile) | **Yes** — bypassed in `fix_dispatch_linux.py` |
+| `2216414644` | Remote session control (Dispatch mobile) | **Yes** — bypassed in `fix_dispatch_linux.nim` |
 | `2246535838` | Local MCP server prefix (`local:`) | No |
 | `2339084909` | VM monitoring fallback (non-heartbeat) | No |
 | `2340532315` | Plugin sync on session start | No |
@@ -177,15 +177,15 @@ Calls `ewA`, validates the result against a Zod schema, and sends it to the rend
 | `3366735351` | Auto-update on ready state | No |
 | `3444158716` | Cowork resources MCP ("visualize" — show_widget tool) | No |
 | `1143815894` | hostLoopMode — non-VM cowork (bare SDK loop, no cowork service spawn) | **No** — must NOT be forced ON; doing so bypasses the cowork service, breaking skills/plugins |
-| `3558849738` | Dispatch/Spaces feature (RBe constant) | **Yes** — forced ON in `fix_dispatch_linux.py` |
-| `3572572142` | Sessions-bridge init (Dispatch) | **Yes** — forced ON in `fix_dispatch_linux.py` |
+| `3558849738` | Dispatch/Spaces feature (RBe constant) | **Yes** — forced ON in `fix_dispatch_linux.nim` |
+| `3572572142` | Sessions-bridge init (Dispatch) | **Yes** — forced ON in `fix_dispatch_linux.nim` |
 | `3691521536` | Stealth updater — nudge updates when no active sessions | No |
 | `3723845789` | Additional Cowork tools | No |
 | `3885610113` | Model name [1m] suffix for sonnet-4-6/opus-4-6 | No |
 | `4116586025` | louderPenguin / Code tab master gate | No (overridden at merger level) |
 | `4153934152` | CLAUDE_CODE_SKIP_PRECOMPACT_LOAD | No |
 | `4160352601` | VM heartbeat monitoring | No |
-| `4201169164` | **Remote orchestrator** (codename "manta") — **removed from GrowthBook** in v1.1.9669; `Hhn()` now returns hardcoded `false` (`Qhn=!1`). Code still exists but is disabled. | Indirectly — sessions-bridge gate forced ON in `fix_dispatch_linux.py` |
+| `4201169164` | **Remote orchestrator** (codename "manta") — **removed from GrowthBook** in v1.1.9669; `Hhn()` now returns hardcoded `false` (`Qhn=!1`). Code still exists but is disabled. | Indirectly — sessions-bridge gate forced ON in `fix_dispatch_linux.nim` |
 
 #### New in v1.1.9134
 
@@ -225,6 +225,15 @@ Calls `ewA`, validates the result against a Zod schema, and sends it to the rend
 | `2199295617` | AutoArchiveEngine — auto-archives sessions when PRs close | Completely removed |
 | `4201169164` | Remote orchestrator ("manta") — was already hardcoded off | Completely removed |
 
+#### New in v1.3561.0
+
+| Flag ID | Purpose | Patched? |
+|---------|---------|----------|
+| `1496676413` | SSH session plugins/MCP forwarding — gates plugin and MCP server forwarding to SSH remote sessions (6 call sites in session start, spawn, and MCP resolution) | No |
+| `2023768496` | Trusted device token — gates `coworkTrustedDeviceToken` read/write for cowork sessions | No |
+
+**Also:** `123929380` (coworkKappa) added to force-ON defaults map — Anthropic enabling consolidate-memory by default before server config loads.
+
 #### New in v1.3036.0
 
 | Flag ID | Purpose | Patched? |
@@ -246,7 +255,7 @@ Calls `ewA`, validates the result against a Zod schema, and sends it to the rend
 
 | Flag ID | Purpose | Patched? |
 |---------|---------|----------|
-| `123929380` | coworkKappa / `consolidate-memory` skill — reflective pass over memory files (merge, prune, fix). Also gates session context building for typeless sessions. | **Yes** — forced ON in `enable_local_agent_mode.py` (3 call sites) |
+| `123929380` | coworkKappa / `consolidate-memory` skill — reflective pass over memory files (merge, prune, fix). Also gates session context building for typeless sessions. | **Yes** — forced ON in `enable_local_agent_mode.nim` (3 call sites) |
 
 #### Removed in v1.2581.0
 
@@ -314,35 +323,35 @@ These dispatch-era flags were removed from GrowthBook boolean calls (code may st
 
 ## What We Patch on Linux
 
-### enable_local_agent_mode.py
+### enable_local_agent_mode.nim
 
-**Patch 1 - Individual functions:** Remove `process.platform!=="darwin"` gate from the quietPenguin inner function. Note: chillingSlothFeat uses `WhA` variable check (darwin||win32 gate; was `UMe` in v1.3036.0, `r6e` in v1.2773.0) — only 1 match now instead of 2, handled gracefully by the `elif len(matches) == 1` branch. Also inject Linux early-return in yukonSilver (`AwA()` in v1.3109.0, was `J4n()` in v1.3036.0) to bypass its platform gate (though upstream now has native Linux support too — our patch is defensive).
+**Patch 1 - Individual functions:** Remove `process.platform!=="darwin"` gate from the quietPenguin inner function. Note: chillingSlothFeat uses `bfA` variable check (darwin||win32 gate; was `WhA` in v1.3109.0, `UMe` in v1.3036.0) — only 1 match now instead of 2, handled gracefully by the `elif len(matches) == 1` branch. Also inject Linux early-return in yukonSilver (`cwA()` in v1.3561.0, was `AwA()` in v1.3109.0) to bypass its platform gate (though upstream now has native Linux support too — our patch is defensive).
 
-**Patch 3 - ode merger override:** Append to the `ode` return object:
+**Patch 3 - gwA merger override:** Append to the `gwA` return object:
 ```javascript
 ,quietPenguin:{status:"supported"},louderPenguin:{status:"supported"},chillingSlothFeat:{status:"supported"},chillingSlothLocal:{status:"supported"},yukonSilver:{status:"supported"},yukonSilverGems:{status:"supported"},ccdPlugins:{status:"supported"},computerUse:{status:"supported"}
 ```
 
-This bypasses the G1e() gate by overriding at the merger level (8 total overrides). The spread order ensures our values win:
+This bypasses the GGA() gate by overriding at the merger level (8 total overrides). The spread order ensures our values win:
 ```
-...Hb()           -> quietPenguin: {status:"unavailable"}  (from G1e)
+...A_()           -> quietPenguin: {status:"unavailable"}  (from GGA)
 ...our overrides  -> quietPenguin: {status:"supported"}    (wins)
 ```
 
-Note: `chillingSlothLocal` and `ccdPlugins` overrides are defensive — both are already `{status:"supported"}`, but the overrides protect against future gating. `yukonSilverGemsCache` is NOT overridden but inherits support from the `Ble()` (yukonSilver) function patch in Patch 1b. `coworkKappa` is overridden to `{status:"supported"}` AND its GrowthBook flag `123929380` is forced ON (Patch 3b) — this enables the `/consolidate-memory` skill and auto-memory directory for sessions.
+Note: `chillingSlothLocal` and `ccdPlugins` overrides are defensive — both are already `{status:"supported"}`, but the overrides protect against future gating. `yukonSilverGemsCache` is NOT overridden but inherits support from the `cwA()` (yukonSilver) function patch in Patch 1b. `coworkKappa` is overridden to `{status:"supported"}` AND its GrowthBook flag `123929380` is forced ON (Patch 3b) — this enables the `/consolidate-memory` skill and auto-memory directory for sessions.
 
 ### Cowork on Linux (experimental)
 
 As of v1.1.2685, Cowork uses a decoupled architecture with a TypeScript VM client that communicates with an external service over a socket. This makes Linux support feasible:
 
-- **`fix_cowork_linux.py`** patches the VM client loader to include Linux (not just `win32`)
+- **`fix_cowork_linux.nim`** patches the VM client loader to include Linux (not just `win32`)
 - The Named Pipe path is replaced with a Unix domain socket on Linux
 - **`claude-cowork-service`** (separate Go daemon at `/home/patrickjaja/development/claude-cowork-service`) provides native execution backend — 18 RPC methods, process spawning, path remapping
-- `chillingSlothFeat`, `chillingSlothLocal`, `yukonSilver`, `yukonSilverGems`, and `ccdPlugins` are all overridden to `{status:"supported"}` in the Mle merger
+- `chillingSlothFeat`, `chillingSlothLocal`, `yukonSilver`, `yukonSilverGems`, and `ccdPlugins` are all overridden to `{status:"supported"}` in the gwA merger
 
 Without the daemon running, Cowork will show connection errors naturally in the UI.
 
-### Dispatch on Linux (fix_dispatch_linux.py)
+### Dispatch on Linux (fix_dispatch_linux.nim)
 
 Dispatch is a remote task orchestration feature that lets you send tasks from your phone to your desktop. It's built on top of the Cowork sessions infrastructure and uses Anthropic's "environments bridge" API.
 
@@ -481,7 +490,7 @@ Defined in `ODt` array alongside `AskUserQuestion` and `ExitPlanMode`. UI comman
 | `wakeScheduler` | Requires macOS Login Items API + macOS >= 13.0 |
 | `floatingAtoll` | Now always supported upstream — not patched (no longer needs it) |
 | `operon` | Requires VM infrastructure (Nest); flag not enabled server-side |
-| ~~`coworkKappa`~~ | **Enabled on Linux** — flag `123929380` forced ON + merger override in `enable_local_agent_mode.py` |
+| ~~`coworkKappa`~~ | **Enabled on Linux** — flag `123929380` forced ON + merger override in `enable_local_agent_mode.nim` |
 
 ### Known Issues (v1.3109.0)
 
@@ -538,4 +547,5 @@ Feature name strings are stable across versions because they're IPC identifiers 
 | v1.2581.0 | `iA()` | `jue` | `XEe()` | **New `coworkKappa` feature** (19 features, 3 async overrides); `Yr()` flag reader; platform vars `_s`/`c3e`; async merger now 3-way `Promise.all` (louderPenguin + operon + coworkKappa); 1 new flag (`123929380` coworkKappa/consolidate-memory); 1 removed flag (`4040257062` memory path routing); `fix_tray_dbus.py` updated (`[\w$]+` for tray variable with `$`) |
 | v1.2773.0 | `Hb()` | `Mle` | `G1e()` | Same 19 features; `Wr()` flag reader; `QR()` listener; `us()`/`cA()` value flags; platform vars `pi`/`vs`/`r6e`; `chillingSlothFeat` gate changed from `process.platform!=="darwin"` to `r6e` (darwin\|\|win32); `floatingAtoll` now always supported (`Rkn()` unconditional, was preference-gated); 4 new flags (`919950191` LAM tool search, `2140326016` author stubs error, `2216480658` VM outputs, `3858743149` maxThinkingTokens); 3 removed flags (`1585356617` epitaxy, `2199295617` AutoArchive, `4201169164` remote orchestrator); MCP registration `One()`→`ooe()`; computer-use Set `ese`→`ele`; all patches compatible |
 | v1.3036.0 | `nA()` | `ode` | `ESe()` | Same 19 features; `Wr()` flag reader unchanged; `Xk()` listener (was `QR()`); `fs()`/`wA()` value flags (was `us()`/`cA()`); platform vars `hi` (darwin, unchanged)/`xce` (win32, was `vs`)/`UMe` (darwin\|\|win32, was `r6e`); 4 new flags (`658929541` LAM setModel buffer, `1496450144` CLAUDE_CODE_ENABLE_TASKS, `2800354941` plugin/skill sort, `2815031518` LocalSessionMgr setModel buffer); 3 removed flags (`159894531` ENABLE_TOOL_SEARCH, `919950191` LAM tool search, `2678455445` MCP SDK server mode); MCP registration `ooe()`→`kce()`; **Patch 3c removed from `enable_local_agent_mode.py`** — upstream dropped the Desktop-side ENABLE_TOOL_SEARCH="false" override, user settings.json now passes through; all other patches compatible |
+| v1.3561.0 | `A_()` | `gwA` | `GGA()` | Same 19 features; `Ti()`→`fi()` flag reader; `wG()`→`bG()` listener; `Es()`/`di()`→`zn()`/`f_()` value flags; platform vars `en` unchanged (darwin), `ws`→`ys` (win32), `WhA`→`bfA` (darwin\|\|win32); MCP registration `DfA()`→`gpA()`; computer-use Set `ele`→`rwA`, checker `Jne()`→`nBA()`; 2 new GrowthBook flags (`1496676413` SSH plugins, `2023768496` trusted device); `123929380` added to force-ON defaults; locale i18n moved to `ion-dist/i18n/` with `.overrides.json`; all 42 patches compatible without regex changes |
 | v1.3109.0 | `J0()` | `ewA` | `aFA()` | Same 19 features; **webpack re-minify only — no GrowthBook flag additions/removals, no new MCP servers, no new IPC handlers, no new `process.platform` gates vs v1.3036.0**; `Wr()`→`Ti()` flag reader; `Xk()`→`wG()` listener; `fs()`/`wA()`→`Es()`/`di()` value flags; platform vars `hi`→`en` (darwin), `xce`→`ws` (win32), `UMe`→`WhA` (darwin\|\|win32); MCP registration `kce()`→`DfA()`; dispatch IPC bridge re-minified (`rjt` item `s→n`, auto-wake session `n→i`, notification `s→n`, child session `e→A`, index `r→t`, logger `B/P→M`) — `fix_dispatch_linux.py` sub-patches F and J updated with `[\w$]+` captures; all 41 patches compatible without regex changes elsewhere |

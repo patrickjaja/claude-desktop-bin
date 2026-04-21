@@ -1,0 +1,13 @@
+# Compiled Nim patch binaries (same name as .nim but no extension)
+fix_*
+add_*
+enable_*
+
+# But DO track the Nim source files
+!*.nim
+
+# Nim build cache
+.nimcache/
+
+# Python bytecode (legacy)
+__pycache__/

@@ -20,7 +20,7 @@ on:
 #                                     ├── package-deb      (matrix: amd64, arm64)
 #                                     ├── package-rpm      (matrix: x86_64, aarch64)
 #                                     ├── test-nix
-#                                     └── generate-pkgbuild
+#                                     └── generate-pkgbuild ──► test-pkgbuild (makepkg + namcap)
 #                                              │
 #                                     release (needs all above, deploys APT + gh-pages)
 #                                              │
@@ -278,13 +278,10 @@ jobs:
           fi
           echo "All .desktop files passed validation"
 
-      - name: Run ruff on Python patches
+      - name: Verify Nim patches compile
         run: |
-          pip install ruff
-          echo "=== Running ruff check on patches ==="
-          ruff check patches/
-          echo "=== Running ruff format check on patches ==="
-          ruff format --check patches/
+          echo "=== Checking Nim patch syntax (compile check) ==="
+          bash scripts/compile-nim-patches.sh
 
   # ================================================================
   # Job 2: Build the patched tarball (the main bottleneck)
@@ -311,7 +308,7 @@ jobs:
 
           mkdir -p /tmp/build-input /tmp/build-output
           cp Claude-Setup-x64.exe /tmp/build-input/
-          cp -r scripts patches /tmp/build-input/
+          cp -r scripts patches js /tmp/build-input/
 
           docker run --rm \
             -v /tmp/build-input:/input:ro \
@@ -322,7 +319,10 @@ jobs:
 
               echo '=== Installing build dependencies ==='
               pacman -Syu --noconfirm
-              pacman -S --noconfirm p7zip python nodejs npm git icoutils xorg-server-xvfb electron shellcheck
+              pacman -S --noconfirm p7zip python nodejs npm git icoutils xorg-server-xvfb electron shellcheck nim nimble
+
+              echo '=== Installing Nim regex package ==='
+              nimble install -y regex
 
               echo '=== Installing asar from AUR ==='
               useradd -m builder
@@ -503,17 +503,9 @@ jobs:
           TARBALL="claude-desktop-${{ needs.check-version.outputs.version }}-linux.tar.gz"
           bash scripts/rebuild-pty-for-arch.sh --arch aarch64 "$TARBALL"
 
-      - name: Get Electron version
-        id: electron
-        run: |
-          ELECTRON_VERSION=$(curl -s https://api.github.com/repos/electron/electron/releases/latest | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/')
-          echo "Using Electron version: ${ELECTRON_VERSION}"
-          echo "electron_version=${ELECTRON_VERSION}" >> $GITHUB_OUTPUT
-
       - name: Build AppImage (${{ matrix.arch }})
         env:
           VERSION: ${{ needs.check-version.outputs.version }}
-          ELECTRON_VERSION: ${{ steps.electron.outputs.electron_version }}
         run: |
           TARBALL="claude-desktop-${VERSION}-linux.tar.gz"
 
@@ -871,10 +863,99 @@ jobs:
           retention-days: 1
 
   # ================================================================
+  # Job 3f: Test PKGBUILD with makepkg + namcap — catches packaging bugs
+  # ================================================================
+  test-pkgbuild:
+    needs: [check-version, build-tarball, generate-pkgbuild]
+    if: needs.check-version.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download tarball
+        uses: actions/download-artifact@v4
+        with:
+          name: tarball
+
+      - name: Download PKGBUILD
+        uses: actions/download-artifact@v4
+        with:
+          name: pkgbuild
+
+      - name: Test makepkg (cross-device build dir)
+        env:
+          VERSION: ${{ needs.check-version.outputs.version }}
+        run: |
+          # Point the PKGBUILD source at the local tarball so makepkg doesn't
+          # need to download anything (the release hasn't been published yet).
+          # The electron zip is fetched by makepkg from GitHub (not overridden).
+          TARBALL="claude-desktop-${VERSION}-linux.tar.gz"
+          TARBALL_SHA=$(sha256sum "$TARBALL" | cut -d' ' -f1)
+
+          # Extract electron version from PKGBUILD to keep the electron source intact
+          ELECTRON_VER=$(grep '^_electron_ver=' PKGBUILD | cut -d= -f2)
+
+          # Override tarball source with local file; keep electron zip URL
+          ELECTRON_SRC="electron-v${ELECTRON_VER}-linux-x64.zip::https://github.com/electron/electron/releases/download/v${ELECTRON_VER}/electron-v${ELECTRON_VER}-linux-x64.zip"
+          sed -i "s|^source_x86_64=.*|source_x86_64=(\"${TARBALL}\" \"${ELECTRON_SRC}\")|" PKGBUILD
+          sed -i "s|^sha256sums_x86_64=.*|sha256sums_x86_64=('${TARBALL_SHA}' 'SKIP')|" PKGBUILD
+
+          # Copy everything into a staging dir for the Docker bind-mount
+          mkdir -p /tmp/pkgbuild-test
+          cp PKGBUILD .SRCINFO "$TARBALL" /tmp/pkgbuild-test/
+
+          docker run --rm \
+            --tmpfs /tmp/cross-device:exec,size=2g \
+            -v /tmp/pkgbuild-test:/input:ro \
+            archlinux:base-devel \
+            bash -c '
+              set -euo pipefail
+
+              # Install build deps (electron is bundled, not a system dependency)
+              pacman -Syu --noconfirm
+              pacman -S --noconfirm unzip namcap
+
+              # Set up a non-root builder (makepkg refuses to run as root)
+              useradd -m builder
+              echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+
+              # Use tmpfs as the build directory — tests on a different filesystem
+              BUILD_DIR=/tmp/cross-device/pkgbuild
+              mkdir -p "$BUILD_DIR"
+              cp /input/* "$BUILD_DIR/"
+              chown -R builder:builder "$BUILD_DIR"
+
+              # Run makepkg (skip PGP checks, use local source)
+              cd "$BUILD_DIR"
+              su builder -c "makepkg -sf --noconfirm --skipchecksums 2>&1"
+
+              # Run namcap on the built package to catch dependency issues
+              PKG=$(ls "$BUILD_DIR"/*.pkg.tar.zst 2>/dev/null | head -1)
+              if [ -n "$PKG" ]; then
+                echo ""
+                echo "=== namcap package lint ==="
+                # namcap returns 0 even with warnings; grep for errors
+                NAMCAP_OUT=$(namcap "$PKG" 2>&1 || true)
+                echo "$NAMCAP_OUT"
+
+                # Fail only on namcap errors (E:), not warnings (W:)
+                # W: lines about implicitly satisfied deps, unstripped ELF, etc. are expected
+                # for packages that bundle Electron binaries
+                if echo "$NAMCAP_OUT" | grep -qE "^claude-desktop-bin E:.*dependency"; then
+                  echo "::error::namcap detected dependency errors in the built package"
+                  exit 1
+                fi
+
+                echo "namcap passed (no dependency errors)"
+              else
+                echo "::error::makepkg produced no package file"
+                exit 1
+              fi
+            '
+
+  # ================================================================
   # Job 4: Release & Publish (fan-in — waits for ALL parallel jobs)
   # ================================================================
   release:
-    needs: [check-version, build-tarball, lint-scripts, package-appimage, package-deb, package-rpm, test-nix, generate-pkgbuild]
+    needs: [check-version, build-tarball, lint-scripts, package-appimage, package-deb, package-rpm, test-nix, generate-pkgbuild, test-pkgbuild]
     if: needs.check-version.outputs.should_build == 'true'
     runs-on: ubuntu-latest
     permissions:
@@ -1082,7 +1163,7 @@ jobs:
           {
             "schemaVersion": 1,
             "label": "Claude Desktop",
-            "message": "v${VERSION} (latest)",
+            "message": "v${VERSION}-${PKGREL} (latest)",
             "color": "brightgreen"
           }
           BADGE_EOF
@@ -1099,7 +1180,7 @@ jobs:
           {
             "schemaVersion": 1,
             "label": "APT repo",
-            "message": "v${VERSION} (${DEB_ARCHS:-none})",
+            "message": "v${VERSION}-${PKGREL} (${DEB_ARCHS:-none})",
             "color": "blue"
           }
           BADGE_EOF
@@ -1108,7 +1189,7 @@ jobs:
           {
             "schemaVersion": 1,
             "label": "RPM repo",
-            "message": "v${VERSION} (${RPM_ARCHS:-none})",
+            "message": "v${VERSION}-${PKGREL} (${RPM_ARCHS:-none})",
             "color": "blue"
           }
           BADGE_EOF
@@ -1121,7 +1202,7 @@ jobs:
           {
             "schemaVersion": 1,
             "label": "AppImage",
-            "message": "v${VERSION} (${APPIMAGE_ARCHS:-none})",
+            "message": "v${VERSION}-${PKGREL} (${APPIMAGE_ARCHS:-none})",
             "color": "blue"
           }
           BADGE_EOF
@@ -1131,7 +1212,7 @@ jobs:
           {
             "schemaVersion": 1,
             "label": "Nix flake",
-            "message": "v${VERSION}",
+            "message": "v${VERSION}-${PKGREL}",
             "color": "blue"
           }
           BADGE_EOF

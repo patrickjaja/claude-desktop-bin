@@ -52,8 +52,8 @@ sudo pacman -S --needed ydotool xdotool spectacle imagemagick
 sudo pacman -S --needed ydotool xdotool glib2 gnome-screenshot imagemagick python-gobject gst-plugin-pipewire
 # GNOME Wayland: enable Quick Entry hotkey (one-time, after install):
 # claude-desktop --install-gnome-hotkey
-# Optional: socat (cowork socket health checks, has fallback)
-# sudo pacman -S --needed socat
+# Optional: socat (faster Quick Entry toggle, ~2ms vs ~25ms python3 — not required)
+sudo pacman -S --needed socat
 ```
 On Wayland, the `ydotoold` daemon must be running — see [ydotool setup](#ydotool-setup-wayland).
 
@@ -81,8 +81,8 @@ sudo apt install ydotool xdotool kde-spectacle imagemagick
 sudo apt install ydotool xdotool libglib2.0-bin gnome-screenshot imagemagick python3-gi gstreamer1.0-pipewire
 # GNOME Wayland: enable Quick Entry hotkey (one-time, after install):
 # claude-desktop --install-gnome-hotkey
-# Optional: socat (cowork socket health checks, has fallback)
-# sudo apt install socat
+# Optional: socat (faster Quick Entry toggle, ~2ms vs ~25ms python3 — not required)
+sudo apt install socat
 ```
 
 > **Wayland users:** [Computer Use](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool) requires ydotool v1.0+, but Ubuntu/Debian ship v0.1.8 which is **too old**. Run the [ydotool setup script](#ydotool-setup-wayland) — without this, clicks will not work.
@@ -93,7 +93,7 @@ Updates are automatic via `sudo apt update && sudo apt upgrade`.
 <summary>Manual .deb install (without APT repo)</summary>
 
 ```bash
-wget https://github.com/patrickjaja/claude-desktop-bin/releases/latest/download/claude-desktop-bin_1.3109.0-1_amd64.deb
+wget https://github.com/patrickjaja/claude-desktop-bin/releases/latest/download/claude-desktop-bin_1.3561.0-1_amd64.deb
 sudo dpkg -i claude-desktop-bin_*_amd64.deb
 ```
 </details>
@@ -120,8 +120,8 @@ sudo dnf install ydotool xdotool spectacle ImageMagick
 sudo dnf install ydotool xdotool glib2 gnome-screenshot ImageMagick python3-gobject gstreamer1-plugin-pipewire
 # GNOME Wayland: enable Quick Entry hotkey (one-time, after install):
 # claude-desktop --install-gnome-hotkey
-# Optional: socat (cowork socket health checks, has fallback)
-# sudo dnf install socat
+# Optional: socat (faster Quick Entry toggle, ~2ms vs ~25ms python3 — not required)
+sudo dnf install socat
 ```
 On Wayland, the `ydotoold` daemon must be running — see [ydotool setup](#ydotool-setup-wayland).
 
@@ -131,7 +131,7 @@ Updates are automatic via `sudo dnf upgrade`.
 <summary>Manual .rpm install (without DNF repo)</summary>
 
 ```bash
-wget https://github.com/patrickjaja/claude-desktop-bin/releases/latest/download/claude-desktop-bin-1.3109.0-1.x86_64.rpm
+wget https://github.com/patrickjaja/claude-desktop-bin/releases/latest/download/claude-desktop-bin-1.3561.0-1.x86_64.rpm
 sudo dnf install ./claude-desktop-bin-*.x86_64.rpm
 ```
 </details>
@@ -162,8 +162,8 @@ claude-desktop.override {
   # glib = pkgs.glib; gnome-screenshot = pkgs.gnome-screenshot;
   # GNOME Wayland: enable Quick Entry hotkey (one-time, after install):
   # Run: claude-desktop --install-gnome-hotkey
-  # Optional: socat (cowork socket health checks, has fallback)
-  # socat = pkgs.socat;
+  # Optional: socat (faster Quick Entry toggle, ~2ms vs ~25ms python3 — not required)
+  socat = pkgs.socat;
 }
 ```
 
@@ -194,7 +194,7 @@ claude-desktop.override {
 ### AppImage (Any Distro)
 ```bash
 # Download from GitHub Releases
-wget https://github.com/patrickjaja/claude-desktop-bin/releases/latest/download/Claude_Desktop-1.3109.0-x86_64.AppImage
+wget https://github.com/patrickjaja/claude-desktop-bin/releases/latest/download/Claude_Desktop-1.3561.0-x86_64.AppImage
 chmod +x Claude_Desktop-*-x86_64.AppImage
 ./Claude_Desktop-*-x86_64.AppImage
 ```
@@ -304,23 +304,23 @@ Restart Claude Desktop after setup.
 - **Hardware Buddy (Nibblet)** - BLE companion device (M5StickC Plus) showing animated session state. Access via app menu → Developer → Open Hardware Buddy… (requires `bluez`)
 - **Multi-monitor Quick Entry** - Global hotkey (Ctrl+Alt+Space) opens on the monitor where your cursor is
 - Automated daily version checks
-- …and [38+ more patches](#patches) for native Linux integration (tray icons, window management, enterprise config, detected projects, and more)
+- …and [42+ more patches](#patches) for native Linux integration (tray icons, window management, enterprise config, detected projects, and more)
 
 ## Claude Chat
 
 The main Chat tab running natively on Linux.
 
-![Claude Chat](cc.png)
+![Claude Chat](docs/chat/cc.png)
 
 ## Claude Code Integration
 
 This package patches Claude Desktop to work with system-installed Claude Code on Linux.
 
-![Claude Code in Claude Desktop](cc_in_cd.png)
+![Claude Code in Claude Desktop](docs/code/cc_in_cd.png)
 
 | | |
 |:---:|:---:|
-| <img src="cc_in_cd_preview.png" width="180"> | <img src="docs/code/terminal.png" width="180"> |
+| <img src="docs/code/cc_in_cd_preview.png" width="180"> | <img src="docs/code/terminal.png" width="180"> |
 | Code Preview | Integrated Terminal |
 
 To use Claude Code (and Cowork) features, install the CLI following the [official setup guide](https://code.claude.com/docs/en/setup), then verify it's accessible:
@@ -334,17 +334,17 @@ The patch auto-detects claude in `/usr/bin`, `~/.local/bin`, and `/usr/local/bin
 
 Cowork is Claude Desktop's agentic workspace feature. This package patches it to work on Linux using a native backend daemon instead of the macOS/Windows VM.
 
-![Cowork in Claude Desktop](co_in_cd.png)
+![Cowork in Claude Desktop](docs/cowork/co_in_cd.png)
 
 | | | | | | |
 |:---:|:---:|:---:|:---:|:---:|:---:|
-| <img src="co_in_cd_bar.png" width="180"> | <img src="co_in_cd_flow.png" width="180"> | <img src="co_in_cd_mock.png" width="180"> | <img src="co_in_cd_mock_db.png" width="180"> | <img src="co_in_cd_pie.png" width="180"> | <img src="co_in_cd_qa.png" width="180"> |
+| <img src="docs/cowork/co_in_cd_bar.png" width="180"> | <img src="docs/cowork/co_in_cd_flow.png" width="180"> | <img src="docs/cowork/co_in_cd_mock.png" width="180"> | <img src="docs/cowork/co_in_cd_mock_db.png" width="180"> | <img src="docs/cowork/co_in_cd_pie.png" width="180"> | <img src="docs/cowork/co_in_cd_qa.png" width="180"> |
 
 Requires Claude Code CLI (see above) and [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service). See its Installation section for distro-specific instructions ([APT](https://github.com/patrickjaja/claude-cowork-service#debian--ubuntu-apt-repository), [DNF](https://github.com/patrickjaja/claude-cowork-service#fedora--rhel-dnf-repository), [AUR](https://github.com/patrickjaja/claude-cowork-service#arch-linux-aur), [Nix](https://github.com/patrickjaja/claude-cowork-service#nixos), or [binary install](https://github.com/patrickjaja/claude-cowork-service#quick-install-any-distro-x86_64--arm64)).
 
 ## CoworkSpaces
 
-CoworkSpaces organizes folders, projects, and links into named Spaces for Cowork sessions. On macOS/Windows this is handled by the native backend (`@ant/claude-swift`). On Linux, `fix_cowork_spaces.py` provides a full file-based implementation:
+CoworkSpaces organizes folders, projects, and links into named Spaces for Cowork sessions. On macOS/Windows this is handled by the native backend (`@ant/claude-swift`). On Linux, `fix_cowork_spaces.nim` provides a full file-based implementation:
 
 - Stores spaces in `~/.config/Claude/spaces.json`
 - Full CRUD: create, update, delete spaces with folders, projects, and links
@@ -362,9 +362,9 @@ Example prompt: *"Can you use computer use MCP to explain me the PhpStorm applic
 
 | Welcome | Menu Bar | Toolbar |
 |---------|----------|---------|
-| ![Learn Tool - Welcome](co_computer_use_learn_tool.png) | ![Learn Tool - Menu Bar](co_computer_use_learn_tool2.png) | ![Learn Tool - Toolbar](co_computer_use_learn_tool3.png) |
+| ![Learn Tool - Welcome](docs/cowork/co_computer_use_learn_tool.png) | ![Learn Tool - Menu Bar](docs/cowork/co_computer_use_learn_tool2.png) | ![Learn Tool - Toolbar](docs/cowork/co_computer_use_learn_tool3.png) |
 
-**How it works on Linux:** Upstream Computer Use is macOS-only — gated behind `process.platform==="darwin"` checks, macOS TCC permissions, and a native Swift executor. The patch ([fix_computer_use_linux.py](patches/fix_computer_use_linux.py)) removes 3 platform gates, bypasses TCC with a no-op `{granted: true}`, and injects a Linux executor that auto-detects your session type and uses the right tools. See [Optional Dependencies](#optional-dependencies) for the full package list.
+**How it works on Linux:** Upstream Computer Use is macOS-only — gated behind `process.platform==="darwin"` checks, macOS TCC permissions, and a native Swift executor. The patch ([fix_computer_use_linux.nim](patches/fix_computer_use_linux.nim)) removes 3 platform gates, bypasses TCC with a no-op `{granted: true}`, and injects a Linux executor that auto-detects your session type and uses the right tools. See [Optional Dependencies](#optional-dependencies) for the full package list.
 
 **App discovery** for the teach/learn overlay scans `.desktop` files from `/usr/share/applications`, `~/.local/share/applications`, and Flatpak directories. Each app is registered with multiple name variants (full name, first word, exec basename, icon name, .desktop filename) so the model can match apps flexibly (e.g., "Thunar" matches "Thunar File Manager").
 
@@ -378,11 +378,11 @@ See [CLAUDE_BUILT_IN_MCP.md](CLAUDE_BUILT_IN_MCP.md#14-computer-use) for the ful
 
 Hardware Buddy connects Claude Desktop to a [Nibblet](https://github.com/felixrieseberg/nibblet) — a small M5StickC Plus BLE companion device that displays animated characters reflecting Claude's session state (idle, busy, celebrating, etc.).
 
-<img src="buddy.png" alt="Hardware Buddy (Nibblet)" width="330">
+<img src="docs/global/buddy.png" alt="Hardware Buddy (Nibblet)" width="330">
 
 **Access:** App menu → Developer → Open Hardware Buddy…
 
-**How it works on Linux:** The BLE communication uses standard Web Bluetooth (Nordic UART Service) via Electron's Chromium layer — no native code needed. Upstream gates the feature behind a server-side flag. The patch ([fix_buddy_ble_linux.py](patches/fix_buddy_ble_linux.py)) forces the flag on Linux so the BLE bridge initializes.
+**How it works on Linux:** The BLE communication uses standard Web Bluetooth (Nordic UART Service) via Electron's Chromium layer — no native code needed. Upstream gates the feature behind a server-side flag. The patch ([fix_buddy_ble_linux.nim](patches/fix_buddy_ble_linux.nim)) forces the flag on Linux so the BLE bridge initializes.
 
 **Prerequisites:** `bluez` package (`sudo pacman -S bluez bluez-utils` / `sudo apt install bluez`). Bluetooth must be enabled (`bluetoothctl power on`).
 
@@ -412,48 +412,52 @@ The package applies several patches to make Claude Desktop work on Linux. Each p
 
 | Patch | Purpose | Debug pattern |
 |-------|---------|---------------|
-| `add_feature_custom_themes.py` | CSS theme injection — 6 built-in themes (sweet, nord, catppuccin-*) | Prepended IIFE, no regex |
+| `add_feature_custom_themes.nim` | CSS theme injection — 6 built-in themes (sweet, nord, catppuccin-*) | Prepended IIFE, no regex |
 | `claude-native.js` | Linux stubs for `@anthropic/claude-native` (Windows-only module) | Static file, no regex |
-| `enable_local_agent_mode.py` | Removes platform gates for Code/Cowork features, spoofs UA | `rg -o 'function \w+\(\)\{return process\.platform.*status' index.js` |
-| `fix_0_node_host.py` | Fixes MCP node host and shell worker paths for Linux | `rg -o 'nodeHostPath.{0,50}' index.js` |
-| `fix_app_quit.py` | Uses `app.exit(0)` to prevent hang on exit | `rg -o '.{0,50}app\.quit.{0,50}' index.js` |
-| `fix_asar_folder_drop.py` | Prevents app.asar from being misdetected as a folder drop on launch ([#24](https://github.com/patrickjaja/claude-desktop-bin/issues/24)) | `rg -o 'filter.*\.asar' index.js` |
-| `fix_asar_workspace_cwd.py` | Redirects app.asar workspace paths to home directory ([#24](https://github.com/patrickjaja/claude-desktop-bin/issues/24)) | `rg -o '__cdb_sanitizeCwd' index.js` |
-| `fix_browse_files_linux.py` | Enables `openDirectory` in file dialog (upstream macOS-only) | `rg -o 'openDirectory.{0,60}' index.js` |
-| `fix_browser_tools_linux.py` | Enables Chrome browser tools — redirects native host to Claude Code's wrapper | `rg -o '"Helpers".{0,50}' index.js` |
-| `fix_buddy_ble_linux.py` | Enables Hardware Buddy (Nibblet BLE device) — forces feature flag, uses Web Bluetooth via BlueZ | `rg -o '2358734848.{0,50}' index.js` |
-| `fix_claude_code.py` | Detects system-installed Claude Code binary | `rg -o 'async getStatus\(\)\{.{0,200}' index.js` |
-| `fix_computer_use_linux.py` | Enables Computer Use — removes platform gates, injects Linux executor (portal+PipeWire/grim/GNOME D-Bus/spectacle/scrot, xdotool/ydotool) | `rg -o 'process.platform.*darwin.*t7r' index.js` |
-| `fix_computer_use_tcc.py` | Stubs macOS TCC permission handlers to prevent error logs | Prepended IIFE, UUID extraction |
-| `fix_cowork_error_message.py` | Replaces Windows VM errors with Linux-friendly guidance | String literal match |
-| `fix_cowork_linux.py` | Enables Cowork — VM client, Unix socket, bundle config, binary resolution | `rg -o '.{0,50}vmClient.{0,50}' index.js` |
-| `fix_cowork_sandbox_refs.py` | Replaces VM/sandbox system prompts and tool descriptions with accurate host-system text | `rg 'lightweight Linux VM\|isolated Linux' index.js` |
-| `fix_cowork_first_bash.py` | Fixes first bash command returning empty output — events socket race condition | `rg -o 'subscribeEvents' index.js` |
-| `fix_cowork_spaces.py` | File-based CoworkSpaces service (CRUD, file ops, events) | `rg -o 'CoworkSpaces' index.js` |
-| `fix_cross_device_rename.py` | EXDEV fallback for cross-filesystem file moves | Uses `.rename(` literal |
-| `fix_detected_projects_linux.py` | Enables detected projects with Linux IDE paths (VSCode, Cursor, Zed) | `rg -o 'detectedProjects.{0,50}' index.js` |
-| `fix_disable_autoupdate.py` | Disables auto-updater (no Linux installer) | `rg -o '.{0,40}isInstalled.{0,40}' index.js` |
-| `fix_dispatch_linux.py` | Enables Dispatch — forces bridge init, bypasses platform gate, forwards responses natively | `rg -o 'sessions-bridge.*init' index.js` |
-| `fix_dispatch_outputs_dir.py` | Fixes "Show folder" opening empty outputs dir — falls back to child session outputs | `rg -o 'openOutputsDir.{0,80}' index.js` |
-| `fix_dock_bounce.py` | Suppresses taskbar attention-stealing on KDE/Wayland | Prepended IIFE, no regex |
-| `fix_enterprise_config_linux.py` | Reads enterprise config from `/etc/claude-desktop/enterprise.json` | `rg -o 'enterprise.json' index.js` |
-| `fix_imagine_linux.py` | Enables Imagine/Visualize — forces GrowthBook flag for inline SVG/HTML rendering | `rg -o '3444158716' index.js` |
-| `fix_locale_paths.py` | Redirects locale file paths to Linux install location | Global string replace on `process.resourcesPath` |
-| `fix_marketplace_linux.py` | Forces host-local mode for plugin operations (no VM) | `rg -o 'function \w+\(\w+\)\{return\(\w+==null.*mode.*ccd' index.js` |
-| `fix_native_frame.py` | Native window frames on Linux, preserves Quick Entry transparency | `rg -o 'titleBarStyle.{0,30}' index.js` |
-| `fix_office_addin_linux.py` | Extends Office Addin MCP server to include Linux | `rg -o '.{0,30}louderPenguinEnabled.{0,30}' index.js` |
-| `fix_process_argv_renderer.py` | Injects `process.argv=[]` in renderer preload to prevent TypeError | `rg -o '.{0,30}\.argv.{0,30}' mainView.js` |
-| `fix_quick_entry_position.py` | Quick Entry opens on cursor's monitor (multi-monitor) | `rg -o 'getPrimaryDisplay.{0,50}' index.js` |
-| `fix_quick_entry_ready_wayland.py` | Adds 200ms timeout to Quick Entry ready-to-show wait (Wayland hang fix) | `rg -o 'ready-to-show.{0,50}' index.js` |
+| `enable_local_agent_mode.nim` | Removes platform gates for Code/Cowork features, spoofs UA | `rg -o 'function \w+\(\)\{return process\.platform.*status' index.js` |
+| `fix_0_node_host.nim` | Fixes MCP node host and shell worker paths for Linux | `rg -o 'nodeHostPath.{0,50}' index.js` |
+| `fix_app_quit.nim` | Uses `app.exit(0)` to prevent hang on exit | `rg -o '.{0,50}app\.quit.{0,50}' index.js` |
+| `fix_asar_folder_drop.nim` | Prevents app.asar from being misdetected as a folder drop on launch ([#24](https://github.com/patrickjaja/claude-desktop-bin/issues/24)) | `rg -o 'filter.*\.asar' index.js` |
+| `fix_asar_workspace_cwd.nim` | Redirects app.asar workspace paths to home directory ([#24](https://github.com/patrickjaja/claude-desktop-bin/issues/24)) | `rg -o '__cdb_sanitizeCwd' index.js` |
+| `fix_browse_files_linux.nim` | Enables `openDirectory` in file dialog (upstream macOS-only) | `rg -o 'openDirectory.{0,60}' index.js` |
+| `fix_browser_tools_linux.nim` | Enables Chrome browser tools — redirects native host to Claude Code's wrapper | `rg -o '"Helpers".{0,50}' index.js` |
+| `fix_buddy_ble_linux.nim` | Enables Hardware Buddy (Nibblet BLE device) — forces feature flag, uses Web Bluetooth via BlueZ | `rg -o '2358734848.{0,50}' index.js` |
+| `fix_claude_code.nim` | Detects system-installed Claude Code binary | `rg -o 'async getStatus\(\)\{.{0,200}' index.js` |
+| `fix_computer_use_linux.nim` | Enables Computer Use — removes platform gates, injects Linux executor (portal+PipeWire/grim/GNOME D-Bus/spectacle/scrot, xdotool/ydotool) | `rg -o 'process.platform.*darwin.*t7r' index.js` |
+| `fix_computer_use_tcc.nim` | Stubs macOS TCC permission handlers to prevent error logs | Prepended IIFE, UUID extraction |
+| `fix_cowork_error_message.nim` | Replaces Windows VM errors with Linux-friendly guidance | String literal match |
+| `fix_cowork_linux.nim` | Enables Cowork — VM client, Unix socket, bundle config, binary resolution | `rg -o '.{0,50}vmClient.{0,50}' index.js` |
+| `fix_cowork_sandbox_refs.nim` | Replaces VM/sandbox system prompts and tool descriptions with accurate host-system text | `rg 'lightweight Linux VM\|isolated Linux' index.js` |
+| `fix_cowork_first_bash.nim` | Fixes first bash command returning empty output — events socket race condition | `rg -o 'subscribeEvents' index.js` |
+| `fix_cowork_spaces.nim` | File-based CoworkSpaces service (CRUD, file ops, events) | `rg -o 'CoworkSpaces' index.js` |
+| `fix_cross_device_rename.nim` | EXDEV fallback for cross-filesystem file moves | Uses `.rename(` literal |
+| `fix_detected_projects_linux.nim` | Enables detected projects with Linux IDE paths (VSCode, Cursor, Zed) | `rg -o 'detectedProjects.{0,50}' index.js` |
+| `fix_disable_autoupdate.nim` | Disables auto-updater (no Linux installer) | `rg -o '.{0,40}isInstalled.{0,40}' index.js` |
+| `fix_dispatch_linux.nim` | Enables Dispatch — forces bridge init, bypasses platform gate, forwards responses natively | `rg -o 'sessions-bridge.*init' index.js` |
+| `fix_dispatch_outputs_dir.nim` | Fixes "Show folder" opening empty outputs dir — falls back to child session outputs | `rg -o 'openOutputsDir.{0,80}' index.js` |
+| `fix_dock_bounce.nim` | Suppresses taskbar attention-stealing on KDE/Wayland | Prepended IIFE, no regex |
+| `fix_enterprise_config_linux.nim` | Reads enterprise config from `/etc/claude-desktop/enterprise.json` | `rg -o 'enterprise.json' index.js` |
+| `fix_imagine_linux.nim` | Enables Imagine/Visualize — forces GrowthBook flag for inline SVG/HTML rendering | `rg -o '3444158716' index.js` |
+| `fix_locale_paths.nim` | Redirects locale file paths to Linux install location | Global string replace on `process.resourcesPath` |
+| `fix_locale_paths_pre.nim` | Redirects locale file paths in bootstrap pre-loader (`index.pre.js`) | Global string replace on `process.resourcesPath` |
+| `fix_marketplace_linux.nim` | Forces host-local mode for plugin operations (no VM) | `rg -o 'function \w+\(\w+\)\{return\(\w+==null.*mode.*ccd' index.js` |
+| `fix_native_frame.nim` | Native window frames on Linux, preserves Quick Entry transparency | `rg -o 'titleBarStyle.{0,30}' index.js` |
+| `fix_office_addin_linux.nim` | Extends Office Addin MCP server to include Linux | `rg -o '.{0,30}louderPenguinEnabled.{0,30}' index.js` |
+| `fix_process_argv_renderer.nim` | Injects `process.argv=[]` in renderer preload to prevent TypeError | `rg -o '.{0,30}\.argv.{0,30}' mainView.js` |
+| `fix_quick_entry_app_id.nim` | Gives Quick Entry a distinct Wayland `app_id` so shell-extension users can blacklist it independently ([#39](https://github.com/patrickjaja/claude-desktop-bin/issues/39)) | `rg -o '.{0,30}BrowserWindow.*titleBarStyle.*hidden.{0,30}' index.js` |
+| `fix_quick_entry_cli_toggle.nim` | Enables `claude-desktop --toggle` Quick Entry hotkey (~5-25 ms via Unix socket) | `rg -o 'QUICK_ENTRY.{0,80}' index.js` |
+| `fix_quick_entry_position.nim` | Quick Entry opens on cursor's monitor (multi-monitor); position+focus retries gated to X11 only (Wayland: no jitter) | `rg -o 'getPrimaryDisplay.{0,50}' index.js` |
+| `fix_quick_entry_ready_wayland.nim` | Adds 100ms timeout to Quick Entry ready-to-show wait (Wayland hang fix; `ready-to-show` never fires for frameless transparent windows) | `rg -o 'ready-to-show.{0,50}' index.js` |
+| `fix_quick_entry_wayland_blur_guard.nim` | Guards Quick Entry blur-to-dismiss against spurious Wayland blur events | `rg -o '.{0,30}blur.{0,30}null.{0,30}' index.js` |
 | ~~`fix_read_terminal_linux.py`~~ | **Removed in v1.2.234** — upstream now natively supports Linux | N/A |
-| `fix_startup_settings.py` | Skips startup/login settings to avoid validation errors | `rg -o 'isStartupOnLoginEnabled.{0,50}' index.js` |
-| `fix_tray_dbus.py` | Prevents DBus race conditions with mutex and cleanup delay | `rg -o 'menuBarEnabled.*function' index.js` |
-| `fix_tray_icon_theme.py` | Theme-aware tray icon (light/dark) | `rg -o 'nativeTheme.{0,50}tray' index.js` |
-| ~~`fix_tray_path.py`~~ | **Removed** — tray icon paths handled by `fix_locale_paths.py` | N/A |
-| `fix_updater_state_linux.py` | Adds version fields to idle updater state to prevent TypeError | `rg -o 'status:"idle".{0,50}' index.js` |
-| `fix_utility_process_kill.py` | SIGKILL fallback when UtilityProcess doesn't exit gracefully | `rg -o 'Killing utiltiy proccess' index.js` |
-| `fix_vm_session_handlers.py` | Global exception handler for VM session safety | Prepended IIFE with fallbacks |
-| `fix_window_bounds.py` | Fixes BrowserView bounds on maximize/snap, Quick Entry blur | Injected IIFE, minimal regex |
+| `fix_startup_settings.nim` | Skips startup/login settings to avoid validation errors | `rg -o 'isStartupOnLoginEnabled.{0,50}' index.js` |
+| `fix_tray_dbus.nim` | Prevents DBus race conditions with mutex and cleanup delay | `rg -o 'menuBarEnabled.*function' index.js` |
+| `fix_tray_icon_theme.nim` | Theme-aware tray icon (light/dark) | `rg -o 'nativeTheme.{0,50}tray' index.js` |
+| ~~`fix_tray_path.py`~~ | **Removed** — tray icon paths handled by `fix_locale_paths.nim` | N/A |
+| `fix_updater_state_linux.nim` | Adds version fields to idle updater state to prevent TypeError | `rg -o 'status:"idle".{0,50}' index.js` |
+| `fix_utility_process_kill.nim` | SIGKILL fallback when UtilityProcess doesn't exit gracefully | `rg -o 'Killing utiltiy proccess' index.js` |
+| `fix_vm_session_handlers.nim` | Global exception handler for VM session safety | Prepended IIFE with fallbacks |
+| `fix_window_bounds.nim` | Fixes BrowserView bounds on maximize/snap, Quick Entry blur | Injected IIFE, minimal regex |
 
 When Claude Desktop updates break a patch, only the specific patch file needs updating. The **debug pattern** column shows the `rg` command to find the relevant code in the new version's `index.js`.
 
@@ -524,7 +528,7 @@ CLAUDE_DEV_TOOLS=detach ELECTRON_ENABLE_LOGGING=1 claude-desktop 2>&1 | tee /tmp
 
 Dispatch lets you send tasks from the Claude mobile app to your Linux desktop. It's fully native — no VM, no emulation.
 
-<img src="android_dispatch_feature.png" alt="Dispatch on Android" width="300">
+<img src="docs/global/android_dispatch_feature.png" alt="Dispatch on Android" width="300">
 
 Claude Desktop spawns a long-running **dispatch orchestrator agent** (Anthropic internally calls it "Ditto"). This agent receives messages from your phone, delegates work to child sessions, and sends responses back via `SendUserMessage`.
 
@@ -539,7 +543,6 @@ Phone → Anthropic API → SSE → Claude Desktop → Ditto agent (via cowork-s
 
 On Windows/Mac, dispatch runs inside a VM. On Linux, [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service) handles it natively with several adaptations (stripping VM-only tool restrictions, path mapping, local `present_files` interception). See the [Dispatch Support](https://github.com/patrickjaja/claude-cowork-service#dispatch-support) section in claude-cowork-service for full technical details.
 
-**History:** `SendUserMessage` was broken in CLI v2.1.79–2.1.85 ([anthropics/claude-code#35076](https://github.com/anthropics/claude-code/issues/35076)). Fixed in v2.1.86. See [SEND_USER_MESSAGE_STATUS.md](SEND_USER_MESSAGE_STATUS.md) for the investigation.
 
 ## Known Limitations
 
@@ -555,6 +558,16 @@ claude-desktop --install-gnome-hotkey '<Super>space'  # or any accelerator
 ```
 
 This binds the key directly via `gsettings`, bypassing the portal. See [wayland.md](wayland.md#quick-entry-hotkey-not-firing-on-gnome) for details. Run `claude-desktop --diagnose` to check hotkey status.
+
+### Quick Entry hotkey command
+
+Set your keyboard shortcut (GNOME, KDE, Sway, Hyprland) to:
+
+```bash
+claude-desktop --toggle
+```
+
+This toggles Quick Entry in ~5-25 ms via a Unix domain socket. If the app is not running, it starts it automatically.
 
 ### App identity on Wayland
 

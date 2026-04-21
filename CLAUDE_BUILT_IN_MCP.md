@@ -1,8 +1,8 @@
-# Built-in MCP Servers — Claude Desktop v1.3109.0
+# Built-in MCP Servers — Claude Desktop v1.3561.0
 
 Claude Desktop registers internal MCP servers via a two-layer architecture:
 
-1. **Renderer-facing layer (`DfA()`)** — servers accessible from the BrowserView via Electron `MessageChannelMain` ports
+1. **Renderer-facing layer (`gpA()`)** — servers accessible from the BrowserView via Electron `MessageChannelMain` ports
 2. **Backend/session layer** — servers providing tools to CCD/Cowork sessions
 
 A server may appear in both layers (e.g., Chrome, mcp-registry) or only one.
@@ -10,14 +10,14 @@ A server may appear in both layers (e.g., Chrome, mcp-registry) or only one.
 ## Registration System
 
 ```
-DfA(serverName, displayLabel, factoryFn)   // v1.3109.0 (was kce() in v1.3036.0, ooe() in v1.2773.0)
+gpA(serverName, displayLabel, factoryFn)   // v1.3561.0 (was DfA() in v1.3109.0, kce() in v1.3036.0)
 ```
 
 - Lazy singleton factory per server name; stored in `RL` (registry) + `VJA` (display labels)
 - UUID display label sent to renderer for identification
 - `v7()` enumerates registered server names via `Object.keys(RL)`
 
-## Renderer-Facing Servers (via `DfA()`)
+## Renderer-Facing Servers (via `gpA()`)
 
 ### 1. Claude in Chrome
 
@@ -62,7 +62,7 @@ Communicates with the Chrome browser extension via Unix socket at `/tmp/claude-m
 | Platform | All |
 | Gating | Always enabled |
 
-The `DfA()` registration is a **stub returning no tools**. Actual tools are provided via the backend session layer.
+The `gpA()` registration is a **stub returning no tools**. Actual tools are provided via the backend session layer.
 
 **Tools (via P8t):**
 
@@ -93,7 +93,7 @@ Communicates via WebSocket to `wss://localhost:8766` (configurable via `OFFICE_A
 | `open_office_file` | Open an Office file and the Claude add-in panel |
 | `close_office_file` | Close a currently open Office file |
 
-## Backend-Only Servers (not registered via `DfA()`)
+## Backend-Only Servers (not registered via `gpA()`)
 
 These are accessible to CCD/Cowork sessions but not directly from the renderer.
 
@@ -117,7 +117,7 @@ These are accessible to CCD/Cowork sessions but not directly from the renderer.
 | Factory | `bgi()` via `getImagineServerDef` |
 | Gating | GrowthBook flag `3444158716` + Cowork session only |
 | Platform | All (no platform gate) |
-| Linux status | **Enabled** via `fix_imagine_linux.py` — forces flag `3444158716` to bypass GrowthBook |
+| Linux status | **Enabled** via `fix_imagine_linux.nim` — forces flag `3444158716` to bypass GrowthBook |
 | Resource URI | `ui://imagine/show-widget.html` |
 
 Renders inline SVG graphics, HTML diagrams, charts, mockups, data visualizations, and elicitation forms directly in the chat UI. Uses a sandboxed iframe renderer with CSP allowing `esm.sh`, `cdnjs.cloudflare.com`, `cdn.jsdelivr.net`, `unpkg.com`.
@@ -199,11 +199,11 @@ Browser interaction (30-second timeout each):
 |-------|-------|
 | Server name | `"terminal"` (constant `Egi`) |
 | Factory | `xgi()` via `getTerminalServerDef` |
-| Platform | **All** (macOS, Windows, Linux) — upstream uses `r6e` (darwin\|\|win32 only), but `fix_dispatch_linux.py` patches `r6e` to include Linux |
-| Gating | `t.sessionType === "ccd"` AND `r6e` platform check AND server flag `397125142` |
+| Platform | **All** (macOS, Windows, Linux) — upstream uses `bfA` (darwin\|\|win32 only), but `fix_dispatch_linux.nim` patches it to include Linux |
+| Gating | `t.sessionType === "ccd"` AND `bfA` platform check AND server flag `397125142` |
 | Session types | **CCD only** — NOT available in Cowork sessions. The `sessionType==="ccd"` check is hardcoded in `isEnabled` |
 | Backend | `node-pty` — spawns a PTY shell, streams output to xterm.js terminal panel in the UI |
-| Linux status | **Works** — `r6e` patched by `fix_dispatch_linux.py`, node-pty rebuilt from source by `build-patched-tarball.sh` |
+| Linux status | **Works** — `bfA` patched by `fix_dispatch_linux.nim`, node-pty rebuilt from source by `build-patched-tarball.sh` |
 
 | Tool | Description |
 |------|-------------|
@@ -301,7 +301,7 @@ The `spawn_task` tool requires desktop approval card injection — cannot be aut
 
 ## Per-Session Dynamic MCP Servers (SDK-type)
 
-Claude Desktop creates 4 additional MCP servers **dynamically per cowork/dispatch session**. These are NOT registered via `DfA()` — they are created inline in the session manager and passed to the Claude Code CLI via `sdkMcpServers` in `--mcp-config`.
+Claude Desktop creates 4 additional MCP servers **dynamically per cowork/dispatch session**. These are NOT registered via `gpA()` — they are created inline in the session manager and passed to the Claude Code CLI via `sdkMcpServers` in `--mcp-config`.
 
 **Communication:** SDK-type servers use `MessagePort` bridges. On Mac/Windows, the VM SDK daemon (`nodeHost.js`) provides this bridge via vsock. On Linux native, `cowork-svc-linux` now **passes `--mcp-config` through unchanged** (since commit `d1dfc3b`). The CLI sends `control_request` messages on stdout, which flow through the event stream to Claude Desktop. Desktop's session manager intercepts them and sends `control_response` back via writeStdin — identical to VM mode on Mac/Windows.
 
@@ -378,9 +378,9 @@ Claude Desktop creates 4 additional MCP servers **dynamically per cowork/dispatc
 | `bash` | `Jdt` | Run bash commands in workspace context |
 | `web_fetch` | `Xdt` | Fetch web resources |
 
-**Bash tool description (Edn function):** The tool description is constructed dynamically via string concatenation: `"Run a shell command in the session's isolated Linux workspace. Your connected folders are mounted under /sessions/" + t.vmProcessName + "/mnt/ — ..."`. On macOS/Windows (VM-based), this is accurate. On Linux (native Go backend), there is no VM or `/sessions/` mount — `fix_cowork_sandbox_refs.py` (Patch A) replaces both string halves with: *"Run a shell command on the host Linux system. There is no VM or sandbox — commands execute directly on the user's computer."* The dynamic concatenation (`+ t.vmProcessName +`) is preserved but made inert.
+**Bash tool description (Edn function):** The tool description is constructed dynamically via string concatenation: `"Run a shell command in the session's isolated Linux workspace. Your connected folders are mounted under /sessions/" + t.vmProcessName + "/mnt/ — ..."`. On macOS/Windows (VM-based), this is accurate. On Linux (native Go backend), there is no VM or `/sessions/` mount — `fix_cowork_sandbox_refs.nim` (Patch A) replaces both string halves with: *"Run a shell command on the host Linux system. There is no VM or sandbox — commands execute directly on the user's computer."* The dynamic concatenation (`+ t.vmProcessName +`) is preserved but made inert.
 
-**System prompt sandbox references:** The upstream cowork system prompt tells the model: *"Claude runs in a lightweight Linux VM (Ubuntu 22) on the user's computer. This VM provides a secure sandbox..."* and *"Shell commands run in an isolated Linux environment."* On Linux, `fix_cowork_sandbox_refs.py` (Patches B–D) replaces these with host-accurate text. Without this patch, the model hallucinates that it's in "an isolated Linux sandbox (Ubuntu 22)" even though `uname -a` returns the host kernel.
+**System prompt sandbox references:** The upstream cowork system prompt tells the model: *"Claude runs in a lightweight Linux VM (Ubuntu 22) on the user's computer. This VM provides a secure sandbox..."* and *"Shell commands run in an isolated Linux environment."* On Linux, `fix_cowork_sandbox_refs.nim` (Patches B–D) replaces these with host-accurate text. Without this patch, the model hallucinates that it's in "an isolated Linux sandbox (Ubuntu 22)" even though `uname -a` returns the host kernel.
 
 ### SDK Server Architecture
 
@@ -449,13 +449,13 @@ disallowedTools: ["AskUserQuestion", "mcp__cowork__allow_cowork_file_delete",
 | Server name | `"computer-use"` (constant `p6t`) |
 | Tool prefix | `mcp__computer-use__` |
 | Platform | macOS (native), **Linux (patched)** |
-| Gating (macOS/Windows) | Set-based: `Jne()` checks `ele = new Set(["darwin","win32"])` + `chicagoEnabled` preference |
-| Gating (Linux) | Enabled via Set modification (add "linux" to `ele`) + feature flag and preference bypassed |
+| Gating (macOS/Windows) | Set-based: `nBA()` checks `rwA = new Set(["darwin","win32"])` + `chicagoEnabled` preference |
+| Gating (Linux) | Enabled via Set modification (add "linux" to `rwA`) + feature flag and preference bypassed |
 | Internal codename | "chicago" |
 
 **Background:** Computer-use was previously a separate `computer-use-server.js` file in the app root (removed in v1.1.7714). As of v1.1.8359, it's fully integrated into `index.js` as an internal MCP server. In v1.1.9134, 5 new tools were added (multi-monitor, batch actions, teach mode).
 
-**Feature flag (v1.1617.0):** Computer-use has a **triple gate**: (1) `Hae` Set platform check (`Lte()`), (2) static registry `computerUse` flag (`status` key), and (3) runtime enabled check (reading GrowthBook `chicago_config.enabled` + `chicagoEnabled` preference). Our patches bypass all three: `fix_computer_use_linux.py` adds "linux" to `Hae` (gate 1), forces registration gate true on Linux, and forces runtime gate true on Linux (bypasses both GrowthBook and the `chicagoEnabled` preference). `enable_local_agent_mode.py` Patch 3 overrides `computerUse` to `{status:"supported"}` (gate 2). The Settings toggle for CU is rendered server-side by claude.ai's web UI and hidden on Linux — runtime bypass means no toggle is needed.
+**Feature flag (v1.3561.0):** Computer-use has a **triple gate**: (1) `rwA` Set platform check (`nBA()`), (2) static registry `computerUse` flag (`status` key), and (3) runtime enabled check (reading GrowthBook `chicago_config.enabled` + `chicagoEnabled` preference). Our patches bypass all three: `fix_computer_use_linux.nim` adds "linux" to `rwA` (gate 1), forces registration gate true on Linux, and forces runtime gate true on Linux (bypasses both GrowthBook and the `chicagoEnabled` preference). `enable_local_agent_mode.nim` Patch 3 overrides `computerUse` to `{status:"supported"}` (gate 2). The Settings toggle for CU is rendered server-side by claude.ai's web UI and hidden on Linux — runtime bypass means no toggle is needed.
 
 **Tools (27):**
 
@@ -497,14 +497,14 @@ Tool definitions are built by `V7r()` with platform-dependent descriptions. On L
 
 Uses `createDarwinExecutor()` → `@ant/claude-swift` native module for screen capture, mouse/keyboard control, app management, and TCC permission grants.
 
-#### Linux executor (`fix_computer_use_linux.py`)
+#### Linux executor (`fix_computer_use_linux.nim`)
 
-`fix_computer_use_linux.py` applies 13 sub-patches + 3 system prompt fixes:
+`fix_computer_use_linux.nim` applies 13 sub-patches + 3 system prompt fixes:
 
 | # | Sub-patch | What it does |
 |---|-----------|-------------|
 | 1 | Inject `__linuxExecutor` | Linux executor using xdotool/scrot/Electron APIs at `app.on("ready")` |
-| 2 | Add "linux" to `ele` Set | `new Set(["darwin","win32"])` → `new Set(["darwin","win32","linux"])` — fixes all `Jne()` gates (server push, chicagoEnabled, overlay init) |
+| 2 | Add "linux" to `rwA` Set | `new Set(["darwin","win32"])` → `new Set(["darwin","win32","linux"])` — fixes all `nBA()` gates (server push, chicagoEnabled, overlay init) |
 | 3 | Patch `createDarwinExecutor` | Return `__linuxExecutor` on Linux instead of throwing |
 | 4 | Patch `ensureOsPermissions` | Return `{granted: true}` on Linux (skip macOS TCC checks) |
 | 5 | Bypass permission model | Direct tool dispatch on Linux, skip allowlist/tier system |
@@ -536,19 +536,19 @@ Uses `createDarwinExecutor()` → `@ant/claude-swift` native module for screen c
 - `request_access` returns "granted" immediately (model may still call it)
 - X11/XWayland only (native Wayland not yet supported for global input)
 
-**Additional Linux patch:** `fix_computer_use_tcc.py` registers stub IPC handlers for `ComputerUseTcc` namespace so that renderer-side TCC permission queries don't throw errors.
+**Additional Linux patch:** `fix_computer_use_tcc.nim` registers stub IPC handlers for `ComputerUseTcc` namespace so that renderer-side TCC permission queries don't throw errors.
 
 ## Linux Notes
 
 - **Claude in Chrome**: Works on Linux via `fix_browser_tools_linux.py` — redirects native host binary to Claude Code's `~/.claude/chrome/chrome-native-host` and installs NativeMessagingHosts manifests for 6 Linux browsers (Chrome, Chromium, Brave, Edge, Vivaldi, Opera). Requires Claude Code CLI and the [Claude in Chrome](https://chromewebstore.google.com/detail/claude-code/fcoeoabgfenejglbffodgkkbkcdhcgfn) extension.
-- **Office Add-in**: Platform-gated to macOS/Windows. Patched to enable on Linux via `fix_office_addin_linux.py`.
-- **Terminal (`read_terminal`)**: CCD sessions only — `isEnabled` checks `sessionType==="ccd"` (hardcoded, not patchable without changing session semantics). NOT available in Cowork sessions. In Cowork, the model uses `mcp__workspace__bash` instead which runs directly on the host. Platform gate `r6e` patched by `fix_dispatch_linux.py`. node-pty rebuilt by build script.
-- **Computer Use**: Works on Linux via `fix_computer_use_linux.py` — uses xdotool/scrot + Electron built-in APIs (clipboard, screen, desktopCapturer) instead of `@ant/claude-swift`. Available in Cowork and Code sessions.
-- **Visualize (Imagine)**: Enabled on Linux via `fix_imagine_linux.py` — forces GrowthBook flag `3444158716`. No platform gate. Renders SVG/HTML inline in cowork sessions.
+- **Office Add-in**: Platform-gated to macOS/Windows. Patched to enable on Linux via `fix_office_addin_linux.nim`.
+- **Terminal (`read_terminal`)**: CCD sessions only — `isEnabled` checks `sessionType==="ccd"` (hardcoded, not patchable without changing session semantics). NOT available in Cowork sessions. In Cowork, the model uses `mcp__workspace__bash` instead which runs directly on the host. Platform gate `bfA` patched by `fix_dispatch_linux.nim`. node-pty rebuilt by build script.
+- **Computer Use**: Works on Linux via `fix_computer_use_linux.nim` — uses xdotool/scrot + Electron built-in APIs (clipboard, screen, desktopCapturer) instead of `@ant/claude-swift`. Available in Cowork and Code sessions.
+- **Visualize (Imagine)**: Enabled on Linux via `fix_imagine_linux.nim` — forces GrowthBook flag `3444158716`. No platform gate. Renders SVG/HTML inline in cowork sessions.
 - **Radar**: Not yet activatable — server disabled at MCP level, session creation in renderer code. No platform gate. Future feature.
 - **MCP Registry / Plugins / Scheduled Tasks**: Cross-platform, work on Linux.
 - **Integrated Terminal (node-pty)**: Upstream ships only Windows binaries. Build script (`build-patched-tarball.sh`) rebuilds node-pty from source against Electron headers via `@electron/rebuild`. Enables the integrated terminal panel and `read_terminal` MCP tool on Linux.
-- **Cowork sandbox descriptions**: Upstream system prompts and tool descriptions tell the model it runs in "a lightweight Linux VM (Ubuntu 22)" with "an isolated sandbox". On Linux with the native Go backend there is no VM — `fix_cowork_sandbox_refs.py` replaces these with accurate host-system descriptions.
+- **Cowork sandbox descriptions**: Upstream system prompts and tool descriptions tell the model it runs in "a lightweight Linux VM (Ubuntu 22)" with "an isolated sandbox". On Linux with the native Go backend there is no VM — `fix_cowork_sandbox_refs.nim` replaces these with accurate host-system descriptions.
 
 ## Operon IPC System (v1.1617.0)
 
@@ -564,6 +564,7 @@ When active, Operon provides 14 "brain tools" (multi-agent delegation, skills, d
 
 | Version | Changes |
 |---------|---------|
+| v1.3561.0 | Registration function renamed `gpA()` (was `DfA()`). Platform gate variables `WhA`→`bfA` (darwin\|\|win32), `en` unchanged (darwin), `ws`→`ys` (win32). Computer-use Set `ele`→`rwA`, checker `Jne()`→`nBA()`. No new MCP servers, no new tools — same 17 servers (3 renderer-facing + 14 backend). Webpack re-minify only. All patches compatible. |
 | v1.3109.0 | Registration function renamed `DfA()` (was `kce()`). Platform gate variables `UMe`→`WhA` (darwin\|\|win32), `hi`→`en` (darwin), `xce`→`ws` (win32). No new MCP servers, no new tools — same 17 servers (3 renderer-facing + 14 backend). Webpack re-minify only. All patches compatible. |
 | v1.3036.0 | Registration function renamed `kce()` (was `ooe()`). Platform gate variable `r6e`→`UMe`, win32 `vs`→`xce`. No new MCP servers, no new tools — same 17 servers. Variable renames only. All patches compatible. |
 | v1.2773.0 | Registration function renamed `ooe()` (was `One()`). Computer-use Set variable `ese`→`ele` with `Jne()` checker (was `Lte()`). Platform gate variable `c3e`→`r6e`. `floatingAtoll` now always supported unconditionally (was preference-gated). No new MCP servers, no new tools. Same 17 servers. Variable renames only. All patches compatible. |

@@ -2,6 +2,143 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-20 (v1.3561.0) — Upstream update, all patches applied (no fixes needed)
+
+- **Version bump:** v1.3109.0 → v1.3561.0
+- **All 42 patches applied without modification** — webpack re-minify only, no structural changes
+- **2** new GrowthBook boolean flags: `1496676413` (SSH plugins/MCP forwarding), `2023768496` (trusted device token); **0** removed
+- `123929380` (coworkKappa) promoted to force-ON defaults map — Anthropic enabling consolidate-memory by default
+- **0** new MCP servers, **0** new tools (same 17 servers)
+- **0** new `process.platform` gates — no new Linux restrictions
+- Locale i18n files moved into `ion-dist/i18n/` with `.overrides.json` sidecar files (same language set)
+
+### Upstream diff summary (v1.3109.0 → v1.3561.0)
+
+Variable renames only (all handled by `\w+`/`[\w$]+` wildcards):
+- Static registry: `J0()` → `A_()`
+- Async merger: `ewA` → `gwA`
+- Production gate: `aFA()` → `GGA()`
+- Flag reader: `Ti()` → `fi()`
+- Listener: `wG()` → `bG()`
+- Value flags: `Es()`/`di()` → `zn()`/`f_()`
+- MCP registration: `DfA()` → `gpA()`
+- Platform vars: `ws` → `ys` (win32), `WhA` → `bfA` (darwin||win32), `en` unchanged (darwin)
+- Computer-use Set: `ele` → `rwA`, checker `Jne()` → `nBA()`
+
+---
+
+## 2026-04-20 — Fix Cowork font preference + theme font override ([#52](https://github.com/patrickjaja/claude-desktop-bin/issues/52))
+
+### Fixed
+- **Cowork tab font**: The Cowork tab rendered with default Serif font instead of the user's chosen font preference. The claude.ai SPA lazy-initializes font preferences when the Chat view mounts — if Cowork is visited first, the font was wrong. Fixed by injecting CSS on `dom-ready` that reads the font preference from localStorage and applies it immediately. (`fix_cowork_font.nim`)
+
+### Added
+- **Theme `chatFont` override**: Custom themes can now override the chat font via a `"chatFont"` key in `~/.config/Claude/claude-desktop-bin.json`. Works per-theme or as a global setting. Only system-installed fonts are supported (`fc-list` to browse).
+
+---
+
+## 2026-04-19 — Quick Entry: socket trigger + Wayland retry gate + timeout reductions (#47, based on PR #50 by @boommasterxd)
+
+### Added
+- **`claude-desktop --toggle`**: Fast Quick Entry toggle via Unix domain socket.
+  Toggles in ~5-25 ms instead of ~300 ms (no Electron process spawn). Starts the
+  app automatically if not running.
+  **GNOME users:** run `claude-desktop --install-gnome-hotkey` once to update the
+  stored shortcut command.
+
+### Performance
+- **`fix_quick_entry_cli_toggle`** (sub-patch D): Unix domain socket server
+  injected on startup. Any connection directly calls the Quick Entry toggle
+  handler, bypassing the Electron process-spawn + `second-instance` IPC path.
+- **`fix_quick_entry_cli_toggle`**: Debounce window reduced from 900 ms to
+  100 ms. The GNOME double-fire regression (issue #38) is eliminated by the
+  socket path bypassing `second-instance` entirely.
+- **`fix_quick_entry_position`**: Position+focus retries (50/150/300 ms) gated
+  to X11 only. On Wayland the compositor never repositions windows after
+  `show()`, so the retries caused jitter with no benefit.
+- **`fix_quick_entry_ready_wayland`**: `ready-to-show` timeout reduced from
+  200 ms to 100 ms (Chromium first-paint on Wayland: typically 30-50 ms).
+- **`fix_quick_entry_cli_toggle`**: First-instance trigger delay reduced from
+  500 ms to 250 ms.
+- **`fix_quick_entry_position`**: `execFileSync` timeouts for `xdotool` and
+  `hyprctl` reduced from 200 ms to 100 ms.
+
+---
+
+## 2026-04-19 — Add missing patches to README table
+
+### Fixed
+- **README patch table** was missing 4 patches: `fix_locale_paths_pre.nim`, `fix_quick_entry_app_id.nim` ([#39](https://github.com/patrickjaja/claude-desktop-bin/issues/39), [PR #46](https://github.com/patrickjaja/claude-desktop-bin/pull/46)), `fix_quick_entry_cli_toggle.nim`, `fix_quick_entry_wayland_blur_guard.nim`. Updated patch count from 38+ to 42+.
+
+---
+
+## 2026-04-18 — Quick Entry gets its own Wayland app_id ([PR #46](https://github.com/patrickjaja/claude-desktop-bin/pull/46) by [@boommasterxd](https://github.com/boommasterxd))
+
+### Fixed
+- **Quick Entry window inherits main window's Wayland `app_id`**, causing shell extensions like GNOME Blur My Shell to apply blur/animations to it. New patch `fix_quick_entry_app_id.nim` sets a distinct `app_id` so compositors can treat Quick Entry differently. Fixes [#39](https://github.com/patrickjaja/claude-desktop-bin/issues/39).
+
+---
+
+## 2026-04-18 — Include patch release in version badges
+
+### Fixed
+- **Badge version mismatch**: APT, RPM, AppImage, Nix, and version-check badges showed only the base version (e.g. `v1.3109.0`) while AUR showed the full version with patch release (`v1.3109.0-5`). All badges now include `${PKGREL}` to match.
+
+---
+
+## 2026-04-18 — Bundle Electron instead of depending on system package
+
+### Changed
+- **AUR PKGBUILD bundles Electron** from GitHub releases instead of depending on the system `electron` package (flagged out-of-date on Arch, installs to version-specific paths that broke the build). Matches how deb/rpm/AppImage packages already work.
+- **Runtime deps** changed from `electron` to `alsa-lib`, `gtk3`, `nss` (the shared libraries bundled Electron links against).
+- **Electron version fallback removed** across all packaging scripts (deb, AppImage, AUR). Build now fails with a clear error if the GitHub API is unreachable, instead of silently bundling a stale version.
+- **Launcher** updated to search `resources/app.asar` path (new bundled Electron layout).
+
+---
+
+## 2026-04-18 — Fix .gitignore excluding Nim patch sources from CI
+
+### Fixed
+- **CI build broken**: `patches/.gitignore` patterns (`fix_*`, `add_*`, `enable_*`) excluded `.nim` source files from git. All 41 Nim patches were never committed, causing CI to apply zero patches and crash on `en-US.json` ENOENT. Added `!*.nim` negation to track sources while still ignoring compiled binaries.
+- **Nim compile fails on read-only mount**: CI bind-mounts `/input` as read-only, so Nim can't write `.nimcache` or compiled binaries. Build script now copies patches to a writable temp dir when the source dir is read-only.
+
+---
+
+## 2026-04-18 — Fix PKGBUILD cross-device link failure + add makepkg CI test
+
+### Fixed
+- **Build fails on cross-device setups** (CachyOS, separate /home partition, btrfs subvolumes): `ln` (hard link) in PKGBUILD can't cross filesystem boundaries. Replaced with `cp` for consistent behavior across all systems.
+
+### Added
+- **CI: `test-pkgbuild` job** — runs `makepkg` on a tmpfs (cross-device) inside an Arch container, then runs `namcap` to catch dependency issues before release.
+
+---
+
+## 2026-04-18 — Migrate patch system from Python to Nim
+
+### Changed
+- **All 41 patches rewritten in Nim** for ~10x faster build times. Python interpreter startup overhead eliminated.
+- Patches compile to native binaries via `patches/Makefile` (`make -j$(nproc)`).
+- New orchestrator `scripts/apply_patches.py` runs compiled Nim binaries, stages files on tmpfs.
+- `scripts/compile-nim-patches.sh` handles Nim compilation with Docker fallback.
+- Large inline JS snippets extracted to `js/` directory (shared between patches via `staticRead`).
+- CI updated: Nim + nimble installed in build container, ruff lint replaced with Nim compile check.
+
+### Removed
+- All `patches/*.py` files (replaced by `patches/*.nim`)
+- `pyproject.toml` (was only for ruff linting of Python patches)
+
+---
+
+## 2026-04-18 — Fix computer-use broken by upstream parameter reorder
+
+### Fixed
+- **All computer-use tools returning `Unknown tool: [object Object]`**: Upstream reordered the `handleToolCall(toolName, input, sessionCtx)` parameters. Our `LINUX_HANDLER_INJECTION_JS` template used hardcoded `e`/`t`/`r` matching the old order where `t` was the tool name. After the upstream swap, `t` became the session context object, causing every tool dispatch to hit the `default` branch and stringify the object.
+- **Fix**: Replaced hardcoded single-letter param references with placeholders (`__TOOL_NAME__`, `__INPUT__`, `__SESSION__`) that are dynamically substituted with the captured minified parameter names from the regex match at patch time. This makes the injection resilient to future parameter renamings or reorderings.
+- **`ese` Set false-positive "already applied"**: Upstream added `"linux"` to an *unrelated* Set (not the computer-use gate `BmA`). Initial fix detected it as "already applied" and skipped the real `BmA` Set, leaving `SdA()` returning `false` on Linux — computer-use MCP server never registered (0 tools). Fixed: always apply to all `["darwin","win32"]` Sets first, only fall back to "already applied" if zero unpatched Sets remain.
+
+---
+
 ## 2026-04-17 — Fix computer-use zoom on HiDPI / multi-monitor (issue #32)
 
 ### Fixed

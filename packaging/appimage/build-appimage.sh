@@ -10,14 +10,11 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Electron version to bundle (can be overridden via environment variable)
-# If not set, fetches latest stable from GitHub
+# Fetch latest stable Electron version from GitHub
+ELECTRON_VERSION=$(curl -sf https://api.github.com/repos/electron/electron/releases/latest | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/' || true)
 if [ -z "$ELECTRON_VERSION" ]; then
-    ELECTRON_VERSION=$(curl -s https://api.github.com/repos/electron/electron/releases/latest | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/')
-    if [ -z "$ELECTRON_VERSION" ]; then
-        echo "Failed to fetch latest Electron version, using fallback"
-        ELECTRON_VERSION="33.2.1"
-    fi
+    echo "Error: Could not fetch latest Electron version from GitHub API." >&2
+    exit 1
 fi
 
 # Colors
