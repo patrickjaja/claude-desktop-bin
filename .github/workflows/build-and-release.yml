@@ -314,6 +314,18 @@ jobs:
           cd ..
           echo "kwin-portal-bridge built successfully"
 
+      - name: Download cowork-svc-linux binaries
+        run: |
+          COWORK_VERSION=$(cat .cowork-svc-version)
+          echo "Downloading cowork-svc-linux ${COWORK_VERSION}..."
+          mkdir -p cowork-svc
+          wget -q -O cowork-svc/cowork-svc-linux \
+            "https://github.com/patrickjaja/claude-cowork-service/releases/download/${COWORK_VERSION}/cowork-svc-linux"
+          wget -q -O cowork-svc/cowork-svc-linux-arm64 \
+            "https://github.com/patrickjaja/claude-cowork-service/releases/download/${COWORK_VERSION}/cowork-svc-linux-arm64"
+          chmod +x cowork-svc/cowork-svc-linux cowork-svc/cowork-svc-linux-arm64
+          sha256sum cowork-svc/cowork-svc-linux*
+
       - name: Build Patched Tarball
         id: build
         run: |
@@ -326,6 +338,10 @@ jobs:
           if [ -f kwin-portal-bridge/target/release/kwin-portal-bridge ]; then
             mkdir -p /tmp/build-input/kwin-portal-bridge/target/release
             cp kwin-portal-bridge/target/release/kwin-portal-bridge /tmp/build-input/kwin-portal-bridge/target/release/
+          fi
+          # Copy cowork-svc-linux binaries
+          if [ -d cowork-svc ]; then
+            cp -r cowork-svc /tmp/build-input/
           fi
 
           docker run --rm \
@@ -521,6 +537,22 @@ jobs:
           TARBALL="claude-desktop-${{ needs.check-version.outputs.version }}-linux.tar.gz"
           bash scripts/rebuild-pty-for-arch.sh --arch aarch64 "$TARBALL"
 
+      - name: Swap cowork-svc for aarch64
+        if: matrix.arch == 'aarch64'
+        run: |
+          TARBALL="claude-desktop-${{ needs.check-version.outputs.version }}-linux.tar.gz"
+          COWORK_VERSION=$(cat .cowork-svc-version)
+          TMPDIR=$(mktemp -d)
+          tar xzf "$TARBALL" -C "$TMPDIR"
+          if [ -f "$TMPDIR/app/cowork-svc-linux" ]; then
+            wget -q -O "$TMPDIR/app/cowork-svc-linux" \
+              "https://github.com/patrickjaja/claude-cowork-service/releases/download/${COWORK_VERSION}/cowork-svc-linux-arm64"
+            chmod +x "$TMPDIR/app/cowork-svc-linux"
+            tar czf "$TARBALL" -C "$TMPDIR" .
+            echo "Swapped cowork-svc-linux for aarch64"
+          fi
+          rm -rf "$TMPDIR"
+
       - name: Build AppImage (${{ matrix.arch }})
         env:
           VERSION: ${{ needs.check-version.outputs.version }}
@@ -623,6 +655,22 @@ jobs:
           TARBALL="claude-desktop-${{ needs.check-version.outputs.version }}-linux.tar.gz"
           bash scripts/rebuild-pty-for-arch.sh --arch arm64 "$TARBALL"
 
+      - name: Swap cowork-svc for arm64
+        if: matrix.arch == 'arm64'
+        run: |
+          TARBALL="claude-desktop-${{ needs.check-version.outputs.version }}-linux.tar.gz"
+          COWORK_VERSION=$(cat .cowork-svc-version)
+          TMPDIR=$(mktemp -d)
+          tar xzf "$TARBALL" -C "$TMPDIR"
+          if [ -f "$TMPDIR/app/cowork-svc-linux" ]; then
+            wget -q -O "$TMPDIR/app/cowork-svc-linux" \
+              "https://github.com/patrickjaja/claude-cowork-service/releases/download/${COWORK_VERSION}/cowork-svc-linux-arm64"
+            chmod +x "$TMPDIR/app/cowork-svc-linux"
+            tar czf "$TARBALL" -C "$TMPDIR" .
+            echo "Swapped cowork-svc-linux for arm64"
+          fi
+          rm -rf "$TMPDIR"
+
       - name: Build Debian Package (${{ matrix.arch }})
         env:
           VERSION: ${{ needs.check-version.outputs.version }}
@@ -707,6 +755,22 @@ jobs:
         run: |
           TARBALL="claude-desktop-${{ needs.check-version.outputs.version }}-linux.tar.gz"
           bash scripts/rebuild-pty-for-arch.sh --arch aarch64 "$TARBALL"
+
+      - name: Swap cowork-svc for aarch64 (RPM)
+        if: matrix.arch == 'aarch64'
+        run: |
+          TARBALL="claude-desktop-${{ needs.check-version.outputs.version }}-linux.tar.gz"
+          COWORK_VERSION=$(cat .cowork-svc-version)
+          TMPDIR=$(mktemp -d)
+          tar xzf "$TARBALL" -C "$TMPDIR"
+          if [ -f "$TMPDIR/app/cowork-svc-linux" ]; then
+            wget -q -O "$TMPDIR/app/cowork-svc-linux" \
+              "https://github.com/patrickjaja/claude-cowork-service/releases/download/${COWORK_VERSION}/cowork-svc-linux-arm64"
+            chmod +x "$TMPDIR/app/cowork-svc-linux"
+            tar czf "$TARBALL" -C "$TMPDIR" .
+            echo "Swapped cowork-svc-linux for aarch64"
+          fi
+          rm -rf "$TMPDIR"
 
       - name: Build RPM Package (${{ matrix.arch }})
         env:

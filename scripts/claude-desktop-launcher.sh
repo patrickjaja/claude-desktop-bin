@@ -19,6 +19,7 @@
 #   CLAUDE_DISABLE_GPU=full  - Disable GPU entirely (more aggressive fallback)
 #   CLAUDE_ELECTRON          - Override path to Electron binary
 #   CLAUDE_APP_ASAR          - Override path to app.asar (system layout only)
+#   COWORK_VM_BACKEND        - Cowork backend: native (default) or kvm (sandboxed VM)
 
 set -euo pipefail
 
@@ -249,36 +250,99 @@ if [[ -L "$lock_file" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Cowork socket cleanup (DISABLED)
+# Cowork daemon (bundled)
 # ---------------------------------------------------------------------------
-# The intent was to clear stale cowork-vm-service sockets left by a crashed
-# daemon. In practice the age-based fallback (used when socat is missing)
-# deletes live sockets of healthy long-running services — a running daemon
-# whose socket file is older than 24h is normal, not stale. Removing the
-# filesystem entry leaves the kernel socket listening but makes new
-# connect() calls return ENOENT.
-#
-# Left commented-out pending a proper health check (e.g. a Python
-# connect-probe) rather than age-based heuristics.
+COWORK_BIN=""
+COWORK_PID=""
 
-# cowork_sock="${XDG_RUNTIME_DIR:-/tmp}/cowork-vm-service.sock"
-#
-# if [[ -S "$cowork_sock" ]]; then
-#     stale=false
-#     if command -v socat &>/dev/null; then
-#         if ! socat -u OPEN:/dev/null UNIX-CONNECT:"$cowork_sock" 2>/dev/null; then
-#             stale=true
-#         fi
-#     else
-#         if [[ -n $(find "$cowork_sock" -mmin +1440 2>/dev/null) ]]; then
-#             stale=true
-#         fi
-#     fi
-#     if [[ $stale == true ]]; then
-#         rm -f "$cowork_sock"
-#         log 'Removed stale cowork-vm-service socket'
-#     fi
-# fi
+if [[ -n "${ELECTRON_DIR:-}" ]]; then
+    for candidate in \
+        "$ELECTRON_DIR/cowork-svc-linux" \
+        "$ELECTRON_DIR/resources/cowork-svc-linux" \
+        ; do
+        if [[ -x "$candidate" ]]; then
+            COWORK_BIN="$candidate"
+            break
+        fi
+    done
+fi
+
+if [[ -n "$COWORK_BIN" ]]; then
+    if command -v systemctl &>/dev/null && systemctl --user is-active claude-cowork.service &>/dev/null 2>&1; then
+        log "[MIGRATION] Standalone claude-cowork.service detected."
+        log "[MIGRATION] Stopping it — the bundled daemon takes over."
+        log "[MIGRATION] You can safely uninstall the standalone claude-cowork-service package."
+        systemctl --user stop claude-cowork.service 2>/dev/null || true
+        systemctl --user disable claude-cowork.service 2>/dev/null || true
+    fi
+
+    COWORK_BACKEND="${COWORK_VM_BACKEND:-native}"
+
+    if [[ "$COWORK_BACKEND" == "kvm" ]]; then
+        COWORK_SOCK="${XDG_RUNTIME_DIR:-/tmp}/cowork-kvm-service.sock"
+    else
+        COWORK_SOCK="${XDG_RUNTIME_DIR:-/tmp}/cowork-vm-service.sock"
+    fi
+
+    if [[ -S "$COWORK_SOCK" ]]; then
+        if command -v socat &>/dev/null; then
+            if ! socat -u OPEN:/dev/null UNIX-CONNECT:"$COWORK_SOCK" 2>/dev/null; then
+                rm -f "$COWORK_SOCK"
+                log "Removed stale cowork socket: $COWORK_SOCK"
+            else
+                log "Cowork socket already active — skipping daemon start"
+                COWORK_BIN=""
+            fi
+        fi
+    fi
+
+    if [[ -n "$COWORK_BIN" ]]; then
+        "$COWORK_BIN" --backend "$COWORK_BACKEND" &
+        COWORK_PID=$!
+        sleep 0.3
+        if ! kill -0 "$COWORK_PID" 2>/dev/null; then
+            wait "$COWORK_PID" 2>/dev/null
+            COWORK_EXIT=$?
+            log "WARNING: cowork daemon ($COWORK_BACKEND) exited immediately (exit $COWORK_EXIT)"
+
+            if [[ "$COWORK_BACKEND" != "native" ]]; then
+                echo >&2 "[cowork] $COWORK_BACKEND backend failed — falling back to native. Check daemon output above for details."
+                COWORK_BACKEND=native
+                export COWORK_VM_BACKEND=native
+                COWORK_SOCK="${XDG_RUNTIME_DIR:-/tmp}/cowork-vm-service.sock"
+                "$COWORK_BIN" --backend native &
+                COWORK_PID=$!
+                sleep 0.3
+                if ! kill -0 "$COWORK_PID" 2>/dev/null; then
+                    wait "$COWORK_PID" 2>/dev/null
+                    log "WARNING: cowork daemon (native fallback) also failed"
+                    echo >&2 "[cowork] Native fallback also failed. Cowork features will be unavailable."
+                    COWORK_PID=""
+                else
+                    log "Started bundled cowork daemon (PID $COWORK_PID, native fallback)"
+                fi
+            else
+                echo >&2 "[cowork] Daemon failed to start. Cowork features will be unavailable."
+                COWORK_PID=""
+            fi
+        else
+            log "Started bundled cowork daemon (PID $COWORK_PID, $COWORK_BACKEND backend)"
+        fi
+    fi
+fi
+
+cleanup() {
+    if [[ -n "${COWORK_PID:-}" ]] && kill -0 "$COWORK_PID" 2>/dev/null; then
+        log "Stopping bundled cowork daemon (PID $COWORK_PID)"
+        kill "$COWORK_PID" 2>/dev/null || true
+        wait "$COWORK_PID" 2>/dev/null || true
+    fi
+    if [[ -n "${ELECTRON_PID:-}" ]] && kill -0 "$ELECTRON_PID" 2>/dev/null; then
+        kill "$ELECTRON_PID" 2>/dev/null || true
+        wait "$ELECTRON_PID" 2>/dev/null || true
+    fi
+}
+trap cleanup EXIT INT TERM
 
 # ---------------------------------------------------------------------------
 # Launch
@@ -298,12 +362,20 @@ log "Launching: ${LAUNCH_ARGV[*]}"
 # Launch inside a named systemd user scope. The scope name (cgroup) gives
 # xdg-desktop-portal a second identity signal alongside the Wayland app_id /
 # X11 WM_CLASS, which come from the binary basename. Both must match APP_ID.
-# Fall back to direct exec in environments without user systemd (rare).
+# Fall back to direct launch in environments without user systemd (rare).
+#
+# We avoid `exec` so the EXIT trap can clean up the bundled cowork daemon.
 if command -v systemd-run &>/dev/null && [[ -n "${XDG_RUNTIME_DIR:-}" ]]; then
-    exec systemd-run --user --scope --quiet \
+    systemd-run --user --scope --quiet \
         --unit="app-${APP_ID}-$$.scope" \
         --description='Claude Desktop' \
-        -- "${LAUNCH_ARGV[@]}"
+        -- "${LAUNCH_ARGV[@]}" &
+    ELECTRON_PID=$!
+else
+    log 'systemd-run unavailable — launching without scope; xdg-desktop-portal may fail to identify the app'
+    "${LAUNCH_ARGV[@]}" &
+    ELECTRON_PID=$!
 fi
-log 'systemd-run unavailable — launching without scope; xdg-desktop-portal may fail to identify the app'
-exec "${LAUNCH_ARGV[@]}"
+
+wait $ELECTRON_PID 2>/dev/null
+exit $?

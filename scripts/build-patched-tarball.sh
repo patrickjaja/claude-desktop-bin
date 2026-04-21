@@ -340,6 +340,39 @@ if [ -f "$SCRIPT_DIR/../kwin-portal-bridge/target/release/kwin-portal-bridge" ];
     log_info "  [OK] kwin-portal-bridge binary included"
 fi
 
+# Copy cowork-svc-linux binary if available (bundled Cowork daemon)
+# Priority: 1) local build from sibling checkout, 2) pre-downloaded in cowork-svc/,
+#           3) auto-download from GitHub release using .cowork-svc-version
+COWORK_SVC_BIN=""
+for cowork_candidate in \
+    "$PROJECT_DIR/../claude-cowork-service/cowork-svc-linux" \
+    "$SCRIPT_DIR/../cowork-svc/cowork-svc-linux"; do
+    if [ -f "$cowork_candidate" ]; then
+        COWORK_SVC_BIN="$cowork_candidate"
+        break
+    fi
+done
+if [ -z "$COWORK_SVC_BIN" ] && [ -f "$PROJECT_DIR/.cowork-svc-version" ]; then
+    COWORK_VERSION=$(cat "$PROJECT_DIR/.cowork-svc-version" | tr -d '[:space:]')
+    log_info "No local cowork-svc-linux found — downloading ${COWORK_VERSION} from GitHub..."
+    COWORK_DL_DIR="$PROJECT_DIR/cowork-svc"
+    mkdir -p "$COWORK_DL_DIR"
+    if wget -q -O "$COWORK_DL_DIR/cowork-svc-linux" \
+        "https://github.com/patrickjaja/claude-cowork-service/releases/download/${COWORK_VERSION}/cowork-svc-linux"; then
+        chmod +x "$COWORK_DL_DIR/cowork-svc-linux"
+        COWORK_SVC_BIN="$COWORK_DL_DIR/cowork-svc-linux"
+        log_info "  [OK] Downloaded cowork-svc-linux ${COWORK_VERSION}"
+    else
+        log_warn "Failed to download cowork-svc-linux — Cowork features will be unavailable"
+    fi
+fi
+if [ -n "$COWORK_SVC_BIN" ]; then
+    log_info "Copying cowork-svc-linux binary from $COWORK_SVC_BIN..."
+    cp "$COWORK_SVC_BIN" "$WORK_DIR/app/cowork-svc-linux"
+    chmod +x "$WORK_DIR/app/cowork-svc-linux"
+    log_info "  [OK] cowork-svc-linux binary included"
+fi
+
 # Run Electron smoke test if dependencies are available
 if [ "${SKIP_SMOKE_TEST:-0}" = "1" ]; then
     log_warn "Skipping smoke test (SKIP_SMOKE_TEST=1)"

@@ -13,7 +13,8 @@ depends=('electron')
 makedepends=('electron')
 optdepends=('nodejs: System Node.js for MCP extensions that require specific versions (Electron bundles Node.js as fallback)'
             'claude-code: Claude Code CLI for agentic coding features (npm i -g @anthropic-ai/claude-code)'
-            'claude-cowork-service: Enables Cowork VM features on Linux'
+            'qemu-base: KVM backend for Cowork (COWORK_VM_BACKEND=kvm)'
+            'virtiofsd: Shared filesystem for KVM Cowork backend'
             'xdotool: Computer Use input (X11), cursor reading + XWayland fallback (Wayland), Quick Entry positioning'
             'scrot: Computer Use screenshots (X11)'
             'imagemagick: Computer Use screenshot fallback and crop (import/convert)'
