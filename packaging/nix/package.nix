@@ -34,8 +34,8 @@
 
 let
   # Updated automatically by CI (build-and-release.yml) on each release.
-  version = "1.3561.0";
-  hash = "sha256-3nYRYLpPMzrl2lC4WfPM1Bwfa/oldBcywJQV5/5VoNg=";
+  version = "1.3883.0";
+  hash = "sha256-VaB8scaNrlnKe73QnU0QpNWdj8XDYRIjMb3fiic5TQ8=";
 in
 stdenvNoCC.mkDerivation {
   pname = "claude-desktop-bin";
