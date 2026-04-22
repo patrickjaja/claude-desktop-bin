@@ -9,6 +9,7 @@
 #   2  chillingSlothLocal (no-op -- inherently supported on Linux)
 #   3  mC() async merger overrides
 #   3b coworkKappa GrowthBook flag 123929380
+#   3c coworkArtifacts GrowthBook flag 2940196192
 #   4  preferences defaults (quietPenguinEnabled / louderPenguinEnabled)
 #   5  HTTP header platform spoof
 #   5b User-Agent header spoof
@@ -21,7 +22,7 @@
 import std/[os, strformat, strutils]
 import std/nre
 
-const EXPECTED_PATCHES = 11
+const EXPECTED_PATCHES = 12
 
 proc apply*(input: string): string =
   result = input
@@ -99,7 +100,7 @@ proc apply*(input: string): string =
   inc patchesApplied
 
   # Patch 3: Override features in mC() async merger
-  let overrides = ",quietPenguin:{status:\"supported\"},louderPenguin:{status:\"supported\"},chillingSlothFeat:{status:\"supported\"},chillingSlothLocal:{status:\"supported\"},yukonSilver:{status:\"supported\"},yukonSilverGems:{status:\"supported\"},ccdPlugins:{status:\"supported\"},computerUse:{status:\"supported\"},coworkKappa:{status:\"supported\"}"
+  let overrides = ",quietPenguin:{status:\"supported\"},louderPenguin:{status:\"supported\"},chillingSlothFeat:{status:\"supported\"},chillingSlothLocal:{status:\"supported\"},yukonSilver:{status:\"supported\"},yukonSilverGems:{status:\"supported\"},ccdPlugins:{status:\"supported\"},computerUse:{status:\"supported\"},coworkKappa:{status:\"supported\"},coworkArtifacts:{status:\"supported\"}"
 
   # New format: return{...FUNC(),...props}};
   let pattern3New = re"(return\{\.\.\.(?:[\w$]+)\(\),[^}]+)(\}\};)"
@@ -109,7 +110,7 @@ proc apply*(input: string): string =
     let endTag = "}};"
     let insertPos = bounds.b + 1 - endTag.len
     result = result[0 ..< insertPos] & overrides & endTag & result[bounds.b + 1 .. ^1]
-    echo "  [OK] mC() feature merger: 9 features overridden (1 match)"
+    echo "  [OK] mC() feature merger: 10 features overridden (1 match)"
     inc patchesApplied
   else:
     # Fallback: old format
@@ -121,7 +122,7 @@ proc apply*(input: string): string =
       m.captures[0] & m.captures[1] & overrides & "})"
     )
     if count3 >= 1:
-      echo &"  [OK] mC() feature merger: 9 features overridden (old format, {count3} match)"
+      echo &"  [OK] mC() feature merger: 10 features overridden (old format, {count3} match)"
       inc patchesApplied
     else:
       echo "  [FAIL] mC() feature merger: 0 matches, expected 1"
@@ -142,6 +143,23 @@ proc apply*(input: string): string =
     failed = true
   else:
     echo "  [FAIL] coworkKappa flag 123929380: 0 matches"
+    failed = true
+
+  # Patch 3c: Enable coworkArtifacts GrowthBook flag (2940196192) on Linux
+  let artifactsPattern = re"""[\w$]+\("2940196192"\)"""
+  var artifactsApplied = 0
+  result = result.replace(artifactsPattern, proc(m: RegexMatch): string =
+    inc artifactsApplied
+    "!0"
+  )
+  if artifactsApplied >= 3:
+    echo &"  [OK] coworkArtifacts flag 2940196192: forced ON ({artifactsApplied} matches)"
+    inc patchesApplied
+  elif artifactsApplied > 0:
+    echo &"  [FAIL] coworkArtifacts flag 2940196192: only {artifactsApplied}/3 matches"
+    failed = true
+  else:
+    echo "  [FAIL] coworkArtifacts flag 2940196192: 0 matches"
     failed = true
 
   # Patch 4: Change preferences defaults for Code features

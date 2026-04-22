@@ -280,6 +280,7 @@ Restart Claude Desktop after setup.
 - **Browser Tools (Chrome integration)** - 18 browser automation tools (navigate, read_page, javascript_tool, etc.) via the [Claude in Chrome](https://chromewebstore.google.com/detail/claude-code/fcoeoabgfenejglbffodgkkbkcdhcgfn) extension. Uses Claude Code's native messaging host (`~/.claude/chrome/chrome-native-host`) instead of the proprietary Windows/macOS binary
 - **MCP server support** - Model Context Protocol servers work on Linux
 - **Custom Themes (Experimental)** - 6 built-in color themes (Nord, Catppuccin Mocha/Frappe/Latte/Macchiato, Sweet) or create your own via JSON config — not all UI elements are fully themed yet
+- **Live Artifacts** - Persistent, interactive HTML artifacts in Cowork sessions — dashboards, reports, and data views that pull live data from connected MCP tools (Jira, GitLab, HubSpot, etc.). Create with `create_artifact`, update with `update_artifact`. Enabled on Linux by forcing the `coworkArtifacts` GrowthBook feature flag (requires [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service))
 - **Imagine / Visualize** - Inline SVG graphics, HTML diagrams, charts, mockups, and data visualizations rendered directly in Cowork sessions via `show_widget` and `read_me` MCP tools. Enabled on Linux by forcing the GrowthBook feature flag
 - **Hardware Buddy (Nibblet)** - BLE companion device (M5StickC Plus) showing animated session state. Access via app menu → Developer → Open Hardware Buddy… (requires `bluez`)
 - **Multi-monitor Quick Entry** - Global hotkey (Ctrl+Alt+Space) opens on the monitor where your cursor is
@@ -319,6 +320,12 @@ Cowork is Claude Desktop's agentic workspace feature. This package patches it to
 | | | | | | |
 |:---:|:---:|:---:|:---:|:---:|:---:|
 | <img src="docs/cowork/co_in_cd_bar.png" width="180"> | <img src="docs/cowork/co_in_cd_flow.png" width="180"> | <img src="docs/cowork/co_in_cd_mock.png" width="180"> | <img src="docs/cowork/co_in_cd_mock_db.png" width="180"> | <img src="docs/cowork/co_in_cd_pie.png" width="180"> | <img src="docs/cowork/co_in_cd_qa.png" width="180"> |
+
+### Live Artifacts
+
+Live Artifacts are persistent HTML pages stored within Cowork sessions that can pull live data from connected MCP tools (Jira, GitLab, HubSpot, Trello, etc.). They persist across sessions and can be starred for quick access.
+
+![Live Artifacts in Cowork](docs/cowork/live-artifacts.png)
 
 Requires Claude Code CLI (see above) and [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service). See its Installation section for distro-specific instructions ([APT](https://github.com/patrickjaja/claude-cowork-service#debian--ubuntu-apt-repository), [DNF](https://github.com/patrickjaja/claude-cowork-service#fedora--rhel-dnf-repository), [AUR](https://github.com/patrickjaja/claude-cowork-service#arch-linux-aur), [Nix](https://github.com/patrickjaja/claude-cowork-service#nixos), or [binary install](https://github.com/patrickjaja/claude-cowork-service#quick-install-any-distro-x86_64--arm64)).
 

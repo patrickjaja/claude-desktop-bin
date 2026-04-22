@@ -2,6 +2,31 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-22 (v1.3883.0) — Upstream update, 1 patch fixed, Live Artifacts
+
+- **Version bump:** v1.3561.0 → v1.3883.0
+- **1 patch updated:** `fix_dispatch_linux.nim` — Patch F (rjt() text forward) updated to match new upstream pattern. Upstream expanded the message filter with dispatch tool name variables (`SU`/`T4`) behind a gate parameter; our patch now preserves the upstream additions while adding `mcp__dispatch__send_message` and `mcp__cowork__present_files`. Also fixed Patch E idempotency (Jr() already-applied detection used hardcoded param name `t` instead of regex).
+- **New feature flag:** `coworkArtifacts` (20 total features, was 19) — persistent HTML artifact storage in cowork sessions (`create_artifact`, `update_artifact`, `list_artifacts` tools). Force-enabled on Linux: merger override + GrowthBook `2940196192` forced ON (4 call sites) in `enable_local_agent_mode.nim`.
+- **Live Artifacts working on Linux** — requires [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service) fix: reverse mount path remapping was applied unconditionally, producing `/sessions/` paths that don't exist on native Linux
+- **2** new GrowthBook flags: `2049450122` (session handoff), `2192324205` (dispatch structured content forwarding); **0** removed
+- **0** new MCP servers (17 remain), **0** new `process.platform` gates
+- Locale i18n JSON files removed from `app.asar` (moved to `resources/` alongside asar — build script already handles this)
+- New `@ant/claude-swift` module (macOS-only, no Linux impact)
+- `@ant/claude-native-binding.node` now bundled inside asar (handled by existing native shim)
+
+### Upstream diff summary (v1.3561.0 → v1.3883.0)
+
+Variable renames only (all handled by `\w+`/`[\w$]+` wildcards):
+- Static registry: `A_()` → `s_()`
+- Async merger: `gwA` → `FwA`
+- Production gate: `GGA()` → `lUA()`
+- Flag reader: `fi()` → `Ii()`
+- Listener: `bG()` → `FG()`
+- Value flags: `zn()`/`f_()` → `y_()`/`zn()`
+- MCP registration: `gpA()` → `FpA()`
+
+---
+
 ## 2026-04-20 (v1.3561.0) — Upstream update, all patches applied (no fixes needed)
 
 - **Version bump:** v1.3109.0 → v1.3561.0

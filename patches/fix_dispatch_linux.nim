@@ -96,13 +96,15 @@ proc apply*(input: string): string =
       echo "  [FAIL] Telemetry gate: pattern not found"
 
   # -- Patch E: Override Jr() for dispatch agent name flag --
-  let jrTarget = "if(t===\"3558849738\")return!0;"
-  let jrStaleBoth = "if(t===\"3558849738\"||t===\"1143815894\")return!0;"
-  if jrStaleBoth in result:
-    result = result.replace(jrStaleBoth, jrTarget)
+  let jrAlready = re"""if\([\w$]+===\"3558849738\"\)return!0;"""
+  let jrStaleBothRe = re"""if\(([\w$]+)===\"3558849738\"\|\|\1===\"1143815894\"\)return!0;"""
+  if result.find(jrStaleBothRe).isSome:
+    result = result.replace(jrStaleBothRe, proc(m: RegexMatch): string =
+      "if(" & m.captures[0] & "===\"3558849738\")return!0;"
+    )
     echo "  [OK] Jr() dispatch flag override: removed stale hostLoopMode override"
     inc patchesApplied
-  elif jrTarget in result:
+  elif result.find(jrAlready).isSome:
     echo "  [OK] Jr() dispatch flag override: already patched (skipped)"
     inc patchesApplied
   else:
@@ -128,31 +130,58 @@ proc apply*(input: string): string =
       echo "  [FAIL] Jr() dispatch flag override: pattern not found"
 
   # -- Patch F: Fix rjt() to forward text responses --
-  let rjtAlready = re"""if\(([\w$]+)==null\?void 0:\1\.type\)==="tool_use"&&\(\1\.name==="SendUserMessage"\|\|\1\.name==="mcp__dispatch__send_message"\|\|\1\.name==="mcp__cowork__present_files"\)\)return!0\}return [\w$]+\.some\(function\(j\)\{return j&&j\.type==="text"&&j\.text\}\)\}"""
+  # Upstream now has: (name==="SendUserMessage"||t&&(name===SU||name===T4))
+  # We add mcp__dispatch__send_message and mcp__cowork__present_files, plus text forwarding.
+  let rjtAlready = re"""mcp__dispatch__send_message.{0,80}mcp__cowork__present_files.{0,80}\.some\(function\(j\)\{return j&&j\.type==="text"&&j\.text\}\)"""
   if result.find(rjtAlready).isSome:
     echo "  [OK] rjt() text forward: already patched (skipped)"
     inc patchesApplied
   else:
-    let rjtPattern = re"for\(const ([\w$]+) of ([\w$]+)\)\{const ([\w$]+)=\1;if\(\(\3==null\?void 0:\3\.type\)===""tool_use""&&\3\.name===""SendUserMessage""\)return!0\}return!1\}"
+    # Match new upstream pattern: ...name==="SendUserMessage"||t&&(name===VAR||name===VAR)))return!0}return!1}
+    let rjtPattern = re"""for\(const ([\w$]+) of ([\w$]+)\)\{const ([\w$]+)=\1;if\(\(\3==null\?void 0:\3\.type\)==="tool_use"&&\(\3\.name==="SendUserMessage"\|\|([\w$]+)&&\(\3\.name===([\w$]+)\|\|\3\.name===([\w$]+)\)\)\)return!0\}return!1\}"""
     let rjtMatch = result.find(rjtPattern)
     if rjtMatch.isSome:
       let m = rjtMatch.get()
       let loopVar = m.captures[0]
       let arrayVar = m.captures[1]
       let itemVar = m.captures[2]
+      let gateVar = m.captures[3]
+      let toolVar1 = m.captures[4]
+      let toolVar2 = m.captures[5]
       let rjtReplacement =
         "for(const " & loopVar & " of " & arrayVar & "){const " & itemVar & "=" & loopVar & ";" &
         "if((" & itemVar & "==null?void 0:" & itemVar & ".type)===\"tool_use\"&&(" &
         itemVar & ".name===\"SendUserMessage\"||" &
         itemVar & ".name===\"mcp__dispatch__send_message\"||" &
-        itemVar & ".name===\"mcp__cowork__present_files\"))return!0}" &
+        itemVar & ".name===\"mcp__cowork__present_files\"||" &
+        gateVar & "&&(" & itemVar & ".name===" & toolVar1 & "||" & itemVar & ".name===" & toolVar2 & ")))return!0}" &
         "return " & arrayVar & ".some(function(j){return j&&j.type===\"text\"&&j.text})}"
       let bounds = m.matchBounds
       result = result[0 ..< bounds.a] & rjtReplacement & result[bounds.b + 1 .. ^1]
-      echo &"  [OK] rjt() text forward: patched (item={itemVar}, array={arrayVar})"
+      echo &"  [OK] rjt() text forward: patched (item={itemVar}, array={arrayVar}, gate={gateVar})"
       inc patchesApplied
     else:
-      echo "  [FAIL] rjt() text forward: pattern not found"
+      # Fallback: try old pattern (no dispatch tool gate)
+      let rjtPatternOld = re"for\(const ([\w$]+) of ([\w$]+)\)\{const ([\w$]+)=\1;if\(\(\3==null\?void 0:\3\.type\)===""tool_use""&&\3\.name===""SendUserMessage""\)return!0\}return!1\}"
+      let rjtMatchOld = result.find(rjtPatternOld)
+      if rjtMatchOld.isSome:
+        let m = rjtMatchOld.get()
+        let loopVar = m.captures[0]
+        let arrayVar = m.captures[1]
+        let itemVar = m.captures[2]
+        let rjtReplacement =
+          "for(const " & loopVar & " of " & arrayVar & "){const " & itemVar & "=" & loopVar & ";" &
+          "if((" & itemVar & "==null?void 0:" & itemVar & ".type)===\"tool_use\"&&(" &
+          itemVar & ".name===\"SendUserMessage\"||" &
+          itemVar & ".name===\"mcp__dispatch__send_message\"||" &
+          itemVar & ".name===\"mcp__cowork__present_files\"))return!0}" &
+          "return " & arrayVar & ".some(function(j){return j&&j.type===\"text\"&&j.text})}"
+        let bounds = m.matchBounds
+        result = result[0 ..< bounds.a] & rjtReplacement & result[bounds.b + 1 .. ^1]
+        echo &"  [OK] rjt() text forward: patched via old pattern (item={itemVar}, array={arrayVar})"
+        inc patchesApplied
+      else:
+        echo "  [FAIL] rjt() text forward: pattern not found"
 
   # -- Patch J: Auto-wake dispatch parent when child task completes --
   if "Auto-waking cold parent" in result:
