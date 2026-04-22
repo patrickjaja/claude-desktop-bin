@@ -1,0 +1,48 @@
+Package: claude-desktop-bin
+Version: 1.3883.0-1
+Architecture: amd64
+Maintainer: Claude Desktop Linux Community <claude-desktop-linux@users.noreply.github.com>
+Installed-Size: 332440
+Depends: libgtk-3-0, libnotify4, libnss3, libxss1, libxtst6, libatspi2.0-0, libdrm2, libgbm1, libasound2
+Recommends: libnotify-bin
+Suggests: xdotool, scrot, imagemagick, wmctrl, socat, hyprland, ydotool, grim, jq, kde-spectacle, libglib2.0-bin, gnome-screenshot, nodejs
+Filename: amd64/claude-desktop-bin_1.3883.0-1_amd64.deb
+Size: 94257270
+MD5sum: 15aa44a945ca7295dfd7563ecea63a5a
+SHA1: f4542785d92c73c117d88b016bcbc07a292fb9be
+SHA256: 9e4e561111ed5f8bd2da9ab45e28401cad0df2d8abd891f70f6cd51f815621ea
+Section: utils
+Priority: optional
+Homepage: https://claude.ai
+Description: Claude AI Desktop Application
+ Claude is an AI assistant created by Anthropic to be helpful,
+ harmless, and honest. This desktop application provides native
+ access to Claude with features including conversational AI,
+ code generation, document understanding, and system tray integration.
+ .
+ Note: This is an unofficial Linux port. Requires an Anthropic account.
+
+Package: claude-desktop-bin
+Version: 1.3883.0-1
+Architecture: arm64
+Maintainer: Claude Desktop Linux Community <claude-desktop-linux@users.noreply.github.com>
+Installed-Size: 336692
+Depends: libgtk-3-0, libnotify4, libnss3, libxss1, libxtst6, libatspi2.0-0, libdrm2, libgbm1, libasound2
+Recommends: libnotify-bin
+Suggests: xdotool, scrot, imagemagick, wmctrl, socat, hyprland, ydotool, grim, jq, kde-spectacle, libglib2.0-bin, gnome-screenshot, nodejs
+Filename: arm64/claude-desktop-bin_1.3883.0-1_arm64.deb
+Size: 93452818
+MD5sum: 5d06ef2138280601d772ff0cf2f733bb
+SHA1: d3b335601bcb44ada14df12881bbbecf463a74b6
+SHA256: 5ae52c9e74d93b1e69d21aa02d77e2fb0d2e4b970ac821bdcca0a8faf1e5347b
+Section: utils
+Priority: optional
+Homepage: https://claude.ai
+Description: Claude AI Desktop Application
+ Claude is an AI assistant created by Anthropic to be helpful,
+ harmless, and honest. This desktop application provides native
+ access to Claude with features including conversational AI,
+ code generation, document understanding, and system tray integration.
+ .
+ Note: This is an unofficial Linux port. Requires an Anthropic account.
+
