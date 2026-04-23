@@ -13,7 +13,7 @@
 # typically completes in 30-50ms, so 100ms still provides comfortable headroom
 # while saving 100ms on every Quick Entry open.
 
-import std/[os, strutils, options]
+import std/[os, options]
 import std/nre
 
 proc apply*(input: string): string =

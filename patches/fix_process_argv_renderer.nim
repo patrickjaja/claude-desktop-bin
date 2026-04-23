@@ -15,7 +15,7 @@
 # exposeInMainWorld. The empty array makes .includes() return false (correct
 # behavior -- the renderer is not in debug mode).
 
-import std/[os, strutils]
+import std/[os]
 import regex
 
 proc apply*(input: string): string =

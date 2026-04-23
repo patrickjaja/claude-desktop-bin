@@ -10,7 +10,7 @@
 # Electron fully supports "openDirectory" on Linux, so we add a
 # process.platform==="linux" check alongside the existing darwin check.
 
-import std/[os, strutils]
+import std/[os]
 import regex
 
 proc apply*(input: string): string =

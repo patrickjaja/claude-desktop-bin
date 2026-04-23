@@ -14,7 +14,7 @@
 # - Stops false "Update heruntergeladen" (update downloaded) notifications
 # - Leaves macOS and Windows behavior unchanged
 
-import std/[os, strutils]
+import std/[os]
 import regex
 
 proc apply*(input: string): string =

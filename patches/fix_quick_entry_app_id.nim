@@ -158,7 +158,7 @@
 #           cleanest statement in the setup comma-chain to append our
 #           `.once("ready-to-show")` reset to.
 
-import std/[os, strutils]
+import std/[os]
 import regex
 
 const MAIN_APP_ID = "com.anthropic.claude-desktop"

@@ -5,7 +5,6 @@
 # Same logic as fix_locale_paths.nim but for the pre-loader that runs first.
 
 import std/[os, strutils]
-import regex
 
 proc apply*(input: string): string =
   let oldResourcePath = "process.resourcesPath"

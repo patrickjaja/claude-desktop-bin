@@ -3,7 +3,7 @@
 # Register stub IPC handlers for ComputerUseTcc on Linux.
 # Prevents "No handler registered" errors for accessibility/screen recording.
 
-import std/[os, strformat, strutils]
+import std/[os, strformat]
 import regex
 
 proc replaceFirst(

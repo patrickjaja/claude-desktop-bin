@@ -11,7 +11,7 @@
 # always need TrayIconTemplate-Dark.png (the light icon) regardless of the
 # desktop theme setting.
 
-import std/[os, strutils, options]
+import std/[os]
 import std/nre
 
 proc apply*(input: string): string =

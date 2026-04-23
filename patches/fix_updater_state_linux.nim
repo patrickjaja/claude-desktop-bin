@@ -13,7 +13,7 @@
 # This patch adds `version:"",versionNumber:""` to the idle state return so
 # downstream code always has a defined string to work with.
 
-import std/[os, strutils]
+import std/[os]
 import regex
 
 proc apply*(input: string): string =
