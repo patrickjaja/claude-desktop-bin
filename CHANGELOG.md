@@ -2,7 +2,9 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
-## 2026-04-23 (v1.3883.0) — Bundle all upstream resources, 3P Inference, theme fixes, CI fix
+## 2026-04-23 (v1.3883.0) — Bundle all upstream resources, 3P Inference, theme fixes, CI fix, XDG autostart
+
+- **Fix:** "Start at login" toggle now works on Linux ([#60](https://github.com/patrickjaja/claude-desktop-bin/issues/60), [#61](https://github.com/patrickjaja/claude-desktop-bin/pull/61)). The previous patch disabled startup settings entirely on Linux (always returned `false`, write was a no-op). Replaced with proper XDG autostart management: creates/removes `~/.config/autostart/com.anthropic.claude-desktop.desktop` with `Exec=claude-desktop --startup` so the app starts hidden in tray. The toggle now correctly reflects actual autostart state. — contributed by [@boommasterxd](https://github.com/boommasterxd)
 
 - **Fix:** Third-Party Inference configuration now works on Linux ([#57](https://github.com/patrickjaja/claude-desktop-bin/issues/57)). The `ion-dist/` web frontend (85MB, 842 files) was missing from the package — the `app://` protocol handler had nothing to serve. Main process code is already Linux-compatible; the SPA needed minor patching (see below).
 - **New patch: `fix_ion_dist_linux.nim`** — patches the ion-dist 3P configuration SPA for Linux:
