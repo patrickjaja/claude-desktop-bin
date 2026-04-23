@@ -260,6 +260,22 @@ else
     log_warn "ion-dist not found in upstream resources — skipping"
 fi
 
+# Copy smol-bin VM image(s) — Desktop's startVM copies these from
+# process.resourcesPath into the per-session bundle dir as
+# `smol-bin.vhdx`, which the claude-cowork-service daemon then converts
+# to qcow2 on first boot. Without this, the guest boots without the SDK
+# binary disk and every spawn fails with "claude: No such file".
+# The Windows installer ships smol-bin.*.vhdx at lib/net45/ (alongside
+# cowork-svc.exe), not inside resources/, so copy from either location.
+log_info "Copying smol-bin VM image(s)..."
+for src in \
+    "$WORK_DIR/extract/lib/net45/smol-bin."*.vhdx \
+    "$WORK_DIR/extract/lib/net45/resources/smol-bin."*.vhdx; do
+    [ -f "$src" ] || continue
+    cp "$src" "$WORK_DIR/app/locales/"
+    log_info "  -> $(basename "$src")"
+done
+
 # Run Electron smoke test if dependencies are available
 if [ "${SKIP_SMOKE_TEST:-0}" = "1" ]; then
     log_warn "Skipping smoke test (SKIP_SMOKE_TEST=1)"
