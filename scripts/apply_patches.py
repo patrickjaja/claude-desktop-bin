@@ -113,6 +113,9 @@ def main():
             nim_jobs_by_target.setdefault(real, []).append(
                 (patch_file, nim_bin)
             )
+        elif ptype == "nim-dir":
+            # Handled separately by build script (e.g., ion-dist patches)
+            pass
         elif ptype == "python":
             # Legacy fallback — shouldn't happen after migration
             print(

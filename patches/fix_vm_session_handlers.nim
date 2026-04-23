@@ -1,7 +1,9 @@
 # @patch-target: app.asar.contents/.vite/build/index.js
 # @patch-type: nim
-# Add safety-net error handler for ClaudeVM and LocalAgentModeSessions IPC on Linux.
-# Suppresses "ClaudeVM" / "LocalAgentModeSessions" uncaught exceptions.
+# Add safety-net error handler for IPC handler timing mismatches on Linux.
+# Suppresses ClaudeVM, LocalAgentModeSessions, LocalSessions, QuickEntry
+# uncaught exceptions that occur when a BrowserView's preload invokes
+# handlers not yet registered for that specific WebContents.
 
 import std/[os, strformat, strutils]
 import regex
@@ -33,7 +35,7 @@ proc apply*(input: string): string =
 
   var count = result.replaceFirst(appReadyPat, proc(m: RegexMatch2, s: string): string =
     let electronVar = s[m.group(0)]
-    electronVar & ".app.on(\"ready\",async()=>{if(process.platform===\"linux\"){process.on(\"uncaughtException\",(e)=>{if(e.message&&(e.message.includes(\"ClaudeVM\")||e.message.includes(\"LocalAgentModeSessions\"))){console.log(\"[LinuxPatch] Suppressing unsupported feature error:\",e.message);return}throw e})};"
+    electronVar & ".app.on(\"ready\",async()=>{if(process.platform===\"linux\"){process.on(\"uncaughtException\",(e)=>{if(e.message&&(e.message.includes(\"ClaudeVM\")||e.message.includes(\"LocalAgentModeSessions\")||e.message.includes(\"LocalSessions\")||e.message.includes(\"QuickEntry\"))){console.log(\"[LinuxPatch] Suppressing unsupported feature error:\",e.message);return}throw e})};"
   )
   if count >= 1:
     echo &"  [OK] App error handler: {count} match(es)"
@@ -44,7 +46,7 @@ proc apply*(input: string): string =
 
     var countAlt = result.replaceFirst(appReadyPatAlt, proc(m: RegexMatch2, s: string): string =
       let electronVar = s[m.group(0)]
-      electronVar & ".app.on(\"ready\",()=>{if(process.platform===\"linux\"){process.on(\"uncaughtException\",(e)=>{if(e.message&&(e.message.includes(\"ClaudeVM\")||e.message.includes(\"LocalAgentModeSessions\"))){console.log(\"[LinuxPatch] Suppressing unsupported feature error:\",e.message);return}throw e})};"
+      electronVar & ".app.on(\"ready\",()=>{if(process.platform===\"linux\"){process.on(\"uncaughtException\",(e)=>{if(e.message&&(e.message.includes(\"ClaudeVM\")||e.message.includes(\"LocalAgentModeSessions\")||e.message.includes(\"LocalSessions\")||e.message.includes(\"QuickEntry\"))){console.log(\"[LinuxPatch] Suppressing unsupported feature error:\",e.message);return}throw e})};"
     )
     if countAlt >= 1:
       echo &"  [OK] App error handler (alt): {countAlt} match(es)"

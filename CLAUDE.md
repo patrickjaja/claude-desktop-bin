@@ -38,6 +38,7 @@ These files embed assumptions about upstream internals and **must be challenged 
 | `CLAUDE_FEATURE_FLAGS.md` | Function names, GrowthBook IDs, architecture details | Run Feature Flag Audit (Prompt 3 in update-prompt.md) |
 | `README.md` | Patch table (break risk, debug `rg` patterns), feature descriptions. **NOT** install command version numbers — those are updated automatically by CI. | Review after patches are fixed |
 | `CLAUDE_BUILT_IN_MCP.md` | Built-in MCP server names, registration patterns | Check `registerInternalMcpServer` calls in new JS |
+| `ION.md` | ion-dist SPA bundle stats, patched patterns, config key schema | Run ion-dist checks (Prompt 4 in update-prompt.md) |
 | `CHANGELOG.md` | Version-specific notes | Add new entry for each release |
 
 **Rule of thumb:** If a doc references a specific minified name, it will be wrong after the next upstream release. Use `\w+` wildcards in patches; in docs, always note the version the names apply to.
@@ -85,6 +86,11 @@ See also: [validate_and_fix_claude-setup-x64.md](validate_and_fix_claude-setup-x
 mkdir -p tmp
 ./scripts/build-patched-tarball.sh Claude-Setup-x64.exe ./tmp
 # The unpatched index.js is at: ./tmp/app/app.asar.contents/.vite/build/index.js
+
+# ion-dist (3P config SPA) is in the upstream resources, not inside app.asar:
+# After build: build/src/app/locales/ion-dist/
+# Or extract manually from the nupkg:
+#   ls extract/lib/net45/resources/ion-dist/
 ```
 
 When patches fail after a new Claude Desktop release, follow this workflow:

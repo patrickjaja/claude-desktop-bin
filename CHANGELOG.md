@@ -2,6 +2,20 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-23 (v1.3883.0) — Bundle all upstream resources, enable Third-Party Inference
+
+- **Fix:** Third-Party Inference configuration now works on Linux ([#57](https://github.com/patrickjaja/claude-desktop-bin/issues/57)). The `ion-dist/` web frontend (85MB, 842 files) was missing from the package — the `app://` protocol handler had nothing to serve. Main process code is already Linux-compatible; the SPA needed minor patching (see below).
+- **New patch: `fix_ion_dist_linux.nim`** — patches the ion-dist 3P configuration SPA for Linux:
+  - Adds Linux org-plugins mount path (`/etc/claude-desktop/org-plugins`) — upstream only has macOS and Windows paths, so on Linux it showed the macOS path
+  - Fixes mount-path display component to use the Linux path when `platform === "linux"` instead of falling back to macOS
+  - Dynamically finds the target JS file (content-hashed filename changes every upstream release)
+- **Updated: `fix_vm_session_handlers.nim`** — extended IPC error suppression to also cover `LocalSessions` and `QuickEntry` handlers (in addition to existing `ClaudeVM` and `LocalAgentModeSessions`)
+- **Build: future-proof resource copying** — replaced individual `cp` commands for locales, tray icons, claude-ssh, and cowork-plugin-shim with a bulk copy of all upstream resources to `locales/`. Windows-only files (`.exe`, `.dll`, `.vhdx`, `.ico`) are excluded. New resources Anthropic adds in future releases will be automatically included.
+- **Build: ion-dist post-copy patching** — new build step applies `fix_ion_dist_linux` to ion-dist after resource copy, with graceful skip if ion-dist or the patch binary is unavailable
+- **Newly bundled resources:** `ion-dist/` (web frontend), `fonts/`, `drizzle/` (DB migrations), `seed/`, `claude-screen*.png`
+
+---
+
 ## 2026-04-22 (v1.3883.0) — Upstream update, 1 patch fixed, Live Artifacts
 
 - **Version bump:** v1.3561.0 → v1.3883.0

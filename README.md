@@ -282,6 +282,7 @@ Restart Claude Desktop after setup.
 - **Custom Themes (Experimental)** - 6 built-in color themes (Nord, Catppuccin Mocha/Frappe/Latte/Macchiato, Sweet) or create your own via JSON config — not all UI elements are fully themed yet
 - **Live Artifacts** - Persistent, interactive HTML artifacts in Cowork sessions — dashboards, reports, and data views that pull live data from connected MCP tools (Jira, GitLab, HubSpot, etc.). Create with `create_artifact`, update with `update_artifact`. Enabled on Linux by forcing the `coworkArtifacts` GrowthBook feature flag (requires [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service))
 - **Imagine / Visualize** - Inline SVG graphics, HTML diagrams, charts, mockups, and data visualizations rendered directly in Cowork sessions via `show_widget` and `read_me` MCP tools. Enabled on Linux by forcing the GrowthBook feature flag
+- **Third-Party Inference** - Configure Claude Desktop to use your own cloud inference backend (Vertex AI, Bedrock, Azure AI Foundry, or any Anthropic-compatible gateway like LiteLLM). Access via Developer → Configure Third-Party Inference. See [Anthropic docs](https://claude.com/docs/cowork/3p/installation)
 - **Hardware Buddy (Nibblet)** - BLE companion device (M5StickC Plus) showing animated session state. Access via app menu → Developer → Open Hardware Buddy… (requires `bluez`)
 - **Multi-monitor Quick Entry** - Global hotkey (Ctrl+Alt+Space) opens on the monitor where your cursor is
 - Automated daily version checks
@@ -375,6 +376,18 @@ Hardware Buddy connects Claude Desktop to a [Nibblet](https://github.com/felixri
 
 **Pairing:** Power on the Nibblet — it advertises as `Nibblet-XXXX`. Click "Open Hardware Buddy…" from the Developer menu, then pair from the buddy window. The device shows session activity, token counts, and responds to permission prompts with physical button presses.
 
+## Third-Party Inference
+
+Configure Claude Desktop to use your own cloud inference backend instead of Anthropic's API. Supports **Vertex AI** (Google Cloud), **Bedrock** (AWS), **Azure AI Foundry** (Microsoft), or any **Anthropic-compatible gateway** (LiteLLM, Portkey, in-house proxies). Access via **Developer → Configure Third-Party Inference**.
+
+![Third-Party Inference Configuration](docs/global/third-party-inference.png)
+
+The configuration window lets you manage connection settings, provider credentials, model lists, sandbox/workspace restrictions, MCP servers, telemetry, usage limits, and org-plugin directories — all from a single UI. Configurations can be exported as `.mobileconfig` (macOS MDM), `.reg` (Windows GPO), or plain JSON (Linux `/etc/claude-desktop/enterprise.json`).
+
+**How it works on Linux:** The upstream SPA is mostly Linux-compatible — the main process already reads enterprise config from `/etc/claude-desktop/enterprise.json` and passes `platform: "linux"` to the frontend. The patch ([fix_ion_dist_linux.nim](patches/fix_ion_dist_linux.nim)) fixes the org-plugins mount path display (upstream only has macOS/Windows paths, so on Linux it showed the macOS path) and corrects the path selection logic to use `/etc/claude-desktop/org-plugins` on Linux.
+
+**Enterprise deployment:** Use MDM (macOS), GPO (Windows), or drop a JSON file at `/etc/claude-desktop/enterprise.json` (Linux) to manage fleet-wide configuration. See the [Anthropic 3P configuration docs](https://claude.com/docs/cowork/3p/configuration) for the full key reference and recommended security profiles.
+
 ## Custom Themes (Experimental)
 
 Themes override CSS variables in **all windows** (main chat, Quick Entry, Find-in-Page, About) via Electron's `insertCSS()` API. Set Claude Desktop to **dark mode** for best results with dark themes.
@@ -425,6 +438,7 @@ The package applies several patches to make Claude Desktop work on Linux. Each p
 | `fix_dock_bounce.nim` | Suppresses taskbar attention-stealing on KDE/Wayland | Prepended IIFE, no regex |
 | `fix_enterprise_config_linux.nim` | Reads enterprise config from `/etc/claude-desktop/enterprise.json` | `rg -o 'enterprise.json' index.js` |
 | `fix_imagine_linux.nim` | Enables Imagine/Visualize — forces GrowthBook flag for inline SVG/HTML rendering | `rg -o '3444158716' index.js` |
+| `fix_ion_dist_linux.nim` | Patches ion-dist 3P config SPA — adds Linux org-plugins path, fixes platform ternary | `rg 'org-plugins' locales/ion-dist/assets/v1/*.js` |
 | `fix_locale_paths.nim` | Redirects locale file paths to Linux install location | Global string replace on `process.resourcesPath` |
 | `fix_locale_paths_pre.nim` | Redirects locale file paths in bootstrap pre-loader (`index.pre.js`) | Global string replace on `process.resourcesPath` |
 | `fix_marketplace_linux.nim` | Forces host-local mode for plugin operations (no VM) | `rg -o 'function \w+\(\w+\)\{return\(\w+==null.*mode.*ccd' index.js` |
