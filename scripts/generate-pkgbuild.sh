@@ -32,6 +32,10 @@ if [ -z "$DOWNLOAD_URL" ]; then
     DOWNLOAD_URL="https://github.com/patrickjaja/claude-desktop-bin/releases/download/v${VERSION}/claude-desktop-${VERSION}-linux.tar.gz"
 fi
 
+# Find the template
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+
 # Resolve Electron version: env override → local cache → GitHub API
 ELECTRON_CACHE="$PROJECT_DIR/build/.electron-version"
 if [ -n "$ELECTRON_VERSION" ]; then
@@ -49,10 +53,6 @@ else
     mkdir -p "$(dirname "$ELECTRON_CACHE")"
     echo "$ELECTRON_VERSION" > "$ELECTRON_CACHE"
 fi
-
-# Find the template
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 TEMPLATE_FILE="$PROJECT_DIR/PKGBUILD.template"
 
 if [ ! -f "$TEMPLATE_FILE" ]; then
