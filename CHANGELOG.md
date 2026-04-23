@@ -2,22 +2,7 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
-## 2026-04-23 — Fix gh-pages deployment exceeding GitHub 100MB file limit
-
-- **Fix:** CI `deploy-rpm-repo` job failed because `.deb`/`.rpm` packages (~129MB each) exceed GitHub's 100MB git file size limit. Switched from `git push --force` to artifact-based Pages deployment (`actions/upload-pages-artifact` + `actions/deploy-pages`), which supports up to 10GB. No URL or user-facing changes — APT/RPM repos work exactly as before.
-- **Requires one-time manual step:** Change repo Settings → Pages → Source from "Deploy from a branch" to "GitHub Actions".
-
----
-
-## 2026-04-23 — Custom theme font applied to user messages, cache Electron version
-
-- **Fix:** Custom theme `chatFont` override now applies to user-sent messages (not just Claude responses). Added `[data-user-message-bubble]` selectors to both the main theme injection and the cowork font fix.
-- **Fix:** `generate-pkgbuild.sh` caches the Electron version in `build/.electron-version` to avoid GitHub API rate limits on repeated builds. Delete the cache file to force a re-fetch.
-- **Docs:** Removed `--install` from CLAUDE.md build examples.
-
----
-
-## 2026-04-23 (v1.3883.0) — Bundle all upstream resources, enable Third-Party Inference
+## 2026-04-23 (v1.3883.0) — Bundle all upstream resources, 3P Inference, theme fixes, CI fix
 
 - **Fix:** Third-Party Inference configuration now works on Linux ([#57](https://github.com/patrickjaja/claude-desktop-bin/issues/57)). The `ion-dist/` web frontend (85MB, 842 files) was missing from the package — the `app://` protocol handler had nothing to serve. Main process code is already Linux-compatible; the SPA needed minor patching (see below).
 - **New patch: `fix_ion_dist_linux.nim`** — patches the ion-dist 3P configuration SPA for Linux:
@@ -28,6 +13,10 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 - **Build: future-proof resource copying** — replaced individual `cp` commands for locales, tray icons, claude-ssh, and cowork-plugin-shim with a bulk copy of all upstream resources to `locales/`. Windows-only files (`.exe`, `.dll`, `.vhdx`, `.ico`) are excluded. New resources Anthropic adds in future releases will be automatically included.
 - **Build: ion-dist post-copy patching** — new build step applies `fix_ion_dist_linux` to ion-dist after resource copy, with graceful skip if ion-dist or the patch binary is unavailable
 - **Newly bundled resources:** `ion-dist/` (web frontend), `fonts/`, `drizzle/` (DB migrations), `seed/`, `claude-screen*.png`
+- **Fix:** Custom theme `chatFont` override now applies to user-sent messages (not just Claude responses). Added `[data-user-message-bubble]` selectors to both the main theme injection and the cowork font fix.
+- **Fix:** `generate-pkgbuild.sh` caches the Electron version in `build/.electron-version` to avoid GitHub API rate limits on repeated builds. Delete the cache file to force a re-fetch.
+- **Fix:** CI `deploy-rpm-repo` job failed because `.deb`/`.rpm` packages (~129MB each) exceed GitHub's 100MB git file size limit. Switched from `git push --force` to artifact-based Pages deployment (`actions/upload-pages-artifact` + `actions/deploy-pages`), which supports up to 10GB. No URL or user-facing changes — APT/RPM repos work exactly as before.
+- **Docs:** Removed `--install` from CLAUDE.md build examples.
 
 ---
 
