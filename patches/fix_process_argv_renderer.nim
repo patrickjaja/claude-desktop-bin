@@ -26,7 +26,8 @@ proc apply*(input: string): string =
     return input
 
   # Primary: insert <var>.argv=[] just before exposeInMainWorld("process",<var>)
-  let exposePattern = re2"""([\w$]+\.contextBridge\.exposeInMainWorld\("process",)([\w$]+)(\))"""
+  let exposePattern =
+    re2"""([\w$]+\.contextBridge\.exposeInMainWorld\("process",)([\w$]+)(\))"""
   var m: RegexMatch2
   if input.find(exposePattern, m):
     let varName = input[m.group(1)]
@@ -41,7 +42,7 @@ proc apply*(input: string): string =
   if input.find(spoofPattern, m):
     let varName = input[m.group(0)]
     let insert = varName & ".argv=[];"
-    let pos = m.boundaries.b + 1  # exclusive end of full match
+    let pos = m.boundaries.b + 1 # exclusive end of full match
     result = input[0 ..< pos] & insert & input[pos .. ^1]
     echo "  [OK] process.argv: added " & varName & ".argv=[] (after platform spoof)"
     return result
@@ -51,7 +52,7 @@ proc apply*(input: string): string =
   if input.find(versionPattern, m):
     let varName = input[m.group(0)]
     let insert = varName & ".argv=[];"
-    let pos = m.boundaries.b + 1  # exclusive end of full match
+    let pos = m.boundaries.b + 1 # exclusive end of full match
     result = input[0 ..< pos] & insert & input[pos .. ^1]
     echo "  [OK] process.argv: added " & varName & ".argv=[] (after version)"
     return result

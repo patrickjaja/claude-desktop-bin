@@ -27,23 +27,25 @@ proc apply*(input: string): string =
   var patchesApplied = 0
 
   # -- Patch A: Bash tool description --
-  let alreadyA = "There is no VM or sandbox" in result and "isolated Linux workspace" notin result
+  let alreadyA =
+    "There is no VM or sandbox" in result and "isolated Linux workspace" notin result
   if alreadyA:
     echo "  [OK] A bash tool description: already patched (skipped)"
     inc patchesApplied
   else:
-    let patternA = re"""(?s)"Run a shell command in the session's isolated Linux workspace\.[^"]*?/sessions/"(\+[\w$.]+\+)"/mnt/[^"]*?""""
+    let patternA =
+      re"""(?s)"Run a shell command in the session's isolated Linux workspace\.[^"]*?/sessions/"(\+[\w$.]+\+)"/mnt/[^"]*?""""
     var countA = 0
-    result = result.replace(patternA, proc(m: RegexMatch): string =
-      inc countA
-      let dynamicConcat = m.captures[0]
-      "\"Run a shell command on the host Linux system." &
-        " There is no VM or sandbox \\u2014 commands execute directly" &
-        " on the user\\u2019s computer." &
-        " Each bash call is independent (no cwd/env carryover)." &
-        " Use absolute paths.\"" &
-        dynamicConcat &
-        "\"unused\""
+    result = result.replace(
+      patternA,
+      proc(m: RegexMatch): string =
+        inc countA
+        let dynamicConcat = m.captures[0]
+        "\"Run a shell command on the host Linux system." &
+          " There is no VM or sandbox \\u2014 commands execute directly" &
+          " on the user\\u2019s computer." &
+          " Each bash call is independent (no cwd/env carryover)." &
+          " Use absolute paths.\"" & dynamicConcat & "\"unused\"",
     )
     if countA == 1:
       echo "  [OK] A bash tool description: replaced with host-aware text"
@@ -52,8 +54,10 @@ proc apply*(input: string): string =
       echo "  [FAIL] A bash tool description: pattern not found"
 
   # -- Patch B: Cowork identity system prompt --
-  let oldB = "Claude runs in a lightweight Linux VM on the user's computer, which provides a secure sandbox for executing code while allowing controlled access to a workspace folder."
-  let newB = "Claude runs directly on the user's Linux computer with full access to the local filesystem and installed tools. There is no VM or sandbox."
+  let oldB =
+    "Claude runs in a lightweight Linux VM on the user's computer, which provides a secure sandbox for executing code while allowing controlled access to a workspace folder."
+  let newB =
+    "Claude runs directly on the user's Linux computer with full access to the local filesystem and installed tools. There is no VM or sandbox."
 
   let alreadyB = "Claude runs directly on the user's Linux computer with full" in result
   if alreadyB:
@@ -69,10 +73,13 @@ proc apply*(input: string): string =
       echo &"  [FAIL] B cowork identity prompt: expected 1 occurrence, found {countB}"
 
   # -- Patch C: Computer use high-level explanation --
-  let oldC = "Claude runs in a lightweight Linux VM (Ubuntu 22) on the user's computer. This VM provides a secure sandbox for executing code while allowing controlled access to user files."
-  let newC = "Claude runs directly on the user's Linux computer. Commands execute on the host system with full access to local files and tools. There is no VM or sandbox."
+  let oldC =
+    "Claude runs in a lightweight Linux VM (Ubuntu 22) on the user's computer. This VM provides a secure sandbox for executing code while allowing controlled access to user files."
+  let newC =
+    "Claude runs directly on the user's Linux computer. Commands execute on the host system with full access to local files and tools. There is no VM or sandbox."
 
-  let alreadyC = "Commands execute on the host system with full access to local" in result
+  let alreadyC =
+    "Commands execute on the host system with full access to local" in result
   if alreadyC:
     echo "  [OK] C computer use explanation: already patched (skipped)"
     inc patchesApplied
@@ -91,7 +98,9 @@ proc apply*(input: string): string =
   let oldD2 = "an isolated Linux environment"
   let newD2 = "the host Linux environment"
 
-  let alreadyD = result.count(oldD1) == 0 and result.count(oldD2) == 0 and "host Linux environment" in result
+  let alreadyD =
+    result.count(oldD1) == 0 and result.count(oldD2) == 0 and
+    "host Linux environment" in result
   if alreadyD:
     echo "  [OK] D isolated Linux environment: already patched (skipped)"
     inc patchesApplied

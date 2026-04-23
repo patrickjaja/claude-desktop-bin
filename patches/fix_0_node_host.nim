@@ -13,15 +13,19 @@ proc apply*(input: string): string =
 
   # Patch 1: nodeHostPath -- replace entire ternary with app.getAppPath()
   # Pattern uses \2 backreference for path var reuse
-  let pattern1 = re"""this\.nodeHostPath=([\w$]+)\.app\.isPackaged\?([\w$]+)\.join\(process\.resourcesPath,"app\.asar","\.vite","build","mcp-runtime","nodeHost\.js"\):\2\.join\(\1\.app\.getAppPath\(\),"\.vite","build","mcp-runtime","nodeHost\.js"\)"""
+  let pattern1 =
+    re"""this\.nodeHostPath=([\w$]+)\.app\.isPackaged\?([\w$]+)\.join\(process\.resourcesPath,"app\.asar","\.vite","build","mcp-runtime","nodeHost\.js"\):\2\.join\(\1\.app\.getAppPath\(\),"\.vite","build","mcp-runtime","nodeHost\.js"\)"""
 
   let m1 = result.find(pattern1)
   if m1.isSome:
     let m = m1.get
     let electronVar = m.captures[0]
     let pathVar = m.captures[1]
-    let replacement = "this.nodeHostPath=" & pathVar & ".join(" & electronVar & ".app.getAppPath(),\".vite\",\"build\",\"mcp-runtime\",\"nodeHost.js\")"
-    result = result[0 ..< m.matchBounds.a] & replacement & result[m.matchBounds.b + 1 .. ^1]
+    let replacement =
+      "this.nodeHostPath=" & pathVar & ".join(" & electronVar &
+      ".app.getAppPath(),\".vite\",\"build\",\"mcp-runtime\",\"nodeHost.js\")"
+    result =
+      result[0 ..< m.matchBounds.a] & replacement & result[m.matchBounds.b + 1 .. ^1]
     echo "  [OK] nodeHostPath: 1 match(es)"
   else:
     echo "  [FAIL] nodeHostPath: 0 matches, expected 1"
@@ -29,21 +33,29 @@ proc apply*(input: string): string =
     raise newException(ValueError, "fix_0_node_host: nodeHostPath pattern not found")
 
   # Patch 2: shellPathWorker -- replace process.resourcesPath,"app.asar" with app.getAppPath()
-  let pattern2 = re"""(function [\w$]+\(\)\{return )([\w$]+)(\.join\()process\.resourcesPath,"app\.asar",("\.vite","build","shell-path-worker","shellPathWorker\.js"\))"""
+  let pattern2 =
+    re"""(function [\w$]+\(\)\{return )([\w$]+)(\.join\()process\.resourcesPath,"app\.asar",("\.vite","build","shell-path-worker","shellPathWorker\.js"\))"""
 
   let m2 = result.find(pattern2)
   if m2.isSome:
     let m = m2.get
-    let replacement = m.captures[0] & m.captures[1] & m.captures[2] & "require(\"electron\").app.getAppPath()," & m.captures[3]
-    result = result[0 ..< m.matchBounds.a] & replacement & result[m.matchBounds.b + 1 .. ^1]
+    let replacement =
+      m.captures[0] & m.captures[1] & m.captures[2] &
+      "require(\"electron\").app.getAppPath()," & m.captures[3]
+    result =
+      result[0 ..< m.matchBounds.a] & replacement & result[m.matchBounds.b + 1 .. ^1]
     echo "  [OK] shellPathWorker: 1 match(es)"
   else:
     # Idempotency check
-    if strutils.find(result, "require(\"electron\").app.getAppPath(),\".vite\",\"build\",\"shell-path-worker\"") >= 0:
+    if strutils.find(
+      result,
+      "require(\"electron\").app.getAppPath(),\".vite\",\"build\",\"shell-path-worker\"",
+    ) >= 0:
       echo "  [OK] shellPathWorker: already patched"
     else:
       echo "  [FAIL] shellPathWorker: 0 matches and no already-patched marker"
-      raise newException(ValueError, "fix_0_node_host: shellPathWorker pattern not found")
+      raise
+        newException(ValueError, "fix_0_node_host: shellPathWorker pattern not found")
 
   if result == input:
     echo "  [WARN] No changes made"

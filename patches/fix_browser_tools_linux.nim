@@ -8,7 +8,9 @@ import regex
 
 const EXPECTED_PATCHES = 2
 
-proc replaceFirst(content: var string, pattern: Regex2, subFn: proc(m: RegexMatch2, s: string): string): int =
+proc replaceFirst(
+    content: var string, pattern: Regex2, subFn: proc(m: RegexMatch2, s: string): string
+): int =
   var found = false
   var resultStr = ""
   var lastEnd = 0
@@ -31,7 +33,8 @@ proc apply*(input: string): string =
   var patchesApplied = 0
 
   # Patch A: Binary path resolution
-  let alreadyA = re2"process\.platform===""linux""\)return require\(""path""\)\.join\(require\(""os""\)\.homedir\(\),"".claude"""
+  let alreadyA =
+    re2"process\.platform===""linux""\)return require\(""path""\)\.join\(require\(""os""\)\.homedir\(\),"".claude"""
   var alreadyAFound = false
   for m in result.findAll(alreadyA):
     alreadyAFound = true
@@ -43,11 +46,16 @@ proc apply*(input: string): string =
   else:
     let patternA = re2"""\"Helpers\",[\w$]+\)}else return [\w$]+\.join\("""
 
-    let linuxBinary = "\"linux\")return require(\"path\").join(require(\"os\").homedir(),\".claude\",\"chrome\",\"chrome-native-host\");"
+    let linuxBinary =
+      "\"linux\")return require(\"path\").join(require(\"os\").homedir(),\".claude\",\"chrome\",\"chrome-native-host\");"
 
-    var countA = result.replaceFirst(patternA, proc(m: RegexMatch2, s: string): string =
-      let matched = s[m.boundaries.a .. m.boundaries.b]
-      matched.replace("}else return", "}else if(process.platform===" & linuxBinary & "else return")
+    var countA = result.replaceFirst(
+      patternA,
+      proc(m: RegexMatch2, s: string): string =
+        let matched = s[m.boundaries.a .. m.boundaries.b]
+        matched.replace(
+          "}else return", "}else if(process.platform===" & linuxBinary & "else return"
+        ),
     )
     if countA >= 1:
       echo &"  [OK] Binary path resolution: redirected to Claude Code native host ({countA} match)"
@@ -67,13 +75,11 @@ proc apply*(input: string): string =
     "{name:\"Edge\",path:p.join(h,\".config\",\"microsoft-edge\",\"NativeMessagingHosts\")}," &
     "{name:\"Vivaldi\",path:p.join(h,\".config\",\"vivaldi\",\"NativeMessagingHosts\")}," &
     "{name:\"Opera\",path:p.join(h,\".config\",\"opera\",\"NativeMessagingHosts\")}" &
-    "];" &
-    "const nh=p.join(h,\".claude\",\"chrome\",\"chrome-native-host\");" &
+    "];" & "const nh=p.join(h,\".claude\",\"chrome\",\"chrome-native-host\");" &
     "const nhOk=fs.existsSync(nh);" &
     "const detected=dirs.filter(d=>{try{const pp=p.dirname(d.path);return fs.existsSync(pp)}catch(e){return false}}).map(d=>d.name);" &
     "console.log(\"[browser-tools] diagnostics: native-host=\"+(nhOk?\"found\":\"MISSING (install claude-code CLI)\")+\" browsers=[\"+detected.join(\", \")+\"]\");" &
-    "return dirs" &
-    "})():[]"
+    "return dirs" & "})():[]"
 
   let alreadyB = re2"""\"ChromeNativeHost\"\)\}\]:process\.platform===""linux""""
   var alreadyBFound = false
@@ -87,8 +93,10 @@ proc apply*(input: string): string =
   else:
     let patternB = re2"""(\"ChromeNativeHost\"\)\}\]):\[\]"""
 
-    var countB = result.replaceFirst(patternB, proc(m: RegexMatch2, s: string): string =
-      s[m.group(0)] & linuxPaths
+    var countB = result.replaceFirst(
+      patternB,
+      proc(m: RegexMatch2, s: string): string =
+        s[m.group(0)] & linuxPaths,
     )
     if countB >= 1:
       echo &"  [OK] NativeMessagingHosts paths: added 6 Linux browsers ({countB} match)"
@@ -98,14 +106,20 @@ proc apply*(input: string): string =
       echo "         Debug: rg -o '\"ChromeNativeHost\".{0,30}' index.js"
 
   if patchesApplied < EXPECTED_PATCHES:
-    raise newException(ValueError, &"fix_browser_tools_linux: Only {patchesApplied}/{EXPECTED_PATCHES} patches applied")
+    raise newException(
+      ValueError,
+      &"fix_browser_tools_linux: Only {patchesApplied}/{EXPECTED_PATCHES} patches applied",
+    )
 
   # Verify brace balance
   let originalDelta = input.count('{') - input.count('}')
   let patchedDelta = result.count('{') - result.count('}')
   if originalDelta != patchedDelta:
     let diff = patchedDelta - originalDelta
-    raise newException(ValueError, &"fix_browser_tools_linux: Patch introduced brace imbalance: {diff:+} unmatched braces")
+    raise newException(
+      ValueError,
+      &"fix_browser_tools_linux: Patch introduced brace imbalance: {diff:+} unmatched braces",
+    )
 
 when isMainModule:
   if paramCount() != 1:

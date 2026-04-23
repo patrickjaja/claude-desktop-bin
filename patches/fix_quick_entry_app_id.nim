@@ -170,49 +170,59 @@ proc apply*(input: string): string =
   # -----------------------------------------------------------------
   # 1. Pre-create: swap CHROME_DESKTOP to the Quick Entry id.
   # -----------------------------------------------------------------
-  let preCreatePattern = re2(r"""([\w$]+)\|\|\(([\w$]+)=new ([\w$]+)\.BrowserWindow\(\{titleBarStyle:"hidden"""")
+  let preCreatePattern = re2(
+    r"""([\w$]+)\|\|\(([\w$]+)=new ([\w$]+)\.BrowserWindow\(\{titleBarStyle:"hidden""""
+  )
   var preCount = 0
-  result = result.replace(preCreatePattern, proc(m: RegexMatch2, s: string): string =
-    let w1 = s[m.group(0)]
-    let w2 = s[m.group(1)]
-    let electronVar = s[m.group(2)]
-    if w1 != w2:
-      # The short-circuit target and assignment LHS must be the same
-      # var; bail out by reconstructing the original match.
-      return w1 & "||(" & w2 & "=new " & electronVar & ".BrowserWindow({titleBarStyle:\"hidden\""
-    inc preCount
-    w1 & "||(" &
-      "process.env.CHROME_DESKTOP=\"" & QE_APP_ID & ".desktop\"," &
-      "(typeof " & electronVar & ".app.setDesktopName===\"function\"&&" & electronVar & ".app.setDesktopName(\"" & QE_APP_ID & ".desktop\"))," &
-      w2 & "=new " & electronVar & ".BrowserWindow({titleBarStyle:\"hidden\""
+  result = result.replace(
+    preCreatePattern,
+    proc(m: RegexMatch2, s: string): string =
+      let w1 = s[m.group(0)]
+      let w2 = s[m.group(1)]
+      let electronVar = s[m.group(2)]
+      if w1 != w2:
+        # The short-circuit target and assignment LHS must be the same
+        # var; bail out by reconstructing the original match.
+        return
+          w1 & "||(" & w2 & "=new " & electronVar &
+          ".BrowserWindow({titleBarStyle:\"hidden\""
+      inc preCount
+      w1 & "||(" & "process.env.CHROME_DESKTOP=\"" & QE_APP_ID & ".desktop\"," &
+        "(typeof " & electronVar & ".app.setDesktopName===\"function\"&&" & electronVar &
+        ".app.setDesktopName(\"" & QE_APP_ID & ".desktop\"))," & w2 & "=new " &
+        electronVar & ".BrowserWindow({titleBarStyle:\"hidden\"",
   )
   if preCount != 1:
     echo "  [FAIL] Expected 1 Quick Entry pre-create pattern, got " & $preCount
     quit(1)
-  echo "  [OK] CHROME_DESKTOP swap to " & QE_APP_ID & " inserted before BrowserWindow: " & $preCount & " match(es)"
+  echo "  [OK] CHROME_DESKTOP swap to " & QE_APP_ID & " inserted before BrowserWindow: " &
+    $preCount & " match(es)"
 
   # -----------------------------------------------------------------
   # 2. Post-create: schedule reset on the window's ready-to-show.
   # -----------------------------------------------------------------
-  let loadFilePattern = re2(r"""(([\w$]+)\.loadFile\(([\w$]+)\.join\(([\w$]+)\.app\.getAppPath\(\),"\.vite/renderer/quick_window/quick-window\.html"\)\))""")
+  let loadFilePattern = re2(
+    r"""(([\w$]+)\.loadFile\(([\w$]+)\.join\(([\w$]+)\.app\.getAppPath\(\),"\.vite/renderer/quick_window/quick-window\.html"\)\))"""
+  )
   var postCount = 0
-  result = result.replace(loadFilePattern, proc(m: RegexMatch2, s: string): string =
-    inc postCount
-    let original = s[m.group(0)]
-    let winVar = s[m.group(1)]
-    let electronVar = s[m.group(3)]
-    original & "," &
-      winVar & ".once(\"ready-to-show\",()=>{" &
-        "try{" &
-          "process.env.CHROME_DESKTOP=\"" & MAIN_APP_ID & ".desktop\";" &
-          "typeof " & electronVar & ".app.setDesktopName===\"function\"&&" & electronVar & ".app.setDesktopName(\"" & MAIN_APP_ID & ".desktop\");" &
-        "}catch(__qeAppIdResetErr){}" &
-      "})"
+  result = result.replace(
+    loadFilePattern,
+    proc(m: RegexMatch2, s: string): string =
+      inc postCount
+      let original = s[m.group(0)]
+      let winVar = s[m.group(1)]
+      let electronVar = s[m.group(3)]
+      original & "," & winVar & ".once(\"ready-to-show\",()=>{" & "try{" &
+        "process.env.CHROME_DESKTOP=\"" & MAIN_APP_ID & ".desktop\";" & "typeof " &
+        electronVar & ".app.setDesktopName===\"function\"&&" & electronVar &
+        ".app.setDesktopName(\"" & MAIN_APP_ID & ".desktop\");" &
+        "}catch(__qeAppIdResetErr){}" & "})",
   )
   if postCount != 1:
     echo "  [FAIL] Expected 1 Quick Entry loadFile pattern, got " & $postCount
     quit(1)
-  echo "  [OK] CHROME_DESKTOP reset to " & MAIN_APP_ID & " scheduled on ready-to-show: " & $postCount & " match(es)"
+  echo "  [OK] CHROME_DESKTOP reset to " & MAIN_APP_ID & " scheduled on ready-to-show: " &
+    $postCount & " match(es)"
 
 when isMainModule:
   if paramCount() != 1:

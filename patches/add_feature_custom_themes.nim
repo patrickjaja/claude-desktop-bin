@@ -15,7 +15,8 @@
 
 import std/[os, strutils]
 
-const THEME_INJECTION_JS = """;(function(){
+const THEME_INJECTION_JS =
+  """;(function(){
 if(process.platform!=="linux")return;
 var _path=require("path"),_fs=require("fs"),_app=require("electron").app;
 var __cdb_builtins={

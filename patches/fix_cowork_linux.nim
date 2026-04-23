@@ -22,15 +22,19 @@ proc apply*(input: string): string =
 
   # -- Patch A: Extend TypeScript VM client to Linux --
   # Uses backreference: \2 ensures same variable in both branches
-  let vmClientPattern = re"([\w$]+)\?([\w$]+)=(\{vm:[\w$]+\}):\2=\(await import\(""@ant/claude-swift""\)\)\.default"
+  let vmClientPattern =
+    re"([\w$]+)\?([\w$]+)=(\{vm:[\w$]+\}):\2=\(await import\(""@ant/claude-swift""\)\)\.default"
 
   var countA = 0
-  let newResult = result.replace(vmClientPattern, proc(m: RegexMatch): string =
-    inc countA
-    let liVar = m.captures[0]    # Li
-    let efVar = m.captures[1]    # ef
-    let vmObj = m.captures[2]    # {vm:vZe}
-    "(" & liVar & "||process.platform===\"linux\")?" & efVar & "=" & vmObj & ":" & efVar & "=(await import(\"@ant/claude-swift\")).default"
+  let newResult = result.replace(
+    vmClientPattern,
+    proc(m: RegexMatch): string =
+      inc countA
+      let liVar = m.captures[0] # Li
+      let efVar = m.captures[1] # ef
+      let vmObj = m.captures[2] # {vm:vZe}
+      "(" & liVar & "||process.platform===\"linux\")?" & efVar & "=" & vmObj & ":" &
+        efVar & "=(await import(\"@ant/claude-swift\")).default",
   )
   if countA >= 1:
     result = newResult
@@ -48,11 +52,15 @@ proc apply*(input: string): string =
   if pipeIdx >= 0:
     # Walk backwards to find start of variable name
     var start = pipeIdx - 1
-    while start >= 0 and (result[start].isAlphaNumeric() or result[start] == '_' or result[start] == '$'):
+    while start >= 0 and
+        (result[start].isAlphaNumeric() or result[start] == '_' or result[start] == '$'):
       dec start
     inc start
     let varName = result[start ..< pipeIdx]
-    let replacement = varName & "=process.platform===\"linux\"?(process.env.XDG_RUNTIME_DIR||\"/tmp\")+\"/cowork-vm-service.sock\":" & pipePath
+    let replacement =
+      varName &
+      "=process.platform===\"linux\"?(process.env.XDG_RUNTIME_DIR||\"/tmp\")+\"/cowork-vm-service.sock\":" &
+      pipePath
     result = result[0 ..< start] & replacement & result[pipeIdx + pipeSearch.len .. ^1]
     echo &"  [OK] Socket path: Unix socket on Linux (var={varName})"
     inc patchesApplied
@@ -67,7 +75,7 @@ proc apply*(input: string): string =
     let x64Idx = result.find(x64Marker, win32Idx)
     if x64Idx >= 0:
       # Skip past the x64 array (balanced bracket matching)
-      let arrayStart = x64Idx + x64Marker.len - 1  # Position of '['
+      let arrayStart = x64Idx + x64Marker.len - 1 # Position of '['
       var depth = 0
       var pos = arrayStart
       while pos < result.len:
@@ -95,16 +103,14 @@ proc apply*(input: string): string =
 
   # -- Patch D: Fix pathToClaudeCodeExecutable for Linux --
   let claudePathOld = "pathToClaudeCodeExecutable:\"/usr/local/bin/claude\""
-  let claudePathNew = "pathToClaudeCodeExecutable:" &
+  let claudePathNew =
+    "pathToClaudeCodeExecutable:" &
     "(()=>{if(process.platform!==\"linux\")return\"/usr/local/bin/claude\";" &
-    "const fs=require(\"fs\");" &
-    "for(const p of[\"/usr/bin/claude\"," &
-    "(process.env.HOME||\"\")+\"/.local/bin/claude\"," &
-    "\"/usr/local/bin/claude\"])" &
+    "const fs=require(\"fs\");" & "for(const p of[\"/usr/bin/claude\"," &
+    "(process.env.HOME||\"\")+\"/.local/bin/claude\"," & "\"/usr/local/bin/claude\"])" &
     "if(fs.existsSync(p))return p;" &
     "try{return require(\"child_process\").execSync(\"which claude\",{encoding:\"utf-8\"}).trim()}" &
-    "catch(e){}" &
-    "return\"claude\"})()"
+    "catch(e){}" & "return\"claude\"})()"
 
   if claudePathOld in result:
     result = result.replace(claudePathOld, claudePathNew)
@@ -117,14 +123,16 @@ proc apply*(input: string): string =
   let errorDetectPattern = re"([\w$]+)(\.includes\(""/usr/local/bin/claude""\))"
 
   var errorCount = 0
-  let errorResult = result.replace(errorDetectPattern, proc(m: RegexMatch): string =
-    inc errorCount
-    if errorCount > 1:
-      return m.match  # only replace first
-    let varName = m.captures[0]
-    "(" & varName & ".includes(\"/usr/local/bin/claude\")||" &
-      varName & ".includes(\"/usr/bin/claude\")||" &
-      varName & ".includes(\"/.local/bin/claude\"))"
+  let errorResult = result.replace(
+    errorDetectPattern,
+    proc(m: RegexMatch): string =
+      inc errorCount
+      if errorCount > 1:
+        return m.match # only replace first
+      let varName = m.captures[0]
+      "(" & varName & ".includes(\"/usr/local/bin/claude\")||" & varName &
+        ".includes(\"/usr/bin/claude\")||" & varName &
+        ".includes(\"/.local/bin/claude\"))",
   )
   if errorCount >= 1:
     result = errorResult
@@ -141,8 +149,8 @@ proc apply*(input: string): string =
   else:
     let presentFilesPattern = re(
       r"for\(const\{file_path:([\w$]+),vmPath:([\w$]+)\}of ([\w$]+)\)\{" &
-      r"if\(([\w$]+)\(\2,([\w$]+)\.vmProcessName\)\)continue;" &
-      r"\(([\w$]+)\?([\w$]+)\(\2,\6\):null\)===null&&([\w$]+)\.push\(\1\)\}"
+        r"if\(([\w$]+)\(\2,([\w$]+)\.vmProcessName\)\)continue;" &
+        r"\(([\w$]+)\?([\w$]+)\(\2,\6\):null\)===null&&([\w$]+)\.push\(\1\)\}"
     )
     let pfMatch = result.find(presentFilesPattern)
     if pfMatch.isSome:
@@ -156,12 +164,12 @@ proc apply*(input: string): string =
       let resolveFn = m.captures[6]
       let uVar = m.captures[7]
       let replacement =
-        "for(const{file_path:" & fVar & ",vmPath:" & pVar & "}of " & lVar & "){" &
-        "if(" & scratchpadFn & "(" & pVar & "," & tVar & ".vmProcessName))continue;" &
-        "(" & cVar & "?" & resolveFn & "(" & pVar & "," & cVar & "):null)===null&&" &
-        "(()=>{const _ho=" & tVar & ".getHostOutputsDir();" &
-        "if(_ho&&(" & fVar & "===_ho||" & fVar & ".startsWith(_ho+\"/\")))return;" &
-        uVar & ".push(" & fVar & ")})()}"
+        "for(const{file_path:" & fVar & ",vmPath:" & pVar & "}of " & lVar & "){" & "if(" &
+        scratchpadFn & "(" & pVar & "," & tVar & ".vmProcessName))continue;" & "(" & cVar &
+        "?" & resolveFn & "(" & pVar & "," & cVar & "):null)===null&&" &
+        "(()=>{const _ho=" & tVar & ".getHostOutputsDir();" & "if(_ho&&(" & fVar &
+        "===_ho||" & fVar & ".startsWith(_ho+\"/\")))return;" & uVar & ".push(" & fVar &
+        ")})()}"
       let bounds = m.matchBounds
       result = result[0 ..< bounds.a] & replacement & result[bounds.b + 1 .. ^1]
       echo &"  [OK] F present_files native paths: host outputs dir allowed (1 match)"

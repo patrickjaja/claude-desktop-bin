@@ -14,20 +14,25 @@ proc apply*(input: string): string =
   var patchesApplied = 0
 
   # Idempotency check
-  let idempotencyPat = re"function [\w$]+\([\w$]+\)\{[\w$]+=[\w$]+\.filter\([\w$]+=>!/\\\.asar/"
+  let idempotencyPat =
+    re"function [\w$]+\([\w$]+\)\{[\w$]+=[\w$]+\.filter\([\w$]+=>!/\\\.asar/"
   if result.find(idempotencyPat).isSome:
     echo "  [SKIP] Already patched (.asar filter found)"
     return result
 
   # Patch A: noe() file-drop convergence filter
-  let patNoe = re"(function [\w$]+\()([\w$]+)(\)\{)(if\([\w$]+\.info\(`Handling file drop:)"
+  let patNoe =
+    re"(function [\w$]+\()([\w$]+)(\)\{)(if\([\w$]+\.info\(`Handling file drop:)"
 
   let mA = result.find(patNoe)
   if mA.isSome:
     let m = mA.get
     let arg = m.captures[1]
-    let replacement = m.captures[0] & arg & m.captures[2] & arg & "=" & arg & ".filter(f=>!/\\.asar/.test(f));if(!" & arg & ".length)return;" & m.captures[3]
-    result = result[0 ..< m.matchBounds.a] & replacement & result[m.matchBounds.b + 1 .. ^1]
+    let replacement =
+      m.captures[0] & arg & m.captures[2] & arg & "=" & arg &
+      ".filter(f=>!/\\.asar/.test(f));if(!" & arg & ".length)return;" & m.captures[3]
+    result =
+      result[0 ..< m.matchBounds.a] & replacement & result[m.matchBounds.b + 1 .. ^1]
     echo "  [OK] noe() file-drop filter: 1 match(es)"
     patchesApplied += 1
   else:
@@ -41,15 +46,21 @@ proc apply*(input: string): string =
   if mB.isSome:
     let m = mB.get
     let varName = m.captures[1]
-    let replacement = m.captures[0] & varName & m.captures[2] & m.captures[3] & "!/\\.asar/.test(" & varName & ")&&" & m.captures[4]
-    result = result[0 ..< m.matchBounds.a] & replacement & result[m.matchBounds.b + 1 .. ^1]
+    let replacement =
+      m.captures[0] & varName & m.captures[2] & m.captures[3] & "!/\\.asar/.test(" &
+      varName & ")&&" & m.captures[4]
+    result =
+      result[0 ..< m.matchBounds.a] & replacement & result[m.matchBounds.b + 1 .. ^1]
     echo "  [OK] Second-instance argv parser (KXn): 1 match(es)"
     patchesApplied += 1
   else:
     echo "  [FAIL] Second-instance argv parser: 0 matches"
 
   if patchesApplied < EXPECTED_PATCHES:
-    raise newException(ValueError, &"fix_asar_folder_drop: Only {patchesApplied}/{EXPECTED_PATCHES} patches applied")
+    raise newException(
+      ValueError,
+      &"fix_asar_folder_drop: Only {patchesApplied}/{EXPECTED_PATCHES} patches applied",
+    )
 
 when isMainModule:
   if paramCount() != 1:

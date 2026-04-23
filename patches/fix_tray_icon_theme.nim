@@ -18,16 +18,21 @@ proc apply*(input: string): string =
   # Match the pattern with flexible variable names
   # Variable names may contain $ (valid JS identifier), so use [\w$]+
   # Uses \2 backreference for iconVar reuse in assignment
-  let pattern = re"""([\w$]+)\?([\w$]+)=([\w$]+)\.nativeTheme\.shouldUseDarkColors\?"Tray-Win32-Dark\.ico":"Tray-Win32\.ico":\2="TrayIconTemplate\.png""""
+  let pattern =
+    re"""([\w$]+)\?([\w$]+)=([\w$]+)\.nativeTheme\.shouldUseDarkColors\?"Tray-Win32-Dark\.ico":"Tray-Win32\.ico":\2="TrayIconTemplate\.png""""
   var count = 0
-  result = input.replace(pattern, proc(m: RegexMatch): string =
-    inc count
-    let isWinVar = m.captures[0]    # Ln
-    let iconVar = m.captures[1]     # e
-    let electronVar = m.captures[2] # $e
-    # On Windows: use .ico files with theme check
-    # On Linux: always use light icon (Dark.png) since trays are universally dark
-    isWinVar & "?" & iconVar & "=" & electronVar & """.nativeTheme.shouldUseDarkColors?"Tray-Win32-Dark.ico":"Tray-Win32.ico":""" & iconVar & """="TrayIconTemplate-Dark.png""""
+  result = input.replace(
+    pattern,
+    proc(m: RegexMatch): string =
+      inc count
+      let isWinVar = m.captures[0] # Ln
+      let iconVar = m.captures[1] # e
+      let electronVar = m.captures[2] # $e
+      # On Windows: use .ico files with theme check
+      # On Linux: always use light icon (Dark.png) since trays are universally dark
+      isWinVar & "?" & iconVar & "=" & electronVar &
+        """.nativeTheme.shouldUseDarkColors?"Tray-Win32-Dark.ico":"Tray-Win32.ico":""" &
+        iconVar & """="TrayIconTemplate-Dark.png"""",
   )
   if count == 0:
     echo "  [FAIL] tray icon theme logic: 0 matches"

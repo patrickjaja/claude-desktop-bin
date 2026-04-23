@@ -23,17 +23,22 @@ proc apply*(input: string): string =
 
   # -- Patch A: Force sessions-bridge init gate ON --
   # Backreference: (\2) ensures captured gate var matches the one in the if-check
-  let gateAlready = re"""let (?:[\w$]+=!(?:0|1),)*[\w$]+=!0;const [\w$]+=async\(\)=>\{if\(![\w$]+\)\{[\w$]+\.info\("\[sessions-bridge\] init skipped"""
+  let gateAlready =
+    re"""let (?:[\w$]+=!(?:0|1),)*[\w$]+=!0;const [\w$]+=async\(\)=>\{if\(![\w$]+\)\{[\w$]+\.info\("\[sessions-bridge\] init skipped"""
   if result.find(gateAlready).isSome:
     echo "  [OK] Sessions-bridge gate: already patched (skipped)"
     inc patchesApplied
   else:
-    let gatePattern = re"(let (?:[\w$]+=!1,)*)([\w$]+)(=)(!1)(;const [\w$]+=async\(\)=>\{if\(!\2\)\{[\w$]+\.info\(""\[sessions-bridge\] init skipped)"
+    let gatePattern =
+      re"(let (?:[\w$]+=!1,)*)([\w$]+)(=)(!1)(;const [\w$]+=async\(\)=>\{if\(!\2\)\{[\w$]+\.info\(""\[sessions-bridge\] init skipped)"
     var countA = 0
-    result = result.replace(gatePattern, proc(m: RegexMatch): string =
-      inc countA
-      if countA > 1: return m.match
-      m.captures[0] & m.captures[1] & m.captures[2] & "!0" & m.captures[4]
+    result = result.replace(
+      gatePattern,
+      proc(m: RegexMatch): string =
+        inc countA
+        if countA > 1:
+          return m.match
+        m.captures[0] & m.captures[1] & m.captures[2] & "!0" & m.captures[4],
     )
     if countA >= 1:
       echo &"  [OK] Sessions-bridge gate: forced ON ({countA} match)"
@@ -51,9 +56,11 @@ proc apply*(input: string): string =
       echo "  [FAIL] Remote session control: pattern not found"
   else:
     var countB = 0
-    result = result.replace(remotePattern, proc(m: RegexMatch): string =
-      inc countB
-      "!1"
+    result = result.replace(
+      remotePattern,
+      proc(m: RegexMatch): string =
+        inc countB
+        "!1",
     )
     if countB >= 1:
       echo &"  [OK] Remote session control: bypassed ({countB} matches)"
@@ -63,7 +70,8 @@ proc apply*(input: string): string =
 
   # -- Patch C: Add Linux to HI() platform label --
   let platformOld = "default:return\"Unsupported Platform\""
-  let platformNew = "case\"linux\":return\"Linux\";default:return\"Unsupported Platform\""
+  let platformNew =
+    "case\"linux\":return\"Linux\";default:return\"Unsupported Platform\""
 
   if platformNew in result:
     echo "  [OK] Platform label: already patched (skipped)"
@@ -77,17 +85,24 @@ proc apply*(input: string): string =
 
   # -- Patch D: Include Linux in Xqe telemetry gate --
   # Backreferences: \1 and \3 ensure same var names in combined expression
-  let telemetryAlready = re("([\\w$]+)(=process\\.platform===\"darwin\",)([\\w$]+)(=process\\.platform===\"win32\",)([\\w$]+)=\\1\\|\\|\\3\\|\\|process\\.platform===\"linux\"")
+  let telemetryAlready = re(
+    "([\\w$]+)(=process\\.platform===\"darwin\",)([\\w$]+)(=process\\.platform===\"win32\",)([\\w$]+)=\\1\\|\\|\\3\\|\\|process\\.platform===\"linux\""
+  )
   if result.find(telemetryAlready).isSome:
     echo "  [OK] Telemetry gate: already patched (skipped)"
     inc patchesApplied
   else:
-    let telemetryPattern = re("([\\w$]+)(=process\\.platform===\"darwin\",)([\\w$]+)(=process\\.platform===\"win32\",)([\\w$]+)=\\1\\|\\|\\3")
+    let telemetryPattern = re(
+      "([\\w$]+)(=process\\.platform===\"darwin\",)([\\w$]+)(=process\\.platform===\"win32\",)([\\w$]+)=\\1\\|\\|\\3"
+    )
     var countD = 0
-    result = result.replace(telemetryPattern, proc(m: RegexMatch): string =
-      inc countD
-      if countD > 1: return m.match
-      m.match & "||process.platform===\"linux\""
+    result = result.replace(
+      telemetryPattern,
+      proc(m: RegexMatch): string =
+        inc countD
+        if countD > 1:
+          return m.match
+        m.match & "||process.platform===\"linux\"",
     )
     if countD >= 1:
       echo &"  [OK] Telemetry gate: included Linux ({countD} match)"
@@ -97,10 +112,13 @@ proc apply*(input: string): string =
 
   # -- Patch E: Override Jr() for dispatch agent name flag --
   let jrAlready = re"""if\([\w$]+===\"3558849738\"\)return!0;"""
-  let jrStaleBothRe = re"""if\(([\w$]+)===\"3558849738\"\|\|\1===\"1143815894\"\)return!0;"""
+  let jrStaleBothRe =
+    re"""if\(([\w$]+)===\"3558849738\"\|\|\1===\"1143815894\"\)return!0;"""
   if result.find(jrStaleBothRe).isSome:
-    result = result.replace(jrStaleBothRe, proc(m: RegexMatch): string =
-      "if(" & m.captures[0] & "===\"3558849738\")return!0;"
+    result = result.replace(
+      jrStaleBothRe,
+      proc(m: RegexMatch): string =
+        "if(" & m.captures[0] & "===\"3558849738\")return!0;",
     )
     echo "  [OK] Jr() dispatch flag override: removed stale hostLoopMode override"
     inc patchesApplied
@@ -110,18 +128,24 @@ proc apply*(input: string): string =
   else:
     # Remove stale blanket override if present
     let blanketMarker = re"(return!0;)(const [\w$]+=[\w$]+\[[\w$]+\];return)"
-    result = result.replace(blanketMarker, proc(m: RegexMatch): string =
-      m.captures[1]
+    result = result.replace(
+      blanketMarker,
+      proc(m: RegexMatch): string =
+        m.captures[1],
     )
 
-    let jrPattern = re"(function )([\w$]+)(\()([\w$]+)(\)\{)(const [\w$]+=[\w$]+\[\4\];return\([\w$]+==null\?void 0:[\w$]+\.on\)\?\?!1\})"
+    let jrPattern =
+      re"(function )([\w$]+)(\()([\w$]+)(\)\{)(const [\w$]+=[\w$]+\[\4\];return\([\w$]+==null\?void 0:[\w$]+\.on\)\?\?!1\})"
     var countE = 0
-    result = result.replace(jrPattern, proc(m: RegexMatch): string =
-      inc countE
-      if countE > 1: return m.match
-      let param = m.captures[3]
-      m.captures[0] & m.captures[1] & m.captures[2] & m.captures[3] & m.captures[4] &
-        "if(" & param & "===\"3558849738\")return!0;" & m.captures[5]
+    result = result.replace(
+      jrPattern,
+      proc(m: RegexMatch): string =
+        inc countE
+        if countE > 1:
+          return m.match
+        let param = m.captures[3]
+        m.captures[0] & m.captures[1] & m.captures[2] & m.captures[3] & m.captures[4] &
+          "if(" & param & "===\"3558849738\")return!0;" & m.captures[5],
     )
     if countE >= 1:
       echo &"  [OK] Jr() dispatch flag override: injected ({countE} match)"
@@ -132,13 +156,15 @@ proc apply*(input: string): string =
   # -- Patch F: Fix rjt() to forward text responses --
   # Upstream now has: (name==="SendUserMessage"||t&&(name===SU||name===T4))
   # We add mcp__dispatch__send_message and mcp__cowork__present_files, plus text forwarding.
-  let rjtAlready = re"""mcp__dispatch__send_message.{0,80}mcp__cowork__present_files.{0,80}\.some\(function\(j\)\{return j&&j\.type==="text"&&j\.text\}\)"""
+  let rjtAlready =
+    re"""mcp__dispatch__send_message.{0,80}mcp__cowork__present_files.{0,80}\.some\(function\(j\)\{return j&&j\.type==="text"&&j\.text\}\)"""
   if result.find(rjtAlready).isSome:
     echo "  [OK] rjt() text forward: already patched (skipped)"
     inc patchesApplied
   else:
     # Match new upstream pattern: ...name==="SendUserMessage"||t&&(name===VAR||name===VAR)))return!0}return!1}
-    let rjtPattern = re"""for\(const ([\w$]+) of ([\w$]+)\)\{const ([\w$]+)=\1;if\(\(\3==null\?void 0:\3\.type\)==="tool_use"&&\(\3\.name==="SendUserMessage"\|\|([\w$]+)&&\(\3\.name===([\w$]+)\|\|\3\.name===([\w$]+)\)\)\)return!0\}return!1\}"""
+    let rjtPattern =
+      re"""for\(const ([\w$]+) of ([\w$]+)\)\{const ([\w$]+)=\1;if\(\(\3==null\?void 0:\3\.type\)==="tool_use"&&\(\3\.name==="SendUserMessage"\|\|([\w$]+)&&\(\3\.name===([\w$]+)\|\|\3\.name===([\w$]+)\)\)\)return!0\}return!1\}"""
     let rjtMatch = result.find(rjtPattern)
     if rjtMatch.isSome:
       let m = rjtMatch.get()
@@ -149,12 +175,12 @@ proc apply*(input: string): string =
       let toolVar1 = m.captures[4]
       let toolVar2 = m.captures[5]
       let rjtReplacement =
-        "for(const " & loopVar & " of " & arrayVar & "){const " & itemVar & "=" & loopVar & ";" &
-        "if((" & itemVar & "==null?void 0:" & itemVar & ".type)===\"tool_use\"&&(" &
-        itemVar & ".name===\"SendUserMessage\"||" &
-        itemVar & ".name===\"mcp__dispatch__send_message\"||" &
-        itemVar & ".name===\"mcp__cowork__present_files\"||" &
-        gateVar & "&&(" & itemVar & ".name===" & toolVar1 & "||" & itemVar & ".name===" & toolVar2 & ")))return!0}" &
+        "for(const " & loopVar & " of " & arrayVar & "){const " & itemVar & "=" & loopVar &
+        ";" & "if((" & itemVar & "==null?void 0:" & itemVar & ".type)===\"tool_use\"&&(" &
+        itemVar & ".name===\"SendUserMessage\"||" & itemVar &
+        ".name===\"mcp__dispatch__send_message\"||" & itemVar &
+        ".name===\"mcp__cowork__present_files\"||" & gateVar & "&&(" & itemVar &
+        ".name===" & toolVar1 & "||" & itemVar & ".name===" & toolVar2 & ")))return!0}" &
         "return " & arrayVar & ".some(function(j){return j&&j.type===\"text\"&&j.text})}"
       let bounds = m.matchBounds
       result = result[0 ..< bounds.a] & rjtReplacement & result[bounds.b + 1 .. ^1]
@@ -162,7 +188,8 @@ proc apply*(input: string): string =
       inc patchesApplied
     else:
       # Fallback: try old pattern (no dispatch tool gate)
-      let rjtPatternOld = re"for\(const ([\w$]+) of ([\w$]+)\)\{const ([\w$]+)=\1;if\(\(\3==null\?void 0:\3\.type\)===""tool_use""&&\3\.name===""SendUserMessage""\)return!0\}return!1\}"
+      let rjtPatternOld =
+        re"for\(const ([\w$]+) of ([\w$]+)\)\{const ([\w$]+)=\1;if\(\(\3==null\?void 0:\3\.type\)===""tool_use""&&\3\.name===""SendUserMessage""\)return!0\}return!1\}"
       let rjtMatchOld = result.find(rjtPatternOld)
       if rjtMatchOld.isSome:
         let m = rjtMatchOld.get()
@@ -170,12 +197,12 @@ proc apply*(input: string): string =
         let arrayVar = m.captures[1]
         let itemVar = m.captures[2]
         let rjtReplacement =
-          "for(const " & loopVar & " of " & arrayVar & "){const " & itemVar & "=" & loopVar & ";" &
-          "if((" & itemVar & "==null?void 0:" & itemVar & ".type)===\"tool_use\"&&(" &
-          itemVar & ".name===\"SendUserMessage\"||" &
-          itemVar & ".name===\"mcp__dispatch__send_message\"||" &
-          itemVar & ".name===\"mcp__cowork__present_files\"))return!0}" &
-          "return " & arrayVar & ".some(function(j){return j&&j.type===\"text\"&&j.text})}"
+          "for(const " & loopVar & " of " & arrayVar & "){const " & itemVar & "=" &
+          loopVar & ";" & "if((" & itemVar & "==null?void 0:" & itemVar &
+          ".type)===\"tool_use\"&&(" & itemVar & ".name===\"SendUserMessage\"||" &
+          itemVar & ".name===\"mcp__dispatch__send_message\"||" & itemVar &
+          ".name===\"mcp__cowork__present_files\"))return!0}" & "return " & arrayVar &
+          ".some(function(j){return j&&j.type===\"text\"&&j.text})}"
         let bounds = m.matchBounds
         result = result[0 ..< bounds.a] & rjtReplacement & result[bounds.b + 1 .. ^1]
         echo &"  [OK] rjt() text forward: patched via old pattern (item={itemVar}, array={arrayVar})"
@@ -188,7 +215,8 @@ proc apply*(input: string): string =
     echo "  [OK] dispatch auto-wake parent: already patched (skipped)"
     inc patchesApplied
   else:
-    let wakePattern = re"(\(\(([\w$]+)\.pendingDispatchNotifications\?\?\(\2\.pendingDispatchNotifications=\[\]\)\)\.push\(([\w$]+)\),)([\w$]+)(\.info\(`\[Dispatch\] Queued notification for cold parent \$\{\2\.sessionId\} \(child \$\{([\w$]+)\.sessionId\} \$\{([\w$]+)\}\)`\)\))"
+    let wakePattern =
+      re"(\(\(([\w$]+)\.pendingDispatchNotifications\?\?\(\2\.pendingDispatchNotifications=\[\]\)\)\.push\(([\w$]+)\),)([\w$]+)(\.info\(`\[Dispatch\] Queued notification for cold parent \$\{\2\.sessionId\} \(child \$\{([\w$]+)\.sessionId\} \$\{([\w$]+)\}\)`\)\))"
     let wakeMatch = result.find(wakePattern)
     if wakeMatch.isSome:
       let m = wakeMatch.get()
@@ -199,11 +227,12 @@ proc apply*(input: string): string =
       let origMatch = m.match
       # Strip trailing ) from the original
       let baseMatch = origMatch[0 ..< origMatch.len - 1]
-      let wakeReplacement = baseMatch &
-        ",setTimeout(()=>{" &
-        logger & ".info(`[Dispatch] Auto-waking cold parent ${" & sessionVar & ".sessionId}`);" &
+      let wakeReplacement =
+        baseMatch & ",setTimeout(()=>{" & logger &
+        ".info(`[Dispatch] Auto-waking cold parent ${" & sessionVar & ".sessionId}`);" &
         "this.sendMessage(" & sessionVar & ".sessionId," & notifVar & ").catch(x=>" &
-        logger & ".error(`[Dispatch] Auto-wake failed for ${" & sessionVar & ".sessionId}:`,x))},500))"
+        logger & ".error(`[Dispatch] Auto-wake failed for ${" & sessionVar &
+        ".sessionId}:`,x))},500))"
       let bounds = m.matchBounds
       result = result[0 ..< bounds.a] & wakeReplacement & result[bounds.b + 1 .. ^1]
       echo &"  [OK] dispatch auto-wake parent: injected setTimeout sendMessage (session={sessionVar}, notif={notifVar}, logger={logger})"

@@ -1,16 +1,22 @@
 #!/usr/bin/env bash
-# Pre-commit hook: lint & format check for Python patches and shell scripts
+# Pre-commit hook: nim check + nph for patches, shellcheck for scripts
 
 set -e
 
-# Check if any patches are staged
-STAGED_PY=$(git diff --cached --name-only --diff-filter=ACM -- 'patches/*.py')
+STAGED_NIM=$(git diff --cached --name-only --diff-filter=ACM -- 'patches/*.nim')
 STAGED_SH=$(git diff --cached --name-only --diff-filter=ACM -- 'scripts/*.sh' 'packaging/rpm/*.sh')
 
-if [ -n "$STAGED_PY" ] && command -v ruff &>/dev/null; then
-    echo "Running ruff on staged patches..."
-    ruff check $STAGED_PY
-    ruff format --check $STAGED_PY
+if [ -n "$STAGED_NIM" ]; then
+    if command -v nph &>/dev/null; then
+        echo "Running nph format check on staged patches..."
+        nph --check $STAGED_NIM
+    fi
+    if command -v nim &>/dev/null; then
+        echo "Running nim check on staged patches..."
+        for f in $STAGED_NIM; do
+            nim check --hints:off "$f"
+        done
+    fi
 fi
 
 if [ -n "$STAGED_SH" ] && command -v shellcheck &>/dev/null; then

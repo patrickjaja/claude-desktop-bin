@@ -15,7 +15,8 @@
 import std/[os, strutils]
 import regex
 
-const linuxReader = """process.platform==="linux"?(()=>{try{return JSON.parse(require("fs").readFileSync("/etc/claude-desktop/enterprise.json","utf8"))}catch(e){return{}}})():{}"""
+const linuxReader =
+  """process.platform==="linux"?(()=>{try{return JSON.parse(require("fs").readFileSync("/etc/claude-desktop/enterprise.json","utf8"))}catch(e){return{}}})():{}"""
 
 proc apply*(input: string): string =
   # Idempotency check: skip if already patched
@@ -32,13 +33,17 @@ proc apply*(input: string): string =
   # Patched -- add Linux branch before the fallback {}:
   #   process.platform==="darwin"?FUNC_D():process.platform==="win32"?FUNC_W():
   #     process.platform==="linux"?(...)():{}
-  let pattern = re2"""process\.platform==="darwin"\?([\w$]+)\(\):process\.platform==="win32"\?([\w$]+)\(\):\{\}"""
+  let pattern =
+    re2"""process\.platform==="darwin"\?([\w$]+)\(\):process\.platform==="win32"\?([\w$]+)\(\):\{\}"""
   var count = 0
-  result = input.replace(pattern, proc(m: RegexMatch2, s: string): string =
-    inc count
-    let darwinFn = s[m.group(0)]
-    let win32Fn = s[m.group(1)]
-    """process.platform==="darwin"?""" & darwinFn & """():process.platform==="win32"?""" & win32Fn & "():" & linuxReader
+  result = input.replace(
+    pattern,
+    proc(m: RegexMatch2, s: string): string =
+      inc count
+      let darwinFn = s[m.group(0)]
+      let win32Fn = s[m.group(1)]
+      """process.platform==="darwin"?""" & darwinFn &
+        """():process.platform==="win32"?""" & win32Fn & "():" & linuxReader,
   )
   if count >= 1:
     echo "  [OK] Enterprise config Linux reader: " & $count & " match(es)"
@@ -69,13 +74,17 @@ when isMainModule:
     if "/etc/claude-desktop/enterprise.json" in preContent:
       echo "  [OK] index.pre.js: already patched"
     else:
-      let prePattern = re2"""process\.platform==="darwin"\?([\w$]+)\(\):process\.platform==="win32"\?([\w$]+)\(\):\{\}"""
+      let prePattern =
+        re2"""process\.platform==="darwin"\?([\w$]+)\(\):process\.platform==="win32"\?([\w$]+)\(\):\{\}"""
       var preCount = 0
-      let newPreContent = preContent.replace(prePattern, proc(m: RegexMatch2, s: string): string =
-        inc preCount
-        let darwinFn = s[m.group(0)]
-        let win32Fn = s[m.group(1)]
-        """process.platform==="darwin"?""" & darwinFn & """():process.platform==="win32"?""" & win32Fn & "():" & linuxReader
+      let newPreContent = preContent.replace(
+        prePattern,
+        proc(m: RegexMatch2, s: string): string =
+          inc preCount
+          let darwinFn = s[m.group(0)]
+          let win32Fn = s[m.group(1)]
+          """process.platform==="darwin"?""" & darwinFn &
+            """():process.platform==="win32"?""" & win32Fn & "():" & linuxReader,
       )
       if preCount >= 1:
         writeFile(preJs, newPreContent)

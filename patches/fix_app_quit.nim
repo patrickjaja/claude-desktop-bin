@@ -23,13 +23,15 @@ proc apply*(input: string): string =
   # Replace with setImmediate + app.exit(0) for reliable exit
   let pattern = re2"(clearTimeout\([\w$]+\)\})([\w$]+)&&([\w$]+)(\.app\.quit\(\))"
   var count = 0
-  result = input.replace(pattern, proc(m: RegexMatch2, s: string): string =
-    inc count
-    let grp0 = s[m.group(0)]  # clearTimeout(n)}
-    let flagVar = s[m.group(1)]  # XX
-    let electronVar = s[m.group(2)]  # YY
-    # group(3) is .app.quit() -- we discard it
-    grp0 & "if(" & flagVar & "){setImmediate(()=>" & electronVar & ".app.exit(0))}"
+  result = input.replace(
+    pattern,
+    proc(m: RegexMatch2, s: string): string =
+      inc count
+      let grp0 = s[m.group(0)] # clearTimeout(n)}
+      let flagVar = s[m.group(1)] # XX
+      let electronVar = s[m.group(2)] # YY
+      # group(3) is .app.quit() -- we discard it
+      grp0 & "if(" & flagVar & "){setImmediate(()=>" & electronVar & ".app.exit(0))}",
   )
   if count == 0:
     if ".app.quit()" in input:

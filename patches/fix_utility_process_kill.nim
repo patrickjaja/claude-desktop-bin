@@ -16,12 +16,15 @@ proc apply*(input: string): string =
   # Pattern: The setTimeout callback that tries to kill the UtilityProcess
   # after 5 seconds. Matches:
   #   const a=(s=this.process)==null?void 0:s.kill();te.info(`Killing utiltiy proccess again
-  let pattern = re2"""(const \w+=\(\w+=this\.process\)==null\?void 0:\w+)(\.kill\(\))(;[\w$]+\.info\(`Killing utiltiy proccess again)"""
+  let pattern =
+    re2"""(const \w+=\(\w+=this\.process\)==null\?void 0:\w+)(\.kill\(\))(;[\w$]+\.info\(`Killing utiltiy proccess again)"""
   var count = 0
-  result = input.replace(pattern, proc(m: RegexMatch2, s: string): string =
-    inc count
-    # Replace .kill() with .kill("SIGKILL")
-    s[m.group(0)] & """.kill("SIGKILL")""" & s[m.group(2)]
+  result = input.replace(
+    pattern,
+    proc(m: RegexMatch2, s: string): string =
+      inc count
+      # Replace .kill() with .kill("SIGKILL")
+      s[m.group(0)] & """.kill("SIGKILL")""" & s[m.group(2)],
   )
   if count == 0:
     if "Killing utiltiy proccess again" in input:

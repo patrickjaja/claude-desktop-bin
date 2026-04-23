@@ -8,38 +8,23 @@ import std/[os, strformat, strutils, options]
 import std/nre
 
 const BOUNDS_FIX_JS =
-  "(function(__wb_w){" &
-  "if(process.platform!==\"linux\")return;" &
-  "var __wb_fcb=function(){" &
-  "if(__wb_w.isDestroyed())return;" &
+  "(function(__wb_w){" & "if(process.platform!==\"linux\")return;" &
+  "var __wb_fcb=function(){" & "if(__wb_w.isDestroyed())return;" &
   "var __wb_cv=__wb_w.contentView;" &
   "if(!__wb_cv||!__wb_cv.children||!__wb_cv.children.length)return;" &
   "var __wb_cs=__wb_w.getContentSize(),__wb_cw=__wb_cs[0],__wb_ch=__wb_cs[1];" &
-  "if(__wb_cw<=0||__wb_ch<=0)return;" &
-  "var __wb_cb=__wb_cv.children[0].getBounds();" &
+  "if(__wb_cw<=0||__wb_ch<=0)return;" & "var __wb_cb=__wb_cv.children[0].getBounds();" &
   "if(__wb_cb.width!==__wb_cw||__wb_cb.height!==__wb_ch)" &
-  "__wb_cv.children[0].setBounds({x:0,y:0,width:__wb_cw,height:__wb_ch})" &
-  "};" &
+  "__wb_cv.children[0].setBounds({x:0,y:0,width:__wb_cw,height:__wb_ch})" & "};" &
   "var __wb_fasc=function(){__wb_fcb();setTimeout(__wb_fcb,16);setTimeout(__wb_fcb,150)};" &
   "[\"maximize\",\"unmaximize\",\"enter-full-screen\",\"leave-full-screen\"]" &
-  ".forEach(function(__wb_ev){__wb_w.on(__wb_ev,__wb_fasc)});" &
-  "var __wb_lsz=[0,0];" &
-  "__wb_w.on(\"moved\",function(){" &
-  "if(__wb_w.isDestroyed())return;" &
-  "var __wb_s=__wb_w.getSize();" &
-  "if(__wb_s[0]!==__wb_lsz[0]||__wb_s[1]!==__wb_lsz[1])" &
-  "{__wb_lsz=__wb_s;__wb_fasc()}" &
-  "});" &
-  "__wb_w.once(\"ready-to-show\",function(){" &
-  "var __wb_s=__wb_w.getSize();" &
-  "__wb_w.setSize(__wb_s[0]+1,__wb_s[1]+1);" &
-  "setTimeout(function(){" &
-  "if(__wb_w.isDestroyed())return;" &
-  "__wb_w.setSize(__wb_s[0],__wb_s[1]);" &
-  "__wb_fasc()" &
-  "},50)" &
-  "})" &
-  "})"
+  ".forEach(function(__wb_ev){__wb_w.on(__wb_ev,__wb_fasc)});" & "var __wb_lsz=[0,0];" &
+  "__wb_w.on(\"moved\",function(){" & "if(__wb_w.isDestroyed())return;" &
+  "var __wb_s=__wb_w.getSize();" & "if(__wb_s[0]!==__wb_lsz[0]||__wb_s[1]!==__wb_lsz[1])" &
+  "{__wb_lsz=__wb_s;__wb_fasc()}" & "});" & "__wb_w.once(\"ready-to-show\",function(){" &
+  "var __wb_s=__wb_w.getSize();" & "__wb_w.setSize(__wb_s[0]+1,__wb_s[1]+1);" &
+  "setTimeout(function(){" & "if(__wb_w.isDestroyed())return;" &
+  "__wb_w.setSize(__wb_s[0],__wb_s[1]);" & "__wb_fasc()" & "},50)" & "})" & "})"
 
 proc apply*(input: string): string =
   result = input
@@ -52,7 +37,8 @@ proc apply*(input: string): string =
     applied.add("bounds-fix(skip)")
   else:
     # Pattern uses \2 backreference for winVar
-    let mainWinPattern = nre.re"(function [\w$]+\([\w$]+\)\{return )([\w$]+)=new ([\w$]+)\.BrowserWindow\(([\w$]+)\),([\w$]+\(\2\.webContents,[\w$]+\.MAIN_WINDOW\)),\2\}"
+    let mainWinPattern =
+      nre.re"(function [\w$]+\([\w$]+\)\{return )([\w$]+)=new ([\w$]+)\.BrowserWindow\(([\w$]+)\),([\w$]+\(\2\.webContents,[\w$]+\.MAIN_WINDOW\)),\2\}"
 
     let m1 = result.find(mainWinPattern)
     if m1.isSome:
@@ -63,8 +49,11 @@ proc apply*(input: string): string =
       let paramVar = m.captures[3]
       let setupCall = m.captures[4]
       let iife = BOUNDS_FIX_JS & "(" & winVar & ")"
-      let replacement = prefix & winVar & "=new " & electronVar & ".BrowserWindow(" & paramVar & ")," & setupCall & "," & iife & "," & winVar & "}"
-      result = result[0 ..< m.matchBounds.a] & replacement & result[m.matchBounds.b + 1 .. ^1]
+      let replacement =
+        prefix & winVar & "=new " & electronVar & ".BrowserWindow(" & paramVar & ")," &
+        setupCall & "," & iife & "," & winVar & "}"
+      result =
+        result[0 ..< m.matchBounds.a] & replacement & result[m.matchBounds.b + 1 .. ^1]
       echo "  [OK] Window bounds fix + size jiggle injected: 1 match(es)"
       applied.add("bounds-fix(1)")
     else:
@@ -78,22 +67,27 @@ proc apply*(input: string): string =
     echo "  [INFO] Quick Entry blur already applied"
     applied.add("qe-blur(skip)")
   else:
-    let qeHidePattern = re"(function [\w$]+\(\)\{)([\w$]+\(\))\|\|([\w$]+)(\.hide\(\))\}"
+    let qeHidePattern =
+      re"(function [\w$]+\(\)\{)([\w$]+\(\))\|\|([\w$]+)(\.hide\(\))\}"
     var countQe = 0
-    result = result.replace(qeHidePattern, proc(m: RegexMatch): string =
-      inc countQe
-      let funcDecl = m.captures[0]
-      let guardCall = m.captures[1]
-      let winVar = m.captures[2]
-      let hideCall = m.captures[3]
-      funcDecl & guardCall & "||(" & winVar & ".blur()," & winVar & hideCall & ")}"
+    result = result.replace(
+      qeHidePattern,
+      proc(m: RegexMatch): string =
+        inc countQe
+        let funcDecl = m.captures[0]
+        let guardCall = m.captures[1]
+        let winVar = m.captures[2]
+        let hideCall = m.captures[3]
+        funcDecl & guardCall & "||(" & winVar & ".blur()," & winVar & hideCall & ")}",
     )
     if countQe > 0:
       echo &"  [OK] Quick Entry blur before hide: {countQe} match(es)"
       applied.add(&"qe-blur({countQe})")
     else:
       echo "  [FAIL] Quick Entry hide pattern not matched"
-      raise newException(ValueError, "fix_window_bounds: Quick Entry hide pattern not matched")
+      raise newException(
+        ValueError, "fix_window_bounds: Quick Entry hide pattern not matched"
+      )
 
   if applied.len == 0:
     raise newException(ValueError, "fix_window_bounds: No patches could be applied")

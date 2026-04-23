@@ -26,8 +26,10 @@ proc apply*(input: string): string =
 
   # Pattern 1: isStartupOnLoginEnabled function
   # Replace the env-var short-circuit with a Linux XDG check, then keep the env-var check.
-  let pattern1 = re2"""isStartupOnLoginEnabled\(\)\{if\(process\.env\.CLAUDE_AVOID_READING_LOGING_ITEM_SETTINGS\)return!1;"""
-  const replacement1 = """isStartupOnLoginEnabled(){if(process.platform==="linux"){try{return require("fs").existsSync(require("path").join(require("os").homedir(),".config","autostart","com.anthropic.claude-desktop.desktop"))}catch(e){return false}}if(process.env.CLAUDE_AVOID_READING_LOGING_ITEM_SETTINGS)return!1;"""
+  let pattern1 =
+    re2"""isStartupOnLoginEnabled\(\)\{if\(process\.env\.CLAUDE_AVOID_READING_LOGING_ITEM_SETTINGS\)return!1;"""
+  const replacement1 =
+    """isStartupOnLoginEnabled(){if(process.platform==="linux"){try{return require("fs").existsSync(require("path").join(require("os").homedir(),".config","autostart","com.anthropic.claude-desktop.desktop"))}catch(e){return false}}if(process.env.CLAUDE_AVOID_READING_LOGING_ITEM_SETTINGS)return!1;"""
 
   # Already-applied sentinel: Pattern 1 changes the function to start with platform check.
   # Must be specific - other patches (fix_asar_workspace_cwd, fix_browser_tools_linux)
@@ -38,9 +40,11 @@ proc apply*(input: string): string =
     result = input
   else:
     var count1 = 0
-    result = input.replace(pattern1, proc(m: RegexMatch2, s: string): string =
-      inc count1
-      replacement1
+    result = input.replace(
+      pattern1,
+      proc(m: RegexMatch2, s: string): string =
+        inc count1
+        replacement1,
     )
     if count1 > 0:
       patchesApplied += count1
@@ -50,7 +54,8 @@ proc apply*(input: string): string =
 
   # Pattern 2: setStartupOnLoginEnabled function
   # Inject Linux XDG autostart file management (create/remove with --startup in Exec line).
-  let pattern2 = re2"""setStartupOnLoginEnabled\(([\w$]+)\)\{([\w$]+)\.debug\("Toggling"""
+  let pattern2 =
+    re2"""setStartupOnLoginEnabled\(([\w$]+)\)\{([\w$]+)\.debug\("Toggling"""
 
   # Already-applied sentinel: Pattern 2 adds X-GNOME-Autostart-enabled (unique to our patch)
   let intermediate = result
@@ -59,11 +64,17 @@ proc apply*(input: string): string =
     patchesApplied += 1
   else:
     var count2 = 0
-    result = intermediate.replace(pattern2, proc(m: RegexMatch2, s: string): string =
-      inc count2
-      let argVar = s[m.group(0)]
-      let loggerVar = s[m.group(1)]
-      """setStartupOnLoginEnabled(""" & argVar & """){if(process.platform==="linux"){const _f=require("path").join(require("os").homedir(),".config","autostart","com.anthropic.claude-desktop.desktop");if(""" & argVar & """){require("fs").mkdirSync(require("path").dirname(_f),{recursive:true});require("fs").writeFileSync(_f,"[Desktop Entry]\nType=Application\nName=Claude\nExec=claude-desktop --startup\nX-GNOME-Autostart-enabled=true\n")}else{try{require("fs").unlinkSync(_f)}catch(e){}}return}""" & loggerVar & """.debug("Toggling"""
+    result = intermediate.replace(
+      pattern2,
+      proc(m: RegexMatch2, s: string): string =
+        inc count2
+        let argVar = s[m.group(0)]
+        let loggerVar = s[m.group(1)]
+        """setStartupOnLoginEnabled(""" & argVar &
+          """){if(process.platform==="linux"){const _f=require("path").join(require("os").homedir(),".config","autostart","com.anthropic.claude-desktop.desktop");if(""" &
+          argVar &
+          """){require("fs").mkdirSync(require("path").dirname(_f),{recursive:true});require("fs").writeFileSync(_f,"[Desktop Entry]\nType=Application\nName=Claude\nExec=claude-desktop --startup\nX-GNOME-Autostart-enabled=true\n")}else{try{require("fs").unlinkSync(_f)}catch(e){}}return}""" &
+          loggerVar & """.debug("Toggling""",
     )
     if count2 > 0:
       patchesApplied += count2

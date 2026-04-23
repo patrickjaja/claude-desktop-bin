@@ -8,7 +8,9 @@ import regex
 
 const EXPECTED_PATCHES = 2
 
-proc replaceFirst(content: var string, pattern: Regex2, subFn: proc(m: RegexMatch2, s: string): string): int =
+proc replaceFirst(
+    content: var string, pattern: Regex2, subFn: proc(m: RegexMatch2, s: string): string
+): int =
   var found = false
   var resultStr = ""
   var lastEnd = 0
@@ -36,10 +38,13 @@ proc apply*(input: string): string =
     echo "  [OK] isEnabled: already patched (skipped)"
     patchesApplied += 1
   else:
-    let patternA = re2"isEnabled:[\w$]+=>\([\w$]+\(""3444158716""\)\|\|!1\)&&[\w$]+\.sessionType===""cowork"""
+    let patternA =
+      re2"isEnabled:[\w$]+=>\([\w$]+\(""3444158716""\)\|\|!1\)&&[\w$]+\.sessionType===""cowork"""
 
-    var countA = result.replaceFirst(patternA, proc(m: RegexMatch2, s: string): string =
-      "isEnabled:t=>(true)&&t.sessionType===\"cowork\""
+    var countA = result.replaceFirst(
+      patternA,
+      proc(m: RegexMatch2, s: string): string =
+        "isEnabled:t=>(true)&&t.sessionType===\"cowork\"",
     )
     if countA >= 1:
       echo &"  [OK] isEnabled: forced ON for cowork sessions ({countA} match)"
@@ -58,9 +63,11 @@ proc apply*(input: string): string =
     patchesApplied += 1
   else:
     let patternB = re2"([\w$]+)=[\w$]+\(""3444158716""\)\|\|!1"
-    var countB = result.replaceFirst(patternB, proc(m: RegexMatch2, s: string): string =
-      let varName = s[m.group(0)]
-      varName & "=!0"
+    var countB = result.replaceFirst(
+      patternB,
+      proc(m: RegexMatch2, s: string): string =
+        let varName = s[m.group(0)]
+        varName & "=!0",
     )
     if countB >= 1:
       echo &"  [OK] hasImagine: forced true ({countB} match)"
@@ -69,7 +76,10 @@ proc apply*(input: string): string =
       echo "  [FAIL] hasImagine pattern not found"
 
   if patchesApplied < EXPECTED_PATCHES:
-    raise newException(ValueError, &"fix_imagine_linux: Only {patchesApplied}/{EXPECTED_PATCHES} patches applied")
+    raise newException(
+      ValueError,
+      &"fix_imagine_linux: Only {patchesApplied}/{EXPECTED_PATCHES} patches applied",
+    )
 
 when isMainModule:
   if paramCount() != 1:

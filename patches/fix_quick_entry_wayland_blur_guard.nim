@@ -32,13 +32,10 @@ proc apply*(input: string): string =
       let fg = FOCUS_GLOBAL
 
       resultStr &=
-        win & ".on(\"focus\",()=>{globalThis." & fg & "=!0})," &
-        win & ".on(\"blur\",()=>{" &
-        "if(!globalThis." & fg & ")return;" &
-        "globalThis." & fg & "=!1;" & fn & "(null)" &
-        "})," &
-        win & ".on(\"show\",()=>{globalThis." & fg & "=!1})," &
-        win & ".on(\"hide\",()=>{globalThis." & fg & "=!1})"
+        win & ".on(\"focus\",()=>{globalThis." & fg & "=!0})," & win &
+        ".on(\"blur\",()=>{" & "if(!globalThis." & fg & ")return;" & "globalThis." & fg &
+        "=!1;" & fn & "(null)" & "})," & win & ".on(\"show\",()=>{globalThis." & fg &
+        "=!1})," & win & ".on(\"hide\",()=>{globalThis." & fg & "=!1})"
 
       lastEnd = bounds.b + 1
       inc count
@@ -49,9 +46,15 @@ proc apply*(input: string): string =
     result = resultStr
     echo "  [OK] blur handler replaced with focus-tracked variant"
   elif count > 1:
-    raise newException(ValueError, &"fix_quick_entry_wayland_blur_guard: pattern matched {count} times (expected 1)")
+    raise newException(
+      ValueError,
+      &"fix_quick_entry_wayland_blur_guard: pattern matched {count} times (expected 1)",
+    )
   else:
-    raise newException(ValueError, "fix_quick_entry_wayland_blur_guard: pattern did not match Po.on(\"blur\", () => EHA(null))")
+    raise newException(
+      ValueError,
+      "fix_quick_entry_wayland_blur_guard: pattern did not match Po.on(\"blur\", () => EHA(null))",
+    )
 
 when isMainModule:
   if paramCount() != 1:

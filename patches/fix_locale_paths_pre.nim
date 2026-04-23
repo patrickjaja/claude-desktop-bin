@@ -9,7 +9,8 @@ import regex
 
 proc apply*(input: string): string =
   let oldResourcePath = "process.resourcesPath"
-  let newResourcePath = """(require("path").dirname(require("electron").app.getAppPath())+"/locales")"""
+  let newResourcePath =
+    """(require("path").dirname(require("electron").app.getAppPath())+"/locales")"""
 
   let count = input.count(oldResourcePath)
   if count >= 1:

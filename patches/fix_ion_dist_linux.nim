@@ -27,7 +27,9 @@ proc findTargetFile(ionDistDir: string): string =
   for dir in walkDir(ionDistDir / "assets" / "v1"):
     if dir.kind == pcFile and dir.path.endsWith(".js"):
       let content = readFile(dir.path)
-      if content.contains("""mountPath:{mac:"/Library/Application Support/Claude/org-plugins"""):
+      if content.contains(
+        """mountPath:{mac:"/Library/Application Support/Claude/org-plugins"""
+      ):
         return dir.path
   return ""
 
@@ -37,8 +39,10 @@ proc apply(filePath: string): int =
   var patchesApplied = 0
 
   # Sub-patch A: Add linux key to the mountPath object
-  let oldMountPath = """mountPath:{mac:"/Library/Application Support/Claude/org-plugins",win:"%ProgramFiles%\\Claude\\org-plugins""""
-  let newMountPath = """mountPath:{mac:"/Library/Application Support/Claude/org-plugins",win:"%ProgramFiles%\\Claude\\org-plugins",linux:"/etc/claude-desktop/org-plugins""""
+  let oldMountPath =
+    """mountPath:{mac:"/Library/Application Support/Claude/org-plugins",win:"%ProgramFiles%\\Claude\\org-plugins""""
+  let newMountPath =
+    """mountPath:{mac:"/Library/Application Support/Claude/org-plugins",win:"%ProgramFiles%\\Claude\\org-plugins",linux:"/etc/claude-desktop/org-plugins""""
 
   if content.contains(newMountPath):
     echo "  [OK] org-plugins linux path: already applied"
@@ -65,7 +69,8 @@ proc apply(filePath: string): int =
     echo "  [FAIL] mount path platform ternary: pattern not found"
 
   if patchesApplied < EXPECTED_PATCHES:
-    echo "  [FAIL] Only " & $patchesApplied & "/" & $EXPECTED_PATCHES & " patches applied"
+    echo "  [FAIL] Only " & $patchesApplied & "/" & $EXPECTED_PATCHES &
+      " patches applied"
     return 1
 
   if content != original:
