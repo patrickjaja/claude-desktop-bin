@@ -384,7 +384,7 @@ Configure Claude Desktop to use your own cloud inference backend instead of Anth
 
 The configuration window lets you manage connection settings, provider credentials, model lists, sandbox/workspace restrictions, MCP servers, telemetry, usage limits, and org-plugin directories — all from a single UI. Configurations can be exported as `.mobileconfig` (macOS MDM), `.reg` (Windows GPO), or plain JSON (Linux `/etc/claude-desktop/enterprise.json`).
 
-**How it works on Linux:** The upstream SPA is mostly Linux-compatible — the main process already reads enterprise config from `/etc/claude-desktop/enterprise.json` and passes `platform: "linux"` to the frontend. The patch ([fix_ion_dist_linux.nim](patches/fix_ion_dist_linux.nim)) fixes the org-plugins mount path display (upstream only has macOS/Windows paths, so on Linux it showed the macOS path) and corrects the path selection logic to use `/etc/claude-desktop/org-plugins` on Linux.
+**How it works on Linux:** The upstream SPA is mostly Linux-compatible — the main process already reads enterprise config from `/etc/claude-desktop/enterprise.json` and passes `platform: "linux"` to the frontend. The patch ([fix_ion_dist_linux.nim](patches/fix_ion_dist_linux.nim)) adds the Linux org-plugins path (`/etc/claude-desktop/org-plugins`) to the UI.
 
 **Enterprise deployment:** Use MDM (macOS), GPO (Windows), or drop a JSON file at `/etc/claude-desktop/enterprise.json` (Linux) to manage fleet-wide configuration. See the [Anthropic 3P configuration docs](https://claude.com/docs/cowork/3p/configuration) for the full key reference and recommended security profiles.
 
