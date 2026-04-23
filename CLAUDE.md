@@ -58,7 +58,7 @@ When a new Claude Desktop version drops, follow [update-prompt.md](update-prompt
 Quick start:
 ```bash
 # Build (auto-cleans build dir, auto-downloads latest exe, applies patches, packages)
-./scripts/build-local.sh --install
+./scripts/build-local.sh
 ```
 
 ### Building on Ubuntu / Debian
@@ -218,7 +218,7 @@ If syntax errors occur, the patch likely replaced only part of a construct (e.g.
 ### 7. Build and Test Locally
 
 ```bash
-./scripts/build-local.sh --install
+./scripts/build-local.sh
 ```
 
 Or build without installing:

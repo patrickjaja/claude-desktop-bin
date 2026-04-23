@@ -2,6 +2,14 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-23 — Custom theme font applied to user messages, cache Electron version
+
+- **Fix:** Custom theme `chatFont` override now applies to user-sent messages (not just Claude responses). Added `[data-user-message-bubble]` selectors to both the main theme injection and the cowork font fix.
+- **Fix:** `generate-pkgbuild.sh` caches the Electron version in `build/.electron-version` to avoid GitHub API rate limits on repeated builds. Delete the cache file to force a re-fetch.
+- **Docs:** Removed `--install` from CLAUDE.md build examples.
+
+---
+
 ## 2026-04-23 (v1.3883.0) — Bundle all upstream resources, enable Third-Party Inference
 
 - **Fix:** Third-Party Inference configuration now works on Linux ([#57](https://github.com/patrickjaja/claude-desktop-bin/issues/57)). The `ion-dist/` web frontend (85MB, 842 files) was missing from the package — the `app://` protocol handler had nothing to serve. Main process code is already Linux-compatible; the SPA needed minor patching (see below).

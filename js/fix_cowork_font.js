@@ -17,7 +17,7 @@ try{val=JSON.parse(raw).value}catch(e){return remove()}
 if(!val||val==="default"||!FONTS[val])return remove();
 var ff=FONTS[val];
 if(!el){el=document.createElement("style");el.id="__cowork-font-fix";document.head.appendChild(el)}
-el.textContent=".font-claude-response-body,.font-claude-response-title{font-family:"+ff+"!important}";
+el.textContent=".font-claude-response-body,.font-claude-response-title,[data-user-message-bubble],[data-user-message-bubble] *{font-family:"+ff+"!important}";
 }
 function remove(){if(el){el.remove();el=null}}
 apply();
