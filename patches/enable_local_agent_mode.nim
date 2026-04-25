@@ -69,8 +69,9 @@ proc apply*(input: string): string =
   # Patch 1b: Bypass yukonSilver (NH) platform gate on Linux
   let nhPatternOld =
     re"""(function [\w$]+\(\)\{)(const ([\w$]+)=process\.platform;if\(\3!=="darwin"&&\3!=="win32"\)return\{status:"unsupported",reason:`Unsupported platform: \$\{\3\}`\})"""
+  # reason: can be either Qe.formatMessage (old) or Qe().formatMessage (new, v1.4758+)
   let nhPatternNew =
-    re"""(function [\w$]+\(\)\{)(const ([\w$]+)=process\.platform;if\(\3!=="darwin"&&\3!=="win32"\)return\{status:"unsupported",reason:[\w$]+\(\)\.formatMessage\(\{defaultMessage:"Cowork is not currently supported on \{platform\}"(?:,id:"[^"]*")?\},\{platform:[\w$]+\(\)\}\),unsupportedCode:"unsupported_platform"\};)"""
+    re"""(function [\w$]+\(\)\{)(const ([\w$]+)=process\.platform;if\(\3!=="darwin"&&\3!=="win32"\)return\{status:"unsupported",reason:[\w$]+(?:\(\))?\.formatMessage\(\{defaultMessage:"Cowork is not currently supported on \{platform\}"(?:,id:"[^"]*")?\},\{platform:[\w$]+\(\)\}\),unsupportedCode:"unsupported_platform"\};)"""
 
   if "if(process.platform===\"linux\")return{status:\"supported\"};const" in result:
     echo "  [OK] yukonSilver (NH): already patched"

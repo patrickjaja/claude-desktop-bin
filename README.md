@@ -439,8 +439,7 @@ The package applies several patches to make Claude Desktop work on Linux. Each p
 | `fix_enterprise_config_linux.nim` | Reads enterprise config from `/etc/claude-desktop/enterprise.json` | `rg -o 'enterprise.json' index.js` |
 | `fix_imagine_linux.nim` | Enables Imagine/Visualize — forces GrowthBook flag for inline SVG/HTML rendering | `rg -o '3444158716' index.js` |
 | `fix_ion_dist_linux.nim` | Patches ion-dist 3P config SPA — adds Linux org-plugins path, fixes platform ternary | `rg 'org-plugins' locales/ion-dist/assets/v1/*.js` |
-| `fix_locale_paths.nim` | Redirects locale file paths to Linux install location | Global string replace on `process.resourcesPath` |
-| `fix_locale_paths_pre.nim` | Redirects locale file paths in bootstrap pre-loader (`index.pre.js`) | Global string replace on `process.resourcesPath` |
+| `fix_locale_paths.nim` | Redirects locale file paths to Linux install location (also handles `index.pre.js` if present) | Global string replace on `process.resourcesPath` |
 | `fix_marketplace_linux.nim` | Forces host-local mode for plugin operations (no VM) | `rg -o 'function \w+\(\w+\)\{return\(\w+==null.*mode.*ccd' index.js` |
 | `fix_native_frame.nim` | Native window frames on Linux, preserves Quick Entry transparency | `rg -o 'titleBarStyle.{0,30}' index.js` |
 | `fix_office_addin_linux.nim` | Extends Office Addin MCP server to include Linux | `rg -o '.{0,30}louderPenguinEnabled.{0,30}' index.js` |
