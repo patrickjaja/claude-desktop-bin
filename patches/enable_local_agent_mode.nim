@@ -22,7 +22,7 @@
 import std/[os, strformat, strutils]
 import std/nre
 
-const EXPECTED_PATCHES = 12
+const EXPECTED_PATCHES = 14
 
 proc apply*(input: string): string =
   result = input
@@ -69,8 +69,9 @@ proc apply*(input: string): string =
   # Patch 1b: Bypass yukonSilver (NH) platform gate on Linux
   let nhPatternOld =
     re"""(function [\w$]+\(\)\{)(const ([\w$]+)=process\.platform;if\(\3!=="darwin"&&\3!=="win32"\)return\{status:"unsupported",reason:`Unsupported platform: \$\{\3\}`\})"""
+  # reason: can be either Qe.formatMessage (old) or Qe().formatMessage (new, v1.4758+)
   let nhPatternNew =
-    re"""(function [\w$]+\(\)\{)(const ([\w$]+)=process\.platform;if\(\3!=="darwin"&&\3!=="win32"\)return\{status:"unsupported",reason:[\w$]+\.formatMessage\(\{defaultMessage:"Cowork is not currently supported on \{platform\}"(?:,id:"[^"]*")?\},\{platform:[\w$]+\(\)\}\),unsupportedCode:"unsupported_platform"\};)"""
+    re"""(function [\w$]+\(\)\{)(const ([\w$]+)=process\.platform;if\(\3!=="darwin"&&\3!=="win32"\)return\{status:"unsupported",reason:[\w$]+(?:\(\))?\.formatMessage\(\{defaultMessage:"Cowork is not currently supported on \{platform\}"(?:,id:"[^"]*")?\},\{platform:[\w$]+\(\)\}\),unsupportedCode:"unsupported_platform"\};)"""
 
   if "if(process.platform===\"linux\")return{status:\"supported\"};const" in result:
     echo "  [OK] yukonSilver (NH): already patched"
@@ -111,7 +112,7 @@ proc apply*(input: string): string =
 
   # Patch 3: Override features in mC() async merger
   let overrides =
-    ",quietPenguin:{status:\"supported\"},louderPenguin:{status:\"supported\"},chillingSlothFeat:{status:\"supported\"},chillingSlothLocal:{status:\"supported\"},yukonSilver:{status:\"supported\"},yukonSilverGems:{status:\"supported\"},ccdPlugins:{status:\"supported\"},computerUse:{status:\"supported\"},coworkKappa:{status:\"supported\"},coworkArtifacts:{status:\"supported\"}"
+    ",quietPenguin:{status:\"supported\"},louderPenguin:{status:\"supported\"},chillingSlothFeat:{status:\"supported\"},chillingSlothLocal:{status:\"supported\"},chillingSlothPool:{status:\"supported\"},yukonSilver:{status:\"supported\"},yukonSilverGems:{status:\"supported\"},ccdPlugins:{status:\"supported\"},computerUse:{status:\"supported\"},coworkKappa:{status:\"supported\"},coworkArtifacts:{status:\"supported\"},markTaskComplete:{status:\"supported\"}"
 
   # New format: return{...FUNC(),...props}};
   let pattern3New = re"(return\{\.\.\.(?:[\w$]+)\(\),[^}]+)(\}\};)"
@@ -121,7 +122,7 @@ proc apply*(input: string): string =
     let endTag = "}};"
     let insertPos = bounds.b + 1 - endTag.len
     result = result[0 ..< insertPos] & overrides & endTag & result[bounds.b + 1 .. ^1]
-    echo "  [OK] mC() feature merger: 10 features overridden (1 match)"
+    echo "  [OK] mC() feature merger: 12 features overridden (1 match)"
     inc patchesApplied
   else:
     # Fallback: old format
@@ -137,7 +138,7 @@ proc apply*(input: string): string =
         m.captures[0] & m.captures[1] & overrides & "})",
     )
     if count3 >= 1:
-      echo &"  [OK] mC() feature merger: 10 features overridden (old format, {count3} match)"
+      echo &"  [OK] mC() feature merger: 12 features overridden (old format, {count3} match)"
       inc patchesApplied
     else:
       echo "  [FAIL] mC() feature merger: 0 matches, expected 1"
@@ -179,6 +180,38 @@ proc apply*(input: string): string =
     failed = true
   else:
     echo "  [FAIL] coworkArtifacts flag 2940196192: 0 matches"
+    failed = true
+
+  # Patch 3d: Enable chillingSlothPool GrowthBook flag (1992087837) on Linux
+  let poolPattern = re"""[\w$]+\("1992087837"\)"""
+  var poolApplied = 0
+  result = result.replace(
+    poolPattern,
+    proc(m: RegexMatch): string =
+      inc poolApplied
+      "!0",
+  )
+  if poolApplied >= 1:
+    echo &"  [OK] chillingSlothPool flag 1992087837: forced ON ({poolApplied} matches)"
+    inc patchesApplied
+  else:
+    echo "  [FAIL] chillingSlothPool flag 1992087837: 0 matches"
+    failed = true
+
+  # Patch 3e: Enable markTaskComplete GrowthBook flag (3732274605) on Linux
+  let mtcPattern = re"""[\w$]+\("3732274605"\)"""
+  var mtcApplied = 0
+  result = result.replace(
+    mtcPattern,
+    proc(m: RegexMatch): string =
+      inc mtcApplied
+      "!0",
+  )
+  if mtcApplied >= 1:
+    echo &"  [OK] markTaskComplete flag 3732274605: forced ON ({mtcApplied} matches)"
+    inc patchesApplied
+  else:
+    echo "  [FAIL] markTaskComplete flag 3732274605: 0 matches"
     failed = true
 
   # Patch 4: Change preferences defaults for Code features

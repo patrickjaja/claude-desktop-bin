@@ -63,7 +63,7 @@ when isMainModule:
     writeFile(filePath, output)
     echo "  [PASS] All required patterns matched and applied"
   else:
-    echo "  [WARN] No changes made (patterns may have already been applied)"
+    echo "  [OK] No changes made (already patched)"
 
   # Also patch index.pre.js if it exists (new in v1.2278.0 -- bootstrap file)
   let preJs = parentDir(filePath) / "index.pre.js"

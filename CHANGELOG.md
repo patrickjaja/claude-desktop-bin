@@ -2,6 +2,22 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-25 (v1.4758.0) — Upstream update, 6 patches fixed, 2 new feature flags
+
+- **Version bump:** v1.3883.0 → v1.4758.0
+- **6 patches updated:**
+  - `enable_local_agent_mode.nim` — yukonSilver `formatMessage` now called via `Qe().formatMessage` (function invocation before property access); made `()` optional in regex with `(?:\(\))?` to match both old and new intl forms. Added 2 new GrowthBook force-ON patches (3d: `chillingSlothPool` flag `1992087837`, 3e: `markTaskComplete` flag `3732274605`). Merger overrides expanded from 10 to 12. — regex improvement contributed by [@boommasterxd](https://github.com/boommasterxd)
+  - `fix_asar_workspace_cwd.nim` — `checkTrust`/`saveTrust` methods gained intermediate `DQ()` path expansion call. Simplified regex to match method signature only (not body), making it robust against future body changes.
+  - `fix_computer_use_linux.nim` — CU teach overlay gate moved from after TCC stub to before it (ternary wrapping). Added before-stub ternary check alongside existing after-stub check.
+  - `fix_dock_bounce.nim` — Removed `backgroundThrottling` sub-patch (EXPECTED_PATCHES 4→3). Upstream dropped `backgroundThrottling:!1` from webPreferences; Electron now uses its default (`true`), which is what our patch was achieving.
+  - `fix_ion_dist_linux.nim` — Platform enum variable renamed `W`→`G` in ion-dist SPA. Changed from hardcoded literal matching to regex capture for dynamic enum variable detection.
+  - `fix_locale_paths_pre.nim` — **Removed.** Redundant with `fix_locale_paths.nim` which already handles `index.pre.js` (lines 68-81). Upstream also removed `process.resourcesPath` from `index.pre.js` in this release.
+- **2 new feature flags** (22 total, was 20): `chillingSlothPool` (concurrent session pooling, GrowthBook `1992087837`), `markTaskComplete` (task completion, GrowthBook `3732274605`)
+- **1 feature moved:** `louderPenguin` moved from static registry to async-only (now solely in $yA merger)
+- **0** new MCP servers (17 remain), **0** new `process.platform` gates requiring patches
+
+---
+
 ## 2026-04-23 (v1.3883.0) — Bundle all upstream resources, 3P Inference, theme fixes, CI fix, XDG autostart
 
 - **Fix:** "Start at login" toggle now works on Linux ([#60](https://github.com/patrickjaja/claude-desktop-bin/issues/60), [#61](https://github.com/patrickjaja/claude-desktop-bin/pull/61)). The previous patch disabled startup settings entirely on Linux (always returned `false`, write was a no-op). Replaced with proper XDG autostart management: creates/removes `~/.config/autostart/com.anthropic.claude-desktop.desktop` with `Exec=claude-desktop --startup` so the app starts hidden in tray. The toggle now correctly reflects actual autostart state. — contributed by [@boommasterxd](https://github.com/boommasterxd)
