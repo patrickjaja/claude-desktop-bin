@@ -108,6 +108,8 @@ proc apply*(input: string): string =
       pattern3,
       proc(m: RegexMatch2, s: string): string =
         inc count3
+        if count3 > 1:
+          return s[m.group(0)] & ".argv.includes(\"--startup\")"
         let processVar = s[m.group(0)]
         processVar &
           ".argv.includes(\"--startup\")||process.platform===\"linux\"&&(()=>{try{const _uid=String(process.getuid());const _wd=process.env.WAYLAND_DISPLAY;const _sock=_wd?require(\"path\").join(\"/run/user\",_uid,_wd):require(\"path\").join(\"/run/user\",_uid,\"bus\");const _b=require(\"fs\").statSync(_sock);return(Date.now()-_b.mtimeMs)<60000}catch(e){return false}})()",
