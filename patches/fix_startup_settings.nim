@@ -10,19 +10,23 @@
 # 2. setStartupOnLoginEnabled() must manage the XDG autostart file directly, because
 #    Electron's setLoginItemSettings() on Linux does not add --startup to the Exec line,
 #    so the main window would always appear even when started at login.
-# 3. The main window is only hidden when argv.includes("--startup") is true (Linux path).
-#    Without --startup in the autostart Exec line, the window always shows.
+# 3. GNOME session restore re-launches Claude after reboot without --startup because
+#    gnome-session-service re-launches saved apps independently of XDG autostart.
+#    No env var distinguishes a session-restore launch from a normal user launch.
 #
 # Fix:
 # - isStartupOnLoginEnabled(): check ~/.config/autostart/com.anthropic.claude-desktop.desktop
 # - setStartupOnLoginEnabled(enabled): create/remove that file with Exec=claude-desktop --startup
+# - Augment the --startup argv check: /run/user/UID/bus is created by systemd-logind at
+#   session start. If Claude starts within 60 s of that mtime, assume session-restore and
+#   suppress the main window (treat as --startup launch).
 
 import std/[os, strutils]
 import regex
 
 proc apply*(input: string): string =
   var patchesApplied = 0
-  const expectedPatches = 2
+  const expectedPatches = 3
 
   # Pattern 1: isStartupOnLoginEnabled function
   # Replace the env-var short-circuit with a Linux XDG check, then keep the env-var check.
@@ -81,6 +85,38 @@ proc apply*(input: string): string =
       echo "  [OK] setStartupOnLoginEnabled: " & $count2 & " match(es)"
     else:
       echo "  [FAIL] setStartupOnLoginEnabled: 0 matches"
+
+  # Pattern 3: GNOME session restore detection.
+  # gnome-session-service re-launches saved apps without --startup. There is no env var
+  # to distinguish this from a normal user launch.
+  # Strategy: check the mtime of the Wayland compositor socket (WAYLAND_DISPLAY env var,
+  # e.g. /run/user/UID/wayland-1). The compositor socket is created when the graphical
+  # session starts -- even when systemd lingering is enabled (which keeps /run/user/UID/bus
+  # alive from boot, making the bus socket mtime unreliable as a login-time proxy).
+  # X11 fallback: uses the bus socket (works for X11 users without lingering).
+  # If Claude starts within 60 s of that timestamp, assume session-restore and hide window.
+  # Limitation: a manual launch within 60 s of compositor start is also suppressed.
+  let pattern3 = re2"""([\w$]+)\.argv\.includes\("--startup"\)"""
+
+  let intermediate2 = result
+  if "_b.mtimeMs" in intermediate2:
+    echo "  [INFO] GNOME session restore: already patched"
+    patchesApplied += 1
+  else:
+    var count3 = 0
+    result = intermediate2.replace(
+      pattern3,
+      proc(m: RegexMatch2, s: string): string =
+        inc count3
+        let processVar = s[m.group(0)]
+        processVar &
+          ".argv.includes(\"--startup\")||process.platform===\"linux\"&&(()=>{try{const _uid=String(process.getuid());const _wd=process.env.WAYLAND_DISPLAY;const _sock=_wd?require(\"path\").join(\"/run/user\",_uid,_wd):require(\"path\").join(\"/run/user\",_uid,\"bus\");const _b=require(\"fs\").statSync(_sock);return(Date.now()-_b.mtimeMs)<60000}catch(e){return false}})()",
+    )
+    if count3 > 0:
+      patchesApplied += count3
+      echo "  [OK] GNOME session restore: " & $count3 & " match(es)"
+    else:
+      echo "  [FAIL] GNOME session restore: 0 matches"
 
   if patchesApplied < expectedPatches:
     echo "  [FAIL] Only " & $patchesApplied & "/" & $expectedPatches & " patches applied"
