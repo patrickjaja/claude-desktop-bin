@@ -38,13 +38,10 @@ proc apply*(input: string): string =
   # Patch 1: Inject Linux executor at app.on("ready")
   let readyPattern = re"""app\.on\("ready",async\(\)=>\{"""
   var count1 = 0
-  result = result.replace(
-    readyPattern,
-    proc(m: RegexMatch): string =
-      inc count1
-      if count1 > 1:
-        return m.match
-      m.match & "if(process.platform===\"linux\"){" & LINUX_EXECUTOR_JS & "}",
+  result = result.replace(readyPattern, proc(m: RegexMatch): string =
+    inc count1
+    if count1 > 1: return m.match
+    m.match & "if(process.platform===\"linux\"){" & LINUX_EXECUTOR_JS & "}"
   )
   if count1 >= 1:
     echo &"  [OK] Linux executor: injected ({count1} match)"
@@ -73,18 +70,13 @@ proc apply*(input: string): string =
       quit(1)
 
   # Patch 4: Patch createDarwinExecutor to return Linux executor on Linux
-  let executorPattern =
-    re"""(function [\w$]+\([\w$]+\)\{)if\(process\.platform!=="darwin"\)throw new Error"""
+  let executorPattern = re"""(function [\w$]+\([\w$]+\)\{)if\(process\.platform!=="darwin"\)throw new Error"""
   var count4 = 0
-  result = result.replace(
-    executorPattern,
-    proc(m: RegexMatch): string =
-      inc count4
-      if count4 > 1:
-        return m.match
-      m.captures[0] &
-        "if(process.platform===\"linux\"&&globalThis.__linuxExecutor)return globalThis.__linuxExecutor;" &
-        "if(process.platform!==\"darwin\")throw new Error",
+  result = result.replace(executorPattern, proc(m: RegexMatch): string =
+    inc count4
+    if count4 > 1: return m.match
+    m.captures[0] & "if(process.platform===\"linux\"&&globalThis.__linuxExecutor)return globalThis.__linuxExecutor;" &
+      "if(process.platform!==\"darwin\")throw new Error"
   )
   if count4 >= 1:
     echo &"  [OK] createDarwinExecutor: Linux fallback ({count4} match)"
@@ -97,15 +89,11 @@ proc apply*(input: string): string =
   # Patch 5: Patch ensureOsPermissions to return granted:true on Linux
   let permsPattern = re"ensureOsPermissions:([\w$]+)"
   var count5 = 0
-  result = result.replace(
-    permsPattern,
-    proc(m: RegexMatch): string =
-      inc count5
-      if count5 > 1:
-        return m.match
-      let fnName = m.captures[0]
-      "ensureOsPermissions:process.platform===\"linux\"?async()=>({granted:!0}):" &
-        fnName,
+  result = result.replace(permsPattern, proc(m: RegexMatch): string =
+    inc count5
+    if count5 > 1: return m.match
+    let fnName = m.captures[0]
+    "ensureOsPermissions:process.platform===\"linux\"?async()=>({granted:!0}):" & fnName
   )
   if count5 >= 1:
     echo &"  [OK] ensureOsPermissions: skip TCC on Linux ({count5} match)"
@@ -116,8 +104,7 @@ proc apply*(input: string): string =
 
   # Patch 6: Hybrid handleToolCall -- inject early-return block
   # Step A: Match the handleToolCall start
-  let htcStart =
-    re"(([\w$]+)=\{isEnabled:[\w$]+=>[\w$]+\(\),handleToolCall:async\(([\w$]+),([\w$]+),([\w$]+)\)=>\{)"
+  let htcStart = re"(([\w$]+)=\{isEnabled:[\w$]+=>[\w$]+\(\),handleToolCall:async\(([\w$]+),([\w$]+),([\w$]+)\)=>\{)"
   let htcMatch = result.find(htcStart)
 
   if htcMatch.isSome:
@@ -126,12 +113,11 @@ proc apply*(input: string): string =
     let toolNameParam = m.captures[2]
     let inputParam = m.captures[3]
     let sessionParam = m.captures[4]
-    let injectPos = m.matchBounds.b + 1 # right after the opening {
+    let injectPos = m.matchBounds.b + 1  # right after the opening {
 
     # Step B: Find the dispatcher function name
     let afterBrace = result[injectPos .. min(injectPos + 2000, result.len - 1)]
-    let dispatcherSearch =
-      re("const [\\w$]+=([\\w$]+)\\(" & sessionParam & "\\),\\{save_to_disk:")
+    let dispatcherSearch = re("const [\\w$]+=([\\w$]+)\\(" & sessionParam & "\\),\\{save_to_disk:")
     let dispatcherMatch = afterBrace.find(dispatcherSearch)
 
     if dispatcherMatch.isSome:
@@ -153,26 +139,22 @@ proc apply*(input: string): string =
     echo "  [FAIL] handleToolCall pattern: 0 matches"
     quit(1)
 
-  # Patch 7: Teach overlay controller init on Linux
-  let stubEnd = re"listInstalledApps:\(\)=>\[\]\}\)"
-  let stubMatch = result.find(stubEnd)
-  if stubMatch.isSome:
-    let afterStub = result[
-      stubMatch.get().matchBounds.b + 1 ..
-        min(stubMatch.get().matchBounds.b + 50, result.len - 1)
-    ]
-    if ".has(process.platform)" in afterStub or
-        afterStub.find(re",[\w$]+\(\)&&\(").isSome:
-      echo "  [OK] teach overlay controller: CU gate found (handled by Set fix)"
-      inc patchesApplied
-    else:
-      echo "  [FAIL] teach overlay: CU gate not found after TCC stub"
+  # Patch 7: Verify CU gate (Set-based platform check) is still present.
+  # This is a verification, not a mutation -- Patch 2 extends the Set to include
+  # "linux", which makes the gate function return true on Linux.
+  # We confirm the gate still uses .has(process.platform) globally; the old
+  # 50-char proximity check to the TCC stub was too narrow and broke when
+  # upstream inserted additional setImplementation() calls between the stub
+  # and the CU-gate consumer.
+  if ".has(process.platform)" in result:
+    echo "  [OK] teach overlay controller: CU gate found (handled by Set fix)"
+    inc patchesApplied
   else:
-    echo "  [FAIL] teach overlay: TCC stub pattern not found"
+    echo "  [FAIL] teach overlay: CU gate (.has(process.platform)) not found"
+    quit(1)
 
   # Patch 8: Fix teach overlay mouse events on Linux
-  let overlayVarPattern =
-    re"""([\w$]+)\.setAlwaysOnTop\(!0,"screen-saver"\),\1\.setFullScreenable\(!1\),\1\.setIgnoreMouseEvents\(!0,\{forward:!0\}\)"""
+  let overlayVarPattern = re"""([\w$]+)\.setAlwaysOnTop\(!0,"screen-saver"\),\1\.setFullScreenable\(!1\),\1\.setIgnoreMouseEvents\(!0,\{forward:!0\}\)"""
   let overlayVarMatch = result.find(overlayVarPattern)
   var overlayVar = ""
 
@@ -180,9 +162,10 @@ proc apply*(input: string): string =
     overlayVar = overlayVarMatch.get().captures[0]
     let oldInit = overlayVar & ".setIgnoreMouseEvents(!0,{forward:!0})"
     let newInit =
-      "(process.platform===\"linux\"?" & "(" & overlayVar &
-      ".setIgnoreMouseEvents=function(){}," & "globalThis.__isVM&&" & overlayVar &
-      ".setOpacity(.15))" & ":" & overlayVar & ".setIgnoreMouseEvents(!0,{forward:!0}))"
+      "(process.platform===\"linux\"?" &
+      "(" & overlayVar & ".setIgnoreMouseEvents=function(){}," &
+      "globalThis.__isVM&&" & overlayVar & ".setOpacity(.15))" &
+      ":" & overlayVar & ".setIgnoreMouseEvents(!0,{forward:!0}))"
 
     let idx = result.find(oldInit)
     if idx >= 0:
@@ -197,19 +180,15 @@ proc apply*(input: string): string =
 
   # Patch 9a: Neutralize setIgnoreMouseEvents in yJt
   if overlayVar != "":
-    let yjtPat =
-      re"(function [\w$]+\([\w$]+,[\w$]+\)\{)([\w$]+)(\.setIgnoreMouseEvents\(!0,\{forward:!0\}\))"
+    let yjtPat = re"(function [\w$]+\([\w$]+,[\w$]+\)\{)([\w$]+)(\.setIgnoreMouseEvents\(!0,\{forward:!0\}\))"
     var yjtCount = 0
-    result = result.replace(
-      yjtPat,
-      proc(m: RegexMatch): string =
-        inc yjtCount
-        if yjtCount > 1:
-          return m.match
-        let fnHead = m.captures[0]
-        let varName = m.captures[1]
-        let rest = m.captures[2]
-        fnHead & "(process.platform!==\"linux\"&&" & varName & rest & ")",
+    result = result.replace(yjtPat, proc(m: RegexMatch): string =
+      inc yjtCount
+      if yjtCount > 1: return m.match
+      let fnHead = m.captures[0]
+      let varName = m.captures[1]
+      let rest = m.captures[2]
+      fnHead & "(process.platform!==\"linux\"&&" & varName & rest & ")"
     )
     if yjtCount >= 1:
       echo "  [OK] teach overlay: neutralized setIgnoreMouseEvents in show handler (yJt) for Linux"
@@ -219,13 +198,8 @@ proc apply*(input: string): string =
       echo "  [FAIL] teach overlay: yJt pattern not found"
 
     # Patch 9b: Neutralize setIgnoreMouseEvents in SUn
-    let sunPat =
-      overlayVar & ".setIgnoreMouseEvents(!0,{forward:!0})," & overlayVar &
-      ".webContents.send(\"cu-teach:working\""
-    let sunRepl =
-      "(process.platform!==\"linux\"&&" & overlayVar &
-      ".setIgnoreMouseEvents(!0,{forward:!0}))," & overlayVar &
-      ".webContents.send(\"cu-teach:working\""
+    let sunPat = overlayVar & ".setIgnoreMouseEvents(!0,{forward:!0})," & overlayVar & ".webContents.send(\"cu-teach:working\""
+    let sunRepl = "(process.platform!==\"linux\"&&" & overlayVar & ".setIgnoreMouseEvents(!0,{forward:!0}))," & overlayVar & ".webContents.send(\"cu-teach:working\""
     if sunPat in result:
       result = result.replace(sunPat, sunRepl)
       echo "  [OK] teach overlay: neutralized setIgnoreMouseEvents in working handler (SUn) for Linux"
@@ -235,23 +209,18 @@ proc apply*(input: string): string =
       echo "  [FAIL] teach overlay: SUn pattern not found"
 
   # Patch 10: Fix teach overlay transparency on VMs
-  let teachOverlayPattern =
-    re"(=new [\w$]+\.BrowserWindow\(\{[^}]*?)transparent:!0([^}]*?)backgroundColor:""#00000000"""
+  let teachOverlayPattern = re"(=new [\w$]+\.BrowserWindow\(\{[^}]*?)transparent:!0([^}]*?)backgroundColor:""#00000000"""
   var pos10 = 0
   var found10 = false
   while true:
     let m = result.find(teachOverlayPattern, pos10)
-    if m.isNone:
-      break
+    if m.isNone: break
     let bounds = m.get().matchBounds
     let before = result[max(0, bounds.a - 80) ..< bounds.a]
     if "workArea" in before:
       let old = m.get().match
       var newStr = old.replace("transparent:!0", "transparent:!globalThis.__isVM")
-      newStr = newStr.replace(
-        "backgroundColor:\"#00000000\"",
-        "backgroundColor:globalThis.__isVM?\"#000000\":\"#00000000\"",
-      )
+      newStr = newStr.replace("backgroundColor:\"#00000000\"", "backgroundColor:globalThis.__isVM?\"#000000\":\"#00000000\"")
       result = result.replace(old, newStr)
       echo "  [OK] teach overlay: VM-aware transparency (transparent on native, dark backdrop on VMs)"
       changes += 1
@@ -263,18 +232,13 @@ proc apply*(input: string): string =
     echo "  [FAIL] teach overlay transparency pattern not found"
 
   # Patch 10b: Force teach overlay display to primary monitor on Linux
-  let xlrPattern =
-    re"(function [\w$]+\(([\w$]+)\)\{)(return \2===null\?[\w$]+\.screen\.getPrimaryDisplay\(\):[\w$]+\.screen\.getAllDisplays\(\)\.find)"
+  let xlrPattern = re"(function [\w$]+\(([\w$]+)\)\{)(return \2===null\?[\w$]+\.screen\.getPrimaryDisplay\(\):[\w$]+\.screen\.getAllDisplays\(\)\.find)"
   var count10b = 0
-  result = result.replace(
-    xlrPattern,
-    proc(m: RegexMatch): string =
-      inc count10b
-      if count10b > 1:
-        return m.match
-      let param = m.captures[1]
-      m.captures[0] & "if(process.platform===\"linux\")" & param & "=null;" &
-        m.captures[2],
+  result = result.replace(xlrPattern, proc(m: RegexMatch): string =
+    inc count10b
+    if count10b > 1: return m.match
+    let param = m.captures[1]
+    m.captures[0] & "if(process.platform===\"linux\")" & param & "=null;" & m.captures[2]
   )
   if count10b >= 1:
     echo &"  [OK] teach overlay display: forced to primary monitor on Linux ({count10b} match)"
@@ -284,17 +248,13 @@ proc apply*(input: string): string =
     echo "  [FAIL] xlr display resolver pattern: 0 matches"
 
   # Patch 11: Force mVt() isEnabled to return true on Linux
-  let mVtPattern =
-    re"(function [\w$]+\(\)\{)return [\w$]+\([\w$]+\)\?[\w$]+\.has\(process\.platform\)&&[\w$]+\(\):[\w$]+\(\)\}"
+  let mVtPattern = re"(function [\w$]+\(\)\{)return [\w$]+\([\w$]+\)\?[\w$]+\.has\(process\.platform\)&&[\w$]+\(\):[\w$]+\(\)\}"
   var count11 = 0
-  result = result.replace(
-    mVtPattern,
-    proc(m: RegexMatch): string =
-      inc count11
-      if count11 > 1:
-        return m.match
-      m.captures[0] & "if(process.platform===\"linux\")return!0;" &
-        m.match[m.captures[0].len .. ^1],
+  result = result.replace(mVtPattern, proc(m: RegexMatch): string =
+    inc count11
+    if count11 > 1: return m.match
+    m.captures[0] & "if(process.platform===\"linux\")return!0;" &
+      m.match[m.captures[0].len .. ^1]
   )
   if count11 >= 1:
     echo &"  [OK] mVt isEnabled: force true on Linux ({count11} match)"
@@ -304,17 +264,13 @@ proc apply*(input: string): string =
     echo "  [FAIL] mVt isEnabled pattern: 0 matches"
 
   # Patch 12: Force rj() to return true on Linux
-  let rjPattern =
-    re"""(function [\w$]+\(\)\{)return [\w$]+\.has\(process\.platform\)\?[\w$]+\(\)&&[\w$]+\("chicagoEnabled"\):!1\}"""
+  let rjPattern = re"""(function [\w$]+\(\)\{)return [\w$]+\.has\(process\.platform\)\?[\w$]+\(\)&&[\w$]+\("chicagoEnabled"\):!1\}"""
   var count12 = 0
-  result = result.replace(
-    rjPattern,
-    proc(m: RegexMatch): string =
-      inc count12
-      if count12 > 1:
-        return m.match
-      m.captures[0] & "if(process.platform===\"linux\")return!0;" &
-        m.match[m.captures[0].len .. ^1],
+  result = result.replace(rjPattern, proc(m: RegexMatch): string =
+    inc count12
+    if count12 > 1: return m.match
+    m.captures[0] & "if(process.platform===\"linux\")return!0;" &
+      m.match[m.captures[0].len .. ^1]
   )
   if count12 >= 1:
     echo &"  [OK] rj chicagoEnabled bypass: force true on Linux ({count12} match)"
@@ -328,19 +284,13 @@ proc apply*(input: string): string =
   var descChanges = 0
 
   # 13a: Lf allowlist gate warning -- empty on Linux
-  let lfPat = re(
-    "([\\w$]+)=\"The frontmost application must be in the session allowlist at the time of this call, or this tool returns an error and does nothing\\.\""
-  )
+  let lfPat = re("([\\w$]+)=\"The frontmost application must be in the session allowlist at the time of this call, or this tool returns an error and does nothing\\.\"")
   var countLf = 0
-  result = result.replace(
-    lfPat,
-    proc(m: RegexMatch): string =
-      inc countLf
-      if countLf > 1:
-        return m.match
-      let v = m.captures[0]
-      v &
-        "=process.platform===\"linux\"?\"\":\"The frontmost application must be in the session allowlist at the time of this call, or this tool returns an error and does nothing.\"",
+  result = result.replace(lfPat, proc(m: RegexMatch): string =
+    inc countLf
+    if countLf > 1: return m.match
+    let v = m.captures[0]
+    v & "=process.platform===\"linux\"?\"\":\"The frontmost application must be in the session allowlist at the time of this call, or this tool returns an error and does nothing.\""
   )
   if countLf >= 1:
     echo "  [OK] 13a Lf allowlist gate: empty on Linux"
@@ -351,14 +301,15 @@ proc apply*(input: string): string =
 
   # 13b: request_access -- "Linux" instead of "macOS"/"Finder"
   let old13b = "'This computer is running macOS. The file manager is \"Finder\". '"
-  let new13b =
-    "(e.platform===\"linux\"?" & "'This computer is running Linux. " &
+  let new13b = "(e.platform===\"linux\"?" &
+    "'This computer is running Linux. " &
     "On Linux, ALL applications are automatically accessible at full " &
     "tier without explicit permission grants. You do NOT need to call " &
     "request_access before using other tools. If called, it returns " &
     "synthetic grant confirmations. The file manager depends on the " &
     "desktop environment (e.g. Nautilus on GNOME, Dolphin on KDE, " &
-    "Thunar on XFCE). '" & ":" &
+    "Thunar on XFCE). '" &
+    ":" &
     "'This computer is running macOS. The file manager is \"Finder\". ')"
   if old13b in result:
     result = result.replace(old13b, new13b)
@@ -369,13 +320,12 @@ proc apply*(input: string): string =
     echo "  [FAIL] 13b request_access macOS prefix: not found"
 
   # 13c: App identifier (request_access apps schema)
-  let old13c =
-    "'Application display names (e.g. \"Slack\", \"Calendar\") or bundle identifiers (e.g. \"com.tinyspeck.slackmacgap\"). Display names are resolved case-insensitively against installed apps.'"
-  let new13c =
-    "(e.platform===\"linux\"?" &
+  let old13c = "'Application display names (e.g. \"Slack\", \"Calendar\") or bundle identifiers (e.g. \"com.tinyspeck.slackmacgap\"). Display names are resolved case-insensitively against installed apps.'"
+  let new13c = "(e.platform===\"linux\"?" &
     "'Application names as shown in window titles, or WM_CLASS values " &
     "(e.g. \"firefox\", \"org.gnome.Nautilus\"). " &
-    "On Linux all apps are auto-granted at full tier.'" & ":" &
+    "On Linux all apps are auto-granted at full tier.'" &
+    ":" &
     "'Application display names (e.g. \"Slack\", \"Calendar\") or bundle " &
     "identifiers (e.g. \"com.tinyspeck.slackmacgap\"). Display names are " &
     "resolved case-insensitively against installed apps.')"
@@ -388,11 +338,10 @@ proc apply*(input: string): string =
     echo "  [FAIL] 13c request_access apps: not found"
 
   # 13d: open_application app identifier
-  let old13d =
-    "'Display name (e.g. \"Slack\") or bundle identifier (e.g. \"com.tinyspeck.slackmacgap\").'"
-  let new13d =
-    "(e.platform===\"linux\"?" &
-    "'Application name or WM_CLASS (e.g. \"firefox\", \"nautilus\").'" & ":" &
+  let old13d = "'Display name (e.g. \"Slack\") or bundle identifier (e.g. \"com.tinyspeck.slackmacgap\").'"
+  let new13d = "(e.platform===\"linux\"?" &
+    "'Application name or WM_CLASS (e.g. \"firefox\", \"nautilus\").'" &
+    ":" &
     "'Display name (e.g. \"Slack\") or bundle identifier (e.g. \"com.tinyspeck.slackmacgap\").')"
   if old13d in result:
     result = result.replace(old13d, new13d)
@@ -403,12 +352,11 @@ proc apply*(input: string): string =
     echo "  [FAIL] 13d open_application app: not found"
 
   # 13e: open_application -- no allowlist on Linux
-  let old13e =
-    "\"Bring an application to the front, launching it if necessary. The target application must already be in the session allowlist \xe2\x80\x94 call request_access first.\""
-  let new13e =
-    "(process.platform===\"linux\"?" &
+  let old13e = "\"Bring an application to the front, launching it if necessary. The target application must already be in the session allowlist \xe2\x80\x94 call request_access first.\""
+  let new13e = "(process.platform===\"linux\"?" &
     "\"Bring an application to the front, launching it if necessary. " &
-    "On Linux, all applications are directly accessible.\"" & ":" &
+    "On Linux, all applications are directly accessible.\"" &
+    ":" &
     "\"Bring an application to the front, launching it if necessary. " &
     "The target application must already be in the session allowlist " &
     "\xe2\x80\x94 call request_access first.\")"
@@ -421,13 +369,13 @@ proc apply*(input: string): string =
     echo "  [FAIL] 13e open_application: not found"
 
   # 13f: screenshot (none-filtering)
-  let old13f =
-    "\"Take a screenshot of the primary display. On this platform, " &
+  let old13f = "\"Take a screenshot of the primary display. On this platform, " &
     "screenshots are NOT filtered \xe2\x80\x94 all open windows are visible. " &
     "Input actions targeting apps not in the session allowlist are rejected.\""
-  let new13f =
-    "(process.platform===\"linux\"?" & "\"Take a screenshot of the primary display. " &
-    "All open windows are visible.\"" & ":" &
+  let new13f = "(process.platform===\"linux\"?" &
+    "\"Take a screenshot of the primary display. " &
+    "All open windows are visible.\"" &
+    ":" &
     "\"Take a screenshot of the primary display. On this platform, " &
     "screenshots are NOT filtered \xe2\x80\x94 all open windows are visible. " &
     "Input actions targeting apps not in the session allowlist are rejected.\")"
@@ -440,20 +388,15 @@ proc apply*(input: string): string =
     echo "  [FAIL] 13f screenshot: not found"
 
   # 13g: screenshot suffix
-  let ssSfxPat = re(
-    "([\\w$]+)\\+\" Returns an error if the allowlist is empty\\. The returned image is what subsequent click coordinates are relative to\\.\""
-  )
+  let ssSfxPat = re("([\\w$]+)\\+\" Returns an error if the allowlist is empty\\. The returned image is what subsequent click coordinates are relative to\\.\"")
   var countSfx = 0
-  result = result.replace(
-    ssSfxPat,
-    proc(m: RegexMatch): string =
-      inc countSfx
-      if countSfx > 1:
-        return m.match
-      let v = m.captures[0]
-      v & "+(process.platform===\"linux\"" &
-        "?\" The returned image is what subsequent click coordinates are relative to.\"" &
-        ":\" Returns an error if the allowlist is empty. The returned image is what subsequent click coordinates are relative to.\")",
+  result = result.replace(ssSfxPat, proc(m: RegexMatch): string =
+    inc countSfx
+    if countSfx > 1: return m.match
+    let v = m.captures[0]
+    v & "+(process.platform===\"linux\"" &
+      "?\" The returned image is what subsequent click coordinates are relative to.\"" &
+      ":\" Returns an error if the allowlist is empty. The returned image is what subsequent click coordinates are relative to.\")"
   )
   if countSfx >= 1:
     echo "  [OK] 13g screenshot suffix: no allowlist error on Linux"
@@ -472,12 +415,10 @@ proc apply*(input: string): string =
 
   # 14a: Replace "Separate filesystems" paragraph (2 occurrences)
   # Uses UTF-8 em-dash: \xe2\x80\x94
-  let sepOldFull =
-    "**Separate filesystems.** Computer-use actions (clicks, typing, clipboard writes) happen on the user\x27s real computer \xe2\x80\x94 a different system from your sandbox. "
+  let sepOldFull = "**Separate filesystems.** Computer-use actions (clicks, typing, clipboard writes) happen on the user\x27s real computer \xe2\x80\x94 a different system from your sandbox. "
   let sepCount = result.count(sepOldFull)
   if sepCount >= 2:
-    let sepNewFull =
-      "${process.platform===\"linux\"" &
+    let sepNewFull = "${process.platform===\"linux\"" &
       "?\"**Same filesystem.** Computer-use actions and your CLI tools operate on the same Linux machine. " &
       "There is no sandbox \\u2014 files you create are directly accessible to desktop applications and vice versa. \"" &
       ":\"**Separate filesystems.** Computer-use actions (clicks, typing, clipboard writes) " &
@@ -491,8 +432,7 @@ proc apply*(input: string): string =
 
   # 14b: Replace macOS app names with generic Linux terms
   let appsOld = "Maps, Notes, Finder, Photos, System Settings"
-  let appsNew =
-    "${process.platform===\"linux\"?\"the file manager, image viewer, terminal emulator, system settings\":\"Maps, Notes, Finder, Photos, System Settings\"}"
+  let appsNew = "${process.platform===\"linux\"?\"the file manager, image viewer, terminal emulator, system settings\":\"Maps, Notes, Finder, Photos, System Settings\"}"
   if appsOld in result:
     result = result.replace(appsOld, appsNew)
     echo "  [OK] 14b app names: replaced macOS apps with Linux-generic terms"

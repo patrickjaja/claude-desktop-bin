@@ -16,9 +16,10 @@ proc apply*(input: string): string =
     result = input.replace(oldResourcePath, newResourcePath)
     echo "  [OK] process.resourcesPath: " & $count & " match(es)"
   else:
-    echo "  [FAIL] process.resourcesPath: 0 matches, expected >= 1"
+    # Locale loading was consolidated into index.js in v1.4758.0.
+    # index.pre.js no longer contains process.resourcesPath -- this is expected.
+    echo "  [INFO] process.resourcesPath: 0 matches (locale code absent from index.pre.js, nothing to patch)"
     result = input
-    quit(1)
 
 when isMainModule:
   if paramCount() != 1:
@@ -37,4 +38,4 @@ when isMainModule:
     writeFile(filePath, output)
     echo "  [PASS] All required patterns matched and applied"
   else:
-    echo "  [WARN] No changes made (patterns may have already been applied)"
+    echo "  [INFO] No changes made (pattern absent or already applied)"

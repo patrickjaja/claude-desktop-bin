@@ -8,9 +8,7 @@ import regex
 
 const EXPECTED_PATCHES = 5
 
-proc replaceFirst(
-    content: var string, pattern: Regex2, subFn: proc(m: RegexMatch2, s: string): string
-): int =
+proc replaceFirst(content: var string, pattern: Regex2, subFn: proc(m: RegexMatch2, s: string): string): int =
   var found = false
   var resultStr = ""
   var lastEnd = 0
@@ -39,8 +37,7 @@ proc apply*(input: string): string =
   var patchesApplied = 0
 
   # 1. Inject helper function
-  const SANITIZE_FN =
-    "var __cdb_sanitizeCwd=function(p){if(process.platform===\"linux\"&&typeof p===\"string\"&&/app\\.asar/.test(p)){return require(\"os\").homedir()}return p};"
+  const SANITIZE_FN = "var __cdb_sanitizeCwd=function(p){if(process.platform===\"linux\"&&typeof p===\"string\"&&/app\\.asar/.test(p)){return require(\"os\").homedir()}return p};"
 
   let useStrict = "\"use strict\";"
   let idx = result.find(useStrict)
@@ -53,13 +50,11 @@ proc apply*(input: string): string =
     echo "  [OK] Injected __cdb_sanitizeCwd helper (at file start)"
 
   # 2. Patch checkTrust bridge
-  let patCt = re2"(checkTrust\()([\w$]+)(\)\{)(return [\w$]+\.info\()"
-  var countCt = result.replaceFirst(
-    patCt,
-    proc(m: RegexMatch2, s: string): string =
-      let arg = s[m.group(1)]
-      s[m.group(0)] & arg & s[m.group(2)] & arg & "=__cdb_sanitizeCwd(" & arg & ");" &
-        s[m.group(3)],
+  # v1.4758+: function body now starts with `const o=DQ(s);` before return N.info(...)
+  let patCt = re2"(checkTrust\()([\w$]+)(\)\{)(const [\w$]+=[\w$]+\([\w$]+\);return [\w$]+\.info\()"
+  var countCt = result.replaceFirst(patCt, proc(m: RegexMatch2, s: string): string =
+    let arg = s[m.group(1)]
+    s[m.group(0)] & arg & s[m.group(2)] & arg & "=__cdb_sanitizeCwd(" & arg & ");" & s[m.group(3)]
   )
   if countCt > 0:
     patchesApplied += countCt
@@ -68,13 +63,11 @@ proc apply*(input: string): string =
     echo "  [WARN] checkTrust bridge: 0 matches"
 
   # 3. Patch saveTrust bridge
-  let patSt = re2"(async saveTrust\()([\w$]+)(\)\{)([\w$]+\.info\()"
-  var countSt = result.replaceFirst(
-    patSt,
-    proc(m: RegexMatch2, s: string): string =
-      let arg = s[m.group(1)]
-      s[m.group(0)] & arg & s[m.group(2)] & arg & "=__cdb_sanitizeCwd(" & arg & ");" &
-        s[m.group(3)],
+  # v1.4758+: function body now starts with `const o=DQ(s);` before N.info(...)
+  let patSt = re2"(async saveTrust\()([\w$]+)(\)\{)(const [\w$]+=[\w$]+\([\w$]+\);[\w$]+\.info\()"
+  var countSt = result.replaceFirst(patSt, proc(m: RegexMatch2, s: string): string =
+    let arg = s[m.group(1)]
+    s[m.group(0)] & arg & s[m.group(2)] & arg & "=__cdb_sanitizeCwd(" & arg & ");" & s[m.group(3)]
   )
   if countSt > 0:
     patchesApplied += countSt
@@ -83,14 +76,10 @@ proc apply*(input: string): string =
     echo "  [WARN] saveTrust bridge: 0 matches"
 
   # 4. Patch start bridge
-  let patStart =
-    re2"(async start\()([\w$]+)(\)\{)(return [\w$]+\.info\(""LocalSessions\.start:""\))"
-  var countStart = result.replaceFirst(
-    patStart,
-    proc(m: RegexMatch2, s: string): string =
-      let arg = s[m.group(1)]
-      s[m.group(0)] & arg & s[m.group(2)] & arg & ".cwd=__cdb_sanitizeCwd(" & arg &
-        ".cwd);" & s[m.group(3)],
+  let patStart = re2"(async start\()([\w$]+)(\)\{)(return [\w$]+\.info\(""LocalSessions\.start:""\))"
+  var countStart = result.replaceFirst(patStart, proc(m: RegexMatch2, s: string): string =
+    let arg = s[m.group(1)]
+    s[m.group(0)] & arg & s[m.group(2)] & arg & ".cwd=__cdb_sanitizeCwd(" & arg & ".cwd);" & s[m.group(3)]
   )
   if countStart > 0:
     patchesApplied += countStart
@@ -99,15 +88,12 @@ proc apply*(input: string): string =
     echo "  [WARN] start bridge: 0 matches"
 
   # 5. Patch startCodeSession bridges (conditional ternary form)
-  let patScs =
-    re2"(startCodeSession:[\w$]+\?async\()([\w$]+)(,[\w$]+,[\w$]+,[\w$]+\)=>\{)"
+  let patScs = re2"(startCodeSession:[\w$]+\?async\()([\w$]+)(,[\w$]+,[\w$]+,[\w$]+\)=>\{)"
   var countScs = 0
-  result = result.replace(
-    patScs,
-    proc(m: RegexMatch2, s: string): string =
-      inc countScs
-      let arg = s[m.group(1)]
-      s[m.group(0)] & arg & s[m.group(2)] & arg & "=__cdb_sanitizeCwd(" & arg & ");",
+  result = result.replace(patScs, proc(m: RegexMatch2, s: string): string =
+    inc countScs
+    let arg = s[m.group(1)]
+    s[m.group(0)] & arg & s[m.group(2)] & arg & "=__cdb_sanitizeCwd(" & arg & ");"
   )
   if countScs > 0:
     patchesApplied += countScs
@@ -118,12 +104,10 @@ proc apply*(input: string): string =
   # Also patch the dispatch startCodeSession (different signature)
   let patScs2 = re2"(startCodeSession:async\()([\w$]+)(,[\w$]+,[\w$]+,[\w$]+\)=>\{)"
   var countScs2 = 0
-  result = result.replace(
-    patScs2,
-    proc(m: RegexMatch2, s: string): string =
-      inc countScs2
-      let arg = s[m.group(1)]
-      s[m.group(0)] & arg & s[m.group(2)] & arg & "=__cdb_sanitizeCwd(" & arg & ");",
+  result = result.replace(patScs2, proc(m: RegexMatch2, s: string): string =
+    inc countScs2
+    let arg = s[m.group(1)]
+    s[m.group(0)] & arg & s[m.group(2)] & arg & "=__cdb_sanitizeCwd(" & arg & ");"
   )
   if countScs2 > 0:
     patchesApplied += countScs2
@@ -132,10 +116,7 @@ proc apply*(input: string): string =
     echo "  [WARN] dispatch startCodeSession: 0 matches"
 
   if patchesApplied < EXPECTED_PATCHES:
-    raise newException(
-      ValueError,
-      &"fix_asar_workspace_cwd: Only {patchesApplied}/{EXPECTED_PATCHES} patches applied",
-    )
+    raise newException(ValueError, &"fix_asar_workspace_cwd: Only {patchesApplied}/{EXPECTED_PATCHES} patches applied")
 
 when isMainModule:
   if paramCount() != 1:
