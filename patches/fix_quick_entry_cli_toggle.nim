@@ -82,7 +82,7 @@ proc apply*(input: string): string =
         # /tmp fallback instead; /run/user/<uid> is safer as it's always user-private).
         let socketTrigger =
           ",(()=>{" & "if(process.platform!==\"linux\")return;" & "try{" &
-          "const _qeS=(process.env.XDG_RUNTIME_DIR||(\"/run/user/\"+process.getuid()))+\"/claude-desktop-qe.sock\";" &
+          "const _qeS=(process.env.XDG_RUNTIME_DIR||(\"/run/user/\"+process.getuid()))+\"/claude-desktop-qe\"+(process.env.CLAUDE_PROFILE?\"-\"+process.env.CLAUDE_PROFILE:\"\")+\".sock\";" &
           "try{require(\"fs\").unlinkSync(_qeS)}catch(e){}" &
           "require(\"net\").createServer(c=>{" &
           "c.on(\"error\",e=>{console.warn(\"[quick-entry] socket connection error:\",e.message)});" &

@@ -24,6 +24,129 @@ set -euo pipefail
 APP_ID='com.anthropic.claude-desktop'
 
 # ---------------------------------------------------------------------------
+# Profile resolution
+# ---------------------------------------------------------------------------
+# A profile gives an instance its own userData dir (and therefore SingletonLock,
+# logins, logs, spaces.json, custom themes), its own cowork + Quick Entry
+# sockets, its own Claude Code config dir, and its own systemd scope name.
+#
+# Resolution order (later wins):
+#   1. CLAUDE_PROFILE env var (so child processes inherit)
+#   2. Invocation basename matching `claude-desktop-<name>` (symlink-launched)
+#   3. --profile=<name> or --profile <name> on argv
+#
+# The bare name `default` is reserved and means "no suffix; paths unchanged
+# from the v1 single-instance layout". Empty is the same as default. Valid
+# profile names match [a-zA-Z0-9_-]+.
+
+_invocation_basename="${0##*/}"
+if [[ -z "${CLAUDE_PROFILE:-}" && "$_invocation_basename" =~ ^claude-desktop-([a-zA-Z0-9_-]+)$ ]]; then
+    CLAUDE_PROFILE="${BASH_REMATCH[1]}"
+fi
+
+# Strip --profile=<name> / --profile <name> from argv before subcommand
+# dispatch and Electron pass-through.
+_filtered_args=()
+while (( $# > 0 )); do
+    case "$1" in
+        --profile=*)
+            CLAUDE_PROFILE="${1#--profile=}"
+            shift
+            ;;
+        --profile)
+            shift
+            if (( $# == 0 )); then
+                echo >&2 'claude-desktop: --profile requires an argument'
+                exit 2
+            fi
+            CLAUDE_PROFILE="$1"
+            shift
+            ;;
+        *)
+            _filtered_args+=("$1")
+            shift
+            ;;
+    esac
+done
+if (( ${#_filtered_args[@]} > 0 )); then
+    set -- "${_filtered_args[@]}"
+else
+    set --
+fi
+
+if [[ "${CLAUDE_PROFILE:-}" == "default" ]]; then
+    unset CLAUDE_PROFILE
+fi
+if [[ -n "${CLAUDE_PROFILE:-}" ]]; then
+    if ! [[ "$CLAUDE_PROFILE" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        echo >&2 "claude-desktop: invalid profile name '$CLAUDE_PROFILE' (allowed: [a-zA-Z0-9_-])"
+        exit 2
+    fi
+    profile_suffix="-${CLAUDE_PROFILE}"
+    export CLAUDE_PROFILE
+    # Relocate Claude Code's config dir so a profile's spawned `claude`
+    # processes don't share state with the user's other profiles. Honored by
+    # the @anthropic-ai/claude-code CLI (settings.json, projects/, sessions,
+    # plugins). Inherited by child_process.spawn unless the JS explicitly
+    # overrides env. Only set when a profile is active so default behavior
+    # is unchanged. See anthropics/claude-code#2986 for known caveats.
+    if [[ -z "${CLAUDE_CONFIG_DIR:-}" ]]; then
+        export CLAUDE_CONFIG_DIR="$HOME/.claude${profile_suffix}"
+    fi
+else
+    profile_suffix=""
+fi
+
+# ---------------------------------------------------------------------------
+# URL handler profile routing (SSO callback dispatch)
+# ---------------------------------------------------------------------------
+# When the system XDG handler fires `claude-desktop %u` for a claude:// URL
+# (e.g. an SSO auth callback), the default profile would normally consume the
+# URL, breaking login flows initiated from a named profile.
+#
+# The companion patch `fix_profile_url_routing.nim` makes each running profile
+# write a marker file at $XDG_RUNTIME_DIR/claude-desktop-pending-auth-<name>
+# whenever it opens an auth-ish URL via shell.openExternal. Here we look for
+# the most recent fresh marker (<5 min old) and re-exec the launcher under
+# that profile, so Electron's second-instance event delivers the URL to the
+# right window.
+#
+# Skipped if a profile is already explicitly set, or if no claude:// URL is
+# present in argv. See README.md ("SSO and URL routing" subsection) for
+# semantics, limitations, and known failure modes.
+
+if [[ -z "${CLAUDE_PROFILE:-}" ]]; then
+    _claude_url=""
+    for _a in "$@"; do
+        case "$_a" in
+            claude://*|claude-desktop://*)
+                _claude_url="$_a"
+                break
+                ;;
+        esac
+    done
+    if [[ -n "$_claude_url" ]]; then
+        _runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+        # Most recently modified marker, max 5 min old, name validates as profile.
+        _marker=$(find "$_runtime_dir" -maxdepth 1 -type f \
+            -name 'claude-desktop-pending-auth-*' -mmin -5 \
+            -printf '%T@ %p\n' 2>/dev/null \
+            | sort -nr | head -1 | awk '{print $2}')
+        if [[ -n "$_marker" && -f "$_marker" ]]; then
+            _routed_profile="${_marker##*/claude-desktop-pending-auth-}"
+            if [[ "$_routed_profile" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+                rm -f "$_marker"
+                # Re-exec under the routed profile. The exec replaces this
+                # process so we don't need any further cleanup. The receiving
+                # profile will see the URL via its second-instance handler
+                # (or as initial argv if it isn't running yet).
+                exec "$0" "--profile=$_routed_profile" "$@"
+            fi
+        fi
+    fi
+fi
+
+# ---------------------------------------------------------------------------
 # Path discovery (supports Arch, RPM, DEB, AppImage layouts)
 # ---------------------------------------------------------------------------
 
@@ -34,12 +157,22 @@ APP_ASAR="${CLAUDE_APP_ASAR:-}"
 # X11 WM_CLASS match our .desktop file. Electron ignores Chromium's --class
 # flag and derives the window identity from the binary name instead. We
 # prefer the renamed binary; fall back to `electron` for mid-upgrade installs.
+#
+# When a profile is active, prefer the user-local symlink at
+# ~/.local/lib/claude-desktop/<APP_ID>-<profile> created by --create-profile.
+# That path's basename gives Wayland/X11 a per-profile WM_CLASS, so the window
+# manager treats it as a separate app (separate icon, separate Alt-Tab group).
 if [[ -z "$ELECTRON_BIN" ]]; then
-    for candidate in \
-        "/usr/lib/claude-desktop/${APP_ID}" \
-        "/usr/lib/claude-desktop-bin/${APP_ID}" \
-        /usr/lib/claude-desktop/electron \
-        ; do
+    candidates=()
+    if [[ -n "$profile_suffix" ]]; then
+        candidates+=("$HOME/.local/lib/claude-desktop/${APP_ID}${profile_suffix}")
+    fi
+    candidates+=(
+        "/usr/lib/claude-desktop/${APP_ID}"
+        "/usr/lib/claude-desktop-bin/${APP_ID}"
+        /usr/lib/claude-desktop/electron
+    )
+    for candidate in "${candidates[@]}"; do
         if [[ -x "$candidate" ]]; then
             ELECTRON_BIN="$candidate"
             break
@@ -177,6 +310,216 @@ print(repr(arr))
     return 0
 }
 
+_profile_paths() {
+    # Outputs the four files associated with a profile to stdout, one per line.
+    # Order: electron-symlink, launcher-symlink, desktop-file, config-dir.
+    local name="$1"
+    echo "$HOME/.local/lib/claude-desktop/${APP_ID}-${name}"
+    echo "$HOME/.local/bin/claude-desktop-${name}"
+    echo "$HOME/.local/share/applications/${APP_ID}-${name}.desktop"
+    echo "${XDG_CONFIG_HOME:-$HOME/.config}/Claude-${name}"
+}
+
+_create_profile() {
+    local name="$1"
+    if [[ -z "$name" || "$name" == "default" ]]; then
+        echo >&2 "claude-desktop: profile name must be non-empty and not 'default'"
+        return 2
+    fi
+    if ! [[ "$name" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        echo >&2 "claude-desktop: invalid profile name '$name' (allowed: [a-zA-Z0-9_-])"
+        return 2
+    fi
+
+    local launcher_path
+    launcher_path="$(readlink -f "$0" 2>/dev/null || echo "$0")"
+    if [[ ! -x "$launcher_path" ]]; then
+        echo >&2 "claude-desktop: cannot resolve launcher path ($0)"
+        return 1
+    fi
+    if [[ "$ELECTRON_BIN" == "electron" || ! -x "$ELECTRON_BIN" ]]; then
+        echo >&2 "claude-desktop: cannot resolve bundled Electron binary; --create-profile requires an installed package"
+        return 1
+    fi
+
+    local electron_bin_path="$HOME/.local/lib/claude-desktop/${APP_ID}-${name}"
+    local launcher_link="$HOME/.local/bin/claude-desktop-${name}"
+    local desktop_file="$HOME/.local/share/applications/${APP_ID}-${name}.desktop"
+
+    if [[ -e "$electron_bin_path" || -e "$launcher_link" || -e "$desktop_file" ]]; then
+        echo >&2 "claude-desktop: profile '$name' already exists. Use --delete-profile=$name first to recreate."
+        return 1
+    fi
+
+    mkdir -p "$(dirname "$electron_bin_path")" "$(dirname "$launcher_link")" "$(dirname "$desktop_file")"
+
+    # The per-profile Electron binary must be a real file (not a symlink) so
+    # /proc/self/exe resolves to the per-profile path. Electron derives Wayland
+    # app_id from its own /proc/self/exe basename; without a distinct binary
+    # the WM groups all profiles as one app. This is how Chrome itself does
+    # multi-channel (google-chrome-stable / google-chrome-beta are real copies).
+    #
+    # Strategy: hardlink first (zero-cost, same fs only), reflink second
+    # (zero-cost on btrfs/xfs), copy fallback (typically ~200 MB per profile).
+    local link_kind=""
+    if ln "$ELECTRON_BIN" "$electron_bin_path" 2>/dev/null; then
+        link_kind="hardlink (~0 disk used)"
+    elif cp --reflink=always "$ELECTRON_BIN" "$electron_bin_path" 2>/dev/null; then
+        link_kind="reflink (CoW, ~0 disk used)"
+    elif cp "$ELECTRON_BIN" "$electron_bin_path" 2>/dev/null; then
+        link_kind="copy ($(du -h "$electron_bin_path" | cut -f1))"
+    else
+        echo >&2 "claude-desktop: failed to materialise per-profile binary at $electron_bin_path"
+        rm -f "$electron_bin_path"
+        return 1
+    fi
+
+    # Mirror the other files in the Electron install dir back as symlinks so
+    # the per-profile binary can find its sibling shared libraries
+    # (RPATH=$ORIGIN looks for libffmpeg.so, libEGL.so, etc.) and Chromium can
+    # find its data files (.pak, locales/, resources/, version, icudtl.dat).
+    # We don't symlink the original Electron binary itself; its per-profile
+    # twin lives there. Other files are profile-agnostic and shared across
+    # profiles (idempotent: only create links that don't exist yet).
+    local _src_dir
+    _src_dir="$(dirname "$ELECTRON_BIN")"
+    local _dst_dir
+    _dst_dir="$(dirname "$electron_bin_path")"
+    local _entry _bn _orig_bin_bn
+    _orig_bin_bn="$(basename "$ELECTRON_BIN")"
+    for _entry in "$_src_dir"/*; do
+        [[ -e "$_entry" ]] || continue
+        _bn="$(basename "$_entry")"
+        # Skip the source binary (its per-profile copy is what we just made)
+        # and anything matching APP_ID-* (other profiles' binaries).
+        [[ "$_bn" == "$_orig_bin_bn" ]] && continue
+        case "$_bn" in
+            "${APP_ID}-"*) continue ;;
+        esac
+        if [[ ! -e "$_dst_dir/$_bn" ]]; then
+            ln -s "$_entry" "$_dst_dir/$_bn"
+        fi
+    done
+
+    ln -s "$launcher_path" "$launcher_link"
+
+    # Try to find an existing system .desktop to inherit Icon=, MimeType=, etc.
+    local source_desktop=""
+    for c in \
+        "/usr/share/applications/${APP_ID}.desktop" \
+        "$HOME/.local/share/applications/${APP_ID}.desktop"; do
+        if [[ -f "$c" ]]; then
+            source_desktop="$c"
+            break
+        fi
+    done
+
+    # Use an absolute Exec= path so the entry works without ~/.local/bin in
+    # PATH and so GNOME Shell's Overview accepts it. Pass --profile=NAME
+    # directly to the system launcher rather than relying on the per-profile
+    # symlink basename, since the symlink isn't on PATH for GNOME Shell.
+    local exec_line="Exec=${launcher_path} --profile=${name} %u"
+
+    if [[ -n "$source_desktop" ]]; then
+        # Rewrite Name, Exec, StartupWMClass; keep everything else.
+        awk -v name="$name" -v appid="$APP_ID" -v execline="$exec_line" '
+            BEGIN { FS=OFS="=" }
+            /^Name=/        { print "Name=Claude (" name ")"; next }
+            /^Exec=/        { print execline; next }
+            /^StartupWMClass=/ { print "StartupWMClass=" appid "-" name; next }
+            { print }
+        ' "$source_desktop" > "$desktop_file"
+    else
+        cat > "$desktop_file" <<EOF
+[Desktop Entry]
+Name=Claude ($name)
+${exec_line}
+Terminal=false
+Type=Application
+Icon=${APP_ID}
+StartupWMClass=${APP_ID}-${name}
+Categories=Network;InstantMessaging;
+EOF
+    fi
+
+    if command -v update-desktop-database &>/dev/null; then
+        update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
+    fi
+
+    echo "Created profile '$name'."
+    echo "  Electron binary:  $electron_bin_path  ($link_kind)"
+    echo "  Launcher symlink: $launcher_link"
+    echo "  Desktop file:     $desktop_file"
+    echo
+    echo "Launch from your application menu (entry: 'Claude ($name)'),"
+    echo "or run:    $launcher_path --profile=$name"
+    if [[ ":$PATH:" == *":$HOME/.local/bin:"* ]]; then
+        echo "or:        claude-desktop-$name"
+    fi
+    return 0
+}
+
+_delete_profile() {
+    local name="$1"
+    if [[ -z "$name" || "$name" == "default" ]]; then
+        echo >&2 "claude-desktop: cannot delete default; profile name required"
+        return 2
+    fi
+    if ! [[ "$name" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        echo >&2 "claude-desktop: invalid profile name '$name'"
+        return 2
+    fi
+
+    local electron_link="$HOME/.local/lib/claude-desktop/${APP_ID}-${name}"
+    local launcher_link="$HOME/.local/bin/claude-desktop-${name}"
+    local desktop_file="$HOME/.local/share/applications/${APP_ID}-${name}.desktop"
+
+    local removed=0
+    for f in "$electron_link" "$launcher_link" "$desktop_file"; do
+        if [[ -L "$f" || -f "$f" ]]; then
+            rm -f "$f"
+            echo "Removed: $f"
+            ((removed++))
+        fi
+    done
+
+    if (( removed == 0 )); then
+        echo >&2 "claude-desktop: profile '$name' has no installed entry points (nothing to remove)"
+    fi
+
+    if command -v update-desktop-database &>/dev/null; then
+        update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
+    fi
+
+    echo
+    echo "User data preserved at: ${XDG_CONFIG_HOME:-$HOME/.config}/Claude-${name}"
+    echo "Code config preserved at: $HOME/.claude-${name}"
+    echo "Remove those manually if you also want to delete login state and history."
+    return 0
+}
+
+_list_profiles() {
+    local lib_dir="$HOME/.local/lib/claude-desktop"
+    echo "default  (config: ${XDG_CONFIG_HOME:-$HOME/.config}/Claude)"
+    if [[ ! -d "$lib_dir" ]]; then
+        return 0
+    fi
+    local prefix="${APP_ID}-"
+    local found=0
+    for link in "$lib_dir"/${prefix}*; do
+        [[ -L "$link" || -f "$link" ]] || continue
+        local base="${link##*/}"
+        local name="${base#$prefix}"
+        # Skip stray entries that don't match our naming
+        [[ "$name" =~ ^[a-zA-Z0-9_-]+$ ]] || continue
+        echo "$name  (config: ${XDG_CONFIG_HOME:-$HOME/.config}/Claude-${name})"
+        found=1
+    done
+    if (( found == 0 )); then
+        echo "(no named profiles installed; create one with --create-profile=NAME)"
+    fi
+}
+
 _diagnose() {
     echo '=== claude-desktop --diagnose ==='
     echo
@@ -204,6 +547,8 @@ _diagnose() {
     echo
     echo '--- App identity ---'
     echo "APP_ID = $APP_ID"
+    echo "CLAUDE_PROFILE = ${CLAUDE_PROFILE:-(unset → default)}"
+    echo "config_dir = $config_dir"
     local desktop_file="/usr/share/applications/${APP_ID}.desktop"
     if [[ -f $desktop_file ]]; then
         echo ".desktop file: $desktop_file (found)"
@@ -277,9 +622,24 @@ Options:
   --diagnose                Print session type, Electron version, portal status,
                             GNOME hotkey slot, and recent launcher log. Paste
                             output into issue reports.
+  --profile=NAME            Launch (or target subcommand at) a named profile.
+                            Each profile has its own login, logs, and Claude
+                            Code config. Can also be selected by invoking via
+                            a 'claude-desktop-NAME' symlink. Omit for default.
+  --create-profile=NAME     Create profile NAME: installs user-local symlinks
+                            (~/.local/bin/claude-desktop-NAME, ~/.local/lib/...)
+                            and a .desktop file with a per-profile WMClass so
+                            the window manager treats it as a separate app.
+                            User data is not created until first launch.
+  --delete-profile=NAME     Remove the entry points for profile NAME. User data
+                            (~/.config/Claude-NAME, ~/.claude-NAME) is preserved.
+  --list-profiles           List installed profiles.
   --help, -h                Show this help message.
 
 Environment variables:
+  CLAUDE_PROFILE=NAME       Same effect as --profile=NAME. Inherited by Electron
+                            and the Claude Code child process so per-profile
+                            sockets and config dirs are picked up automatically.
   CLAUDE_USE_XWAYLAND=1     Force XWayland instead of native Wayland.
   CLAUDE_MENU_BAR=visible   Menu bar mode: auto (default), visible, hidden.
   CLAUDE_DISABLE_GPU=1      Disable GPU compositing (white screen fix).
@@ -301,11 +661,33 @@ HELP
         _uninstall_gnome_hotkey
         exit $?
         ;;
+    --create-profile=*)
+        _create_profile "${1#--create-profile=}"
+        exit $?
+        ;;
+    --create-profile)
+        shift
+        _create_profile "${1:-}"
+        exit $?
+        ;;
+    --delete-profile=*)
+        _delete_profile "${1#--delete-profile=}"
+        exit $?
+        ;;
+    --delete-profile)
+        shift
+        _delete_profile "${1:-}"
+        exit $?
+        ;;
+    --list-profiles)
+        _list_profiles
+        exit 0
+        ;;
     --toggle|--toggle-quick-entry)
         # Fast Quick Entry toggle via Unix domain socket (~5-25 ms).
         # Falls through to Electron if socket unavailable (cold start).
         # --toggle-quick-entry is the original flag; --toggle is the short alias.
-        _SOCK="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/claude-desktop-qe.sock"
+        _SOCK="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/claude-desktop-qe${profile_suffix}.sock"
         if [ -S "$_SOCK" ]; then
             if command -v socat >/dev/null 2>&1; then
                 socat /dev/null "UNIX-CLIENT:$_SOCK" 2>/dev/null && exit 0
@@ -490,8 +872,16 @@ fi
 # A stale lock from a crash blocks all launches with no error message.
 # The lock is a symlink whose target encodes "hostname-PID".
 
-config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/Claude"
+config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/Claude${profile_suffix}"
 lock_file="$config_dir/SingletonLock"
+
+# When a profile is active, redirect Electron's userData away from the default
+# ~/.config/Claude. This is what isolates SingletonLock, logins, logs, etc.
+# For the default profile, omit the flag so behavior is byte-identical to v1.
+if [[ -n "$profile_suffix" ]]; then
+    mkdir -p "$config_dir"
+    ELECTRON_ARGS+=("--user-data-dir=$config_dir")
+fi
 
 if [[ -L "$lock_file" ]]; then
     lock_target="$(readlink "$lock_file" 2>/dev/null)" || true
@@ -546,7 +936,7 @@ log "Launching: $ELECTRON_BIN $APP_ASAR ${ELECTRON_ARGS[*]} $*"
 # Fall back to direct exec in environments without user systemd (rare).
 if command -v systemd-run &>/dev/null && [[ -n "${XDG_RUNTIME_DIR:-}" ]]; then
     exec systemd-run --user --scope --quiet \
-        --unit="app-${APP_ID}-$$.scope" \
+        --unit="app-${APP_ID}${profile_suffix}-$$.scope" \
         --description='Claude Desktop' \
         -- "$ELECTRON_BIN" "$APP_ASAR" "${ELECTRON_ARGS[@]}" "$@"
 fi

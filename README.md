@@ -445,6 +445,7 @@ The package applies several patches to make Claude Desktop work on Linux. Each p
 | `fix_office_addin_linux.nim` | Extends Office Addin MCP server to include Linux | `rg -o '.{0,30}louderPenguinEnabled.{0,30}' index.js` |
 | `fix_process_argv_renderer.nim` | Injects `process.argv=[]` in renderer preload to prevent TypeError | `rg -o '.{0,30}\.argv.{0,30}' mainView.js` |
 | `fix_quick_entry_app_id.nim` | Gives Quick Entry a distinct Wayland `app_id` so shell-extension users can blacklist it independently ([#39](https://github.com/patrickjaja/claude-desktop-bin/issues/39)) | `rg -o '.{0,30}BrowserWindow.*titleBarStyle.*hidden.{0,30}' index.js` |
+| `fix_profile_url_routing.nim` | Hooks `shell.openExternal` to write a per-profile auth-marker file before opening SSO URLs, so the system `claude://` handler can route callbacks to the right profile | `rg -o 'shell\.openExternal' index.js` |
 | `fix_quick_entry_cli_toggle.nim` | Enables `claude-desktop --toggle` Quick Entry hotkey (~5-25 ms via Unix socket) | `rg -o 'QUICK_ENTRY.{0,80}' index.js` |
 | `fix_quick_entry_position.nim` | Quick Entry opens on cursor's monitor (multi-monitor); position+focus retries gated to X11 only (Wayland: no jitter) | `rg -o 'getPrimaryDisplay.{0,50}' index.js` |
 | `fix_quick_entry_ready_wayland.nim` | Adds 100ms timeout to Quick Entry ready-to-show wait (Wayland hang fix; `ready-to-show` never fires for frameless transparent windows) | `rg -o 'ready-to-show.{0,50}' index.js` |
@@ -490,10 +491,142 @@ If upstream Claude Desktop changes break a patch:
 - `packaging/` - Debian, RPM, AppImage, and Nix build scripts
 - `PKGBUILD.template` - AUR package template
 
+## Multiple Profiles
+
+Run several Claude Desktop instances side by side, each logged in to a different account, with fully isolated state for both Desktop and the Claude Code CLI it spawns. Useful for separating work from personal accounts, juggling multiple SSO tenants, or testing config changes without affecting your main install.
+
+### Quick start
+
+```bash
+# One-time setup per profile
+claude-desktop --create-profile=work
+claude-desktop --create-profile=personal
+
+# Launch (any of these work)
+claude-desktop-work                     # via the per-profile shortcut
+claude-desktop --profile=work           # via the system launcher
+# …or click "Claude (work)" in your application menu
+
+# Inspect / clean up
+claude-desktop --list-profiles
+claude-desktop --delete-profile=work    # removes entry points; user data preserved
+```
+
+### The default (unnamed) profile
+
+If you don't pass `--profile=` and don't launch through a named-profile shortcut, you get the **default profile**. This is byte-identical to a single-instance install — same `~/.config/Claude`, same `~/.claude`, same sockets, same WM identity. Nothing changes for users who never touch profiles. There's no `--create-profile=default` step, and it's always available implicitly.
+
+You can run the default profile alongside any number of named profiles. The default profile is just "the profile with no suffix."
+
+### Named profiles
+
+A named profile is created with `--create-profile=NAME`. Names must match `[a-zA-Z0-9_-]+` and the literal `default` is reserved.
+
+`--create-profile` installs three things in your home directory (no root needed):
+
+| Path | Purpose |
+|---|---|
+| `~/.local/lib/claude-desktop/com.anthropic.claude-desktop-NAME` | Per-profile Electron binary (real file — see [Why a copy?](#why-a-copy-of-the-binary) below). Sibling files in the same directory are symlinks back to the system install. |
+| `~/.local/bin/claude-desktop-NAME` | Convenience launcher — symlink to the system launcher. Pulls profile name from its own basename. |
+| `~/.local/share/applications/com.anthropic.claude-desktop-NAME.desktop` | Application-menu entry titled `Claude (NAME)`. `Exec=` is absolute so it works regardless of `$PATH`. |
+
+User data is **not** created until first launch — that way `--create-profile` is cheap and reversible.
+
+### Selecting a profile at launch
+
+Three equivalent ways:
+
+1. `claude-desktop --profile=NAME [args…]` — explicit flag.
+2. `CLAUDE_PROFILE=NAME claude-desktop [args…]` — env var, useful for scripts.
+3. `claude-desktop-NAME [args…]` — invocation via the per-profile shortcut. The launcher infers `NAME` from its own basename.
+
+All three set the same `CLAUDE_PROFILE` env var, which propagates through Electron, the cowork hooks, and any spawned `claude` (Code CLI) child processes.
+
+Subcommands honor the active profile: `claude-desktop-work --toggle` toggles work's Quick Entry, `claude-desktop --profile=work --diagnose` reports work's paths.
+
+### What's isolated
+
+| Resource | Default profile | Named profile (e.g. `work`) |
+|---|---|---|
+| Electron userData (login, logs, settings, custom themes, spaces.json) | `~/.config/Claude` | `~/.config/Claude-work` |
+| Claude Code config (settings, projects, sessions, plugins) | `~/.claude` | `~/.claude-work` |
+| Cowork VM-service socket | `$XDG_RUNTIME_DIR/cowork-vm-service.sock` | `…/cowork-vm-service-work.sock` |
+| Quick Entry toggle socket | `$XDG_RUNTIME_DIR/claude-desktop-qe.sock` | `…/claude-desktop-qe-work.sock` |
+| systemd user scope (cgroup, portal identity) | `app-com.anthropic.claude-desktop-PID.scope` | `app-com.anthropic.claude-desktop-work-PID.scope` |
+| WM_CLASS / Wayland app_id (taskbar grouping, Alt-Tab) | `com.anthropic.claude-desktop` | `com.anthropic.claude-desktop-work` |
+
+Plugins, MCP servers, login state, and chat history from one profile are **not** visible in another. This is by design — profiles are independent installs, not views into shared state.
+
+### Removing a profile
+
+```bash
+claude-desktop --delete-profile=work
+```
+
+Removes the three entry points listed above. **User data is preserved** at `~/.config/Claude-work` and `~/.claude-work`. Delete those manually if you really want a clean slate:
+
+```bash
+rm -rf ~/.config/Claude-work ~/.claude-work
+```
+
+### SSO and URL routing
+
+The `claude://` URL scheme is registered system-wide and points to the default profile's `.desktop` file. Without extra work, an SSO callback initiated from a named profile would launch the default profile and consume the auth token there, breaking login. claude-desktop-bin uses a small two-part routing mechanism to fix this:
+
+1. **Marker on browser open.** When a profile-active instance calls `shell.openExternal()` on an auth-ish URL (matches `oauth`, `sso`, `auth`, `login`, `signin`, `callback`, or `accounts`), it writes a marker file at `$XDG_RUNTIME_DIR/claude-desktop-pending-auth-<profile>` containing the current timestamp. Implementation: [`patches/fix_profile_url_routing.nim`](patches/fix_profile_url_routing.nim).
+2. **Marker dispatch on callback.** When the launcher is invoked with a `claude://` URL and no explicit profile, it picks the most recent marker (less than 5 minutes old) and re-execs as that profile. Electron's `second-instance` event delivers the URL to the running profile window.
+
+You can log in to multiple profiles in any order, including multiple SSO logins, with one narrow caveat:
+
+| Scenario | Result |
+|---|---|
+| Single profile (any kind) | ✅ |
+| Default + named, log in to either first, in any order | ✅ |
+| Multiple named profiles, SSO into each one sequentially | ✅ |
+| Profile crashes mid-auth | ✅ Marker self-heals via 5-minute TTL |
+| SSO into profile A, click an unrelated outbound link, then complete the SSO flow | ⚠️ The link click overwrites the marker; the callback may misroute. Re-attempt SSO. |
+| Two SSO flows in flight concurrently (browser tabs open in parallel for different profiles) | ⚠️ "Most recent marker wins"; the loser's callback lands in the winner's profile. Re-attempt for the loser. |
+
+The marker is `0600`-permissioned and contains only a timestamp; nothing about the URL or session is persisted. To inspect what the launcher saw at routing time, run `claude-desktop --diagnose` while a marker is fresh.
+
+If routing misbehaves, the escape hatch is to launch the URL explicitly:
+
+```bash
+claude-desktop --profile=NAME 'claude://<callback-url>'
+```
+
+### Limitations
+
+- **~200 MB disk per profile on cross-filesystem installs.** See [Why a copy?](#why-a-copy-of-the-binary) below.
+- **Manual refresh after `claude-desktop-bin` upgrades.** Hardlinks and reflinks snapshot the binary at creation; package upgrades replace `/usr/lib/claude-desktop-bin/com.anthropic.claude-desktop` with a new file, leaving each profile's binary on the old version. After `pacman -Syu` (or equivalent), refresh every profile:
+  ```bash
+  for p in $(claude-desktop --list-profiles | awk 'NR>1 {print $1}'); do
+      claude-desktop --delete-profile="$p"
+      claude-desktop --create-profile="$p"
+  done
+  ```
+- **MCP servers and plugins do not cross profiles.** If you need the same MCP setup in two profiles, configure each independently.
+- **Concurrent SSO race** as noted in the table above. Sequential SSO is reliable.
+- **Wayland portal identity caveats on NixOS** (already true single-instance) carry over to named profiles too.
+
+### Why a copy of the binary?
+
+Electron derives its WM_CLASS (X11) and Wayland `app_id` from the basename of `/proc/self/exe`, which the kernel always resolves through symlinks. A symlink at `~/.local/lib/claude-desktop/com.anthropic.claude-desktop-work` pointing to `/usr/lib/claude-desktop-bin/com.anthropic.claude-desktop` would still report the system path as the exe — and the WM would group all profile windows as one app. That's how Chrome itself handles channels: `google-chrome-stable` and `google-chrome-beta` are separate copies, not symlinks.
+
+To get distinct app identity per profile, `--create-profile` materialises a real, independently-named binary file. It tries (in order):
+
+1. **Hardlink** (`ln`) — zero disk cost, only works on the same filesystem.
+2. **Reflink** (`cp --reflink=always`) — zero disk cost via copy-on-write, only on btrfs/xfs.
+3. **Plain copy** (`cp`) — ~200 MB per profile, fallback.
+
+The `Created profile` output tells you which path was taken. Sibling files in the same directory (`libffmpeg.so`, `.pak`, `locales/`, `resources/`, `version`, etc.) are always symlinks back to the system install — Electron's `RPATH=$ORIGIN` and Chromium's resource loader expect them next to the binary, but they don't need to be per-profile. Sibling symlinks are shared across all profiles in `~/.local/lib/claude-desktop/`.
+
 ## Environment Variables
 
 | Variable | Values | Description |
 |----------|--------|-------------|
+| `CLAUDE_PROFILE` | name | Select a profile by name (alternative to `--profile=` or the per-profile symlink). Inherited by Electron and Claude Code so per-profile sockets and config dirs are picked up everywhere |
+| `CLAUDE_CONFIG_DIR` | path | Override Claude Code's config dir. Auto-set by the launcher when `CLAUDE_PROFILE` is active; honored by `@anthropic-ai/claude-code` |
 | `CLAUDE_DISABLE_GPU` | `1`, `full` | Fix white screen on some GPU/driver combos ([#13](https://github.com/patrickjaja/claude-desktop-bin/issues/13)). `1` disables compositing only, `full` disables GPU entirely |
 | `CLAUDE_USE_XWAYLAND` | `1` | Force XWayland instead of native Wayland |
 | `CLAUDE_MENU_BAR` | `auto`, `visible`, `hidden` | Menu bar visibility (default: `auto`, toggle with Alt) |
@@ -577,7 +710,7 @@ cgroup name. Starting with this release we launch under
 and install the `.desktop` file under the matching reverse-URL name.
 
 - **Pinned taskbar entries**: if you had the old `claude-desktop.desktop` pinned, re-pin once after this update.
-- **Custom X11 WM rules**: `WM_CLASS` / Wayland `app_id` changed from `Claude` to `com.anthropic.claude-desktop`. Users with i3 / xmonad / awesome / bspwm / KWin rules matching the old class will need to update them.
+- **Custom X11 WM rules**: `WM_CLASS` / Wayland `app_id` changed from `Claude` to `com.anthropic.claude-desktop`. Users with i3 / xmonad / awesome / bspwm / KWin rules matching the old class will need to update them. Named profiles (see [Multiple Profiles](#multiple-profiles)) get a `-<profile>` suffix on this class so each profile shows up as a separate app — write WM rules accordingly.
 - **NixOS**: the Nix package materialises a renamed Electron binary (`com.anthropic.claude-desktop`) for correct Wayland `app_id`, but does not use `systemd-run --scope`. Portal identity may not resolve on GNOME Wayland — use `--install-gnome-hotkey` instead. Other sessions (KDE, Hyprland, Sway, X11) are unaffected.
 
 ## Tips

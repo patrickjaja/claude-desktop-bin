@@ -212,11 +212,16 @@ proc apply*(input: string): string =
       let original = s[m.group(0)]
       let winVar = s[m.group(1)]
       let electronVar = s[m.group(3)]
+      # Resolve the per-profile main app_id at runtime so windows opened after
+      # Quick Entry (settings, dialogs) get com.anthropic.claude-desktop-NAME
+      # rather than the unsuffixed default. CLAUDE_PROFILE is exported by the
+      # launcher; absent for the default profile.
       original & "," & winVar & ".once(\"ready-to-show\",()=>{" & "try{" &
-        "process.env.CHROME_DESKTOP=\"" & MAIN_APP_ID & ".desktop\";" & "typeof " &
-        electronVar & ".app.setDesktopName===\"function\"&&" & electronVar &
-        ".app.setDesktopName(\"" & MAIN_APP_ID & ".desktop\");" &
-        "}catch(__qeAppIdResetErr){}" & "})",
+        "const _mid=\"" & MAIN_APP_ID &
+        "\"+(process.env.CLAUDE_PROFILE?\"-\"+process.env.CLAUDE_PROFILE:\"\")+\".desktop\";" &
+        "process.env.CHROME_DESKTOP=_mid;" & "typeof " & electronVar &
+        ".app.setDesktopName===\"function\"&&" & electronVar &
+        ".app.setDesktopName(_mid);" & "}catch(__qeAppIdResetErr){}" & "})",
   )
   if postCount != 1:
     echo "  [FAIL] Expected 1 Quick Entry loadFile pattern, got " & $postCount

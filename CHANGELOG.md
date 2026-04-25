@@ -2,6 +2,26 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-25 — Multi-profile support
+
+- **Feature: named profiles for multi-account use.** Run several Claude Desktop windows side by side, each logged in to a different account, with fully isolated state for both Desktop and the Claude Code CLI it spawns.
+  - New launcher subcommands: `--create-profile=NAME`, `--delete-profile=NAME`, `--list-profiles`
+  - New flags / env: `--profile=NAME`, `CLAUDE_PROFILE=NAME`. Also auto-resolved from the launcher's basename (e.g. `claude-desktop-work`)
+  - Per-profile isolation:
+    - Electron userData via `--user-data-dir` (login, logs, settings, spaces, custom themes — anything reached through `app.getPath("userData")`)
+    - Claude Code config via `CLAUDE_CONFIG_DIR` (`~/.claude-NAME`)
+    - Cowork VM-service socket (`patches/fix_cowork_linux.nim`) — suffixed with profile name
+    - Quick Entry toggle socket (`patches/fix_quick_entry_cli_toggle.nim`) — suffixed with profile name
+    - systemd user scope name — suffixed with profile name
+    - WM_CLASS / Wayland app_id — `--create-profile` materialises a per-profile Electron binary at `~/.local/lib/claude-desktop/<APP_ID>-NAME` (hardlink → reflink → copy fallback, ~200 MB on cross-fs ext4, near-zero-cost on btrfs/xfs reflinks). A real distinct file is required because the kernel resolves symlinks for `/proc/self/exe`, which Electron uses to derive its app identity. Generated `.desktop` files use an absolute `Exec=` path so they don't depend on `~/.local/bin` being in `$PATH`
+    - SSO callback routing — new patch `fix_profile_url_routing.nim` hooks `shell.openExternal` to write a marker at `$XDG_RUNTIME_DIR/claude-desktop-pending-auth-NAME` whenever a profile opens an auth-ish URL. The launcher reads markers (5-min TTL, most-recent wins) when handling incoming `claude://` URLs and re-execs as the right profile so login completes in the originating window. See README ("SSO and URL routing") for semantics and known limits.
+    - XDG autostart (`patches/fix_startup_settings.nim`) — "Start at login" toggles a per-profile autostart file `~/.config/autostart/com.anthropic.claude-desktop[-NAME].desktop` with `Exec=/usr/bin/claude-desktop [--profile=NAME] --startup`, so each profile's autostart state is tracked independently and the right profile auto-starts at login.
+    - Quick Entry main-window app_id reset (`patches/fix_quick_entry_app_id.nim`) — the post-Quick-Entry `CHROME_DESKTOP` / `app.setDesktopName()` reset is computed at runtime from `CLAUDE_PROFILE`, so settings dialogs and other windows opened after Quick Entry get the correct per-profile app_id rather than the unsuffixed default.
+  - The default profile (no `--profile` flag, no `CLAUDE_PROFILE` env) is byte-identical to the previous single-instance behavior — no migration needed for existing users.
+  - Plugins, MCP servers, and login state are intentionally not shared between profiles.
+
+---
+
 ## 2026-04-25 (v1.4758.0) — Upstream update, 6 patches fixed, 2 new feature flags, GNOME session restore fix
 
 - **Fix:** "Start in system tray" now works with GNOME session restore ([#67](https://github.com/patrickjaja/claude-desktop-bin/pull/67)). GNOME's `gnome-session-service` re-launches saved apps after reboot without the `--startup` flag, so Claude's main window would always appear even when "Start in system tray" was enabled. New heuristic: checks the mtime of the Wayland compositor socket (or D-Bus bus socket on X11) — if Claude starts within 60s of that timestamp, it assumes session-restore and suppresses the main window. — contributed by [@boommasterxd](https://github.com/boommasterxd)
