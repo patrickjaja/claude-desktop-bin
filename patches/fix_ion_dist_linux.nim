@@ -54,18 +54,25 @@ proc apply(filePath: string): int =
   else:
     echo "  [FAIL] org-plugins linux path: pattern not found"
 
-  # Sub-patch B: Fix Ei component to use linux path when on Linux
-  let oldTernary = "r===W.Win32?t.win:t.mac"
-  let newTernary = "r===W.Win32?t.win:r===W.Linux?t.linux:t.mac"
-
-  if content.contains(newTernary):
-    echo "  [OK] mount path platform ternary: already applied"
-    patchesApplied += 1
-  elif content.contains(oldTernary):
-    content = content.replace(oldTernary, newTernary)
-    echo "  [OK] mount path platform ternary: 1 match"
-    patchesApplied += 1
-  else:
+  # Sub-patch B: Fix mount-path display component to use linux path when on Linux.
+  # Platform enum variable renamed W -> G in v1.4758.0; match flexibly.
+  var foundTernary = false
+  for (old, new) in [
+    ("r===W.Win32?t.win:t.mac", "r===W.Win32?t.win:r===W.Linux?t.linux:t.mac"),
+    ("r===G.Win32?t.win:t.mac", "r===G.Win32?t.win:r===G.Linux?t.linux:t.mac"),
+  ]:
+    if content.contains(new):
+      echo "  [OK] mount path platform ternary: already applied"
+      patchesApplied += 1
+      foundTernary = true
+      break
+    elif content.contains(old):
+      content = content.replace(old, new)
+      echo "  [OK] mount path platform ternary: 1 match"
+      patchesApplied += 1
+      foundTernary = true
+      break
+  if not foundTernary:
     echo "  [FAIL] mount path platform ternary: pattern not found"
 
   if patchesApplied < EXPECTED_PATCHES:

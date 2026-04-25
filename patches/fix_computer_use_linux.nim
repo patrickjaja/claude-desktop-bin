@@ -153,22 +153,19 @@ proc apply*(input: string): string =
     echo "  [FAIL] handleToolCall pattern: 0 matches"
     quit(1)
 
-  # Patch 7: Teach overlay controller init on Linux
-  let stubEnd = re"listInstalledApps:\(\)=>\[\]\}\)"
-  let stubMatch = result.find(stubEnd)
-  if stubMatch.isSome:
-    let afterStub = result[
-      stubMatch.get().matchBounds.b + 1 ..
-        min(stubMatch.get().matchBounds.b + 50, result.len - 1)
-    ]
-    if ".has(process.platform)" in afterStub or
-        afterStub.find(re",[\w$]+\(\)&&\(").isSome:
-      echo "  [OK] teach overlay controller: CU gate found (handled by Set fix)"
-      inc patchesApplied
-    else:
-      echo "  [FAIL] teach overlay: CU gate not found after TCC stub"
+  # Patch 7: Verify CU gate (Set-based platform check) is still present.
+  # This is a verification, not a mutation -- Patch 2 extends the Set to include
+  # "linux", which makes the gate function return true on Linux.
+  # We confirm the gate still uses .has(process.platform) globally; the old
+  # 50-char proximity check to the TCC stub was too narrow and broke when
+  # upstream inserted additional setImplementation() calls between the stub
+  # and the CU-gate consumer.
+  if ".has(process.platform)" in result:
+    echo "  [OK] teach overlay controller: CU gate found (handled by Set fix)"
+    inc patchesApplied
   else:
-    echo "  [FAIL] teach overlay: TCC stub pattern not found"
+    echo "  [FAIL] teach overlay: CU gate (.has(process.platform)) not found"
+    quit(1)
 
   # Patch 8: Fix teach overlay mouse events on Linux
   let overlayVarPattern =

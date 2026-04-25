@@ -53,7 +53,8 @@ proc apply*(input: string): string =
     echo "  [OK] Injected __cdb_sanitizeCwd helper (at file start)"
 
   # 2. Patch checkTrust bridge
-  let patCt = re2"(checkTrust\()([\w$]+)(\)\{)(return [\w$]+\.info\()"
+  # v1.4758+: function body now starts with `const o=DQ(s);` before return N.info(...)
+  let patCt = re2"(checkTrust\()([\w$]+)(\)\{)(const [\w$]+=[\w$]+\([\w$]+\);return [\w$]+\.info\()"
   var countCt = result.replaceFirst(
     patCt,
     proc(m: RegexMatch2, s: string): string =
@@ -68,7 +69,8 @@ proc apply*(input: string): string =
     echo "  [WARN] checkTrust bridge: 0 matches"
 
   # 3. Patch saveTrust bridge
-  let patSt = re2"(async saveTrust\()([\w$]+)(\)\{)([\w$]+\.info\()"
+  # v1.4758+: function body now starts with `const o=DQ(s);` before N.info(...)
+  let patSt = re2"(async saveTrust\()([\w$]+)(\)\{)(const [\w$]+=[\w$]+\([\w$]+\);[\w$]+\.info\()"
   var countSt = result.replaceFirst(
     patSt,
     proc(m: RegexMatch2, s: string): string =

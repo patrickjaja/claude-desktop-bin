@@ -1,12 +1,12 @@
 # @patch-target: app.asar.contents/.vite/build/index.js
 # @patch-type: nim
 # Suppress taskbar flashing (demands-attention) on Linux/Wayland+X11.
-# Four sub-patches: early monkey-patch, steal-focus, rua-guard, bg-throttle.
+# Three sub-patches: early monkey-patch, steal-focus, rua-guard.
 
 import std/[os, strformat, strutils]
 import regex
 
-const EXPECTED_PATCHES = 4
+const EXPECTED_PATCHES = 3
 
 const LINUX_WAYLAND_GUARD =
   """;(function(){
@@ -205,26 +205,9 @@ proc apply*(input: string): string =
     else:
       echo "  [FAIL] requestUserAttention pattern not matched"
 
-  # 4. Enable backgroundThrottling on Linux for mainView
-  if "backgroundThrottling:process.platform!==\"linux\"" in result:
-    echo "  [INFO] backgroundThrottling already patched"
-    applied.add("bg-throttle(skip)")
-    patchesApplied += 1
-  else:
-    let bgPattern = re2"(enableBlinkFeatures:void 0,backgroundThrottling):(!1)"
-    var bgCount = 0
-    result = result.replace(
-      bgPattern,
-      proc(m: RegexMatch2, s: string): string =
-        inc bgCount
-        s[m.group(0)] & ":process.platform!==\"linux\"?!1:!0",
-    )
-    if bgCount > 0:
-      echo &"  [OK] backgroundThrottling enabled on Linux: {bgCount} match(es)"
-      applied.add(&"bg-throttle({bgCount})")
-      patchesApplied += 1
-    else:
-      echo "  [FAIL] backgroundThrottling pattern not matched"
+  # Sub-patch 4 (bg-throttle) removed: backgroundThrottling was explicitly
+  # set to false by upstream but has been removed in 1.4758.0+. Electron's
+  # default is true, which is the behaviour the patch intended for Linux.
 
   if patchesApplied < EXPECTED_PATCHES:
     raise newException(
