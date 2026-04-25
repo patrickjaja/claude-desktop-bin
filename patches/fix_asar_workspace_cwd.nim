@@ -53,13 +53,12 @@ proc apply*(input: string): string =
     echo "  [OK] Injected __cdb_sanitizeCwd helper (at file start)"
 
   # 2. Patch checkTrust bridge
-  let patCt = re2"(checkTrust\()([\w$]+)(\)\{)(return [\w$]+\.info\()"
+  let patCt = re2"(checkTrust\()([\w$]+)(\)\{)"
   var countCt = result.replaceFirst(
     patCt,
     proc(m: RegexMatch2, s: string): string =
       let arg = s[m.group(1)]
-      s[m.group(0)] & arg & s[m.group(2)] & arg & "=__cdb_sanitizeCwd(" & arg & ");" &
-        s[m.group(3)],
+      s[m.group(0)] & arg & s[m.group(2)] & arg & "=__cdb_sanitizeCwd(" & arg & ");",
   )
   if countCt > 0:
     patchesApplied += countCt
@@ -68,13 +67,12 @@ proc apply*(input: string): string =
     echo "  [WARN] checkTrust bridge: 0 matches"
 
   # 3. Patch saveTrust bridge
-  let patSt = re2"(async saveTrust\()([\w$]+)(\)\{)([\w$]+\.info\()"
+  let patSt = re2"(async saveTrust\()([\w$]+)(\)\{)"
   var countSt = result.replaceFirst(
     patSt,
     proc(m: RegexMatch2, s: string): string =
       let arg = s[m.group(1)]
-      s[m.group(0)] & arg & s[m.group(2)] & arg & "=__cdb_sanitizeCwd(" & arg & ");" &
-        s[m.group(3)],
+      s[m.group(0)] & arg & s[m.group(2)] & arg & "=__cdb_sanitizeCwd(" & arg & ");",
   )
   if countSt > 0:
     patchesApplied += countSt

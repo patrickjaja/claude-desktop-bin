@@ -17,7 +17,7 @@
 # that changes every upstream release. This patch finds the file by grepping
 # for the unique mountPath pattern.
 
-import std/[os, strutils]
+import std/[os, strutils, re]
 
 const EXPECTED_PATCHES = 2
 
@@ -55,15 +55,25 @@ proc apply(filePath: string): int =
     echo "  [FAIL] org-plugins linux path: pattern not found"
 
   # Sub-patch B: Fix Ei component to use linux path when on Linux
-  let oldTernary = "r===W.Win32?t.win:t.mac"
-  let newTernary = "r===W.Win32?t.win:r===W.Linux?t.linux:t.mac"
+  # The platform enum variable name is minified and changes between versions
+  # (e.g. W in v1.3883, G in v1.4758). Use regex to match any identifier.
+  # Pattern: r===<EnumVar>.Win32?t.win:t.mac
+  let ternaryPattern = re"r===([\w$]+)\.Win32\?t\.win:t\.mac"
+  var matches: array[1, string]
 
-  if content.contains(newTernary):
+  # Check if already patched (with any enum var name)
+  let alreadyPatchedPattern =
+    re"r===([\w$]+)\.Win32\?t\.win:r===\1\.Linux\?t\.linux:t\.mac"
+  if content.contains(alreadyPatchedPattern):
     echo "  [OK] mount path platform ternary: already applied"
     patchesApplied += 1
-  elif content.contains(oldTernary):
+  elif content.find(ternaryPattern, matches) != -1:
+    let enumVar = matches[0]
+    let oldTernary = "r===" & enumVar & ".Win32?t.win:t.mac"
+    let newTernary =
+      "r===" & enumVar & ".Win32?t.win:r===" & enumVar & ".Linux?t.linux:t.mac"
     content = content.replace(oldTernary, newTernary)
-    echo "  [OK] mount path platform ternary: 1 match"
+    echo "  [OK] mount path platform ternary: 1 match (enum var: " & enumVar & ")"
     patchesApplied += 1
   else:
     echo "  [FAIL] mount path platform ternary: pattern not found"

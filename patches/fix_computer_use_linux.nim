@@ -161,12 +161,20 @@ proc apply*(input: string): string =
       stubMatch.get().matchBounds.b + 1 ..
         min(stubMatch.get().matchBounds.b + 50, result.len - 1)
     ]
+    let beforeStub = result[
+      max(0, stubMatch.get().matchBounds.a - 500) .. stubMatch.get().matchBounds.a - 1
+    ]
     if ".has(process.platform)" in afterStub or
         afterStub.find(re",[\w$]+\(\)&&\(").isSome:
-      echo "  [OK] teach overlay controller: CU gate found (handled by Set fix)"
+      echo "  [OK] teach overlay controller: CU gate found after TCC stub (handled by Set fix)"
+      inc patchesApplied
+    elif beforeStub.find(
+      re"[\w$]+\(\)\?[\w$]+\([\w$]+\):[\w$]+\.for\([\w$]+\)\.setImplementation\(\{"
+    ).isSome:
+      echo "  [OK] teach overlay controller: CU gate found before TCC stub via ternary (handled by Set fix)"
       inc patchesApplied
     else:
-      echo "  [FAIL] teach overlay: CU gate not found after TCC stub"
+      echo "  [FAIL] teach overlay: CU gate not found near TCC stub"
   else:
     echo "  [FAIL] teach overlay: TCC stub pattern not found"
 

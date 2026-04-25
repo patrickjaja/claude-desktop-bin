@@ -16,9 +16,11 @@ proc apply*(input: string): string =
     result = input.replace(oldResourcePath, newResourcePath)
     echo "  [OK] process.resourcesPath: " & $count & " match(es)"
   else:
-    echo "  [FAIL] process.resourcesPath: 0 matches, expected >= 1"
+    # Upstream removed process.resourcesPath from index.pre.js in v1.4758.0.
+    # The main fix_locale_paths patch handles index.js (which still has it).
+    # This patch becomes a no-op — exit successfully.
+    echo "  [INFO] process.resourcesPath: 0 matches (removed from pre-loader upstream, no patch needed)"
     result = input
-    quit(1)
 
 when isMainModule:
   if paramCount() != 1:

@@ -1,98 +1,102 @@
 # Claude Desktop Feature Flag Architecture
 
-Reference documentation for the feature flag system in Claude Desktop's Electron app. This documents v1.3883.0 internals to aid patch maintenance.
+Reference documentation for the feature flag system in Claude Desktop's Electron app. This documents v1.4758.0 internals to aid patch maintenance.
 
 ## Overview
 
-20 feature flags are controlled by a 3-layer system:
+22 feature flags are controlled by a 3-layer system:
 
-1. **`s_()` (static)** - Calls individual feature functions, builds base object (19 features)
-2. **`FwA` (async merger)** - Spreads `s_()`, adds `louderPenguin` + `operon` + `coworkKappa` + `coworkArtifacts` as async overrides
-3. **IPC handler** - Calls `gwA`, validates against schema, sends to renderer
+1. **`d_()` (static)** - Calls individual feature functions, builds base object (21 features)
+2. **`$yA` (async merger)** - Spreads `d_()`, adds `louderPenguin` + `operon` + `coworkKappa` + `coworkArtifacts` + `markTaskComplete` as async overrides
+3. **IPC handler** - Calls merger, validates against schema, sends to renderer
 
 Feature name strings (`chillingSlothFeat`, `louderPenguin`, etc.) are runtime IPC identifiers, **not minified** - they are stable pattern anchors.
 
-## All 20 Features
+## All 22 Features
 
 | # | Feature | Function | Gate | Purpose |
 |---|---------|----------|------|---------|
-| 1 | `nativeQuickEntry` | `Awr()` | `platform !== "darwin"` + macOS >= 13 | Native Quick Entry (macOS only) |
-| 2 | `quickEntryDictation` | `ewr()` | `platform !== "darwin"` + macOS >= 14.0 + mic | Quick Entry dictation |
-| 3 | `customQuickEntryDictationShortcut` | direct value `IUA` | None | Custom dictation shortcut value |
-| 4 | `plushRaccoon` | `lUA(() => IUA)` | **lUA() production gate** | Custom dictation shortcut (dev-gated) |
-| 5 | `quietPenguin` | `lUA(cwr)` | **lUA()** + inner `cwr()` returns supported on darwin | Code-related feature (dev-gated) |
-| 6 | `louderPenguin` | `await uwr()` in FwA only | **async override** in FwA; platform gate (darwin/win32) + GrowthBook `4116586025` | **Code tab** |
-| 7 | `chillingSlothFeat` | `iwr()` | darwin\|\|win32 variable check | Local Agent Mode / Cowork |
-| 8 | `chillingSlothEnterprise` | `twr()` | Org config check | Enterprise disable for Claude Code |
-| 9 | `chillingSlothLocal` | `rwr()` | **None** (always supported) | Local sessions |
-| 10 | `yukonSilver` | `weA()` | Platform/arch gate + org config (has native Linux support!) | Secure VM |
-| 11 | `yukonSilverGems` | `bxe()` | Depends on `yukonSilver` (`weA()`) | VM extensions |
-| 12 | `yukonSilverGemsCache` | `bxe()` | Depends on `yukonSilver` (`weA()`) | VM extensions cache |
-| 13 | `wakeScheduler` | `lUA(Cwr)` | **lUA() gate** + `platform !== "darwin"` + macOS >= 13.0 | macOS Login Items / wake scheduling |
-| 14 | `desktopTopBar` | `lwr()` | **None** (always supported) | Desktop top bar |
-| 15 | `ccdPlugins` | `IUA` (constant) | **None** (always supported) | CCD Plugins UI (Add plugins, Browse plugins) |
-| 16 | `floatingAtoll` | `Iwr()` | **None** (always supported, unconditional) | Floating mini-window |
-| 17 | `operon` | static: `dwr()` (unavailable) + async: `await oLt()` in FwA | blocks win32, checks yukonSilver + GrowthBook `1306813456` | Nest — 120+ IPC endpoints, 33 sub-interfaces |
-| 18 | `computerUse` | `Ewr()` | Set-based check on `process.platform` | Computer use feature flag (**patched for Linux** via Set modification) |
-| 19 | `coworkKappa` | static: `Bwr()` (unavailable) + async: `await Qwr()` in FwA | Depends on yukonSilver + GrowthBook `123929380` | Memory consolidation — `consolidate-memory` skill |
-| 20 | `coworkArtifacts` | static: `hwr()` (unavailable) + async: `await fwr()` in FwA | Depends on yukonSilver + GrowthBook `2940196192` | **Cowork artifacts** — artifact rendering in cowork sessions (**new in v1.3883.0**) |
+| 1 | `nativeQuickEntry` | `L_r()` | `platform !== "darwin"` + macOS >= 13 | Native Quick Entry (macOS only) |
+| 2 | `quickEntryDictation` | `G_r()` | `platform !== "darwin"` + macOS >= 14.0 + mic | Quick Entry dictation |
+| 3 | `customQuickEntryDictationShortcut` | direct value `saA` | None | Custom dictation shortcut value |
+| 4 | `plushRaccoon` | `yFA(() => saA)` | **yFA() production gate** | Custom dictation shortcut (dev-gated) |
+| 5 | `quietPenguin` | `yFA(J_r)` | **yFA()** + inner `J_r()` returns supported on darwin | Code-related feature (dev-gated) |
+| 6 | `louderPenguin` | `await j_r()` in $yA only | **async override** in $yA; platform gate (darwin/win32) + GrowthBook `4116586025` | **Code tab** |
+| 7 | `chillingSlothFeat` | `F_r()` | darwin\|\|win32 variable check | Local Agent Mode / Cowork |
+| 8 | `chillingSlothEnterprise` | `U_r()` | Org config check | Enterprise disable for Claude Code |
+| 9 | `chillingSlothLocal` | `x_r()` | **None** (always supported) | Local sessions |
+| 10 | `chillingSlothPool` | GrowthBook `1992087837` | GrowthBook flag gate | **Concurrent session pooling** (**new in v1.4758.0**) |
+| 11 | `yukonSilver` | `jyA()` | Platform/arch gate + org config (has native Linux support!) | Secure VM |
+| 12 | `yukonSilverGems` | `tYe()` | Depends on `yukonSilver` (`jyA()`) | VM extensions |
+| 13 | `yukonSilverGemsCache` | `tYe()` | Depends on `yukonSilver` (`jyA()`) | VM extensions cache |
+| 14 | `wakeScheduler` | `yFA(W_r)` | **yFA() gate** + `platform !== "darwin"` + macOS >= 13.0 | macOS Login Items / wake scheduling |
+| 15 | `operon` | `z_r()` | always unavailable in static; async check in $yA | Nest — 120+ IPC endpoints, 33 sub-interfaces |
+| 16 | `desktopTopBar` | `q_r()` | **None** (always supported) | Desktop top bar |
+| 17 | `ccdPlugins` | `saA` (constant) | **None** (always supported) | CCD Plugins UI (Add plugins, Browse plugins) |
+| 18 | `floatingAtoll` | `V_r()` | **None** (always supported, unconditional) | Floating mini-window |
+| 19 | `computerUse` | `$_r()` | Set-based check on `process.platform` | Computer use feature flag (**patched for Linux** via Set modification) |
+| 20 | `coworkKappa` | static: `Z_r()` (unavailable) + async in $yA | Depends on yukonSilver + GrowthBook `123929380` | Memory consolidation — `consolidate-memory` skill |
+| 21 | `coworkArtifacts` | static: `X_r()` (unavailable) + async in $yA | Depends on yukonSilver + GrowthBook `2940196192` | **Cowork artifacts** — artifact rendering in cowork sessions |
+| 22 | `markTaskComplete` | static: `ARr()` (unavailable) + async in $yA | Depends on yukonSilver + GrowthBook `3732274605` | **Task completion** — mark tasks as done (**new in v1.4758.0**) |
 
-## The lUA() Production Gate
+## The yFA() Production Gate
 
 ```javascript
-function lUA(e){return pA.app.isPackaged?{status:"unavailable"}:e()}
+function yFA(e){return pA.app.isPackaged?{status:"unavailable"}:e()}
 ```
 
-In production builds (`app.isPackaged === true`), lUA() returns `{status:"unavailable"}` **without calling** the wrapped function. Only in development builds does it call `e()`.
+In production builds (`app.isPackaged === true`), yFA() returns `{status:"unavailable"}` **without calling** the wrapped function. Only in development builds does it call `e()`.
 
-**Features gated by lUA():** `plushRaccoon`, `quietPenguin`, `wakeScheduler`
+**Features gated by yFA():** `plushRaccoon`, `quietPenguin`, `wakeScheduler`
 
-Note: `louderPenguin` is no longer in s_() at all (was QL()-gated in earlier versions). It exists only in FwA as `await uwr()`, which has its own platform gate (darwin/win32 only) + server feature flag check. `operon` now has both a static entry (unconditionally unavailable) and an async override in FwA. `coworkKappa` and `coworkArtifacts` are similarly async-only: static returns unavailable, async checks yukonSilver + respective GrowthBook flags.
+Note: `louderPenguin` is no longer in d_() at all. It exists only in $yA as `await j_r()`, which has its own platform gate (darwin/win32 only) + server feature flag check. `operon` has both a static entry (unconditionally unavailable) and an async override in $yA. `coworkKappa`, `coworkArtifacts`, and `markTaskComplete` are similarly async-only: static returns unavailable, async checks yukonSilver + respective GrowthBook flags. `chillingSlothPool` is GrowthBook-gated directly in the static registry.
 
 This is why patching the inner functions alone is insufficient - lUA() never calls them in packaged builds.
 
 ## The Three Layers
 
-### Layer 1: s_() - Static Registry
+### Layer 1: d_() - Static Registry
 
 ```javascript
-function s_(){
+function d_(){
   return{
     nativeQuickEntry:...,
     quickEntryDictation:...,
     customQuickEntryDictationShortcut:...,
-    plushRaccoon:lUA(()=>...),
-    quietPenguin:lUA(...),
+    plushRaccoon:yFA(()=>...),
+    quietPenguin:yFA(...),
     chillingSlothFeat:...,             // darwin||win32 variable check
     chillingSlothEnterprise:...,
     chillingSlothLocal:...,
+    chillingSlothPool:...,             // GrowthBook 1992087837 gate (new in v1.4758.0)
     yukonSilver:...,
     yukonSilverGems:...,
     yukonSilverGemsCache:...,
-    wakeScheduler:lUA(...),
+    wakeScheduler:yFA(...),
     operon:...,                        // always unavailable
     desktopTopBar:...,
     ccdPlugins:...,                    // constant {status:"supported"}
     floatingAtoll:...,                 // always supported (unconditional)
     computerUse:...,                   // Set-based gate, "linux" added by patch
     coworkKappa:...,                   // always unavailable (async-only)
-    coworkArtifacts:...                // always unavailable (async-only, new in v1.3883.0)
+    coworkArtifacts:...,               // always unavailable (async-only)
+    markTaskComplete:...               // always unavailable (async-only, new in v1.4758.0)
   }
 }
 ```
 
-Returns 19 features synchronously. Features wrapped by `lUA()` are always `{status:"unavailable"}` in packaged builds.
+Returns 21 features synchronously. Features wrapped by `yFA()` are always `{status:"unavailable"}` in packaged builds.
 
-### Layer 2: FwA - Async Merger
+### Layer 2: $yA - Async Merger
 
 ```javascript
-const FwA=async()=>{
-  const[e,A,t,i]=await Promise.all([uwr(),oLt(),Qwr(),fwr()]);
-  return{...s_(),louderPenguin:e,operon:A,coworkKappa:t,coworkArtifacts:i}
+const $yA=async()=>{
+  const[e,A,t,i,r]=await Promise.all([j_r(),mFt(),DFA(()=>zt("123929380")),DFA(()=>zt("2940196192")),DFA(()=>zt("3732274605"))]);
+  return{...d_(),louderPenguin:e,operon:A,coworkKappa:t,coworkArtifacts:i,markTaskComplete:r}
 };
 ```
 
-Uses `Promise.all` to parallelize louderPenguin (`uwr()`), operon (`oLt()`), coworkKappa (`Qwr()`), and coworkArtifacts (`fwr()`) async checks. Spreads `s_()` then adds the four as async overrides. `uwr()` checks platform (darwin/win32) then checks server feature flag `4116586025`. The operon async check introduces a 5-second delay, then blocks win32, checks yukonSilver, and checks GrowthBook flag `1306813456`. The coworkKappa async check checks yukonSilver, waits 5 seconds, then checks GrowthBook flag `123929380`. The coworkArtifacts async check checks yukonSilver, waits 5 seconds, then checks GrowthBook flag `2940196192`.
+Uses `Promise.all` to parallelize louderPenguin (`j_r()`), operon (`mFt()`), coworkKappa (`DFA()+zt("123929380")`), coworkArtifacts (`DFA()+zt("2940196192")`), and markTaskComplete (`DFA()+zt("3732274605")`) async checks. Spreads `d_()` then adds the five as async overrides. `j_r()` checks platform (darwin/win32) then checks server feature flag `4116586025`. The operon async check introduces a 5-second delay, then blocks win32, checks yukonSilver, and checks GrowthBook flag `1306813456`. The `DFA()` helper checks yukonSilver first, waits 5 seconds, then checks the respective GrowthBook flag.
 
 **v1.1.3770 → v1.1.3918 changes:**
 - `chillingSlothEnterprise` moved from async-only (mC) to static (Fd)
@@ -143,9 +147,9 @@ Feature flags can also be affected by organization-level admin settings:
 
 Calls the merger, validates the result against a Zod schema, and sends it to the renderer process via IPC. The renderer uses these flags to conditionally render UI elements (e.g., Chat|Code toggle).
 
-## GrowthBook Flag Catalog (v1.3883.0)
+## GrowthBook Flag Catalog (v1.4758.0)
 
-### Boolean Flags (Ii())
+### Boolean Flags (zt())
 
 | Flag ID | Purpose | Patched? |
 |---------|---------|----------|
@@ -227,6 +231,13 @@ Calls the merger, validates the result against a Zod schema, and sends it to the
 | `1585356617` | Epitaxy routing — SSH session routing | Completely removed |
 | `2199295617` | AutoArchiveEngine — auto-archives sessions when PRs close | Completely removed |
 | `4201169164` | Remote orchestrator ("manta") — was already hardcoded off | Completely removed |
+
+#### New in v1.4758.0
+
+| Flag ID | Purpose | Patched? |
+|---------|---------|----------|
+| `1992087837` | chillingSlothPool — concurrent session pooling | **Yes** — forced ON in `enable_local_agent_mode.nim` (2 call sites) |
+| `3732274605` | markTaskComplete — task completion feature | **Yes** — forced ON in `enable_local_agent_mode.nim` (3 call sites) |
 
 #### New in v1.3883.0
 
@@ -335,20 +346,20 @@ These dispatch-era flags were removed from GrowthBook boolean calls (code may st
 
 ### enable_local_agent_mode.nim
 
-**Patch 1 - Individual functions:** Remove `process.platform!=="darwin"` gate from the quietPenguin inner function. Note: chillingSlothFeat uses a darwin||win32 variable check — only 1 match now instead of 2, handled gracefully by the `elif len(matches) == 1` branch. Also inject Linux early-return in yukonSilver (`weA()` in v1.3883.0) to bypass its platform gate (though upstream now has native Linux support too — our patch is defensive).
+**Patch 1 - Individual functions:** Remove `process.platform!=="darwin"` gate from the quietPenguin inner function. Note: chillingSlothFeat uses a darwin||win32 variable check — only 1 match now instead of 2, handled gracefully by the `elif len(matches) == 1` branch. Also inject Linux early-return in yukonSilver (`jyA()` in v1.4758.0) to bypass its platform gate (though upstream now has native Linux support too — our patch is defensive).
 
-**Patch 3 - FwA merger override:** Append to the `FwA` return object:
+**Patch 3 - $yA merger override:** Append to the `$yA` return object:
 ```javascript
-,quietPenguin:{status:"supported"},louderPenguin:{status:"supported"},chillingSlothFeat:{status:"supported"},chillingSlothLocal:{status:"supported"},yukonSilver:{status:"supported"},yukonSilverGems:{status:"supported"},ccdPlugins:{status:"supported"},computerUse:{status:"supported"},coworkKappa:{status:"supported"},coworkArtifacts:{status:"supported"}
+,quietPenguin:{status:"supported"},louderPenguin:{status:"supported"},chillingSlothFeat:{status:"supported"},chillingSlothLocal:{status:"supported"},chillingSlothPool:{status:"supported"},yukonSilver:{status:"supported"},yukonSilverGems:{status:"supported"},ccdPlugins:{status:"supported"},computerUse:{status:"supported"},coworkKappa:{status:"supported"},coworkArtifacts:{status:"supported"},markTaskComplete:{status:"supported"}
 ```
 
-This bypasses the lUA() gate by overriding at the merger level (10 total overrides). The spread order ensures our values win:
+This bypasses the yFA() gate by overriding at the merger level (12 total overrides). The spread order ensures our values win:
 ```
-...s_()           -> quietPenguin: {status:"unavailable"}  (from lUA)
+...d_()           -> quietPenguin: {status:"unavailable"}  (from yFA)
 ...our overrides  -> quietPenguin: {status:"supported"}    (wins)
 ```
 
-Note: `chillingSlothLocal` and `ccdPlugins` overrides are defensive — both are already `{status:"supported"}`, but the overrides protect against future gating. `yukonSilverGemsCache` is NOT overridden but inherits support from the `weA()` (yukonSilver) function patch in Patch 1b. `coworkKappa` is overridden to `{status:"supported"}` AND its GrowthBook flag `123929380` is forced ON (Patch 3b) — this enables the `/consolidate-memory` skill and auto-memory directory for sessions. `coworkArtifacts` is overridden to `{status:"supported"}` AND its GrowthBook flag `2940196192` is forced ON (Patch 3c) — this enables persistent HTML artifact storage in cowork sessions (`create_artifact`, `update_artifact`, `list_artifacts` tools).
+Note: `chillingSlothLocal` and `ccdPlugins` overrides are defensive — both are already `{status:"supported"}`, but the overrides protect against future gating. `yukonSilverGemsCache` is NOT overridden but inherits support from the `jyA()` (yukonSilver) function patch in Patch 1b. `coworkKappa` is overridden to `{status:"supported"}` AND its GrowthBook flag `123929380` is forced ON (Patch 3b). `coworkArtifacts` is overridden AND its GrowthBook flag `2940196192` is forced ON (Patch 3c). `chillingSlothPool` is overridden AND its GrowthBook flag `1992087837` is forced ON (Patch 3d). `markTaskComplete` is overridden AND its GrowthBook flag `3732274605` is forced ON (Patch 3e).
 
 ### Cowork on Linux (experimental)
 
@@ -558,6 +569,7 @@ Feature name strings are stable across versions because they're IPC identifiers 
 | v1.2581.0 | `iA()` | `jue` | `XEe()` | **New `coworkKappa` feature** (19 features, 3 async overrides); `Yr()` flag reader; platform vars `_s`/`c3e`; async merger now 3-way `Promise.all` (louderPenguin + operon + coworkKappa); 1 new flag (`123929380` coworkKappa/consolidate-memory); 1 removed flag (`4040257062` memory path routing); `fix_tray_dbus.py` updated (`[\w$]+` for tray variable with `$`) |
 | v1.2773.0 | `Hb()` | `Mle` | `G1e()` | Same 19 features; `Wr()` flag reader; `QR()` listener; `us()`/`cA()` value flags; platform vars `pi`/`vs`/`r6e`; `chillingSlothFeat` gate changed from `process.platform!=="darwin"` to `r6e` (darwin\|\|win32); `floatingAtoll` now always supported (`Rkn()` unconditional, was preference-gated); 4 new flags (`919950191` LAM tool search, `2140326016` author stubs error, `2216480658` VM outputs, `3858743149` maxThinkingTokens); 3 removed flags (`1585356617` epitaxy, `2199295617` AutoArchive, `4201169164` remote orchestrator); MCP registration `One()`→`ooe()`; computer-use Set `ese`→`ele`; all patches compatible |
 | v1.3036.0 | `nA()` | `ode` | `ESe()` | Same 19 features; `Wr()` flag reader unchanged; `Xk()` listener (was `QR()`); `fs()`/`wA()` value flags (was `us()`/`cA()`); platform vars `hi` (darwin, unchanged)/`xce` (win32, was `vs`)/`UMe` (darwin\|\|win32, was `r6e`); 4 new flags (`658929541` LAM setModel buffer, `1496450144` CLAUDE_CODE_ENABLE_TASKS, `2800354941` plugin/skill sort, `2815031518` LocalSessionMgr setModel buffer); 3 removed flags (`159894531` ENABLE_TOOL_SEARCH, `919950191` LAM tool search, `2678455445` MCP SDK server mode); MCP registration `ooe()`→`kce()`; **Patch 3c removed from `enable_local_agent_mode.py`** — upstream dropped the Desktop-side ENABLE_TOOL_SEARCH="false" override, user settings.json now passes through; all other patches compatible |
+| v1.4758.0 | `d_()` | `$yA` | `yFA()` | **2 new features:** `chillingSlothPool` (GrowthBook `1992087837`), `markTaskComplete` (GrowthBook `3732274605`) → 22 features, 5 async overrides; `louderPenguin` moved from static to async-only; `zt()` flag reader; `backgroundThrottling:!1` removed from webPreferences (upstream default now used); `process.resourcesPath` removed from `index.pre.js`; `checkTrust`/`saveTrust` gained `DQ()` path expansion; CU teach overlay gate moved before TCC stub (ternary); ion-dist platform enum `W`→`G`; yukonSilver `formatMessage` now called via `Qe().formatMessage` (function call before property access); 6 patches updated, all 42 compatible |
 | v1.3883.0 | `s_()` | `FwA` | `lUA()` | **New `coworkArtifacts` feature** (20 features, 4 async overrides); `Ii()` flag reader; `FG()` listener; `y_()`/`zn()` value flags; async merger now 4-way `Promise.all` (louderPenguin + operon + coworkKappa + coworkArtifacts); 2 new GrowthBook flags (`2049450122` session handoff, `2192324205` dispatch structured content forwarding); locale i18n JSONs removed from app.asar (moved to resources/ alongside asar); upstream `rjt()` message filter expanded (adds dispatch tool name variables `SU`/`T4` behind a gate parameter — `fix_dispatch_linux.nim` Patch F updated to match new pattern); new `@ant/claude-swift` module (macOS-only, no Linux impact); `@ant/claude-native-binding.node` bundled in asar; MCP registration `gpA()`→`FpA()`; 1 patch updated (`fix_dispatch_linux.nim`); 41 patches compatible without changes |
 | v1.3561.0 | `A_()` | `gwA` | `GGA()` | Same 19 features; `Ti()`→`fi()` flag reader; `wG()`→`bG()` listener; `Es()`/`di()`→`zn()`/`f_()` value flags; platform vars `en` unchanged (darwin), `ws`→`ys` (win32), `WhA`→`bfA` (darwin\|\|win32); MCP registration `DfA()`→`gpA()`; computer-use Set `ele`→`rwA`, checker `Jne()`→`nBA()`; 2 new GrowthBook flags (`1496676413` SSH plugins, `2023768496` trusted device); `123929380` added to force-ON defaults; locale i18n moved to `ion-dist/i18n/` with `.overrides.json`; all 42 patches compatible without regex changes |
 | v1.3109.0 | `J0()` | `ewA` | `aFA()` | Same 19 features; **webpack re-minify only — no GrowthBook flag additions/removals, no new MCP servers, no new IPC handlers, no new `process.platform` gates vs v1.3036.0**; `Wr()`→`Ti()` flag reader; `Xk()`→`wG()` listener; `fs()`/`wA()`→`Es()`/`di()` value flags; platform vars `hi`→`en` (darwin), `xce`→`ws` (win32), `UMe`→`WhA` (darwin\|\|win32); MCP registration `kce()`→`DfA()`; dispatch IPC bridge re-minified (`rjt` item `s→n`, auto-wake session `n→i`, notification `s→n`, child session `e→A`, index `r→t`, logger `B/P→M`) — `fix_dispatch_linux.py` sub-patches F and J updated with `[\w$]+` captures; all 41 patches compatible without regex changes elsewhere |
