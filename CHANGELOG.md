@@ -2,6 +2,14 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-26 — Profile name in main window title
+
+- **Feature:** named profiles get the profile name appended to the main window title. `Claude` becomes `Claude (work)` in the title bar, taskbar tooltips, and Alt-Tab — convenient for users running multiple profiles side by side.
+- New patch `patches/fix_profile_window_title.nim` injects a `page-title-updated` listener on the main `BrowserWindow` that preventDefaults the renderer's update and re-sets the title with `(PROFILE)` appended. Conversation names like `My chat` become `My chat (work)`. Profile name is taken verbatim from `CLAUDE_PROFILE` (no capitalisation munging).
+- The default profile (no `CLAUDE_PROFILE` set) is unaffected: the listener is only installed when the env var is non-empty.
+
+---
+
 ## 2026-04-26 — Multi-profile follow-ups
 
 Review feedback fixes applied on top of the multi-profile feature:
