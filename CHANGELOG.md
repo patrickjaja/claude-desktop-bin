@@ -2,6 +2,18 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-26 — Multi-profile follow-ups
+
+Review feedback fixes applied on top of the multi-profile feature:
+
+- **Fix: cowork is broken for named profiles.** The previous round suffixed the cowork socket path with `-NAME` on the client (Electron) side, but `cowork-svc-linux` is a separate user-level daemon that listens on the unsuffixed `cowork-vm-service.sock` only. Named profiles silently failed to reach the daemon. Reverted in `patches/fix_cowork_linux.nim` — all profiles share the daemon. Per-profile state still flows correctly: the spawned `claude` CLI inherits `CLAUDE_CONFIG_DIR=~/.claude-NAME` and uses a per-profile `--plugin-dir` derived from `app.getPath("userData")`, so cowork's stateless spawning produces correctly-scoped sessions per profile.
+- **Fix: per-profile binary stale after package upgrades.** Hardlinks/reflinks/copies snapshot the system Electron at `--create-profile` time. Package upgrades (and NixOS rebuilds where store paths move) leave the per-profile copy on the old version, producing a version mismatch with the upgraded `app.asar`. The launcher now auto-detects staleness on every named-profile launch (canonical newer than per-profile, or per-profile non-executable, or any sibling symlink dangling) and re-materialises the binary plus refreshes the symlink mirror. Also factored the materialise/mirror logic into reusable helpers (`_materialise_profile_binary`, `_mirror_profile_siblings`, `_canonical_electron_bin`, `_refresh_profile_binary_if_stale`).
+- **Fix: PipeWire portal restore token leaked across profiles.** `js/cu_linux_executor.js` hardcoded `~/.config/Claude/pipewire-restore-token` in both the Node side and the embedded Python script — bypassing `app.getPath("userData")`. Switched to userData (per-profile) on the Node side, and pass the path into the Python via the `CLAUDE_PORTAL_TOKEN_PATH` env var.
+- **Fix: silent UX degradation when `--profile=NAME` is used without `--create-profile`.** The launcher now prints a one-line stderr hint pointing at `--create-profile` when the per-profile binary doesn't exist. Suppress with `CLAUDE_PROFILE_QUIET=1`.
+- **Fix: competing `claude://` URL handlers.** `--create-profile` no longer copies `MimeType=` from the system `.desktop` into the per-profile entry. Only the system entry claims the scheme; routing to the right profile happens via the auth-marker mechanism.
+
+---
+
 ## 2026-04-25 — Multi-profile support
 
 - **Feature: named profiles for multi-account use.** Run several Claude Desktop windows side by side, each logged in to a different account, with fully isolated state for both Desktop and the Claude Code CLI it spawns.

@@ -320,6 +320,120 @@ _profile_paths() {
     echo "${XDG_CONFIG_HOME:-$HOME/.config}/Claude-${name}"
 }
 
+# Try to materialise a per-profile Electron binary at $2, taking the cheapest
+# option that produces a real (not-symlink) inode at the destination so that
+# /proc/self/exe resolves to the per-profile path. Sets the global _link_kind
+# to a human-readable label. Returns 0 on success, 1 on failure.
+_materialise_profile_binary() {
+    local src="$1" dst="$2"
+    _link_kind=""
+    if ln "$src" "$dst" 2>/dev/null; then
+        _link_kind="hardlink (~0 disk used)"
+        return 0
+    fi
+    if cp --reflink=always "$src" "$dst" 2>/dev/null; then
+        _link_kind="reflink (CoW, ~0 disk used)"
+        return 0
+    fi
+    if cp "$src" "$dst" 2>/dev/null; then
+        _link_kind="copy ($(du -h "$dst" | cut -f1))"
+        return 0
+    fi
+    rm -f "$dst"
+    return 1
+}
+
+# Refresh the per-profile directory's sibling symlinks. Electron's
+# RPATH=$ORIGIN looks for libffmpeg.so etc as siblings of the binary, and
+# Chromium reads its .pak / locales / resources / version from the same
+# directory. We populate them as symlinks back to the system install. This
+# function is idempotent: it (re)creates only links that are missing or
+# point at the wrong target, and skips the per-profile binary itself plus
+# any other profile binaries that already live there.
+_mirror_profile_siblings() {
+    local src_dir="$1" dst_dir="$2" orig_bn="$3"
+    local entry bn target
+    for entry in "$src_dir"/*; do
+        [[ -e "$entry" ]] || continue
+        bn="$(basename "$entry")"
+        [[ "$bn" == "$orig_bn" ]] && continue
+        case "$bn" in "${APP_ID}-"*) continue ;; esac
+        target="$(readlink "$dst_dir/$bn" 2>/dev/null || true)"
+        if [[ "$target" != "$entry" ]]; then
+            rm -f "$dst_dir/$bn"
+            ln -s "$entry" "$dst_dir/$bn"
+        fi
+    done
+}
+
+# Resolve the canonical (system-installed) Electron binary, ignoring any
+# per-profile copy. Mirrors the path-discovery candidate list. Returns the
+# first executable hit on stdout, or empty if none found.
+_canonical_electron_bin() {
+    local c
+    for c in \
+        "/usr/lib/claude-desktop/${APP_ID}" \
+        "/usr/lib/claude-desktop-bin/${APP_ID}" \
+        "/usr/lib/claude-desktop/electron"; do
+        if [[ -x "$c" ]]; then
+            echo "$c"
+            return 0
+        fi
+    done
+    return 1
+}
+
+# At every launch under a named profile, repair the per-profile install if it
+# has gone stale. Triggers:
+#   - Canonical binary newer than per-profile copy (package upgrade refreshed
+#     /usr/lib/claude-desktop-bin/<APP_ID> while ~/.local/lib still points
+#     at the old version → version mismatch with app.asar at runtime).
+#   - Per-profile binary present but no longer executable (e.g. NixOS rebuild
+#     replaced the store path; symlinks pointing into /nix/store dangle).
+#   - Any sibling symlink target missing (same Nix scenario, or AppImage
+#     mount-point churn).
+# When a refresh runs, it leaves a one-line note on stderr so the user can
+# correlate post-upgrade hiccups. Failures fall through to whatever the
+# next launch attempt sees; no fatal exit.
+_refresh_profile_binary_if_stale() {
+    [[ -z "$profile_suffix" ]] && return 0
+    local profile_bin="$HOME/.local/lib/claude-desktop/${APP_ID}${profile_suffix}"
+    [[ -e "$profile_bin" ]] || return 0  # not yet --create-profile'd
+    local canonical
+    canonical="$(_canonical_electron_bin)" || return 0  # no system install? bail
+
+    local need_refresh=0 reason=""
+    if [[ ! -x "$profile_bin" ]]; then
+        need_refresh=1; reason="per-profile binary not executable (Nix store moved?)"
+    elif [[ "$canonical" -nt "$profile_bin" ]]; then
+        need_refresh=1; reason="canonical Electron is newer (package upgrade?)"
+    else
+        # Walk siblings; if any symlink dangles, full refresh.
+        local entry bn target
+        for entry in "$(dirname "$profile_bin")"/*; do
+            [[ -L "$entry" ]] || continue
+            target="$(readlink "$entry" 2>/dev/null)"
+            if [[ -z "$target" || ! -e "$target" ]]; then
+                need_refresh=1; reason="sibling symlink dangling: $entry"
+                break
+            fi
+        done
+    fi
+
+    (( need_refresh )) || return 0
+    log "Refreshing stale profile '$CLAUDE_PROFILE': $reason"
+    echo >&2 "claude-desktop: refreshing stale per-profile binary ($reason)"
+
+    rm -f "$profile_bin"
+    if ! _materialise_profile_binary "$canonical" "$profile_bin"; then
+        echo >&2 "claude-desktop: failed to refresh per-profile binary; falling back to canonical for this launch"
+        return 1
+    fi
+    _mirror_profile_siblings "$(dirname "$canonical")" "$(dirname "$profile_bin")" "$(basename "$canonical")"
+    log "Refreshed via $_link_kind"
+    return 0
+}
+
 _create_profile() {
     local name="$1"
     if [[ -z "$name" || "$name" == "default" ]]; then
@@ -361,49 +475,25 @@ _create_profile() {
     #
     # Strategy: hardlink first (zero-cost, same fs only), reflink second
     # (zero-cost on btrfs/xfs), copy fallback (typically ~200 MB per profile).
-    local link_kind=""
-    if ln "$ELECTRON_BIN" "$electron_bin_path" 2>/dev/null; then
-        link_kind="hardlink (~0 disk used)"
-    elif cp --reflink=always "$ELECTRON_BIN" "$electron_bin_path" 2>/dev/null; then
-        link_kind="reflink (CoW, ~0 disk used)"
-    elif cp "$ELECTRON_BIN" "$electron_bin_path" 2>/dev/null; then
-        link_kind="copy ($(du -h "$electron_bin_path" | cut -f1))"
-    else
+    if ! _materialise_profile_binary "$ELECTRON_BIN" "$electron_bin_path"; then
         echo >&2 "claude-desktop: failed to materialise per-profile binary at $electron_bin_path"
-        rm -f "$electron_bin_path"
         return 1
     fi
+    local link_kind="$_link_kind"
 
     # Mirror the other files in the Electron install dir back as symlinks so
     # the per-profile binary can find its sibling shared libraries
     # (RPATH=$ORIGIN looks for libffmpeg.so, libEGL.so, etc.) and Chromium can
     # find its data files (.pak, locales/, resources/, version, icudtl.dat).
-    # We don't symlink the original Electron binary itself; its per-profile
-    # twin lives there. Other files are profile-agnostic and shared across
-    # profiles (idempotent: only create links that don't exist yet).
-    local _src_dir
-    _src_dir="$(dirname "$ELECTRON_BIN")"
-    local _dst_dir
-    _dst_dir="$(dirname "$electron_bin_path")"
-    local _entry _bn _orig_bin_bn
-    _orig_bin_bn="$(basename "$ELECTRON_BIN")"
-    for _entry in "$_src_dir"/*; do
-        [[ -e "$_entry" ]] || continue
-        _bn="$(basename "$_entry")"
-        # Skip the source binary (its per-profile copy is what we just made)
-        # and anything matching APP_ID-* (other profiles' binaries).
-        [[ "$_bn" == "$_orig_bin_bn" ]] && continue
-        case "$_bn" in
-            "${APP_ID}-"*) continue ;;
-        esac
-        if [[ ! -e "$_dst_dir/$_bn" ]]; then
-            ln -s "$_entry" "$_dst_dir/$_bn"
-        fi
-    done
+    # Profile-agnostic: shared across all profiles in the lib dir.
+    _mirror_profile_siblings \
+        "$(dirname "$ELECTRON_BIN")" \
+        "$(dirname "$electron_bin_path")" \
+        "$(basename "$ELECTRON_BIN")"
 
     ln -s "$launcher_path" "$launcher_link"
 
-    # Try to find an existing system .desktop to inherit Icon=, MimeType=, etc.
+    # Try to find an existing system .desktop to inherit Icon=, etc.
     local source_desktop=""
     for c in \
         "/usr/share/applications/${APP_ID}.desktop" \
@@ -421,12 +511,17 @@ _create_profile() {
     local exec_line="Exec=${launcher_path} --profile=${name} %u"
 
     if [[ -n "$source_desktop" ]]; then
-        # Rewrite Name, Exec, StartupWMClass; keep everything else.
+        # Rewrite Name, Exec, StartupWMClass; drop MimeType= so the
+        # claude:// scheme remains owned by the system .desktop. The launcher
+        # routes incoming URLs to the right profile via the auth marker; if
+        # named profiles also claimed the scheme, xdg-mime ordering would
+        # short-circuit our routing for whichever entry got picked first.
         awk -v name="$name" -v appid="$APP_ID" -v execline="$exec_line" '
             BEGIN { FS=OFS="=" }
-            /^Name=/        { print "Name=Claude (" name ")"; next }
-            /^Exec=/        { print execline; next }
+            /^Name=/           { print "Name=Claude (" name ")"; next }
+            /^Exec=/           { print execline; next }
             /^StartupWMClass=/ { print "StartupWMClass=" appid "-" name; next }
+            /^MimeType=/       { next }
             { print }
         ' "$source_desktop" > "$desktop_file"
     else
@@ -601,6 +696,34 @@ _diagnose() {
         echo '(no launcher.log yet)'
     fi
 }
+
+# ---------------------------------------------------------------------------
+# Per-profile binary maintenance (runs once per launch, named profiles only)
+# ---------------------------------------------------------------------------
+
+# Auto-heal stale per-profile installs after package upgrades or NixOS rebuilds.
+# Also refresh ELECTRON_BIN if path discovery had to fall back to the canonical
+# (e.g. dangling per-profile from a moved Nix store path) — we want the next
+# launch step to use the freshly materialised per-profile binary so WM_CLASS /
+# Wayland app_id reflect the profile.
+if [[ -n "$profile_suffix" ]]; then
+    _refresh_profile_binary_if_stale || true
+    _profile_bin="$HOME/.local/lib/claude-desktop/${APP_ID}${profile_suffix}"
+    if [[ -x "$_profile_bin" && "$ELECTRON_BIN" != "$_profile_bin" ]]; then
+        ELECTRON_BIN="$_profile_bin"
+    fi
+
+    # Silent-degradation hint: --profile=NAME isolates state but the
+    # WM_CLASS / Wayland app_id stays as the default unless --create-profile
+    # has materialised a per-profile binary. Most users will want both.
+    # Suppress with CLAUDE_PROFILE_QUIET=1.
+    if [[ ! -e "$_profile_bin" && -z "${CLAUDE_PROFILE_QUIET:-}" ]]; then
+        echo >&2 "claude-desktop: profile '$CLAUDE_PROFILE' has isolated state but no per-profile WM identity."
+        echo >&2 "  Windows will share the default profile's taskbar entry. To fix:"
+        echo >&2 "    claude-desktop --create-profile=$CLAUDE_PROFILE"
+        echo >&2 "  (suppress this message with CLAUDE_PROFILE_QUIET=1)"
+    fi
+fi
 
 case "${1:-}" in
     --help|-h)

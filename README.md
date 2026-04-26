@@ -10,6 +10,43 @@
 
 Unofficial Linux packages for Claude Desktop AI assistant with automated updates.
 
+<details>
+<summary><b>Table of contents</b></summary>
+
+- [Installation](#installation)
+- [Optional Dependencies](#optional-dependencies)
+- [Features](#features)
+- [Claude Chat](#claude-chat)
+- [Claude Code Integration](#claude-code-integration)
+- [Cowork Integration](#cowork-integration)
+- [CoworkSpaces](#coworkspaces)
+- [Computer Use](#computer-use)
+- [Hardware Buddy (Nibblet)](#hardware-buddy-nibblet)
+- [Third-Party Inference](#third-party-inference)
+- [Custom Themes (Experimental)](#custom-themes-experimental)
+- [Patches](#patches)
+- [Automation](#automation)
+- [Repository Structure](#repository-structure)
+- [Multiple Profiles](#multiple-profiles)
+  - [Quick start](#quick-start)
+  - [The default (unnamed) profile](#the-default-unnamed-profile)
+  - [Named profiles](#named-profiles)
+  - [Selecting a profile at launch](#selecting-a-profile-at-launch)
+  - [What's isolated](#whats-isolated)
+  - [Removing a profile](#removing-a-profile)
+  - [SSO and URL routing](#sso-and-url-routing)
+  - [Limitations](#limitations)
+  - [Why a copy of the binary?](#why-a-copy-of-the-binary)
+- [Environment Variables](#environment-variables)
+- [Debugging](#debugging)
+- [Dispatch Architecture](#dispatch-architecture)
+- [Known Limitations](#known-limitations)
+- [Tips](#tips)
+- [See Also](#see-also)
+- [Legal Notice](#legal-notice)
+
+</details>
+
 ## Installation
 
 > After installing, see [Optional Dependencies](#optional-dependencies) to enable Computer Use, Cowork, and more.
@@ -548,12 +585,14 @@ Subcommands honor the active profile: `claude-desktop-work --toggle` toggles wor
 
 | Resource | Default profile | Named profile (e.g. `work`) |
 |---|---|---|
-| Electron userData (login, logs, settings, custom themes, spaces.json) | `~/.config/Claude` | `~/.config/Claude-work` |
+| Electron userData (login, logs, settings, custom themes, spaces.json, PipeWire portal token) | `~/.config/Claude` | `~/.config/Claude-work` |
 | Claude Code config (settings, projects, sessions, plugins) | `~/.claude` | `~/.claude-work` |
-| Cowork VM-service socket | `$XDG_RUNTIME_DIR/cowork-vm-service.sock` | `…/cowork-vm-service-work.sock` |
 | Quick Entry toggle socket | `$XDG_RUNTIME_DIR/claude-desktop-qe.sock` | `…/claude-desktop-qe-work.sock` |
 | systemd user scope (cgroup, portal identity) | `app-com.anthropic.claude-desktop-PID.scope` | `app-com.anthropic.claude-desktop-work-PID.scope` |
 | WM_CLASS / Wayland app_id (taskbar grouping, Alt-Tab) | `com.anthropic.claude-desktop` | `com.anthropic.claude-desktop-work` |
+| XDG autostart entry ("Start at login") | `~/.config/autostart/com.anthropic.claude-desktop.desktop` | `…/com.anthropic.claude-desktop-work.desktop` |
+
+The cowork VM-service socket (`$XDG_RUNTIME_DIR/cowork-vm-service.sock`) is **shared** across all profiles. The cowork-svc daemon is a stateless process spawner — per-profile isolation comes from the spawned `claude` CLI inheriting `CLAUDE_CONFIG_DIR=~/.claude-NAME` and using the per-profile `--plugin-dir` (which derives from Electron's `app.getPath("userData")`). One daemon serves them all.
 
 Plugins, MCP servers, login state, and chat history from one profile are **not** visible in another. This is by design — profiles are independent installs, not views into shared state.
 
@@ -598,7 +637,7 @@ claude-desktop --profile=NAME 'claude://<callback-url>'
 ### Limitations
 
 - **~200 MB disk per profile on cross-filesystem installs.** See [Why a copy?](#why-a-copy-of-the-binary) below.
-- **Manual refresh after `claude-desktop-bin` upgrades.** Hardlinks and reflinks snapshot the binary at creation; package upgrades replace `/usr/lib/claude-desktop-bin/com.anthropic.claude-desktop` with a new file, leaving each profile's binary on the old version. After `pacman -Syu` (or equivalent), refresh every profile:
+- **Auto-refresh after package upgrades.** Hardlinks and reflinks snapshot the binary at creation; an upgrade replaces `/usr/lib/claude-desktop-bin/com.anthropic.claude-desktop` with a new file while the per-profile copy keeps pointing at the old version. The launcher detects this on every named-profile launch (canonical newer than per-profile, or per-profile non-executable on NixOS where store paths move, or any sibling symlink dangling) and re-materialises the binary plus refreshes the symlink mirror automatically. You'll see `claude-desktop: refreshing stale per-profile binary (...)` on stderr when this fires. To force-refresh manually:
   ```bash
   for p in $(claude-desktop --list-profiles | awk 'NR>1 {print $1}'); do
       claude-desktop --delete-profile="$p"
@@ -607,6 +646,8 @@ claude-desktop --profile=NAME 'claude://<callback-url>'
   ```
 - **MCP servers and plugins do not cross profiles.** If you need the same MCP setup in two profiles, configure each independently.
 - **Concurrent SSO race** as noted in the table above. Sequential SSO is reliable.
+- **Quick Entry GNOME hotkey is global, not per-profile.** `claude-desktop --install-gnome-hotkey` writes a single keybinding bound to `claude-desktop --toggle`, which targets the **default** profile's Quick Entry socket. Per-profile hotkeys would need separate accelerators and bindings — install them by hand if needed: `gsettings`-write a custom-keybinding slot whose `command` is `claude-desktop --profile=NAME --toggle`. The launcher's `--toggle` does honor the active profile when invoked with `--profile=NAME`.
+- **`--profile=NAME` without `--create-profile`** isolates state but not WM identity (the window joins the default profile's taskbar entry). The launcher prints a one-line hint pointing at `--create-profile`; suppress with `CLAUDE_PROFILE_QUIET=1`.
 - **Wayland portal identity caveats on NixOS** (already true single-instance) carry over to named profiles too.
 
 ### Why a copy of the binary?
@@ -626,6 +667,7 @@ The `Created profile` output tells you which path was taken. Sibling files in th
 | Variable | Values | Description |
 |----------|--------|-------------|
 | `CLAUDE_PROFILE` | name | Select a profile by name (alternative to `--profile=` or the per-profile symlink). Inherited by Electron and Claude Code so per-profile sockets and config dirs are picked up everywhere |
+| `CLAUDE_PROFILE_QUIET` | `1` | Suppress the "no per-profile WM identity" hint that fires when `CLAUDE_PROFILE` is set without a matching `--create-profile` |
 | `CLAUDE_CONFIG_DIR` | path | Override Claude Code's config dir. Auto-set by the launcher when `CLAUDE_PROFILE` is active; honored by `@anthropic-ai/claude-code` |
 | `CLAUDE_DISABLE_GPU` | `1`, `full` | Fix white screen on some GPU/driver combos ([#13](https://github.com/patrickjaja/claude-desktop-bin/issues/13)). `1` disables compositing only, `full` disables GPU entirely |
 | `CLAUDE_USE_XWAYLAND` | `1` | Force XWayland instead of native Wayland |

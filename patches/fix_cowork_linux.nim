@@ -59,7 +59,7 @@ proc apply*(input: string): string =
     let varName = result[start ..< pipeIdx]
     let replacement =
       varName &
-      "=process.platform===\"linux\"?(process.env.XDG_RUNTIME_DIR||\"/tmp\")+\"/cowork-vm-service\"+(process.env.CLAUDE_PROFILE?\"-\"+process.env.CLAUDE_PROFILE:\"\")+\".sock\":" &
+      "=process.platform===\"linux\"?(process.env.XDG_RUNTIME_DIR||\"/tmp\")+\"/cowork-vm-service.sock\":" &
       pipePath
     result = result[0 ..< start] & replacement & result[pipeIdx + pipeSearch.len .. ^1]
     echo &"  [OK] Socket path: Unix socket on Linux (var={varName})"
