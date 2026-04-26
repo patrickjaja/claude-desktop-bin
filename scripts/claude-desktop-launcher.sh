@@ -97,6 +97,12 @@ else
     profile_suffix=""
 fi
 
+# Per-profile Electron userData (also resolves SingletonLock to the per-profile
+# dir, so logins/logs/spaces.json/custom themes are auto-isolated). Must be
+# computed early because subcommands like --diagnose reference it before the
+# launch flow's SingletonLock cleanup block runs.
+config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/Claude${profile_suffix}"
+
 # ---------------------------------------------------------------------------
 # URL handler profile routing (SSO callback dispatch)
 # ---------------------------------------------------------------------------
@@ -136,11 +142,20 @@ if [[ -z "${CLAUDE_PROFILE:-}" ]]; then
             _routed_profile="${_marker##*/claude-desktop-pending-auth-}"
             if [[ "$_routed_profile" =~ ^[a-zA-Z0-9_-]+$ ]]; then
                 rm -f "$_marker"
-                # Re-exec under the routed profile. The exec replaces this
-                # process so we don't need any further cleanup. The receiving
-                # profile will see the URL via its second-instance handler
-                # (or as initial argv if it isn't running yet).
-                exec "$0" "--profile=$_routed_profile" "$@"
+                # The default profile uses the literal string "default" as
+                # its marker suffix so its callbacks beat any stale named-
+                # profile markers (otherwise an old work-profile marker
+                # would hijack the default profile's SSO login). Don't
+                # re-exec when the winning marker is the default profile —
+                # we're already on it (no --profile flag was passed).
+                if [[ "$_routed_profile" != "default" ]]; then
+                    # Re-exec under the routed profile. The exec replaces
+                    # this process so we don't need any further cleanup.
+                    # The receiving profile will see the URL via its
+                    # second-instance handler (or as initial argv if it
+                    # isn't running yet).
+                    exec "$0" "--profile=$_routed_profile" "$@"
+                fi
             fi
         fi
     fi
@@ -574,7 +589,12 @@ _delete_profile() {
         if [[ -L "$f" || -f "$f" ]]; then
             rm -f "$f"
             echo "Removed: $f"
-            ((removed++))
+            # NOTE: do NOT use ((removed++)) here -- post-increment returns
+            # the OLD value, which is 0 on the first hit. Under `set -e` that
+            # makes the whole script exit (treating 0 as a failed command),
+            # so only the first artifact would ever get removed per call.
+            # Use arithmetic assignment to always return non-zero exit status.
+            removed=$((removed + 1))
         fi
     done
 
@@ -995,7 +1015,6 @@ fi
 # A stale lock from a crash blocks all launches with no error message.
 # The lock is a symlink whose target encodes "hostname-PID".
 
-config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/Claude${profile_suffix}"
 lock_file="$config_dir/SingletonLock"
 
 # When a profile is active, redirect Electron's userData away from the default

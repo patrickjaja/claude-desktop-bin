@@ -2,6 +2,17 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-26 — Multi-profile review-feedback fixes (round 2)
+
+Four bugs reported on the multi-profile PR:
+
+- **Fix: default-profile login could land in a stale named profile.** With a `work` profile created, launching plain `claude-desktop`, logging out and back in would sometimes route the SSO callback to the work profile instead of default — because the marker mechanism only wrote markers for named profiles, so a leftover work-profile marker (from an earlier session) would be the most recent one when default's `claude://` callback fired. Fixed by having `shell.openExternal` always write a marker, using the literal string `default` as the suffix when no profile is set. The launcher special-cases `default` and skips the re-exec (we're already on it). `patches/fix_profile_url_routing.nim` + `scripts/claude-desktop-launcher.sh`.
+- **Fix: `--delete-profile=NAME` only removed one of three artifacts per call.** The increment expression `((removed++))` returns the OLD value of `removed`, which is 0 on the first hit. Under the launcher's `set -e`, that exit-status-zero made bash treat the line as a failed command and abort the loop. Replaced with arithmetic assignment `removed=$((removed + 1))` which always returns a non-zero status. A single `--delete-profile=NAME` now removes all three artifacts.
+- **Fix: `claude-desktop --diagnose` errored with "config_dir: unbound variable".** `_diagnose` referenced `$config_dir` but the assignment lived in the SingletonLock cleanup block, which only runs on the launch path (after the subcommand dispatch). Moved the `config_dir=…` assignment up to the profile-resolution block so it's available everywhere.
+- **Fix: smoke test fails with cowork-vm-service.sock ENOENT.** `cowork-svc-linux` is a separate user-level daemon; the smoke test runs in a bare xvfb without it, so the VM client's eager subscription always errors out. The connection is retried lazily once a real cowork session starts, so the absence at startup is harmless. The smoke test now filters cowork-socket ENOENT lines out of its error-pattern check while keeping the rest of the regex strict. `scripts/smoke-test.sh`.
+
+---
+
 ## 2026-04-26 — Profile name in main window title
 
 - **Feature:** named profiles get the profile name appended to the main window title. `Claude` becomes `Claude (work)` in the title bar, taskbar tooltips, and Alt-Tab — convenient for users running multiple profiles side by side.

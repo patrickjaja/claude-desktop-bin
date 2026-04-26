@@ -28,13 +28,16 @@ import std/[os, strutils]
 const URL_ROUTING_JS =
   """;(function(){
 if(process.platform!=="linux")return;
-if(!process.env.CLAUDE_PROFILE)return;
 try{
 var _shell=require("electron").shell;
 var _fs=require("fs"),_path=require("path");
 var _origOpen=_shell.openExternal;
 if(typeof _origOpen!=="function")return;
-var _profile=process.env.CLAUDE_PROFILE;
+// Use the literal "default" as the marker suffix when no profile is set,
+// so the default profile's callbacks beat any stale named-profile markers
+// left over from earlier sessions. The launcher special-cases "default"
+// and skips the re-exec.
+var _profile=process.env.CLAUDE_PROFILE||"default";
 var _runtimeDir=process.env.XDG_RUNTIME_DIR||("/run/user/"+process.getuid());
 var _markerPath=_path.join(_runtimeDir,"claude-desktop-pending-auth-"+_profile);
 var _authRe=/(?:^|[/?&#])(?:oauth|sso|auth|login|signin|callback|accounts)(?:[/?&#=]|$)/i;
