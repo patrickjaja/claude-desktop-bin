@@ -16,6 +16,7 @@ Unofficial Linux packages for Claude Desktop AI assistant with automated updates
 - [Installation](#installation)
 - [Optional Dependencies](#optional-dependencies)
 - [Features](#features)
+  - [Custom Features](#custom-features)
 - [Claude Chat](#claude-chat)
 - [Claude Code Integration](#claude-code-integration)
 - [Cowork Integration](#cowork-integration)
@@ -308,23 +309,29 @@ gsettings set org.gnome.desktop.peripherals.mouse accel-profile flat
 Restart Claude Desktop after setup.
 
 ## Features
-- Native Linux support (Arch, Debian/Ubuntu, Fedora/RHEL, NixOS, AppImage) — **x86_64 and ARM64**, X11 and Wayland
-- **Claude Code CLI integration** - Auto-detects system-installed Claude Code (requires [claude-code](https://code.claude.com/docs/en/setup))
-- **Local Agent Mode** - Git worktrees and agent sessions
-- **Cowork support** - Agentic workspace feature enabled on Linux (requires [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service))
-- **Computer Use** - Desktop automation via built-in MCP server (27 tools: screenshot, click, type, scroll, drag, clipboard, multi-monitor switch, batch actions, teach mode). No permission grants needed — see [Optional Dependencies](#optional-dependencies) for required packages
-- **Dispatch** - Send tasks from your phone to your desktop Claude via Anthropic's dispatch orchestrator agent (internally "Ditto"). Text responses, file delivery, task orchestration, and all SDK MCP tools work natively on Linux (requires [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service)). See [Dispatch Architecture](#dispatch-architecture) for details
-- **Browser Tools (Chrome integration)** - 18 browser automation tools (navigate, read_page, javascript_tool, etc.) via the [Claude in Chrome](https://chromewebstore.google.com/detail/claude-code/fcoeoabgfenejglbffodgkkbkcdhcgfn) extension. Uses Claude Code's native messaging host (`~/.claude/chrome/chrome-native-host`) instead of the proprietary Windows/macOS binary
-- **MCP server support** - Model Context Protocol servers work on Linux
-- **Multiple profiles** - Use multiple Claude accounts at the same time on separate windows. See [multiple profiles](#multiple-profiles).
-- **Custom Themes (Experimental)** - 6 built-in color themes (Nord, Catppuccin Mocha/Frappe/Latte/Macchiato, Sweet) or create your own via JSON config — not all UI elements are fully themed yet
-- **Live Artifacts** - Persistent, interactive HTML artifacts in Cowork sessions — dashboards, reports, and data views that pull live data from connected MCP tools (Jira, GitLab, HubSpot, etc.). Create with `create_artifact`, update with `update_artifact`. Enabled on Linux by forcing the `coworkArtifacts` GrowthBook feature flag (requires [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service))
-- **Imagine / Visualize** - Inline SVG graphics, HTML diagrams, charts, mockups, and data visualizations rendered directly in Cowork sessions via `show_widget` and `read_me` MCP tools. Enabled on Linux by forcing the GrowthBook feature flag
-- **Third-Party Inference** - Configure Claude Desktop to use your own cloud inference backend (Vertex AI, Bedrock, Azure AI Foundry, or any Anthropic-compatible gateway like LiteLLM). Access via Developer → Configure Third-Party Inference. See [Anthropic docs](https://claude.com/docs/cowork/3p/installation)
-- **Hardware Buddy (Nibblet)** - BLE companion device (M5StickC Plus) showing animated session state. Access via app menu → Developer → Open Hardware Buddy… (requires `bluez`)
-- **Multi-monitor Quick Entry** - Global hotkey (Ctrl+Alt+Space) opens on the monitor where your cursor is
-- Automated daily version checks
-- …and [42+ more patches](#patches) for native Linux integration (tray icons, window management, enterprise config, detected projects, and more)
+
+All major Claude Desktop features work natively on Linux through [42+ patches](#patches):
+
+- [**Claude Chat**](#claude-chat) — full desktop UI on Linux (x86_64 and ARM64, X11 and Wayland)
+- [**Claude Code CLI**](#claude-code-integration) — auto-detects system-installed Claude Code ([setup](https://code.claude.com/docs/en/setup))
+- [**Local Agent Mode**](#claude-code-integration) — git worktrees and agent sessions
+- [**Cowork**](#cowork-integration) — agentic workspace with [Live Artifacts](#live-artifacts), [CoworkSpaces](#coworkspaces), and [Imagine/Visualize](#cowork-integration) (requires [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service))
+- [**Computer Use**](#computer-use) — 27 desktop automation tools (screenshot, click, type, scroll, drag, teach mode, and more) — see [Optional Dependencies](#optional-dependencies)
+- [**Dispatch**](#dispatch-architecture) — phone→desktop task orchestration via Anthropic's dispatch agent (requires [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service))
+- [**Browser Tools**](#features) — 18 Chrome automation tools via the [Claude in Chrome](https://chromewebstore.google.com/detail/claude-code/fcoeoabgfenejglbffodgkkbkcdhcgfn) extension
+- [**Third-Party Inference**](#third-party-inference) — use Vertex AI, Bedrock, Azure AI Foundry, or any Anthropic-compatible gateway ([docs](https://claude.com/docs/cowork/3p/installation))
+- [**Hardware Buddy (Nibblet)**](#hardware-buddy-nibblet) — BLE companion device showing animated session state (requires `bluez`)
+- **MCP server support** — Model Context Protocol servers work on Linux
+- **Multi-monitor Quick Entry** — global hotkey (Ctrl+Alt+Space) opens on the monitor where your cursor is
+- Automated daily version checks, and more
+
+### Custom Features
+
+Features unique to the Linux port — not available in upstream Claude Desktop:
+
+- [**Custom Themes**](#custom-themes-experimental) — 6 built-in color themes (Nord, Catppuccin variants, Sweet) or create your own via JSON config. See [themes/README.md](themes/README.md) for the full guide
+- [**Multiple Profiles**](#multiple-profiles) — run several instances side by side, each logged in to a different account with fully isolated state. `claude-desktop --create-profile=work` and you're done
+- [**Native Cowork Backend**](#cowork-integration) — [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service) replaces the macOS/Windows VM with a native Linux daemon, enabling Cowork, Dispatch, and Live Artifacts without emulation
 
 ## Claude Chat
 
@@ -482,14 +489,15 @@ The package applies several patches to make Claude Desktop work on Linux. Each p
 | `fix_native_frame.nim` | Native window frames on Linux, preserves Quick Entry transparency | `rg -o 'titleBarStyle.{0,30}' index.js` |
 | `fix_office_addin_linux.nim` | Extends Office Addin MCP server to include Linux | `rg -o '.{0,30}louderPenguinEnabled.{0,30}' index.js` |
 | `fix_process_argv_renderer.nim` | Injects `process.argv=[]` in renderer preload to prevent TypeError | `rg -o '.{0,30}\.argv.{0,30}' mainView.js` |
-| `fix_quick_entry_app_id.nim` | Gives Quick Entry a distinct Wayland `app_id` so shell-extension users can blacklist it independently ([#39](https://github.com/patrickjaja/claude-desktop-bin/issues/39)) | `rg -o '.{0,30}BrowserWindow.*titleBarStyle.*hidden.{0,30}' index.js` |
 | `fix_profile_url_routing.nim` | Hooks `shell.openExternal` to write a per-profile auth-marker file before opening SSO URLs, so the system `claude://` handler can route callbacks to the right profile | `rg -o 'shell\.openExternal' index.js` |
-| `fix_quick_entry_cli_toggle.nim` | Enables `claude-desktop --toggle` Quick Entry hotkey (~5-25 ms via Unix socket) | `rg -o 'QUICK_ENTRY.{0,80}' index.js` |
+| `fix_profile_window_title.nim` | Appends profile name to window title (`Claude` → `Claude (work)`) for named profiles | Prepended IIFE, `page-title-updated` listener |
+| `fix_quick_entry_app_id.nim` | Gives Quick Entry a distinct Wayland `app_id` so shell-extension users can blacklist it independently ([#39](https://github.com/patrickjaja/claude-desktop-bin/issues/39)); resets to per-profile `app_id` after Quick Entry closes | `rg -o '.{0,30}BrowserWindow.*titleBarStyle.*hidden.{0,30}' index.js` |
+| `fix_quick_entry_cli_toggle.nim` | Enables `claude-desktop --toggle` Quick Entry hotkey (~5-25 ms via Unix socket); per-profile socket path | `rg -o 'QUICK_ENTRY.{0,80}' index.js` |
 | `fix_quick_entry_position.nim` | Quick Entry opens on cursor's monitor (multi-monitor); position+focus retries gated to X11 only (Wayland: no jitter) | `rg -o 'getPrimaryDisplay.{0,50}' index.js` |
 | `fix_quick_entry_ready_wayland.nim` | Adds 100ms timeout to Quick Entry ready-to-show wait (Wayland hang fix; `ready-to-show` never fires for frameless transparent windows) | `rg -o 'ready-to-show.{0,50}' index.js` |
 | `fix_quick_entry_wayland_blur_guard.nim` | Guards Quick Entry blur-to-dismiss against spurious Wayland blur events | `rg -o '.{0,30}blur.{0,30}null.{0,30}' index.js` |
 | ~~`fix_read_terminal_linux.py`~~ | **Removed in v1.2.234** — upstream now natively supports Linux | N/A |
-| `fix_startup_settings.nim` | Skips startup/login settings to avoid validation errors | `rg -o 'isStartupOnLoginEnabled.{0,50}' index.js` |
+| `fix_startup_settings.nim` | XDG autostart management for "Start at login" toggle; per-profile autostart files for named profiles | `rg -o 'isStartupOnLoginEnabled.{0,50}' index.js` |
 | `fix_tray_dbus.nim` | Prevents DBus race conditions with mutex and cleanup delay | `rg -o 'menuBarEnabled.*function' index.js` |
 | `fix_tray_icon_theme.nim` | Theme-aware tray icon (light/dark) | `rg -o 'nativeTheme.{0,50}tray' index.js` |
 | ~~`fix_tray_path.py`~~ | **Removed** — tray icon paths handled by `fix_locale_paths.nim` | N/A |
