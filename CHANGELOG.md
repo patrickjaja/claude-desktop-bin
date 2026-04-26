@@ -2,6 +2,57 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-26 — Multi-profile review-feedback fixes (round 2)
+
+Four bugs reported on the multi-profile PR:
+
+- **Fix: default-profile login could land in a stale named profile.** With a `work` profile created, launching plain `claude-desktop`, logging out and back in would sometimes route the SSO callback to the work profile instead of default — because the marker mechanism only wrote markers for named profiles, so a leftover work-profile marker (from an earlier session) would be the most recent one when default's `claude://` callback fired. Fixed by having `shell.openExternal` always write a marker, using the literal string `default` as the suffix when no profile is set. The launcher special-cases `default` and skips the re-exec (we're already on it). `patches/fix_profile_url_routing.nim` + `scripts/claude-desktop-launcher.sh`.
+- **Fix: `--delete-profile=NAME` only removed one of three artifacts per call.** The increment expression `((removed++))` returns the OLD value of `removed`, which is 0 on the first hit. Under the launcher's `set -e`, that exit-status-zero made bash treat the line as a failed command and abort the loop. Replaced with arithmetic assignment `removed=$((removed + 1))` which always returns a non-zero status. A single `--delete-profile=NAME` now removes all three artifacts.
+- **Fix: `claude-desktop --diagnose` errored with "config_dir: unbound variable".** `_diagnose` referenced `$config_dir` but the assignment lived in the SingletonLock cleanup block, which only runs on the launch path (after the subcommand dispatch). Moved the `config_dir=…` assignment up to the profile-resolution block so it's available everywhere.
+- **Fix: smoke test fails with cowork-vm-service.sock ENOENT.** `cowork-svc-linux` is a separate user-level daemon; the smoke test runs in a bare xvfb without it, so the VM client's eager subscription always errors out. The connection is retried lazily once a real cowork session starts, so the absence at startup is harmless. The smoke test now filters cowork-socket ENOENT lines out of its error-pattern check while keeping the rest of the regex strict. `scripts/smoke-test.sh`.
+
+---
+
+## 2026-04-26 — Profile name in main window title
+
+- **Feature:** named profiles get the profile name appended to the main window title. `Claude` becomes `Claude (work)` in the title bar, taskbar tooltips, and Alt-Tab — convenient for users running multiple profiles side by side.
+- New patch `patches/fix_profile_window_title.nim` injects a `page-title-updated` listener on the main `BrowserWindow` that preventDefaults the renderer's update and re-sets the title with `(PROFILE)` appended. Conversation names like `My chat` become `My chat (work)`. Profile name is taken verbatim from `CLAUDE_PROFILE` (no capitalisation munging).
+- The default profile (no `CLAUDE_PROFILE` set) is unaffected: the listener is only installed when the env var is non-empty.
+
+---
+
+## 2026-04-26 — Multi-profile follow-ups
+
+Review feedback fixes applied on top of the multi-profile feature:
+
+- **Fix: cowork is broken for named profiles.** The previous round suffixed the cowork socket path with `-NAME` on the client (Electron) side, but `cowork-svc-linux` is a separate user-level daemon that listens on the unsuffixed `cowork-vm-service.sock` only. Named profiles silently failed to reach the daemon. Reverted in `patches/fix_cowork_linux.nim` — all profiles share the daemon. Per-profile state still flows correctly: the spawned `claude` CLI inherits `CLAUDE_CONFIG_DIR=~/.claude-NAME` and uses a per-profile `--plugin-dir` derived from `app.getPath("userData")`, so cowork's stateless spawning produces correctly-scoped sessions per profile.
+- **Fix: per-profile binary stale after package upgrades.** Hardlinks/reflinks/copies snapshot the system Electron at `--create-profile` time. Package upgrades (and NixOS rebuilds where store paths move) leave the per-profile copy on the old version, producing a version mismatch with the upgraded `app.asar`. The launcher now auto-detects staleness on every named-profile launch (canonical newer than per-profile, or per-profile non-executable, or any sibling symlink dangling) and re-materialises the binary plus refreshes the symlink mirror. Also factored the materialise/mirror logic into reusable helpers (`_materialise_profile_binary`, `_mirror_profile_siblings`, `_canonical_electron_bin`, `_refresh_profile_binary_if_stale`).
+- **Fix: PipeWire portal restore token leaked across profiles.** `js/cu_linux_executor.js` hardcoded `~/.config/Claude/pipewire-restore-token` in both the Node side and the embedded Python script — bypassing `app.getPath("userData")`. Switched to userData (per-profile) on the Node side, and pass the path into the Python via the `CLAUDE_PORTAL_TOKEN_PATH` env var.
+- **Fix: silent UX degradation when `--profile=NAME` is used without `--create-profile`.** The launcher now prints a one-line stderr hint pointing at `--create-profile` when the per-profile binary doesn't exist. Suppress with `CLAUDE_PROFILE_QUIET=1`.
+- **Fix: competing `claude://` URL handlers.** `--create-profile` no longer copies `MimeType=` from the system `.desktop` into the per-profile entry. Only the system entry claims the scheme; routing to the right profile happens via the auth-marker mechanism.
+
+---
+
+## 2026-04-25 — Multi-profile support
+
+- **Feature: named profiles for multi-account use.** Run several Claude Desktop windows side by side, each logged in to a different account, with fully isolated state for both Desktop and the Claude Code CLI it spawns.
+  - New launcher subcommands: `--create-profile=NAME`, `--delete-profile=NAME`, `--list-profiles`
+  - New flags / env: `--profile=NAME`, `CLAUDE_PROFILE=NAME`. Also auto-resolved from the launcher's basename (e.g. `claude-desktop-work`)
+  - Per-profile isolation:
+    - Electron userData via `--user-data-dir` (login, logs, settings, spaces, custom themes — anything reached through `app.getPath("userData")`)
+    - Claude Code config via `CLAUDE_CONFIG_DIR` (`~/.claude-NAME`)
+    - Cowork VM-service socket (`patches/fix_cowork_linux.nim`) — suffixed with profile name
+    - Quick Entry toggle socket (`patches/fix_quick_entry_cli_toggle.nim`) — suffixed with profile name
+    - systemd user scope name — suffixed with profile name
+    - WM_CLASS / Wayland app_id — `--create-profile` materialises a per-profile Electron binary at `~/.local/lib/claude-desktop/<APP_ID>-NAME` (hardlink → reflink → copy fallback, ~200 MB on cross-fs ext4, near-zero-cost on btrfs/xfs reflinks). A real distinct file is required because the kernel resolves symlinks for `/proc/self/exe`, which Electron uses to derive its app identity. Generated `.desktop` files use an absolute `Exec=` path so they don't depend on `~/.local/bin` being in `$PATH`
+    - SSO callback routing — new patch `fix_profile_url_routing.nim` hooks `shell.openExternal` to write a marker at `$XDG_RUNTIME_DIR/claude-desktop-pending-auth-NAME` whenever a profile opens an auth-ish URL. The launcher reads markers (5-min TTL, most-recent wins) when handling incoming `claude://` URLs and re-execs as the right profile so login completes in the originating window. See README ("SSO and URL routing") for semantics and known limits.
+    - XDG autostart (`patches/fix_startup_settings.nim`) — "Start at login" toggles a per-profile autostart file `~/.config/autostart/com.anthropic.claude-desktop[-NAME].desktop` with `Exec=/usr/bin/claude-desktop [--profile=NAME] --startup`, so each profile's autostart state is tracked independently and the right profile auto-starts at login.
+    - Quick Entry main-window app_id reset (`patches/fix_quick_entry_app_id.nim`) — the post-Quick-Entry `CHROME_DESKTOP` / `app.setDesktopName()` reset is computed at runtime from `CLAUDE_PROFILE`, so settings dialogs and other windows opened after Quick Entry get the correct per-profile app_id rather than the unsuffixed default.
+  - The default profile (no `--profile` flag, no `CLAUDE_PROFILE` env) is byte-identical to the previous single-instance behavior — no migration needed for existing users.
+  - Plugins, MCP servers, and login state are intentionally not shared between profiles.
+
+---
+
 ## 2026-04-25 (v1.4758.0) — Upstream update, 6 patches fixed, 2 new feature flags, GNOME session restore fix
 
 - **Fix:** "Start in system tray" now works with GNOME session restore ([#67](https://github.com/patrickjaja/claude-desktop-bin/pull/67)). GNOME's `gnome-session-service` re-launches saved apps after reboot without the `--startup` flag, so Claude's main window would always appear even when "Start in system tray" was enabled. New heuristic: checks the mtime of the Wayland compositor socket (or D-Bus bus socket on X11) — if Claude starts within 60s of that timestamp, it assumes session-restore and suppresses the main window. — contributed by [@boommasterxd](https://github.com/boommasterxd)

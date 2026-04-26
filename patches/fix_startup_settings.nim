@@ -15,11 +15,17 @@
 #    No env var distinguishes a session-restore launch from a normal user launch.
 #
 # Fix:
-# - isStartupOnLoginEnabled(): check ~/.config/autostart/com.anthropic.claude-desktop.desktop
-# - setStartupOnLoginEnabled(enabled): create/remove that file with Exec=claude-desktop --startup
+# - isStartupOnLoginEnabled(): check ~/.config/autostart/com.anthropic.claude-desktop[-PROFILE].desktop
+# - setStartupOnLoginEnabled(enabled): create/remove that file with
+#   Exec=/usr/bin/claude-desktop [--profile=PROFILE] --startup
 # - Augment the --startup argv check: /run/user/UID/bus is created by systemd-logind at
 #   session start. If Claude starts within 60 s of that mtime, assume session-restore and
 #   suppress the main window (treat as --startup launch).
+#
+# Profile-aware: the injected JS reads process.env.CLAUDE_PROFILE at runtime so each
+# profile manages its own autostart file independently. Toggling "Start at login" inside
+# the work profile creates com.anthropic.claude-desktop-work.desktop with --profile=work
+# in the Exec line, so the right profile auto-starts at login.
 
 import std/[os, strutils]
 import regex
@@ -33,7 +39,7 @@ proc apply*(input: string): string =
   let pattern1 =
     re2"""isStartupOnLoginEnabled\(\)\{if\(process\.env\.CLAUDE_AVOID_READING_LOGING_ITEM_SETTINGS\)return!1;"""
   const replacement1 =
-    """isStartupOnLoginEnabled(){if(process.platform==="linux"){try{return require("fs").existsSync(require("path").join(require("os").homedir(),".config","autostart","com.anthropic.claude-desktop.desktop"))}catch(e){return false}}if(process.env.CLAUDE_AVOID_READING_LOGING_ITEM_SETTINGS)return!1;"""
+    """isStartupOnLoginEnabled(){if(process.platform==="linux"){try{const _ps=process.env.CLAUDE_PROFILE?"-"+process.env.CLAUDE_PROFILE:"";return require("fs").existsSync(require("path").join(require("os").homedir(),".config","autostart","com.anthropic.claude-desktop"+_ps+".desktop"))}catch(e){return false}}if(process.env.CLAUDE_AVOID_READING_LOGING_ITEM_SETTINGS)return!1;"""
 
   # Already-applied sentinel: Pattern 1 changes the function to start with platform check.
   # Must be specific - other patches (fix_asar_workspace_cwd, fix_browser_tools_linux)
@@ -75,9 +81,9 @@ proc apply*(input: string): string =
         let argVar = s[m.group(0)]
         let loggerVar = s[m.group(1)]
         """setStartupOnLoginEnabled(""" & argVar &
-          """){if(process.platform==="linux"){const _f=require("path").join(require("os").homedir(),".config","autostart","com.anthropic.claude-desktop.desktop");if(""" &
+          """){if(process.platform==="linux"){const _ps=process.env.CLAUDE_PROFILE?"-"+process.env.CLAUDE_PROFILE:"";const _pe=process.env.CLAUDE_PROFILE?" --profile="+process.env.CLAUDE_PROFILE:"";const _pn=process.env.CLAUDE_PROFILE?" ("+process.env.CLAUDE_PROFILE+")":"";const _f=require("path").join(require("os").homedir(),".config","autostart","com.anthropic.claude-desktop"+_ps+".desktop");if(""" &
           argVar &
-          """){require("fs").mkdirSync(require("path").dirname(_f),{recursive:true});require("fs").writeFileSync(_f,"[Desktop Entry]\nType=Application\nName=Claude\nExec=claude-desktop --startup\nX-GNOME-Autostart-enabled=true\n")}else{try{require("fs").unlinkSync(_f)}catch(e){}}return}""" &
+          """){require("fs").mkdirSync(require("path").dirname(_f),{recursive:true});require("fs").writeFileSync(_f,"[Desktop Entry]\nType=Application\nName=Claude"+_pn+"\nExec=/usr/bin/claude-desktop"+_pe+" --startup\nX-GNOME-Autostart-enabled=true\n")}else{try{require("fs").unlinkSync(_f)}catch(e){}}return}""" &
           loggerVar & """.debug("Toggling""",
     )
     if count2 > 0:

@@ -260,6 +260,23 @@ docs/        # Screenshots (chat, code, cowork, global UI)
 
 Each patch has a `# @patch-target:` and `# @patch-type: nim` header. The Makefile compiles them to native binaries. The orchestrator (`scripts/apply_patches.py`) runs the binaries. Use `ls patches/*.nim` as the single source of truth for what exists.
 
+## Profile System (multi-instance)
+
+Multiple Desktop instances can run side by side via named profiles. The launcher (`scripts/claude-desktop-launcher.sh`) resolves `CLAUDE_PROFILE` from `--profile=NAME`, the env var, or its own basename (`claude-desktop-NAME`), then exports it so child processes inherit it.
+
+**Per-profile path table** (default profile = unset = no suffix; named profile suffixes everything with `-<name>`):
+
+| Resource | Mechanism | Where to look in code |
+|----------|-----------|----------------------|
+| Electron userData | `--user-data-dir` flag in launcher | All `app.getPath("userData")` consumers auto-redirect |
+| Claude Code config | `CLAUDE_CONFIG_DIR` env exported by launcher | Honored by `@anthropic-ai/claude-code` CLI |
+| Quick Entry socket | `process.env.CLAUDE_PROFILE` read in JS | `patches/fix_quick_entry_cli_toggle.nim` |
+| systemd scope | `${profile_suffix}` in launcher | `claude-desktop-launcher.sh` |
+| WM_CLASS / Wayland app_id | per-profile Electron binary (hardlink → reflink → copy fallback) | `~/.local/lib/claude-desktop/<APP_ID>-<name>` — must be a real file, not a symlink, because Electron derives its app identity from `/proc/self/exe` (the kernel resolves symlinks before reading) |
+| SSO callback routing | marker file written by JS hook on `shell.openExternal`; launcher reads marker to dispatch incoming `claude://` URL | `patches/fix_profile_url_routing.nim` (writer) + `claude-desktop-launcher.sh` URL-handler block (reader / re-exec) |
+
+**Rule when adding a new patch:** if it writes to a fixed user-level path, prefer `app.getPath("userData")` (auto-isolates) over `os.homedir()+"/.config/Claude"` (single-instance leak). If it opens a Unix socket or pipe that is owned by the Electron process itself, append `process.env.CLAUDE_PROFILE` to the path the same way `fix_quick_entry_cli_toggle.nim` does. If the socket is owned by a separate user-level daemon (like cowork-svc), do NOT suffix it — clients across all profiles need to connect to the same listener; profile isolation comes from per-profile state inherited via env. If the patch spawns a long-lived child process that holds state, propagate `process.env.CLAUDE_PROFILE` and `process.env.CLAUDE_CONFIG_DIR` (or accept that `child_process.spawn` inherits `process.env` by default — verify, don't assume).
+
 ## Feature Flag System
 
 See [CLAUDE_FEATURE_FLAGS.md](CLAUDE_FEATURE_FLAGS.md) for the full reference: feature flag catalog, 3-layer override architecture (static registry → async merger → IPC), GrowthBook flag IDs, and how `enable_local_agent_mode.nim` bypasses the production gate.
