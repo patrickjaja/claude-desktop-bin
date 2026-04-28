@@ -10,7 +10,7 @@
 # Electron fully supports "openDirectory" on Linux, so we add a
 # process.platform==="linux" check alongside the existing darwin check.
 
-import std/[os, strutils]
+import std/[os]
 import regex
 
 proc apply*(input: string): string =
@@ -20,13 +20,17 @@ proc apply*(input: string): string =
   # Patched:  process.platform==="darwin"||process.platform==="linux"?["openFile","openDirectory","multiSelections"]:["openFile","multiSelections"]
   #
   # All tokens here are stable Electron/Node API names (no minified variables).
-  let pattern = re2"""process\.platform==="darwin"\?\["openFile","openDirectory","multiSelections"\]:\["openFile","multiSelections"\]"""
-  let replacement = """process.platform==="darwin"||process.platform==="linux"?["openFile","openDirectory","multiSelections"]:["openFile","multiSelections"]"""
+  let pattern =
+    re2"""process\.platform==="darwin"\?\["openFile","openDirectory","multiSelections"\]:\["openFile","multiSelections"\]"""
+  let replacement =
+    """process.platform==="darwin"||process.platform==="linux"?["openFile","openDirectory","multiSelections"]:["openFile","multiSelections"]"""
 
   var count = 0
-  result = input.replace(pattern, proc(m: RegexMatch2, s: string): string =
-    inc count
-    replacement
+  result = input.replace(
+    pattern,
+    proc(m: RegexMatch2, s: string): string =
+      inc count
+      replacement,
   )
   if count == 0:
     echo "  [FAIL] browseFiles openDirectory: 0 matches"

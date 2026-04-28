@@ -10,6 +10,44 @@
 
 Unofficial Linux packages for Claude Desktop AI assistant with automated updates.
 
+<details>
+<summary><b>Table of contents</b></summary>
+
+- [Installation](#installation)
+- [Optional Dependencies](#optional-dependencies)
+- [Features](#features)
+  - [Custom Features](#custom-features)
+- [Claude Chat](#claude-chat)
+- [Claude Code Integration](#claude-code-integration)
+- [Cowork Integration](#cowork-integration)
+- [CoworkSpaces](#coworkspaces)
+- [Computer Use](#computer-use)
+- [Hardware Buddy (Nibblet)](#hardware-buddy-nibblet)
+- [Third-Party Inference](#third-party-inference)
+- [Custom Themes (Experimental)](#custom-themes-experimental)
+- [Patches](#patches)
+- [Automation](#automation)
+- [Repository Structure](#repository-structure)
+- [Multiple Profiles](#multiple-profiles)
+  - [Quick start](#quick-start)
+  - [The default (unnamed) profile](#the-default-unnamed-profile)
+  - [Named profiles](#named-profiles)
+  - [Selecting a profile at launch](#selecting-a-profile-at-launch)
+  - [What's isolated](#whats-isolated)
+  - [Removing a profile](#removing-a-profile)
+  - [SSO and URL routing](#sso-and-url-routing)
+  - [Limitations](#limitations)
+  - [Why a copy of the binary?](#why-a-copy-of-the-binary)
+- [Environment Variables](#environment-variables)
+- [Debugging](#debugging)
+- [Dispatch Architecture](#dispatch-architecture)
+- [Known Limitations](#known-limitations)
+- [Tips](#tips)
+- [See Also](#see-also)
+- [Legal Notice](#legal-notice)
+
+</details>
+
 ## Installation
 
 > After installing, see [Optional Dependencies](#optional-dependencies) to enable Computer Use, Cowork, and more.
@@ -73,7 +111,7 @@ Updates are automatic via `sudo apt update && sudo apt upgrade`.
 <summary>Manual .deb install (without APT repo)</summary>
 
 ```bash
-wget https://github.com/patrickjaja/claude-desktop-bin/releases/latest/download/claude-desktop-bin_1.3561.0-1_amd64.deb
+wget https://github.com/patrickjaja/claude-desktop-bin/releases/latest/download/claude-desktop-bin_1.4758.0-2_amd64.deb
 sudo dpkg -i claude-desktop-bin_*_amd64.deb
 ```
 </details>
@@ -111,7 +149,7 @@ Updates are automatic via `sudo dnf upgrade`.
 <summary>Manual .rpm install (without DNF repo)</summary>
 
 ```bash
-wget https://github.com/patrickjaja/claude-desktop-bin/releases/latest/download/claude-desktop-bin-1.3561.0-1.x86_64.rpm
+wget https://github.com/patrickjaja/claude-desktop-bin/releases/latest/download/claude-desktop-bin-1.4758.0-2.x86_64.rpm
 sudo dnf install ./claude-desktop-bin-*.x86_64.rpm
 ```
 </details>
@@ -174,7 +212,7 @@ claude-desktop.override {
 ### AppImage (Any Distro)
 ```bash
 # Download from GitHub Releases
-wget https://github.com/patrickjaja/claude-desktop-bin/releases/latest/download/Claude_Desktop-1.3561.0-x86_64.AppImage
+wget https://github.com/patrickjaja/claude-desktop-bin/releases/latest/download/Claude_Desktop-1.4758.0-x86_64.AppImage
 chmod +x Claude_Desktop-*-x86_64.AppImage
 ./Claude_Desktop-*-x86_64.AppImage
 ```
@@ -271,20 +309,29 @@ gsettings set org.gnome.desktop.peripherals.mouse accel-profile flat
 Restart Claude Desktop after setup.
 
 ## Features
-- Native Linux support (Arch, Debian/Ubuntu, Fedora/RHEL, NixOS, AppImage) — **x86_64 and ARM64**, X11 and Wayland
-- **Claude Code CLI integration** - Auto-detects system-installed Claude Code (requires [claude-code](https://code.claude.com/docs/en/setup))
-- **Local Agent Mode** - Git worktrees and agent sessions
-- **Cowork support** - Agentic workspace feature enabled on Linux (requires [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service))
-- **Computer Use** - Desktop automation via built-in MCP server (27 tools: screenshot, click, type, scroll, drag, clipboard, multi-monitor switch, batch actions, teach mode). No permission grants needed — see [Optional Dependencies](#optional-dependencies) for required packages
-- **Dispatch** - Send tasks from your phone to your desktop Claude via Anthropic's dispatch orchestrator agent (internally "Ditto"). Text responses, file delivery, task orchestration, and all SDK MCP tools work natively on Linux (requires [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service)). See [Dispatch Architecture](#dispatch-architecture) for details
-- **Browser Tools (Chrome integration)** - 18 browser automation tools (navigate, read_page, javascript_tool, etc.) via the [Claude in Chrome](https://chromewebstore.google.com/detail/claude-code/fcoeoabgfenejglbffodgkkbkcdhcgfn) extension. Uses Claude Code's native messaging host (`~/.claude/chrome/chrome-native-host`) instead of the proprietary Windows/macOS binary
-- **MCP server support** - Model Context Protocol servers work on Linux
-- **Custom Themes (Experimental)** - 6 built-in color themes (Nord, Catppuccin Mocha/Frappe/Latte/Macchiato, Sweet) or create your own via JSON config — not all UI elements are fully themed yet
-- **Imagine / Visualize** - Inline SVG graphics, HTML diagrams, charts, mockups, and data visualizations rendered directly in Cowork sessions via `show_widget` and `read_me` MCP tools. Enabled on Linux by forcing the GrowthBook feature flag
-- **Hardware Buddy (Nibblet)** - BLE companion device (M5StickC Plus) showing animated session state. Access via app menu → Developer → Open Hardware Buddy… (requires `bluez`)
-- **Multi-monitor Quick Entry** - Global hotkey (Ctrl+Alt+Space) opens on the monitor where your cursor is
-- Automated daily version checks
-- …and [42+ more patches](#patches) for native Linux integration (tray icons, window management, enterprise config, detected projects, and more)
+
+All major Claude Desktop features work natively on Linux through [42+ patches](#patches):
+
+- [**Claude Chat**](#claude-chat) — full desktop UI on Linux (x86_64 and ARM64, X11 and Wayland)
+- [**Claude Code CLI**](#claude-code-integration) — auto-detects system-installed Claude Code ([setup](https://code.claude.com/docs/en/setup))
+- [**Local Agent Mode**](#claude-code-integration) — git worktrees and agent sessions
+- [**Cowork**](#cowork-integration) — agentic workspace with [Live Artifacts](#live-artifacts), [CoworkSpaces](#coworkspaces), and [Imagine/Visualize](#cowork-integration) (requires [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service))
+- [**Computer Use**](#computer-use) — 27 desktop automation tools (screenshot, click, type, scroll, drag, teach mode, and more) — see [Optional Dependencies](#optional-dependencies)
+- [**Dispatch**](#dispatch-architecture) — phone→desktop task orchestration via Anthropic's dispatch agent (requires [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service))
+- [**Browser Tools**](#features) — 18 Chrome automation tools via the [Claude in Chrome](https://chromewebstore.google.com/detail/claude-code/fcoeoabgfenejglbffodgkkbkcdhcgfn) extension
+- [**Third-Party Inference**](#third-party-inference) — use Vertex AI, Bedrock, Azure AI Foundry, or any Anthropic-compatible gateway ([docs](https://claude.com/docs/cowork/3p/installation))
+- [**Hardware Buddy (Nibblet)**](#hardware-buddy-nibblet) — BLE companion device showing animated session state (requires `bluez`)
+- **MCP server support** — Model Context Protocol servers work on Linux
+- **Multi-monitor Quick Entry** — global hotkey (Ctrl+Alt+Space) opens on the monitor where your cursor is
+- Automated daily version checks, and more
+
+### Custom Features
+
+Features unique to the Linux port — not available in upstream Claude Desktop:
+
+- [**Custom Themes**](#custom-themes-experimental) — 6 built-in color themes (Nord, Catppuccin variants, Sweet) or create your own via JSON config. See [themes/README.md](themes/README.md) for the full guide
+- [**Multiple Profiles**](#multiple-profiles) — run several instances side by side, each logged in to a different account with fully isolated state. `claude-desktop --create-profile=work` and you're done
+- [**Native Cowork Backend**](#cowork-integration) — [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service) replaces the macOS/Windows VM with a native Linux daemon, enabling Cowork, Dispatch, and Live Artifacts without emulation
 
 ## Claude Chat
 
@@ -319,6 +366,12 @@ Cowork is Claude Desktop's agentic workspace feature. This package patches it to
 | | | | | | |
 |:---:|:---:|:---:|:---:|:---:|:---:|
 | <img src="docs/cowork/co_in_cd_bar.png" width="180"> | <img src="docs/cowork/co_in_cd_flow.png" width="180"> | <img src="docs/cowork/co_in_cd_mock.png" width="180"> | <img src="docs/cowork/co_in_cd_mock_db.png" width="180"> | <img src="docs/cowork/co_in_cd_pie.png" width="180"> | <img src="docs/cowork/co_in_cd_qa.png" width="180"> |
+
+### Live Artifacts
+
+Live Artifacts are persistent HTML pages stored within Cowork sessions that can pull live data from connected MCP tools (Jira, GitLab, HubSpot, Trello, etc.). They persist across sessions and can be starred for quick access.
+
+![Live Artifacts in Cowork](docs/cowork/live-artifacts.png)
 
 Requires Claude Code CLI (see above) and [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service). See its Installation section for distro-specific instructions ([APT](https://github.com/patrickjaja/claude-cowork-service#debian--ubuntu-apt-repository), [DNF](https://github.com/patrickjaja/claude-cowork-service#fedora--rhel-dnf-repository), [AUR](https://github.com/patrickjaja/claude-cowork-service#arch-linux-aur), [Nix](https://github.com/patrickjaja/claude-cowork-service#nixos), or [binary install](https://github.com/patrickjaja/claude-cowork-service#quick-install-any-distro-x86_64--arm64)).
 
@@ -367,6 +420,18 @@ Hardware Buddy connects Claude Desktop to a [Nibblet](https://github.com/felixri
 **Prerequisites:** `bluez` package (`sudo pacman -S bluez bluez-utils` / `sudo apt install bluez`). Bluetooth must be enabled (`bluetoothctl power on`).
 
 **Pairing:** Power on the Nibblet — it advertises as `Nibblet-XXXX`. Click "Open Hardware Buddy…" from the Developer menu, then pair from the buddy window. The device shows session activity, token counts, and responds to permission prompts with physical button presses.
+
+## Third-Party Inference
+
+Configure Claude Desktop to use your own cloud inference backend instead of Anthropic's API. Supports **Vertex AI** (Google Cloud), **Bedrock** (AWS), **Azure AI Foundry** (Microsoft), or any **Anthropic-compatible gateway** (LiteLLM, Portkey, in-house proxies). Access via **Developer → Configure Third-Party Inference**.
+
+![Third-Party Inference Configuration](docs/global/third-party-inference.png)
+
+The configuration window lets you manage connection settings, provider credentials, model lists, sandbox/workspace restrictions, MCP servers, telemetry, usage limits, and org-plugin directories — all from a single UI. Configurations can be exported as `.mobileconfig` (macOS MDM), `.reg` (Windows GPO), or plain JSON (Linux `/etc/claude-desktop/enterprise.json`).
+
+**How it works on Linux:** The upstream SPA is mostly Linux-compatible — the main process already reads enterprise config from `/etc/claude-desktop/enterprise.json` and passes `platform: "linux"` to the frontend. The patch ([fix_ion_dist_linux.nim](patches/fix_ion_dist_linux.nim)) adds the Linux org-plugins path (`/etc/claude-desktop/org-plugins`) to the UI.
+
+**Enterprise deployment:** Use MDM (macOS), GPO (Windows), or drop a JSON file at `/etc/claude-desktop/enterprise.json` (Linux) to manage fleet-wide configuration. See the [Anthropic 3P configuration docs](https://claude.com/docs/cowork/3p/configuration) for the full key reference and recommended security profiles.
 
 ## Custom Themes (Experimental)
 
@@ -418,19 +483,21 @@ The package applies several patches to make Claude Desktop work on Linux. Each p
 | `fix_dock_bounce.nim` | Suppresses taskbar attention-stealing on KDE/Wayland | Prepended IIFE, no regex |
 | `fix_enterprise_config_linux.nim` | Reads enterprise config from `/etc/claude-desktop/enterprise.json` | `rg -o 'enterprise.json' index.js` |
 | `fix_imagine_linux.nim` | Enables Imagine/Visualize — forces GrowthBook flag for inline SVG/HTML rendering | `rg -o '3444158716' index.js` |
-| `fix_locale_paths.nim` | Redirects locale file paths to Linux install location | Global string replace on `process.resourcesPath` |
-| `fix_locale_paths_pre.nim` | Redirects locale file paths in bootstrap pre-loader (`index.pre.js`) | Global string replace on `process.resourcesPath` |
+| `fix_ion_dist_linux.nim` | Patches ion-dist 3P config SPA — adds Linux org-plugins path, fixes platform ternary | `rg 'org-plugins' locales/ion-dist/assets/v1/*.js` |
+| `fix_locale_paths.nim` | Redirects locale file paths to Linux install location (also handles `index.pre.js` if present) | Global string replace on `process.resourcesPath` |
 | `fix_marketplace_linux.nim` | Forces host-local mode for plugin operations (no VM) | `rg -o 'function \w+\(\w+\)\{return\(\w+==null.*mode.*ccd' index.js` |
 | `fix_native_frame.nim` | Native window frames on Linux, preserves Quick Entry transparency | `rg -o 'titleBarStyle.{0,30}' index.js` |
 | `fix_office_addin_linux.nim` | Extends Office Addin MCP server to include Linux | `rg -o '.{0,30}louderPenguinEnabled.{0,30}' index.js` |
 | `fix_process_argv_renderer.nim` | Injects `process.argv=[]` in renderer preload to prevent TypeError | `rg -o '.{0,30}\.argv.{0,30}' mainView.js` |
-| `fix_quick_entry_app_id.nim` | Gives Quick Entry a distinct Wayland `app_id` so shell-extension users can blacklist it independently ([#39](https://github.com/patrickjaja/claude-desktop-bin/issues/39)) | `rg -o '.{0,30}BrowserWindow.*titleBarStyle.*hidden.{0,30}' index.js` |
-| `fix_quick_entry_cli_toggle.nim` | Enables `claude-desktop --toggle` Quick Entry hotkey (~5-25 ms via Unix socket) | `rg -o 'QUICK_ENTRY.{0,80}' index.js` |
+| `fix_profile_url_routing.nim` | Hooks `shell.openExternal` to write a per-profile auth-marker file before opening SSO URLs, so the system `claude://` handler can route callbacks to the right profile | `rg -o 'shell\.openExternal' index.js` |
+| `fix_profile_window_title.nim` | Appends profile name to window title (`Claude` → `Claude (work)`) for named profiles | Prepended IIFE, `page-title-updated` listener |
+| `fix_quick_entry_app_id.nim` | Gives Quick Entry a distinct Wayland `app_id` so shell-extension users can blacklist it independently ([#39](https://github.com/patrickjaja/claude-desktop-bin/issues/39)); resets to per-profile `app_id` after Quick Entry closes | `rg -o '.{0,30}BrowserWindow.*titleBarStyle.*hidden.{0,30}' index.js` |
+| `fix_quick_entry_cli_toggle.nim` | Enables `claude-desktop --toggle` Quick Entry hotkey (~5-25 ms via Unix socket); per-profile socket path | `rg -o 'QUICK_ENTRY.{0,80}' index.js` |
 | `fix_quick_entry_position.nim` | Quick Entry opens on cursor's monitor (multi-monitor); position+focus retries gated to X11 only (Wayland: no jitter) | `rg -o 'getPrimaryDisplay.{0,50}' index.js` |
 | `fix_quick_entry_ready_wayland.nim` | Adds 100ms timeout to Quick Entry ready-to-show wait (Wayland hang fix; `ready-to-show` never fires for frameless transparent windows) | `rg -o 'ready-to-show.{0,50}' index.js` |
 | `fix_quick_entry_wayland_blur_guard.nim` | Guards Quick Entry blur-to-dismiss against spurious Wayland blur events | `rg -o '.{0,30}blur.{0,30}null.{0,30}' index.js` |
 | ~~`fix_read_terminal_linux.py`~~ | **Removed in v1.2.234** — upstream now natively supports Linux | N/A |
-| `fix_startup_settings.nim` | Skips startup/login settings to avoid validation errors | `rg -o 'isStartupOnLoginEnabled.{0,50}' index.js` |
+| `fix_startup_settings.nim` | XDG autostart management for "Start at login" toggle; per-profile autostart files for named profiles | `rg -o 'isStartupOnLoginEnabled.{0,50}' index.js` |
 | `fix_tray_dbus.nim` | Prevents DBus race conditions with mutex and cleanup delay | `rg -o 'menuBarEnabled.*function' index.js` |
 | `fix_tray_icon_theme.nim` | Theme-aware tray icon (light/dark) | `rg -o 'nativeTheme.{0,50}tray' index.js` |
 | ~~`fix_tray_path.py`~~ | **Removed** — tray icon paths handled by `fix_locale_paths.nim` | N/A |
@@ -470,10 +537,147 @@ If upstream Claude Desktop changes break a patch:
 - `packaging/` - Debian, RPM, AppImage, and Nix build scripts
 - `PKGBUILD.template` - AUR package template
 
+## Multiple Profiles
+
+Run several Claude Desktop instances side by side, each logged in to a different account, with fully isolated state for both Desktop and the Claude Code CLI it spawns. Useful for separating work from personal accounts, juggling multiple SSO tenants, or testing config changes without affecting your main install.
+
+### Quick start
+
+```bash
+# One-time setup per profile
+claude-desktop --create-profile=work
+claude-desktop --create-profile=personal
+
+# Launch (any of these work)
+claude-desktop-work                     # via the per-profile shortcut
+claude-desktop --profile=work           # via the system launcher
+# …or click "Claude (work)" in your application menu
+
+# Inspect / clean up
+claude-desktop --list-profiles
+claude-desktop --delete-profile=work    # removes entry points; user data preserved
+```
+
+### The default (unnamed) profile
+
+If you don't pass `--profile=` and don't launch through a named-profile shortcut, you get the **default profile**. This is byte-identical to a single-instance install — same `~/.config/Claude`, same `~/.claude`, same sockets, same WM identity. Nothing changes for users who never touch profiles. There's no `--create-profile=default` step, and it's always available implicitly.
+
+You can run the default profile alongside any number of named profiles. The default profile is just "the profile with no suffix."
+
+### Named profiles
+
+A named profile is created with `--create-profile=NAME`. Names must match `[a-zA-Z0-9_-]+` and the literal `default` is reserved.
+
+`--create-profile` installs three things in your home directory (no root needed):
+
+| Path | Purpose |
+|---|---|
+| `~/.local/lib/claude-desktop/com.anthropic.claude-desktop-NAME` | Per-profile Electron binary (real file — see [Why a copy?](#why-a-copy-of-the-binary) below). Sibling files in the same directory are symlinks back to the system install. |
+| `~/.local/bin/claude-desktop-NAME` | Convenience launcher — symlink to the system launcher. Pulls profile name from its own basename. |
+| `~/.local/share/applications/com.anthropic.claude-desktop-NAME.desktop` | Application-menu entry titled `Claude (NAME)`. `Exec=` is absolute so it works regardless of `$PATH`. |
+
+User data is **not** created until first launch — that way `--create-profile` is cheap and reversible.
+
+### Selecting a profile at launch
+
+Three equivalent ways:
+
+1. `claude-desktop --profile=NAME [args…]` — explicit flag.
+2. `CLAUDE_PROFILE=NAME claude-desktop [args…]` — env var, useful for scripts.
+3. `claude-desktop-NAME [args…]` — invocation via the per-profile shortcut. The launcher infers `NAME` from its own basename.
+
+All three set the same `CLAUDE_PROFILE` env var, which propagates through Electron, the cowork hooks, and any spawned `claude` (Code CLI) child processes.
+
+Subcommands honor the active profile: `claude-desktop-work --toggle` toggles work's Quick Entry, `claude-desktop --profile=work --diagnose` reports work's paths.
+
+### What's isolated
+
+| Resource | Default profile | Named profile (e.g. `work`) |
+|---|---|---|
+| Electron userData (login, logs, settings, custom themes, spaces.json, PipeWire portal token) | `~/.config/Claude` | `~/.config/Claude-work` |
+| Claude Code config (settings, projects, sessions, plugins) | `~/.claude` | `~/.claude-work` |
+| Quick Entry toggle socket | `$XDG_RUNTIME_DIR/claude-desktop-qe.sock` | `…/claude-desktop-qe-work.sock` |
+| systemd user scope (cgroup, portal identity) | `app-com.anthropic.claude-desktop-PID.scope` | `app-com.anthropic.claude-desktop-work-PID.scope` |
+| WM_CLASS / Wayland app_id (taskbar grouping, Alt-Tab) | `com.anthropic.claude-desktop` | `com.anthropic.claude-desktop-work` |
+| XDG autostart entry ("Start at login") | `~/.config/autostart/com.anthropic.claude-desktop.desktop` | `…/com.anthropic.claude-desktop-work.desktop` |
+
+The cowork VM-service socket (`$XDG_RUNTIME_DIR/cowork-vm-service.sock`) is **shared** across all profiles. The cowork-svc daemon is a stateless process spawner — per-profile isolation comes from the spawned `claude` CLI inheriting `CLAUDE_CONFIG_DIR=~/.claude-NAME` and using the per-profile `--plugin-dir` (which derives from Electron's `app.getPath("userData")`). One daemon serves them all.
+
+Plugins, MCP servers, login state, and chat history from one profile are **not** visible in another. This is by design — profiles are independent installs, not views into shared state.
+
+### Removing a profile
+
+```bash
+claude-desktop --delete-profile=work
+```
+
+Removes the three entry points listed above. **User data is preserved** at `~/.config/Claude-work` and `~/.claude-work`. Delete those manually if you really want a clean slate:
+
+```bash
+rm -rf ~/.config/Claude-work ~/.claude-work
+```
+
+### SSO and URL routing
+
+The `claude://` URL scheme is registered system-wide and points to the default profile's `.desktop` file. Without extra work, an SSO callback initiated from a named profile would launch the default profile and consume the auth token there, breaking login. claude-desktop-bin uses a small two-part routing mechanism to fix this:
+
+1. **Marker on browser open.** When a profile-active instance calls `shell.openExternal()` on an auth-ish URL (matches `oauth`, `sso`, `auth`, `login`, `signin`, `callback`, or `accounts`), it writes a marker file at `$XDG_RUNTIME_DIR/claude-desktop-pending-auth-<profile>` containing the current timestamp. Implementation: [`patches/fix_profile_url_routing.nim`](patches/fix_profile_url_routing.nim).
+2. **Marker dispatch on callback.** When the launcher is invoked with a `claude://` URL and no explicit profile, it picks the most recent marker (less than 5 minutes old) and re-execs as that profile. Electron's `second-instance` event delivers the URL to the running profile window.
+
+You can log in to multiple profiles in any order, including multiple SSO logins, with one narrow caveat:
+
+| Scenario | Result |
+|---|---|
+| Single profile (any kind) | ✅ |
+| Default + named, log in to either first, in any order | ✅ |
+| Multiple named profiles, SSO into each one sequentially | ✅ |
+| Profile crashes mid-auth | ✅ Marker self-heals via 5-minute TTL |
+| SSO into profile A, click an unrelated outbound link, then complete the SSO flow | ⚠️ The link click overwrites the marker; the callback may misroute. Re-attempt SSO. |
+| Two SSO flows in flight concurrently (browser tabs open in parallel for different profiles) | ⚠️ "Most recent marker wins"; the loser's callback lands in the winner's profile. Re-attempt for the loser. |
+
+The marker is `0600`-permissioned and contains only a timestamp; nothing about the URL or session is persisted. To inspect what the launcher saw at routing time, run `claude-desktop --diagnose` while a marker is fresh.
+
+If routing misbehaves, the escape hatch is to launch the URL explicitly:
+
+```bash
+claude-desktop --profile=NAME 'claude://<callback-url>'
+```
+
+### Limitations
+
+- **~200 MB disk per profile on cross-filesystem installs.** See [Why a copy?](#why-a-copy-of-the-binary) below.
+- **Auto-refresh after package upgrades.** Hardlinks and reflinks snapshot the binary at creation; an upgrade replaces `/usr/lib/claude-desktop-bin/com.anthropic.claude-desktop` with a new file while the per-profile copy keeps pointing at the old version. The launcher detects this on every named-profile launch (canonical newer than per-profile, or per-profile non-executable on NixOS where store paths move, or any sibling symlink dangling) and re-materialises the binary plus refreshes the symlink mirror automatically. You'll see `claude-desktop: refreshing stale per-profile binary (...)` on stderr when this fires. To force-refresh manually:
+  ```bash
+  for p in $(claude-desktop --list-profiles | awk 'NR>1 {print $1}'); do
+      claude-desktop --delete-profile="$p"
+      claude-desktop --create-profile="$p"
+  done
+  ```
+- **MCP servers and plugins do not cross profiles.** If you need the same MCP setup in two profiles, configure each independently.
+- **Concurrent SSO race** as noted in the table above. Sequential SSO is reliable.
+- **Quick Entry GNOME hotkey is global, not per-profile.** `claude-desktop --install-gnome-hotkey` writes a single keybinding bound to `claude-desktop --toggle`, which targets the **default** profile's Quick Entry socket. Per-profile hotkeys would need separate accelerators and bindings — install them by hand if needed: `gsettings`-write a custom-keybinding slot whose `command` is `claude-desktop --profile=NAME --toggle`. The launcher's `--toggle` does honor the active profile when invoked with `--profile=NAME`.
+- **`--profile=NAME` without `--create-profile`** isolates state but not WM identity (the window joins the default profile's taskbar entry). The launcher prints a one-line hint pointing at `--create-profile`; suppress with `CLAUDE_PROFILE_QUIET=1`.
+- **Wayland portal identity caveats on NixOS** (already true single-instance) carry over to named profiles too.
+
+### Why a copy of the binary?
+
+Electron derives its WM_CLASS (X11) and Wayland `app_id` from the basename of `/proc/self/exe`, which the kernel always resolves through symlinks. A symlink at `~/.local/lib/claude-desktop/com.anthropic.claude-desktop-work` pointing to `/usr/lib/claude-desktop-bin/com.anthropic.claude-desktop` would still report the system path as the exe — and the WM would group all profile windows as one app. That's how Chrome itself handles channels: `google-chrome-stable` and `google-chrome-beta` are separate copies, not symlinks.
+
+To get distinct app identity per profile, `--create-profile` materialises a real, independently-named binary file. It tries (in order):
+
+1. **Hardlink** (`ln`) — zero disk cost, only works on the same filesystem.
+2. **Reflink** (`cp --reflink=always`) — zero disk cost via copy-on-write, only on btrfs/xfs.
+3. **Plain copy** (`cp`) — ~200 MB per profile, fallback.
+
+The `Created profile` output tells you which path was taken. Sibling files in the same directory (`libffmpeg.so`, `.pak`, `locales/`, `resources/`, `version`, etc.) are always symlinks back to the system install — Electron's `RPATH=$ORIGIN` and Chromium's resource loader expect them next to the binary, but they don't need to be per-profile. Sibling symlinks are shared across all profiles in `~/.local/lib/claude-desktop/`.
+
 ## Environment Variables
 
 | Variable | Values | Description |
 |----------|--------|-------------|
+| `CLAUDE_PROFILE` | name | Select a profile by name (alternative to `--profile=` or the per-profile symlink). Inherited by Electron and Claude Code so per-profile sockets and config dirs are picked up everywhere |
+| `CLAUDE_PROFILE_QUIET` | `1` | Suppress the "no per-profile WM identity" hint that fires when `CLAUDE_PROFILE` is set without a matching `--create-profile` |
+| `CLAUDE_CONFIG_DIR` | path | Override Claude Code's config dir. Auto-set by the launcher when `CLAUDE_PROFILE` is active; honored by `@anthropic-ai/claude-code` |
 | `CLAUDE_DISABLE_GPU` | `1`, `full` | Fix white screen on some GPU/driver combos ([#13](https://github.com/patrickjaja/claude-desktop-bin/issues/13)). `1` disables compositing only, `full` disables GPU entirely |
 | `CLAUDE_USE_XWAYLAND` | `1` | Force XWayland instead of native Wayland |
 | `CLAUDE_MENU_BAR` | `auto`, `visible`, `hidden` | Menu bar visibility (default: `auto`, toggle with Alt) |
@@ -557,7 +761,7 @@ cgroup name. Starting with this release we launch under
 and install the `.desktop` file under the matching reverse-URL name.
 
 - **Pinned taskbar entries**: if you had the old `claude-desktop.desktop` pinned, re-pin once after this update.
-- **Custom X11 WM rules**: `WM_CLASS` / Wayland `app_id` changed from `Claude` to `com.anthropic.claude-desktop`. Users with i3 / xmonad / awesome / bspwm / KWin rules matching the old class will need to update them.
+- **Custom X11 WM rules**: `WM_CLASS` / Wayland `app_id` changed from `Claude` to `com.anthropic.claude-desktop`. Users with i3 / xmonad / awesome / bspwm / KWin rules matching the old class will need to update them. Named profiles (see [Multiple Profiles](#multiple-profiles)) get a `-<profile>` suffix on this class so each profile shows up as a separate app — write WM rules accordingly.
 - **NixOS**: the Nix package materialises a renamed Electron binary (`com.anthropic.claude-desktop`) for correct Wayland `app_id`, but does not use `systemd-run --scope`. Portal identity may not resolve on GNOME Wayland — use `--install-gnome-hotkey` instead. Other sessions (KDE, Hyprland, Sway, X11) are unaffected.
 
 ## Tips

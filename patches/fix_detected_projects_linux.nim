@@ -22,11 +22,14 @@ proc apply*(input: string): string =
   var allOk = true
 
   # 1. Platform guard in detection entry-point
-  let patGuard = re2"(if\(process\.platform!==""darwin"")(&&process\.platform!==""linux"")?\)(return [\w$]+\.debug\(`\[detectedProjects\] skipping)"
+  let patGuard =
+    re2"(if\(process\.platform!==""darwin"")(&&process\.platform!==""linux"")?\)(return [\w$]+\.debug\(`\[detectedProjects\] skipping)"
   var countGuard = 0
-  result = result.replace(patGuard, proc(m: RegexMatch2, s: string): string =
-    inc countGuard
-    s[m.group(0)] & "&&process.platform!==\"linux\")" & s[m.group(2)]
+  result = result.replace(
+    patGuard,
+    proc(m: RegexMatch2, s: string): string =
+      inc countGuard
+      s[m.group(0)] & "&&process.platform!==\"linux\")" & s[m.group(2)],
   )
   if countGuard > 0:
     echo &"  [OK] Platform guard: {countGuard} match(es)"
@@ -35,16 +38,23 @@ proc apply*(input: string): string =
     allOk = false
 
   # 2. VSCode / Cursor state DB path
-  let patVscode = re2"([\w$]+)\.join\(([\w$]+)\.homedir\(\),""Library"",""Application Support"",([\w$]+),""User"",""globalStorage"",""state\.vscdb""\)"
+  let patVscode =
+    re2"([\w$]+)\.join\(([\w$]+)\.homedir\(\),""Library"",""Application Support"",([\w$]+),""User"",""globalStorage"",""state\.vscdb""\)"
   var countVscode = 0
-  result = result.replace(patVscode, proc(m: RegexMatch2, s: string): string =
-    inc countVscode
-    let p = s[m.group(0)]
-    let o = s[m.group(1)]
-    let d = s[m.group(2)]
-    let mac = p & ".join(" & o & ".homedir(),\"Library\",\"Application Support\"," & d & ",\"User\",\"globalStorage\",\"state.vscdb\")"
-    let lin = p & ".join(" & o & ".homedir(),\".config\"," & d & ",\"User\",\"globalStorage\",\"state.vscdb\")"
-    "(process.platform===\"darwin\"?" & mac & ":" & lin & ")"
+  result = result.replace(
+    patVscode,
+    proc(m: RegexMatch2, s: string): string =
+      inc countVscode
+      let p = s[m.group(0)]
+      let o = s[m.group(1)]
+      let d = s[m.group(2)]
+      let mac =
+        p & ".join(" & o & ".homedir(),\"Library\",\"Application Support\"," & d &
+        ",\"User\",\"globalStorage\",\"state.vscdb\")"
+      let lin =
+        p & ".join(" & o & ".homedir(),\".config\"," & d &
+        ",\"User\",\"globalStorage\",\"state.vscdb\")"
+      "(process.platform===\"darwin\"?" & mac & ":" & lin & ")",
   )
   if countVscode > 0:
     echo &"  [OK] VSCode/Cursor DB path: {countVscode} match(es)"
@@ -53,15 +63,22 @@ proc apply*(input: string): string =
     allOk = false
 
   # 3. Zed state DB path
-  let patZed = re2"([\w$]+)\.join\(([\w$]+)\.homedir\(\),""Library"",""Application Support"",""Zed"",""db"",""0-stable"",""db\.sqlite""\)"
+  let patZed =
+    re2"([\w$]+)\.join\(([\w$]+)\.homedir\(\),""Library"",""Application Support"",""Zed"",""db"",""0-stable"",""db\.sqlite""\)"
   var countZed = 0
-  result = result.replace(patZed, proc(m: RegexMatch2, s: string): string =
-    inc countZed
-    let p = s[m.group(0)]
-    let o = s[m.group(1)]
-    let mac = p & ".join(" & o & ".homedir(),\"Library\",\"Application Support\",\"Zed\",\"db\",\"0-stable\",\"db.sqlite\")"
-    let lin = p & ".join(" & o & ".homedir(),\".local\",\"share\",\"zed\",\"db\",\"0-stable\",\"db.sqlite\")"
-    "(process.platform===\"darwin\"?" & mac & ":" & lin & ")"
+  result = result.replace(
+    patZed,
+    proc(m: RegexMatch2, s: string): string =
+      inc countZed
+      let p = s[m.group(0)]
+      let o = s[m.group(1)]
+      let mac =
+        p & ".join(" & o &
+        ".homedir(),\"Library\",\"Application Support\",\"Zed\",\"db\",\"0-stable\",\"db.sqlite\")"
+      let lin =
+        p & ".join(" & o &
+        ".homedir(),\".local\",\"share\",\"zed\",\"db\",\"0-stable\",\"db.sqlite\")"
+      "(process.platform===\"darwin\"?" & mac & ":" & lin & ")",
   )
   if countZed > 0:
     echo &"  [OK] Zed DB path: {countZed} match(es)"
@@ -70,7 +87,9 @@ proc apply*(input: string): string =
     allOk = false
 
   if not allOk:
-    raise newException(ValueError, "fix_detected_projects_linux: Some patterns did not match")
+    raise newException(
+      ValueError, "fix_detected_projects_linux: Some patterns did not match"
+    )
 
   if result == input:
     raise newException(ValueError, "fix_detected_projects_linux: No changes made")

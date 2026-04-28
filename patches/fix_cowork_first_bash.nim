@@ -16,16 +16,20 @@ proc apply*(input: string): string =
     return result
 
   # Step 1: find the events socket variable name
-  let evSockPat = re"function ([\w$]+)\(\)\{if\(([\w$]+)\)return;const [\w$]+=[\w$]+\.createConnection"
+  let evSockPat =
+    re"function ([\w$]+)\(\)\{if\(([\w$]+)\)return;const [\w$]+=[\w$]+\.createConnection"
   let evSockMatch = result.find(evSockPat)
   if evSockMatch.isNone:
     echo "  [FAIL] A events socket wait: cannot find events socket function"
-    raise newException(ValueError, "fix_cowork_first_bash: events socket function not found")
+    raise newException(
+      ValueError, "fix_cowork_first_bash: events socket function not found"
+    )
 
   let evVar = evSockMatch.get.captures[1]
 
   # Step 2: match the spawn preamble using backreference \3
-  let spawnPattern = re"""([\w$]+\(\),await [\w$]+\(\))(;const ([\w$]+)=await [\w$]+\(\);if\(!\3\)throw new Error\("VM is not available)"""
+  let spawnPattern =
+    re"""([\w$]+\(\),await [\w$]+\(\))(;const ([\w$]+)=await [\w$]+\(\);if\(!\3\)throw new Error\("VM is not available)"""
 
   let spawnMatch = result.find(spawnPattern)
   if spawnMatch.isNone:
@@ -34,15 +38,14 @@ proc apply*(input: string): string =
 
   let m = spawnMatch.get
   let waitCode =
-    ";/* _cdb_evsock_wait */" &
-    "if(typeof " & evVar & "===\"undefined\"||!" & evVar & ")" &
-    "await new Promise(function(_r){" &
-    "var _c=0,_iv=setInterval(function(){" &
-    "if((typeof " & evVar & "!==\"undefined\"&&" & evVar & ")||++_c>200){clearInterval(_iv);_r()}" &
-    "},10)})"
+    ";/* _cdb_evsock_wait */" & "if(typeof " & evVar & "===\"undefined\"||!" & evVar &
+    ")" & "await new Promise(function(_r){" & "var _c=0,_iv=setInterval(function(){" &
+    "if((typeof " & evVar & "!==\"undefined\"&&" & evVar &
+    ")||++_c>200){clearInterval(_iv);_r()}" & "},10)})"
 
   let replacement = m.captures[0] & waitCode & m.captures[1]
-  result = result[0 ..< m.matchBounds.a] & replacement & result[m.matchBounds.b + 1 .. ^1]
+  result =
+    result[0 ..< m.matchBounds.a] & replacement & result[m.matchBounds.b + 1 .. ^1]
   echo &"  [OK] A events socket wait: injected {evVar} poll-wait before spawn"
 
 when isMainModule:

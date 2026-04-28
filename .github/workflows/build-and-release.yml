@@ -22,9 +22,11 @@ on:
 #                                     ├── test-nix
 #                                     └── generate-pkgbuild ──► test-pkgbuild (makepkg + namcap)
 #                                              │
-#                                     release (needs all above, deploys APT + gh-pages)
+#                                     release (needs all above, assembles APT repo)
 #                                              │
-#                                     deploy-rpm-repo (fedora:40 container, signs RPMs)
+#                                     deploy-rpm-repo (fedora:40, signs RPMs, uploads Pages artifact)
+#                                              │
+#                                     deploy-pages (deploys to GitHub Pages)
 # ──────────────────────────────────────────────────────────────────────
 
 jobs:
@@ -960,7 +962,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      pages: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -1142,14 +1143,7 @@ jobs:
 
           REPO_DIR="/tmp/gh-pages-repo"
           rm -rf "$REPO_DIR"
-          REMOTE="https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO}.git"
-          if git ls-remote --heads "$REMOTE" gh-pages | grep -q gh-pages; then
-            git clone --depth 1 --branch gh-pages "$REMOTE" "$REPO_DIR"
-          else
-            mkdir -p "$REPO_DIR" && cd "$REPO_DIR"
-            git init && git checkout -b gh-pages && git remote add origin "$REMOTE"
-            cd -
-          fi
+          mkdir -p "$REPO_DIR"
 
           cp packaging/apt/install.sh "$REPO_DIR/"
           cp packaging/apt/index.html "$REPO_DIR/"
@@ -1395,12 +1389,14 @@ jobs:
     runs-on: ubuntu-latest
     container: fedora:40
     permissions:
-      contents: write
+      contents: read
+      pages: write
+      id-token: write
     steps:
       - uses: actions/checkout@v4
 
       - name: Install RPM tooling
-        run: dnf install -y rpm-sign createrepo_c gnupg2 git
+        run: dnf install -y rpm-sign createrepo_c gnupg2
 
       - name: Download RPM artifacts
         uses: actions/download-artifact@v4
@@ -1415,12 +1411,10 @@ jobs:
           name: gh-pages-content
           path: /tmp/
 
-      - name: Sign RPMs and deploy repository
+      - name: Sign RPMs and build repository
         env:
           GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ needs.check-version.outputs.version }}
-          REPO: ${{ github.repository }}
         run: |
           if [ -z "$GPG_PRIVATE_KEY" ]; then
             echo "::warning::APT_GPG_PRIVATE_KEY secret not set — skipping RPM repo deploy"
@@ -1434,23 +1428,11 @@ jobs:
           gpg --armor --export "$GPG_KEY_ID" > /tmp/gpg-key.asc
 
           # Restore gh-pages content from release job (APT repo + static files)
-          # This avoids cloning gh-pages and eliminates the double-push race condition.
           REPO_DIR="/tmp/gh-pages-repo"
           rm -rf "$REPO_DIR"
           mkdir -p "$REPO_DIR"
           tar -xzf /tmp/gh-pages-content.tar.gz -C "$REPO_DIR"
-
-          # Initialize a fresh git repo for the push (remove any .git from artifact)
-          REMOTE="https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO}.git"
           rm -rf "$REPO_DIR/.git"
-          cd "$REPO_DIR"
-          git config --global --add safe.directory "$REPO_DIR"
-          git init
-          git checkout -b gh-pages
-          git remote add origin "$REMOTE"
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          cd -
 
           # Copy GPG public key
           cp /tmp/gpg-key.asc "$REPO_DIR/gpg-key.asc"
@@ -1462,14 +1444,30 @@ jobs:
             bash packaging/rpm/update-rpm-repo.sh "$RPM_FILE" "$REPO_DIR" "$GPG_KEY_ID"
           done
 
-          # Single atomic push — this is the ONLY push to gh-pages in the entire pipeline
-          cd "$REPO_DIR"
-          git add -A
-          git commit -m "Deploy repos: claude-desktop ${VERSION} (APT + RPM)"
-          git push --force origin gh-pages
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: /tmp/gh-pages-repo
 
   # ================================================================
-  # Job 5: Validate Nix package builds from GitHub Releases
+  # Job 6: Deploy to GitHub Pages (artifact-based, no 100MB git limit)
+  # ================================================================
+  deploy-pages:
+    needs: [deploy-rpm-repo]
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  # ================================================================
+  # Job 7: Validate Nix package builds from GitHub Releases
   # ================================================================
   validate-nix:
     needs: [check-version, release]

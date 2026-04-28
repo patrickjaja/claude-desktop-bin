@@ -13,7 +13,7 @@
 # typically completes in 30-50ms, so 100ms still provides comfortable headroom
 # while saving 100ms on every Quick Entry open.
 
-import std/[os, strutils, options]
+import std/[os, options]
 import std/nre
 
 proc apply*(input: string): string =
@@ -21,16 +21,21 @@ proc apply*(input: string): string =
   #   <VAR>||await(<VAR2>==null?void 0:<VAR2>.catch(n=>{R.error("Quick Entry: Error waiting for ready %o",{error:n})}))
   # Variable names change every release (NEe/YEe, nK/AK, etc.).
   # We wrap this in Promise.race with a 100ms timeout.
-  let pat = re"""([\w$]+)\|\|await\(([\w$]+)==null\?void 0:\2\.catch\([\w$]+=>\{[\w$]+\.error\("Quick Entry: Error waiting for ready %o",\{error:[\w$]+\}\)\}\)\)"""
+  let pat =
+    re"""([\w$]+)\|\|await\(([\w$]+)==null\?void 0:\2\.catch\([\w$]+=>\{[\w$]+\.error\("Quick Entry: Error waiting for ready %o",\{error:[\w$]+\}\)\}\)\)"""
 
   let m = input.find(pat)
   if m.isSome:
     let match = m.get
     let flagVar = match.captures[0]
     let promiseVar = match.captures[1]
-    let newStr = flagVar & "||await Promise.race([" & promiseVar & "==null?void 0:" & promiseVar & """.catch(n=>{R.error("Quick Entry: Error waiting for ready %o",{error:n})}),new Promise(_r=>setTimeout(_r,100))])"""
-    result = input[0 ..< match.matchBounds.a] & newStr & input[match.matchBounds.b + 1 .. ^1]
-    echo "  [OK] ready-to-show timeout (100ms) added (vars: " & flagVar & ", " & promiseVar & ")"
+    let newStr =
+      flagVar & "||await Promise.race([" & promiseVar & "==null?void 0:" & promiseVar &
+      """.catch(n=>{R.error("Quick Entry: Error waiting for ready %o",{error:n})}),new Promise(_r=>setTimeout(_r,100))])"""
+    result =
+      input[0 ..< match.matchBounds.a] & newStr & input[match.matchBounds.b + 1 .. ^1]
+    echo "  [OK] ready-to-show timeout (100ms) added (vars: " & flagVar & ", " &
+      promiseVar & ")"
   else:
     echo "  [FAIL] ready-to-show wait pattern not found"
     quit(1)

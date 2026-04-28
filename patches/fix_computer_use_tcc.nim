@@ -3,10 +3,12 @@
 # Register stub IPC handlers for ComputerUseTcc on Linux.
 # Prevents "No handler registered" errors for accessibility/screen recording.
 
-import std/[os, strformat, strutils]
+import std/[os, strformat]
 import regex
 
-proc replaceFirst(content: var string, pattern: Regex2, subFn: proc(m: RegexMatch2, s: string): string): int =
+proc replaceFirst(
+    content: var string, pattern: Regex2, subFn: proc(m: RegexMatch2, s: string): string
+): int =
   var found = false
   var resultStr = ""
   var lastEnd = 0
@@ -25,30 +27,31 @@ proc replaceFirst(content: var string, pattern: Regex2, subFn: proc(m: RegexMatc
   return 0
 
 proc extractEipcUuid(content: string): string =
-  let pat = re2"\$eipc_message\$_([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})"
+  let pat =
+    re2"\$eipc_message\$_([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})"
   for m in content.findAll(pat):
     return content[m.group(0)]
   return ""
 
 proc buildStubHandlersJs(eipcPrefix: string): string =
   result =
-    "if(process.platform===\"linux\"){" &
-    "const _ipc=require(\"electron\").ipcMain;" &
+    "if(process.platform===\"linux\"){" & "const _ipc=require(\"electron\").ipcMain;" &
     "const _P=\"" & eipcPrefix & "\";" &
     "_ipc.handle(_P+\"getState\",()=>({accessibility:\"not_applicable\",screenRecording:\"not_applicable\"}));" &
     "_ipc.handle(_P+\"requestAccessibility\",()=>{});" &
     "_ipc.handle(_P+\"requestScreenRecording\",()=>{});" &
     "_ipc.handle(_P+\"openSystemSettings\",()=>{});" &
     "_ipc.handle(_P+\"getCurrentSessionGrants\",()=>[]);" &
-    "_ipc.handle(_P+\"revokeGrant\",()=>{});" &
-    "}"
+    "_ipc.handle(_P+\"revokeGrant\",()=>{});" & "}"
 
 proc apply*(input: string): string =
   result = input
 
   var uuid = extractEipcUuid(result)
   if uuid == "":
-    raise newException(ValueError, "fix_computer_use_tcc: Could not extract eipc UUID from source files")
+    raise newException(
+      ValueError, "fix_computer_use_tcc: Could not extract eipc UUID from source files"
+    )
 
   let eipcPrefix = "$eipc_message$_" & uuid & "_$_claude.web_$_ComputerUseTcc_$_"
   echo &"  [OK] Extracted eipc UUID: {uuid}"
@@ -56,14 +59,18 @@ proc apply*(input: string): string =
   let stubJs = buildStubHandlersJs(eipcPrefix)
 
   let pattern = re2"(app\.on\(""ready"",async\(\)=>\{)"
-  var count = result.replaceFirst(pattern, proc(m: RegexMatch2, s: string): string =
-    s[m.group(0)] & stubJs
+  var count = result.replaceFirst(
+    pattern,
+    proc(m: RegexMatch2, s: string): string =
+      s[m.group(0)] & stubJs,
   )
   if count >= 1:
     echo &"  [OK] ComputerUseTcc stub handlers: injected ({count} match)"
   else:
     echo "  [FAIL] app.on(\"ready\") pattern: 0 matches"
-    raise newException(ValueError, "fix_computer_use_tcc: app.on(\"ready\") pattern not found")
+    raise newException(
+      ValueError, "fix_computer_use_tcc: app.on(\"ready\") pattern not found"
+    )
 
 when isMainModule:
   if paramCount() != 1:

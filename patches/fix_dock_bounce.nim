@@ -1,14 +1,17 @@
 # @patch-target: app.asar.contents/.vite/build/index.js
 # @patch-type: nim
 # Suppress taskbar flashing (demands-attention) on Linux/Wayland+X11.
-# Four sub-patches: early monkey-patch, steal-focus, rua-guard, bg-throttle.
+# Three sub-patches: early monkey-patch, steal-focus, rua-guard.
+# (bg-throttle sub-patch removed: upstream dropped backgroundThrottling:!1
+#  from webPreferences in v1.4758.0, so Electron uses its default of true.)
 
 import std/[os, strformat, strutils]
 import regex
 
-const EXPECTED_PATCHES = 4
+const EXPECTED_PATCHES = 3
 
-const LINUX_WAYLAND_GUARD = """;(function(){
+const LINUX_WAYLAND_GUARD =
+  """;(function(){
 if(process.platform!=="linux")return;
 var _e=require("electron");
 
@@ -89,7 +92,9 @@ if(_t){clearInterval(_t);_t=null;}
 });
 })();"""
 
-proc replaceFirst(content: var string, pattern: Regex2, subFn: proc(m: RegexMatch2, s: string): string): int =
+proc replaceFirst(
+    content: var string, pattern: Regex2, subFn: proc(m: RegexMatch2, s: string): string
+): int =
   var found = false
   var resultStr = ""
   var lastEnd = 0
@@ -120,25 +125,30 @@ proc apply*(input: string): string =
     patchesApplied += 1
   else:
     # Remove old version of guard if present
-    let oldMarkers = @[
-      "_e.app.focus=function(){}",
-      "_e.BrowserWindow.prototype.flashFrame=function(){}",
-    ]
+    let oldMarkers =
+      @[
+        "_e.app.focus=function(){}",
+        "_e.BrowserWindow.prototype.flashFrame=function(){}",
+      ]
     for oldM in oldMarkers:
       if oldM in result and marker notin result:
         # Old guard removal via regex
-        let oldGuardPat = re2";?\(function\(\)\{\s*if\(process\.platform===""linux""\)\{.*?\}\s*\}\)\(\);"
+        let oldGuardPat =
+          re2";?\(function\(\)\{\s*if\(process\.platform===""linux""\)\{.*?\}\s*\}\)\(\);"
         var dummy = 0
-        result = result.replace(oldGuardPat, proc(m: RegexMatch2, s: string): string =
-          inc dummy
-          ""
+        result = result.replace(
+          oldGuardPat,
+          proc(m: RegexMatch2, s: string): string =
+            inc dummy
+            "",
         )
         if dummy > 0:
           echo "  [OK] Removed old monkey-patch block"
         break
 
     if result.startsWith("\"use strict\";"):
-      result = "\"use strict\";" & LINUX_WAYLAND_GUARD & result[len("\"use strict\";") .. ^1]
+      result =
+        "\"use strict\";" & LINUX_WAYLAND_GUARD & result[len("\"use strict\";") .. ^1]
       echo "  [OK] Early monkey-patch injected after \"use strict\""
       applied.add("early-guard")
       patchesApplied += 1
@@ -158,9 +168,11 @@ proc apply*(input: string): string =
     break
 
   var stealCount = 0
-  result = result.replace(stealPattern, proc(m: RegexMatch2, s: string): string =
-    inc stealCount
-    s[m.group(0)] & "({})"
+  result = result.replace(
+    stealPattern,
+    proc(m: RegexMatch2, s: string): string =
+      inc stealCount
+      s[m.group(0)] & "({})",
   )
   if stealCount > 0:
     echo &"  [OK] Removed app.focus({{steal}}) calls: {stealCount} match(es)"
@@ -179,11 +191,14 @@ proc apply*(input: string): string =
     applied.add("rua-guard(skip)")
     patchesApplied += 1
   else:
-    let ruaPattern = re2"(requestUserAttention\(\)\{)(var [\w$]+;this\.isAppFocusedAndVisible\(\)\|\|)"
+    let ruaPattern =
+      re2"(requestUserAttention\(\)\{)(var [\w$]+;this\.isAppFocusedAndVisible\(\)\|\|)"
     var ruaCount = 0
-    result = result.replace(ruaPattern, proc(m: RegexMatch2, s: string): string =
-      inc ruaCount
-      s[m.group(0)] & "if(process.platform===\"linux\")return;" & s[m.group(1)]
+    result = result.replace(
+      ruaPattern,
+      proc(m: RegexMatch2, s: string): string =
+        inc ruaCount
+        s[m.group(0)] & "if(process.platform===\"linux\")return;" & s[m.group(1)],
     )
     if ruaCount > 0:
       echo &"  [OK] requestUserAttention Linux guard: {ruaCount} match(es)"
@@ -192,27 +207,11 @@ proc apply*(input: string): string =
     else:
       echo "  [FAIL] requestUserAttention pattern not matched"
 
-  # 4. Enable backgroundThrottling on Linux for mainView
-  if "backgroundThrottling:process.platform!==\"linux\"" in result:
-    echo "  [INFO] backgroundThrottling already patched"
-    applied.add("bg-throttle(skip)")
-    patchesApplied += 1
-  else:
-    let bgPattern = re2"(enableBlinkFeatures:void 0,backgroundThrottling):(!1)"
-    var bgCount = 0
-    result = result.replace(bgPattern, proc(m: RegexMatch2, s: string): string =
-      inc bgCount
-      s[m.group(0)] & ":process.platform!==\"linux\"?!1:!0"
-    )
-    if bgCount > 0:
-      echo &"  [OK] backgroundThrottling enabled on Linux: {bgCount} match(es)"
-      applied.add(&"bg-throttle({bgCount})")
-      patchesApplied += 1
-    else:
-      echo "  [FAIL] backgroundThrottling pattern not matched"
-
   if patchesApplied < EXPECTED_PATCHES:
-    raise newException(ValueError, &"fix_dock_bounce: Only {patchesApplied}/{EXPECTED_PATCHES} patches applied")
+    raise newException(
+      ValueError,
+      &"fix_dock_bounce: Only {patchesApplied}/{EXPECTED_PATCHES} patches applied",
+    )
 
 when isMainModule:
   if paramCount() != 1:

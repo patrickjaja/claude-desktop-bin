@@ -23,10 +23,13 @@ proc escapeJs(s: string): string =
   result = result.replace("\n", "\\n")
   result = result.replace("\r", "")
 
-const INJECTION = """;(function(){
+const INJECTION =
+  """;(function(){
 if(typeof process==="undefined"||!process.versions||!process.versions.electron)return;
 var _app=require("electron").app;
-var __cwf_js="""" & escapeJs(FIX_JS) & """";
+var __cwf_js="""" &
+  escapeJs(FIX_JS) &
+  """";
 _app.on("web-contents-created",function(_ev,wc){
 wc.on("dom-ready",function(){
 try{

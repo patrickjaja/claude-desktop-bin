@@ -1,8 +1,8 @@
-# Built-in MCP Servers — Claude Desktop v1.3561.0
+# Built-in MCP Servers — Claude Desktop v1.3883.0
 
 Claude Desktop registers internal MCP servers via a two-layer architecture:
 
-1. **Renderer-facing layer (`gpA()`)** — servers accessible from the BrowserView via Electron `MessageChannelMain` ports
+1. **Renderer-facing layer (`FpA()`)** — servers accessible from the BrowserView via Electron `MessageChannelMain` ports
 2. **Backend/session layer** — servers providing tools to CCD/Cowork sessions
 
 A server may appear in both layers (e.g., Chrome, mcp-registry) or only one.

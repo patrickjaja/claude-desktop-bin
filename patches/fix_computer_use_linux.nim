@@ -308,14 +308,19 @@ proc apply*(input: string): string =
       echo "  [FAIL] teach overlay: TCC stub pattern not found"
     else:
       let stub = maybeStub.get()
+      let beforeStart = max(0, stub.matchBounds.a - 500)
+      let beforeStub = content[beforeStart ..< stub.matchBounds.a]
       let afterStart = stub.matchBounds.b + 1
       let afterStub = content[afterStart ..< min(afterStart + 50, content.len)]
       let gatePat = re""",[\w$]+\(\)&&\("""
       if afterStub.contains(".has(process.platform)") or afterStub.find(gatePat).isSome:
-        echo "  [OK] teach overlay controller: CU gate found (handled by Set fix)"
+        echo "  [OK] teach overlay controller: CU gate found after TCC stub (handled by Set fix)"
+        inc patchesApplied
+      elif beforeStub.find(re"[\w$]+\(\)\?[\w$]+\([\w$]+\):[\w$]+\.for\([\w$]+\)\.setImplementation\(\{").isSome:
+        echo "  [OK] teach overlay controller: CU gate found before TCC stub via ternary (handled by Set fix)"
         inc patchesApplied
       else:
-        echo "  [FAIL] teach overlay: CU gate not found after TCC stub — may need manual check"
+        echo "  [FAIL] teach overlay: CU gate not found near TCC stub — may need manual check"
 
   # ── Patch 7b (kwin-wayland): teach overlay bridge-backed init ──────────
   block:

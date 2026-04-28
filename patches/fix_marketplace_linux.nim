@@ -11,7 +11,8 @@ import std/[os, options]
 import std/nre
 
 proc apply*(input: string): string =
-  let idempotencyPattern = re"""function [\w$]+\([\w$]+\)\{return process\.platform==="linux"\|\|"""
+  let idempotencyPattern =
+    re"""function [\w$]+\([\w$]+\)\{return process\.platform==="linux"\|\|"""
   if input.contains(idempotencyPattern):
     echo "  [OK] Already patched (Linux platform check found in CCD gate)"
     echo "  [PASS] No changes needed"
@@ -19,14 +20,19 @@ proc apply*(input: string): string =
 
   # CCD/Cowork gate -- force CCD mode on Linux
   # Uses backreference \2 to ensure the param name repeats consistently
-  let pattern = re"""function ([\w$]+)\(([\w$]+)\)\{return\((\2)==null\?void 0:\3\.mode\)==="ccd"\}"""
+  let pattern =
+    re"""function ([\w$]+)\(([\w$]+)\)\{return\((\2)==null\?void 0:\3\.mode\)==="ccd"\}"""
   let m = input.find(pattern)
   if m.isSome:
     let match = m.get
     let fnName = match.captures[0]
     let param = match.captures[1]
-    let replacement = "function " & fnName & "(" & param & """){return process.platform==="linux"||(""" & param & "==null?void 0:" & param & """.mode)==="ccd"}"""
-    result = input[0 ..< match.matchBounds.a] & replacement & input[match.matchBounds.b + 1 .. ^1]
+    let replacement =
+      "function " & fnName & "(" & param & """){return process.platform==="linux"||(""" &
+      param & "==null?void 0:" & param & """.mode)==="ccd"}"""
+    result =
+      input[0 ..< match.matchBounds.a] & replacement &
+      input[match.matchBounds.b + 1 .. ^1]
     echo "  [OK] CCD/Cowork gate: force CCD mode on Linux (1 match)"
   else:
     echo "  [FAIL] CCD/Cowork gate: 0 matches"

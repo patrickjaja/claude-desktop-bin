@@ -1,12 +1,16 @@
 # @patch-target: app.asar.contents/.vite/build/index.js
 # @patch-type: nim
-# Add safety-net error handler for ClaudeVM and LocalAgentModeSessions IPC on Linux.
-# Suppresses "ClaudeVM" / "LocalAgentModeSessions" uncaught exceptions.
+# Add safety-net error handler for IPC handler timing mismatches on Linux.
+# Suppresses ClaudeVM, LocalAgentModeSessions, LocalSessions, QuickEntry
+# uncaught exceptions that occur when a BrowserView's preload invokes
+# handlers not yet registered for that specific WebContents.
 
 import std/[os, strformat, strutils]
 import regex
 
-proc replaceFirst(content: var string, pattern: Regex2, subFn: proc(m: RegexMatch2, s: string): string): int =
+proc replaceFirst(
+    content: var string, pattern: Regex2, subFn: proc(m: RegexMatch2, s: string): string
+): int =
   var found = false
   var resultStr = ""
   var lastEnd = 0
@@ -31,9 +35,12 @@ proc apply*(input: string): string =
   # Primary pattern: async ready handler
   let appReadyPat = re2"([\w$]+)\.app\.on\(""ready"",async\(\)=>\{"
 
-  var count = result.replaceFirst(appReadyPat, proc(m: RegexMatch2, s: string): string =
-    let electronVar = s[m.group(0)]
-    electronVar & ".app.on(\"ready\",async()=>{if(process.platform===\"linux\"){process.on(\"uncaughtException\",(e)=>{if(e.message&&(e.message.includes(\"ClaudeVM\")||e.message.includes(\"LocalAgentModeSessions\"))){console.log(\"[LinuxPatch] Suppressing unsupported feature error:\",e.message);return}throw e})};"
+  var count = result.replaceFirst(
+    appReadyPat,
+    proc(m: RegexMatch2, s: string): string =
+      let electronVar = s[m.group(0)]
+      electronVar &
+        ".app.on(\"ready\",async()=>{if(process.platform===\"linux\"){process.on(\"uncaughtException\",(e)=>{if(e.message&&(e.message.includes(\"ClaudeVM\")||e.message.includes(\"LocalAgentModeSessions\")||e.message.includes(\"LocalSessions\")||e.message.includes(\"QuickEntry\"))){console.log(\"[LinuxPatch] Suppressing unsupported feature error:\",e.message);return}throw e})};",
   )
   if count >= 1:
     echo &"  [OK] App error handler: {count} match(es)"
@@ -42,9 +49,12 @@ proc apply*(input: string): string =
     # Try alternative pattern (non-async)
     let appReadyPatAlt = re2"([\w$]+)\.app\.on\(""ready"",\(\)=>\{"
 
-    var countAlt = result.replaceFirst(appReadyPatAlt, proc(m: RegexMatch2, s: string): string =
-      let electronVar = s[m.group(0)]
-      electronVar & ".app.on(\"ready\",()=>{if(process.platform===\"linux\"){process.on(\"uncaughtException\",(e)=>{if(e.message&&(e.message.includes(\"ClaudeVM\")||e.message.includes(\"LocalAgentModeSessions\"))){console.log(\"[LinuxPatch] Suppressing unsupported feature error:\",e.message);return}throw e})};"
+    var countAlt = result.replaceFirst(
+      appReadyPatAlt,
+      proc(m: RegexMatch2, s: string): string =
+        let electronVar = s[m.group(0)]
+        electronVar &
+          ".app.on(\"ready\",()=>{if(process.platform===\"linux\"){process.on(\"uncaughtException\",(e)=>{if(e.message&&(e.message.includes(\"ClaudeVM\")||e.message.includes(\"LocalAgentModeSessions\")||e.message.includes(\"LocalSessions\")||e.message.includes(\"QuickEntry\"))){console.log(\"[LinuxPatch] Suppressing unsupported feature error:\",e.message);return}throw e})};",
     )
     if countAlt >= 1:
       echo &"  [OK] App error handler (alt): {countAlt} match(es)"
@@ -53,7 +63,8 @@ proc apply*(input: string): string =
       echo "  [WARN] App ready pattern not found"
 
   if patchesApplied == 0:
-    raise newException(ValueError, "fix_vm_session_handlers: No patches could be applied")
+    raise
+      newException(ValueError, "fix_vm_session_handlers: No patches could be applied")
 
   if result != input:
     # Verify brace balance
@@ -61,7 +72,10 @@ proc apply*(input: string): string =
     let patchedDelta = result.count('{') - result.count('}')
     if originalDelta != patchedDelta:
       let diff = patchedDelta - originalDelta
-      raise newException(ValueError, &"fix_vm_session_handlers: Patch introduced brace imbalance: {diff:+} unmatched braces")
+      raise newException(
+        ValueError,
+        &"fix_vm_session_handlers: Patch introduced brace imbalance: {diff:+} unmatched braces",
+      )
 
 when isMainModule:
   if paramCount() != 1:

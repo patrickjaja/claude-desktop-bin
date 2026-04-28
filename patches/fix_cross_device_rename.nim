@@ -23,16 +23,17 @@ proc apply*(input: string): string =
   # After:  await ur.rename(x,y).catch(async e=>{if(e.code==="EXDEV"){await ur.copyFile(x,y);await ur.unlink(x)}else throw e})
   let renamePattern = re2"""(?<!try\{)await ([\w$]+)\.rename\(([\w$]+),([\w$]+)\)"""
   var count = 0
-  result = input.replace(renamePattern, proc(m: RegexMatch2, s: string): string =
-    inc count
-    let modVar = s[m.group(0)]
-    let srcVar = s[m.group(1)]
-    let dstVar = s[m.group(2)]
-    "await " & modVar & ".rename(" & srcVar & "," & dstVar & ")" &
-      """.catch(async e=>{if(e.code==="EXDEV"){""" &
-      "await " & modVar & ".copyFile(" & srcVar & "," & dstVar & ");" &
-      "await " & modVar & ".unlink(" & srcVar & ")" &
-      "}else throw e})"
+  result = input.replace(
+    renamePattern,
+    proc(m: RegexMatch2, s: string): string =
+      inc count
+      let modVar = s[m.group(0)]
+      let srcVar = s[m.group(1)]
+      let dstVar = s[m.group(2)]
+      "await " & modVar & ".rename(" & srcVar & "," & dstVar & ")" &
+        """.catch(async e=>{if(e.code==="EXDEV"){""" & "await " & modVar & ".copyFile(" &
+        srcVar & "," & dstVar & ");" & "await " & modVar & ".unlink(" & srcVar & ")" &
+        "}else throw e})",
   )
   if count >= 1:
     echo "  [OK] Replaced " & $count & " rename() calls with inline EXDEV fallback"
@@ -53,7 +54,8 @@ proc apply*(input: string): string =
   let patchedDelta = result.count('{') - result.count('}')
   if originalDelta != patchedDelta:
     let diff = patchedDelta - originalDelta
-    echo "  [FAIL] Patch introduced brace imbalance: " & (if diff > 0: "+" else: "") & $diff
+    echo "  [FAIL] Patch introduced brace imbalance: " & (if diff > 0: "+" else: "") &
+      $diff
     quit(1)
 
 when isMainModule:

@@ -28,7 +28,8 @@ proc apply*(input: string): string =
     echo &"  [INFO] {HANDLER_GLOBAL} already present -- sub-patch A/C skipped"
     applied += 2
   else:
-    let patA = re2"([\w$]+)\(([\w$]+)\.QUICK_ENTRY,(\(\)=>\{[\w$]+&&![\w$]+\.isDestroyed\(\)&&[\w$]+\.isFullScreen\(\)\?\([\w$]+\.focus\(\),[\w$]+\(\)\):[\w$]+\(\)\})\)"
+    let patA =
+      re2"([\w$]+)\(([\w$]+)\.QUICK_ENTRY,(\(\)=>\{[\w$]+&&![\w$]+\.isDestroyed\(\)&&[\w$]+\.isFullScreen\(\)\?\([\w$]+\.focus\(\),[\w$]+\(\)\):[\w$]+\(\)\})\)"
 
     var countA = 0
     var resultStr = ""
@@ -43,7 +44,8 @@ proc apply*(input: string): string =
         let arrow = result[m.group(2)]
 
         # Verify arrow shape
-        assert arrow.startsWith("()=>{") and arrow.endsWith("}"), "unexpected arrow shape: " & arrow
+        assert arrow.startsWith("()=>{") and arrow.endsWith("}"),
+          "unexpected arrow shape: " & arrow
 
         let body = arrow[len("()=>{") ..< arrow.len - 1]
 
@@ -55,22 +57,17 @@ proc apply*(input: string): string =
         # the app is running -- the socket calls __ceQuickEntryShow() directly,
         # bypassing second-instance entirely. GNOME has nothing left to double-fire.
         # 100ms is kept as a cheap safety net; it no longer affects normal usage.
-        let arrowWrapped = "()=>{var __t=Date.now();if(globalThis.__ceQEInvokedAt&&__t-globalThis.__ceQEInvokedAt<100)return;globalThis.__ceQEInvokedAt=__t;" & body & "}"
+        let arrowWrapped =
+          "()=>{var __t=Date.now();if(globalThis.__ceQEInvokedAt&&__t-globalThis.__ceQEInvokedAt<100)return;globalThis.__ceQEInvokedAt=__t;" &
+          body & "}"
         let assign = "globalThis." & HANDLER_GLOBAL & "=" & arrowWrapped
 
         # C: schedule first-instance check
         let firstInstance =
           ",setTimeout(()=>{" &
-          "try{if(Array.isArray(process.argv)&&(process.argv.includes(\"" &
-          TRIGGER_FLAG &
-          "\")||process.argv.includes(\"" &
-          TRIGGER_FLAG_SHORT &
-          "\"))&&globalThis." &
-          HANDLER_GLOBAL &
-          ")globalThis." &
-          HANDLER_GLOBAL &
-          "()}catch(e){}" &
-          "},250)"
+          "try{if(Array.isArray(process.argv)&&(process.argv.includes(\"" & TRIGGER_FLAG &
+          "\")||process.argv.includes(\"" & TRIGGER_FLAG_SHORT & "\"))&&globalThis." &
+          HANDLER_GLOBAL & ")globalThis." & HANDLER_GLOBAL & "()}catch(e){}" & "},250)"
 
         # D: Unix domain socket trigger -- fast hotkey path on Linux.
         #
@@ -84,22 +81,21 @@ proc apply*(input: string): string =
         # Uses XDG_RUNTIME_DIR with /run/user/<uid> fallback (cowork socket uses
         # /tmp fallback instead; /run/user/<uid> is safer as it's always user-private).
         let socketTrigger =
-          ",(()=>{" &
-          "if(process.platform!==\"linux\")return;" &
-          "try{" &
-          "const _qeS=(process.env.XDG_RUNTIME_DIR||(\"/run/user/\"+process.getuid()))+\"/claude-desktop-qe.sock\";" &
+          ",(()=>{" & "if(process.platform!==\"linux\")return;" & "try{" &
+          "const _qeS=(process.env.XDG_RUNTIME_DIR||(\"/run/user/\"+process.getuid()))+\"/claude-desktop-qe\"+(process.env.CLAUDE_PROFILE?\"-\"+process.env.CLAUDE_PROFILE:\"\")+\".sock\";" &
           "try{require(\"fs\").unlinkSync(_qeS)}catch(e){}" &
           "require(\"net\").createServer(c=>{" &
           "c.on(\"error\",e=>{console.warn(\"[quick-entry] socket connection error:\",e.message)});" &
-          "c.end();" &
-          "try{if(globalThis." & HANDLER_GLOBAL & ")globalThis." & HANDLER_GLOBAL & "()}catch(e){}" &
+          "c.end();" & "try{if(globalThis." & HANDLER_GLOBAL & ")globalThis." &
+          HANDLER_GLOBAL & "()}catch(e){}" &
           "}).on(\"error\",e=>{console.warn(\"[quick-entry] socket server error:\",e.message)}).listen(_qeS);" &
           "if(!globalThis.__qeTriggerLogged){globalThis.__qeTriggerLogged=true;" &
-          "console.log(\"[quick-entry] socket trigger ready: \"+_qeS)}" &
-          "}catch(e){}" &
+          "console.log(\"[quick-entry] socket trigger ready: \"+_qeS)}" & "}catch(e){}" &
           "})()"
 
-        resultStr &= regFn & "(" & enumVar & ".QUICK_ENTRY," & assign & ")" & firstInstance & socketTrigger
+        resultStr &=
+          regFn & "(" & enumVar & ".QUICK_ENTRY," & assign & ")" & firstInstance &
+          socketTrigger
         lastEnd = bounds.b + 1
         inc countA
         break
@@ -110,9 +106,15 @@ proc apply*(input: string): string =
       echo "  [OK] sub-patch A (handler capture) + C (first-instance schedule) applied"
       applied += 2
     elif countA > 1:
-      raise newException(ValueError, &"fix_quick_entry_cli_toggle: sub-patch A matched {countA} times (expected 1)")
+      raise newException(
+        ValueError,
+        &"fix_quick_entry_cli_toggle: sub-patch A matched {countA} times (expected 1)",
+      )
     else:
-      raise newException(ValueError, "fix_quick_entry_cli_toggle: sub-patch A did not match QUICK_ENTRY handler registration")
+      raise newException(
+        ValueError,
+        "fix_quick_entry_cli_toggle: sub-patch A did not match QUICK_ENTRY handler registration",
+      )
 
   # Sub-patch B: prepend argv check to second-instance handler
   let bMarker = "\"" & TRIGGER_FLAG & "\")||"
@@ -137,11 +139,9 @@ proc apply*(input: string): string =
         let tail = result[m.group(4)]
 
         let check =
-          "if(Array.isArray(" & argv & ")&&(" & argv &
-          ".includes(\"" & TRIGGER_FLAG & "\")||" & argv &
-          ".includes(\"" & TRIGGER_FLAG_SHORT & "\")))" &
-          "{try{globalThis." & HANDLER_GLOBAL &
-          "&&globalThis." & HANDLER_GLOBAL &
+          "if(Array.isArray(" & argv & ")&&(" & argv & ".includes(\"" & TRIGGER_FLAG &
+          "\")||" & argv & ".includes(\"" & TRIGGER_FLAG_SHORT & "\")))" &
+          "{try{globalThis." & HANDLER_GLOBAL & "&&globalThis." & HANDLER_GLOBAL &
           "()}catch(e){}return}"
 
         resultStr2 &= head & evt & "," & argv & "," & cwd & tail & check
@@ -155,12 +155,21 @@ proc apply*(input: string): string =
       echo "  [OK] sub-patch B (second-instance argv check) applied"
       applied += 1
     elif countB > 1:
-      raise newException(ValueError, &"fix_quick_entry_cli_toggle: sub-patch B matched {countB} times (expected 1)")
+      raise newException(
+        ValueError,
+        &"fix_quick_entry_cli_toggle: sub-patch B matched {countB} times (expected 1)",
+      )
     else:
-      raise newException(ValueError, "fix_quick_entry_cli_toggle: sub-patch B did not match .on(\"second-instance\", ...) handler")
+      raise newException(
+        ValueError,
+        "fix_quick_entry_cli_toggle: sub-patch B did not match .on(\"second-instance\", ...) handler",
+      )
 
   if applied < EXPECTED:
-    raise newException(ValueError, &"fix_quick_entry_cli_toggle: Only {applied}/{EXPECTED} sub-patches applied")
+    raise newException(
+      ValueError,
+      &"fix_quick_entry_cli_toggle: Only {applied}/{EXPECTED} sub-patches applied",
+    )
 
 when isMainModule:
   if paramCount() != 1:

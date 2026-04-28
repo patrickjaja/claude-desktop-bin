@@ -70,7 +70,9 @@ proc apply*(input: string): string =
     let mutexCheck = trayFunc & "._running"
     if mutexCheck notin result:
       let oldStart = "async function " & trayFunc & "(){"
-      let mutexPrefix = "async function " & trayFunc & "(){if(" & trayFunc & "._running)return;" & trayFunc & "._running=true;setTimeout(()=>" & trayFunc & "._running=false,500);"
+      let mutexPrefix =
+        "async function " & trayFunc & "(){if(" & trayFunc & "._running)return;" &
+        trayFunc & "._running=true;setTimeout(()=>" & trayFunc & "._running=false,500);"
       if oldStart in result:
         result = result.replace(oldStart, mutexPrefix)
         echo "  [OK] mutex guard: added"
@@ -83,7 +85,9 @@ proc apply*(input: string): string =
   # Step 6: Add delay after Tray.destroy() for DBus cleanup
   if trayVar != "":
     let oldDestroy = trayVar & "&&(" & trayVar & ".destroy()," & trayVar & "=null)"
-    let newDestroy = trayVar & "&&(" & trayVar & ".destroy()," & trayVar & "=null,await new Promise(r=>setTimeout(r,50)))"
+    let newDestroy =
+      trayVar & "&&(" & trayVar & ".destroy()," & trayVar &
+      "=null,await new Promise(r=>setTimeout(r,50)))"
 
     if oldDestroy in result and newDestroy notin result:
       result = result.replace(oldDestroy, newDestroy)
@@ -95,7 +99,8 @@ proc apply*(input: string): string =
       failed = true
 
   if failed:
-    raise newException(ValueError, "fix_tray_dbus: Some required patterns did not match")
+    raise
+      newException(ValueError, "fix_tray_dbus: Some required patterns did not match")
 
 when isMainModule:
   if paramCount() != 1:

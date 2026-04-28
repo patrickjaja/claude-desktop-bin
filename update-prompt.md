@@ -87,6 +87,7 @@ Copy-paste this into Claude Code when a new version is available:
 >    - `CLAUDE_BUILT_IN_MCP.md` — if MCP servers changed (check `registerInternalMcpServer` calls)
 >    - `CHANGELOG.md` — add new version entry
 >    - `README.md` patch table — if patches added/removed/changed
+>    - `ION.md` — if ion-dist bundle stats, patterns, or config keys changed
 >
 > 10. Commit the changes
 
@@ -212,6 +213,64 @@ Run this on EVERY version update to catch new/changed feature flags:
 
 ---
 
+## Prompt 4: ion-dist (3P Config SPA) Audit
+
+Run this on EVERY version update to check the bundled Third-Party Inference UI:
+
+> **Audit the ion-dist SPA for the new Claude Desktop version.**
+>
+> 1. Read `ION.md` first — this is your baseline for bundle stats, key files, and patched patterns.
+>
+> 2. Check if ion-dist exists in the new upstream resources:
+>    ```bash
+>    # ion-dist is in the nupkg resources, NOT inside app.asar
+>    ION="/tmp/claude-new/nupkg/lib/net45/resources/ion-dist"
+>    ls "$ION/index.html" && echo "ion-dist present" || echo "ion-dist MISSING"
+>    ```
+>
+> 3. Find the config UI chunk (the file containing the patched `org-plugins` pattern):
+>    ```bash
+>    rg -l 'org-plugins' "$ION/assets/v1/"*.js
+>    ```
+>    Note the new filename — it changes every release due to content hashing.
+>
+> 4. Compare bundle stats against `ION.md` baseline:
+>    ```bash
+>    du -sh "$ION"
+>    find "$ION" -name "*.js" | wc -l
+>    ```
+>    Large changes in file count or total size indicate a structural refactor.
+>
+> 5. Check if the patched patterns still exist (mountPath with only mac/win, platform ternary):
+>    ```bash
+>    rg -o 'mountPath:\{.{0,200}\}' "$ION/assets/v1/"*.js
+>    rg -o '/Library/Application Support.{0,60}' "$ION/assets/v1/"*.js
+>    rg -o '%ProgramFiles%.{0,60}' "$ION/assets/v1/"*.js
+>    ```
+>    If `mountPath` now includes a `linux` key, the patch may have been upstreamed.
+>
+> 6. Check for NEW platform-gated code or mac/win-only paths without linux:
+>    ```bash
+>    rg -l 'darwin' "$ION/assets/v1/"*.js | wc -l
+>    rg -o 'Darwin="darwin".*Linux="linux"' "$ION/assets/v1/index-"*.js
+>    ```
+>
+> 7. Check for new IPC bridges, config keys, or structural changes:
+>    ```bash
+>    rg -c 'claudeAppBindings' "$ION/assets/v1/index-"*.js
+>    ```
+>
+> 8. Update `ION.md` baseline if anything changed (file count, total size, key filenames, new config keys, new platform gates).
+>
+> 9. Update `fix_ion_dist_linux.nim` if patterns changed (new chunk filename pattern, mountPath restructured, ternary moved).
+>
+> **Why:** The ion-dist SPA has content-hashed filenames that change every release.
+> `fix_ion_dist_linux.nim` patches a specific chunk to add a Linux org-plugins path
+> and fix a platform ternary. If the patterns shift or new mac/win-only code appears,
+> Linux users lose access to the 3P config UI features.
+
+---
+
 ## Cross-Project Dependencies
 
 This project depends on [claude-cowork-service](../claude-cowork-service/). When a new Claude Desktop version drops:
@@ -249,6 +308,7 @@ Minified names change every release. The pattern is always the same — just the
 | Structural JS refactor | Multiple patches fail + new code shape | Rewrite affected patches to match new structure |
 | New MCP server | Search for `registerInternalMcpServer` | Update `CLAUDE_BUILT_IN_MCP.md` |
 | Cowork protocol change | Diff spawn/event/RPC patterns | Update `claude-cowork-service` too |
+| ion-dist SPA restructured | Prompt 4 — bundle stats + pattern check | Update `fix_ion_dist_linux.nim`, update `ION.md` baseline |
 
 ---
 

@@ -13,7 +13,8 @@ proc apply*(input: string): string =
   var patchesApplied = 0
 
   # Patch A: MCP server isEnabled gate
-  let alreadyAPat = re2"""&&\([\w$]+\|\|[\w$]+\|\|process\.platform==="linux"\)&&[\w$]+\("louderPenguinEnabled"\)"""
+  let alreadyAPat =
+    re2"""&&\([\w$]+\|\|[\w$]+\|\|process\.platform==="linux"\)&&[\w$]+\("louderPenguinEnabled"\)"""
   var alreadyA = false
   for m in result.findAll(alreadyAPat):
     alreadyA = true
@@ -23,11 +24,15 @@ proc apply*(input: string): string =
     echo "  [OK] MCP server isEnabled: already patched (skipped)"
     patchesApplied += 1
   else:
-    let patternA = re2"""(&&\()([\w$]+\|\|[\w$]+)(\)&&[\w$]+\("louderPenguinEnabled"\))"""
+    let patternA =
+      re2"""(&&\()([\w$]+\|\|[\w$]+)(\)&&[\w$]+\("louderPenguinEnabled"\))"""
     var countA = 0
-    result = result.replace(patternA, proc(m: RegexMatch2, s: string): string =
-      inc countA
-      s[m.group(0)] & s[m.group(1)] & """||process.platform==="linux"""" & s[m.group(2)]
+    result = result.replace(
+      patternA,
+      proc(m: RegexMatch2, s: string): string =
+        inc countA
+        s[m.group(0)] & s[m.group(1)] & """||process.platform==="linux"""" &
+          s[m.group(2)],
     )
     if countA >= 1:
       echo &"  [OK] MCP server isEnabled: added Linux ({countA} match)"
@@ -36,7 +41,8 @@ proc apply*(input: string): string =
       echo "  [FAIL] MCP server isEnabled: pattern not found"
 
   # Patch B: Init block gate
-  let alreadyBPat = re2"""\}\);\([\w$]+\|\|[\w$]+\|\|process\.platform==="linux"\)&&[\w$]+\("louderPenguinEnabled"\)&&\("""
+  let alreadyBPat =
+    re2"""\}\);\([\w$]+\|\|[\w$]+\|\|process\.platform==="linux"\)&&[\w$]+\("louderPenguinEnabled"\)&&\("""
   var alreadyB = false
   for m in result.findAll(alreadyBPat):
     alreadyB = true
@@ -46,11 +52,15 @@ proc apply*(input: string): string =
     echo "  [OK] Init block: already patched (skipped)"
     patchesApplied += 1
   else:
-    let patternB = re2"""(\}\);\()([\w$]+\|\|[\w$]+)(\)&&[\w$]+\("louderPenguinEnabled"\)&&\()"""
+    let patternB =
+      re2"""(\}\);\()([\w$]+\|\|[\w$]+)(\)&&[\w$]+\("louderPenguinEnabled"\)&&\()"""
     var countB = 0
-    result = result.replace(patternB, proc(m: RegexMatch2, s: string): string =
-      inc countB
-      s[m.group(0)] & s[m.group(1)] & """||process.platform==="linux"""" & s[m.group(2)]
+    result = result.replace(
+      patternB,
+      proc(m: RegexMatch2, s: string): string =
+        inc countB
+        s[m.group(0)] & s[m.group(1)] & """||process.platform==="linux"""" &
+          s[m.group(2)],
     )
     if countB >= 1:
       echo &"  [OK] Init block: added Linux ({countB} match)"
@@ -59,7 +69,8 @@ proc apply*(input: string): string =
       echo "  [FAIL] Init block: pattern not found"
 
   # Patch C: Connected file detection gate
-  let alreadyCPat = re2"""\([\w$]+\|\|[\w$]+\|\|process\.platform==="linux"\)&&await [\w$]+\([\w$]+\.app,[\w$]+\.document\)"""
+  let alreadyCPat =
+    re2"""\([\w$]+\|\|[\w$]+\|\|process\.platform==="linux"\)&&await [\w$]+\([\w$]+\.app,[\w$]+\.document\)"""
   var alreadyC = false
   for m in result.findAll(alreadyCPat):
     alreadyC = true
@@ -69,11 +80,15 @@ proc apply*(input: string): string =
     echo "  [OK] Connected file detection: already patched (skipped)"
     patchesApplied += 1
   else:
-    let patternC = re2"""(\()([\w$]+\|\|[\w$]+)(\)&&await [\w$]+\([\w$]+\.app,[\w$]+\.document\))"""
+    let patternC =
+      re2"""(\()([\w$]+\|\|[\w$]+)(\)&&await [\w$]+\([\w$]+\.app,[\w$]+\.document\))"""
     var countC = 0
-    result = result.replace(patternC, proc(m: RegexMatch2, s: string): string =
-      inc countC
-      s[m.group(0)] & s[m.group(1)] & """||process.platform==="linux"""" & s[m.group(2)]
+    result = result.replace(
+      patternC,
+      proc(m: RegexMatch2, s: string): string =
+        inc countC
+        s[m.group(0)] & s[m.group(1)] & """||process.platform==="linux"""" &
+          s[m.group(2)],
     )
     if countC >= 1:
       echo &"  [OK] Connected file detection: added Linux ({countC} match)"
@@ -82,14 +97,20 @@ proc apply*(input: string): string =
       echo "  [FAIL] Connected file detection: pattern not found"
 
   if patchesApplied < EXPECTED_PATCHES:
-    raise newException(ValueError, &"fix_office_addin_linux: Only {patchesApplied}/{EXPECTED_PATCHES} patches applied")
+    raise newException(
+      ValueError,
+      &"fix_office_addin_linux: Only {patchesApplied}/{EXPECTED_PATCHES} patches applied",
+    )
 
   if result != input:
     let originalDelta = input.count('{') - input.count('}')
     let patchedDelta = result.count('{') - result.count('}')
     if originalDelta != patchedDelta:
       let diff = patchedDelta - originalDelta
-      raise newException(ValueError, &"fix_office_addin_linux: Patch introduced brace imbalance: {diff:+} unmatched braces")
+      raise newException(
+        ValueError,
+        &"fix_office_addin_linux: Patch introduced brace imbalance: {diff:+} unmatched braces",
+      )
 
 when isMainModule:
   if paramCount() != 1:

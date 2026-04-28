@@ -2,6 +2,84 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-26 — Multiple Profiles (multi-instance support)
+
+Run several Claude Desktop windows side by side, each logged in to a different account, with fully isolated state for both Desktop and the Claude Code CLI it spawns. Closes [#58](https://github.com/patrickjaja/claude-desktop-bin/issues/58). — contributed by [@dcelasun](https://github.com/dcelasun) ([#70](https://github.com/patrickjaja/claude-desktop-bin/pull/70))
+
+- New launcher subcommands: `--create-profile=NAME`, `--delete-profile=NAME`, `--list-profiles`
+- New flags / env: `--profile=NAME`, `CLAUDE_PROFILE=NAME`, or auto-resolved from basename (`claude-desktop-work`)
+- Per-profile isolation: Electron userData, Claude Code config (`~/.claude-NAME`), Quick Entry socket, systemd scope, WM_CLASS / Wayland `app_id`, XDG autostart
+- Per-profile Electron binary (hardlink → reflink → copy fallback) for distinct app identity — auto-refreshed on package upgrades
+- SSO callback routing via auth-marker mechanism (`fix_profile_url_routing.nim`) — multiple SSO logins work sequentially across profiles
+- Profile name in window title: `Claude` → `Claude (work)` in title bar, taskbar, and Alt-Tab (`fix_profile_window_title.nim`)
+- Default profile (no flag) is byte-identical to single-instance behavior — no migration needed
+- New patches: `fix_profile_url_routing.nim`, `fix_profile_window_title.nim`
+- Updated patches: `fix_startup_settings.nim`, `fix_quick_entry_app_id.nim`, `fix_quick_entry_cli_toggle.nim`, `fix_cowork_linux.nim`
+
+---
+
+## 2026-04-25 (v1.4758.0) — Upstream update, 6 patches fixed, 2 new feature flags, GNOME session restore fix
+
+- **Fix:** "Start in system tray" now works with GNOME session restore ([#67](https://github.com/patrickjaja/claude-desktop-bin/pull/67)). GNOME's `gnome-session-service` re-launches saved apps after reboot without the `--startup` flag, so Claude's main window would always appear even when "Start in system tray" was enabled. New heuristic: checks the mtime of the Wayland compositor socket (or D-Bus bus socket on X11) — if Claude starts within 60s of that timestamp, it assumes session-restore and suppresses the main window. — contributed by [@boommasterxd](https://github.com/boommasterxd)
+- **Version bump:** v1.3883.0 → v1.4758.0
+- **6 patches updated:**
+  - `enable_local_agent_mode.nim` — yukonSilver `formatMessage` now called via `Qe().formatMessage` (function invocation before property access); made `()` optional in regex with `(?:\(\))?` to match both old and new intl forms. Added 2 new GrowthBook force-ON patches (3d: `chillingSlothPool` flag `1992087837`, 3e: `markTaskComplete` flag `3732274605`). Merger overrides expanded from 10 to 12. — regex improvement contributed by [@boommasterxd](https://github.com/boommasterxd)
+  - `fix_asar_workspace_cwd.nim` — `checkTrust`/`saveTrust` methods gained intermediate `DQ()` path expansion call. Simplified regex to match method signature only (not body), making it robust against future body changes.
+  - `fix_computer_use_linux.nim` — CU teach overlay gate moved from after TCC stub to before it (ternary wrapping). Added before-stub ternary check alongside existing after-stub check.
+  - `fix_dock_bounce.nim` — Removed `backgroundThrottling` sub-patch (EXPECTED_PATCHES 4→3). Upstream dropped `backgroundThrottling:!1` from webPreferences; Electron now uses its default (`true`), which is what our patch was achieving.
+  - `fix_ion_dist_linux.nim` — Platform enum variable renamed `W`→`G` in ion-dist SPA. Changed from hardcoded literal matching to regex capture for dynamic enum variable detection.
+  - `fix_locale_paths_pre.nim` — **Removed.** Redundant with `fix_locale_paths.nim` which already handles `index.pre.js` (lines 68-81). Upstream also removed `process.resourcesPath` from `index.pre.js` in this release.
+- **2 new feature flags** (22 total, was 20): `chillingSlothPool` (concurrent session pooling, GrowthBook `1992087837`), `markTaskComplete` (task completion, GrowthBook `3732274605`)
+- **1 feature moved:** `louderPenguin` moved from static registry to async-only (now solely in $yA merger)
+- **0** new MCP servers (17 remain), **0** new `process.platform` gates requiring patches
+
+---
+
+## 2026-04-23 (v1.3883.0) — Bundle all upstream resources, 3P Inference, theme fixes, CI fix, XDG autostart
+
+- **Fix:** "Start at login" toggle now works on Linux ([#60](https://github.com/patrickjaja/claude-desktop-bin/issues/60), [#61](https://github.com/patrickjaja/claude-desktop-bin/pull/61)). The previous patch disabled startup settings entirely on Linux (always returned `false`, write was a no-op). Replaced with proper XDG autostart management: creates/removes `~/.config/autostart/com.anthropic.claude-desktop.desktop` with `Exec=claude-desktop --startup` so the app starts hidden in tray. The toggle now correctly reflects actual autostart state. — contributed by [@boommasterxd](https://github.com/boommasterxd)
+
+- **Fix:** Third-Party Inference configuration now works on Linux ([#57](https://github.com/patrickjaja/claude-desktop-bin/issues/57)). The `ion-dist/` web frontend (85MB, 842 files) was missing from the package — the `app://` protocol handler had nothing to serve. Main process code is already Linux-compatible; the SPA needed minor patching (see below).
+- **New patch: `fix_ion_dist_linux.nim`** — patches the ion-dist 3P configuration SPA for Linux:
+  - Adds Linux org-plugins mount path (`/etc/claude-desktop/org-plugins`) — upstream only has macOS and Windows paths, so on Linux it showed the macOS path
+  - Fixes mount-path display component to use the Linux path when `platform === "linux"` instead of falling back to macOS
+  - Dynamically finds the target JS file (content-hashed filename changes every upstream release)
+- **Updated: `fix_vm_session_handlers.nim`** — extended IPC error suppression to also cover `LocalSessions` and `QuickEntry` handlers (in addition to existing `ClaudeVM` and `LocalAgentModeSessions`)
+- **Build: future-proof resource copying** — replaced individual `cp` commands for locales, tray icons, claude-ssh, and cowork-plugin-shim with a bulk copy of all upstream resources to `locales/`. Windows-only files (`.exe`, `.dll`, `.vhdx`, `.ico`) are excluded. New resources Anthropic adds in future releases will be automatically included.
+- **Build: ion-dist post-copy patching** — new build step applies `fix_ion_dist_linux` to ion-dist after resource copy, with graceful skip if ion-dist or the patch binary is unavailable
+- **Newly bundled resources:** `ion-dist/` (web frontend), `fonts/`, `drizzle/` (DB migrations), `seed/`, `claude-screen*.png`
+- **Fix:** Custom theme `chatFont` override now applies to user-sent messages (not just Claude responses). Added `[data-user-message-bubble]` selectors to both the main theme injection and the cowork font fix.
+- **Fix:** `generate-pkgbuild.sh` caches the Electron version in `build/.electron-version` to avoid GitHub API rate limits on repeated builds. Delete the cache file to force a re-fetch.
+- **Fix:** CI `deploy-rpm-repo` job failed because `.deb`/`.rpm` packages (~129MB each) exceed GitHub's 100MB git file size limit. Switched from `git push --force` to artifact-based Pages deployment (`actions/upload-pages-artifact` + `actions/deploy-pages`), which supports up to 10GB. No URL or user-facing changes — APT/RPM repos work exactly as before.
+- **Docs:** Removed `--install` from CLAUDE.md build examples.
+
+---
+
+## 2026-04-22 (v1.3883.0) — Upstream update, 1 patch fixed, Live Artifacts
+
+- **Version bump:** v1.3561.0 → v1.3883.0
+- **1 patch updated:** `fix_dispatch_linux.nim` — Patch F (rjt() text forward) updated to match new upstream pattern. Upstream expanded the message filter with dispatch tool name variables (`SU`/`T4`) behind a gate parameter; our patch now preserves the upstream additions while adding `mcp__dispatch__send_message` and `mcp__cowork__present_files`. Also fixed Patch E idempotency (Jr() already-applied detection used hardcoded param name `t` instead of regex).
+- **New feature flag:** `coworkArtifacts` (20 total features, was 19) — persistent HTML artifact storage in cowork sessions (`create_artifact`, `update_artifact`, `list_artifacts` tools). Force-enabled on Linux: merger override + GrowthBook `2940196192` forced ON (4 call sites) in `enable_local_agent_mode.nim`.
+- **Live Artifacts working on Linux** — requires [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service) fix: reverse mount path remapping was applied unconditionally, producing `/sessions/` paths that don't exist on native Linux
+- **2** new GrowthBook flags: `2049450122` (session handoff), `2192324205` (dispatch structured content forwarding); **0** removed
+- **0** new MCP servers (17 remain), **0** new `process.platform` gates
+- Locale i18n JSON files removed from `app.asar` (moved to `resources/` alongside asar — build script already handles this)
+- New `@ant/claude-swift` module (macOS-only, no Linux impact)
+- `@ant/claude-native-binding.node` now bundled inside asar (handled by existing native shim)
+
+### Upstream diff summary (v1.3561.0 → v1.3883.0)
+
+Variable renames only (all handled by `\w+`/`[\w$]+` wildcards):
+- Static registry: `A_()` → `s_()`
+- Async merger: `gwA` → `FwA`
+- Production gate: `GGA()` → `lUA()`
+- Flag reader: `fi()` → `Ii()`
+- Listener: `bG()` → `FG()`
+- Value flags: `zn()`/`f_()` → `y_()`/`zn()`
+- MCP registration: `gpA()` → `FpA()`
+
+---
+
 ## 2026-04-20 (v1.3561.0) — Upstream update, all patches applied (no fixes needed)
 
 - **Version bump:** v1.3109.0 → v1.3561.0

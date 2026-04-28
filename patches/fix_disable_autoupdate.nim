@@ -14,7 +14,7 @@
 # - Stops false "Update heruntergeladen" (update downloaded) notifications
 # - Leaves macOS and Windows behavior unchanged
 
-import std/[os, strutils]
+import std/[os]
 import regex
 
 proc apply*(input: string): string =
@@ -27,13 +27,16 @@ proc apply*(input: string): string =
   #
   # We insert a Linux early-return at the start of the function body:
   #   function XXX(){if(process.platform==="linux")return!1;...
-  let pattern = re2"""(function [\w$]+\(\)\{)((?:if\([\w$]+\.forceInstalled\)return!0;)?if\(process\.platform!=="win32"\)return [\w$]+\.app\.isPackaged)"""
+  let pattern =
+    re2"""(function [\w$]+\(\)\{)((?:if\([\w$]+\.forceInstalled\)return!0;)?if\(process\.platform!=="win32"\)return [\w$]+\.app\.isPackaged)"""
   var count = 0
-  result = input.replace(pattern, proc(m: RegexMatch2, s: string): string =
-    inc count
-    let funcHead = s[m.group(0)]
-    let body = s[m.group(1)]
-    funcHead & """if(process.platform==="linux")return!1;""" & body
+  result = input.replace(
+    pattern,
+    proc(m: RegexMatch2, s: string): string =
+      inc count
+      let funcHead = s[m.group(0)]
+      let body = s[m.group(1)]
+      funcHead & """if(process.platform==="linux")return!1;""" & body,
   )
   if count == 0:
     echo "  [FAIL] isInstalled function: 0 matches"

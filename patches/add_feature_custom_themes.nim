@@ -15,7 +15,8 @@
 
 import std/[os, strutils]
 
-const THEME_INJECTION_JS = """;(function(){
+const THEME_INJECTION_JS =
+  """;(function(){
 if(process.platform!=="linux")return;
 var _path=require("path"),_fs=require("fs"),_app=require("electron").app;
 var __cdb_builtins={
@@ -187,7 +188,7 @@ __cdb_css+=""
 +"[role=tooltip]{box-shadow:0 0 0 1px hsl(var(--accent-main-100) / 0.25),0 4px 12px rgba(0,0,0,0.4)!important}";
 var __cdb_font=__cdb_vars.chatFont||(__cdb_cfg.chatFont);
 if(__cdb_font){
-__cdb_css+="html .font-claude-response-body,html .font-claude-response-title,html .font-claude-response{font-family:"+__cdb_font+"!important}";
+__cdb_css+="html .font-claude-response-body,html .font-claude-response-title,html .font-claude-response,[data-user-message-bubble],[data-user-message-bubble] *{font-family:"+__cdb_font+"!important}";
 __cdb_css+=":root{--theme-font-override:1}";
 __cdb_fontFlag=true;
 console.log("[CustomThemes] Font override: "+__cdb_font);

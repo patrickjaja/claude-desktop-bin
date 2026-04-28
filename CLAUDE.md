@@ -38,6 +38,7 @@ These files embed assumptions about upstream internals and **must be challenged 
 | `CLAUDE_FEATURE_FLAGS.md` | Function names, GrowthBook IDs, architecture details | Run Feature Flag Audit (Prompt 3 in update-prompt.md) |
 | `README.md` | Patch table (break risk, debug `rg` patterns), feature descriptions. **NOT** install command version numbers — those are updated automatically by CI. | Review after patches are fixed |
 | `CLAUDE_BUILT_IN_MCP.md` | Built-in MCP server names, registration patterns | Check `registerInternalMcpServer` calls in new JS |
+| `ION.md` | ion-dist SPA bundle stats, patched patterns, config key schema | Run ion-dist checks (Prompt 4 in update-prompt.md) |
 | `CHANGELOG.md` | Version-specific notes | Add new entry for each release |
 
 **Rule of thumb:** If a doc references a specific minified name, it will be wrong after the next upstream release. Use `\w+` wildcards in patches; in docs, always note the version the names apply to.
@@ -57,7 +58,7 @@ When a new Claude Desktop version drops, follow [update-prompt.md](update-prompt
 Quick start:
 ```bash
 # Build (auto-cleans build dir, auto-downloads latest exe, applies patches, packages)
-./scripts/build-local.sh --install
+./scripts/build-local.sh
 ```
 
 ### Building on Ubuntu / Debian
@@ -85,6 +86,11 @@ See also: [validate_and_fix_claude-setup-x64.md](validate_and_fix_claude-setup-x
 mkdir -p tmp
 ./scripts/build-patched-tarball.sh Claude-Setup-x64.exe ./tmp
 # The unpatched index.js is at: ./tmp/app/app.asar.contents/.vite/build/index.js
+
+# ion-dist (3P config SPA) is in the upstream resources, not inside app.asar:
+# After build: build/src/app/locales/ion-dist/
+# Or extract manually from the nupkg:
+#   ls extract/lib/net45/resources/ion-dist/
 ```
 
 When patches fail after a new Claude Desktop release, follow this workflow:
@@ -212,7 +218,7 @@ If syntax errors occur, the patch likely replaced only part of a construct (e.g.
 ### 7. Build and Test Locally
 
 ```bash
-./scripts/build-local.sh --install
+./scripts/build-local.sh
 ```
 
 Or build without installing:
@@ -253,6 +259,23 @@ docs/        # Screenshots (chat, code, cowork, global UI)
 ```
 
 Each patch has a `# @patch-target:` and `# @patch-type: nim` header. The Makefile compiles them to native binaries. The orchestrator (`scripts/apply_patches.py`) runs the binaries. Use `ls patches/*.nim` as the single source of truth for what exists.
+
+## Profile System (multi-instance)
+
+Multiple Desktop instances can run side by side via named profiles. The launcher (`scripts/claude-desktop-launcher.sh`) resolves `CLAUDE_PROFILE` from `--profile=NAME`, the env var, or its own basename (`claude-desktop-NAME`), then exports it so child processes inherit it.
+
+**Per-profile path table** (default profile = unset = no suffix; named profile suffixes everything with `-<name>`):
+
+| Resource | Mechanism | Where to look in code |
+|----------|-----------|----------------------|
+| Electron userData | `--user-data-dir` flag in launcher | All `app.getPath("userData")` consumers auto-redirect |
+| Claude Code config | `CLAUDE_CONFIG_DIR` env exported by launcher | Honored by `@anthropic-ai/claude-code` CLI |
+| Quick Entry socket | `process.env.CLAUDE_PROFILE` read in JS | `patches/fix_quick_entry_cli_toggle.nim` |
+| systemd scope | `${profile_suffix}` in launcher | `claude-desktop-launcher.sh` |
+| WM_CLASS / Wayland app_id | per-profile Electron binary (hardlink → reflink → copy fallback) | `~/.local/lib/claude-desktop/<APP_ID>-<name>` — must be a real file, not a symlink, because Electron derives its app identity from `/proc/self/exe` (the kernel resolves symlinks before reading) |
+| SSO callback routing | marker file written by JS hook on `shell.openExternal`; launcher reads marker to dispatch incoming `claude://` URL | `patches/fix_profile_url_routing.nim` (writer) + `claude-desktop-launcher.sh` URL-handler block (reader / re-exec) |
+
+**Rule when adding a new patch:** if it writes to a fixed user-level path, prefer `app.getPath("userData")` (auto-isolates) over `os.homedir()+"/.config/Claude"` (single-instance leak). If it opens a Unix socket or pipe that is owned by the Electron process itself, append `process.env.CLAUDE_PROFILE` to the path the same way `fix_quick_entry_cli_toggle.nim` does. If the socket is owned by a separate user-level daemon (like cowork-svc), do NOT suffix it — clients across all profiles need to connect to the same listener; profile isolation comes from per-profile state inherited via env. If the patch spawns a long-lived child process that holds state, propagate `process.env.CLAUDE_PROFILE` and `process.env.CLAUDE_CONFIG_DIR` (or accept that `child_process.spawn` inherits `process.env` by default — verify, don't assume).
 
 ## Feature Flag System
 

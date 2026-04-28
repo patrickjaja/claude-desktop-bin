@@ -13,7 +13,8 @@ import regex
 
 proc apply*(input: string): string =
   let oldResourcePath = "process.resourcesPath"
-  let newResourcePath = """(require("path").dirname(require("electron").app.getAppPath())+"/locales")"""
+  let newResourcePath =
+    """(require("path").dirname(require("electron").app.getAppPath())+"/locales")"""
 
   var failed = false
 
@@ -30,9 +31,11 @@ proc apply*(input: string): string =
   # Also replace any hardcoded electron paths (optional - may not exist)
   let electronPattern = re2"/usr/lib/electron\d+/resources"
   var count2 = 0
-  result = result.replace(electronPattern, proc(m: RegexMatch2, s: string): string =
-    inc count2
-    newResourcePath
+  result = result.replace(
+    electronPattern,
+    proc(m: RegexMatch2, s: string): string =
+      inc count2
+      newResourcePath,
   )
   if count2 > 0:
     echo "  [OK] hardcoded electron paths: " & $count2 & " match(es)"
@@ -60,13 +63,14 @@ when isMainModule:
     writeFile(filePath, output)
     echo "  [PASS] All required patterns matched and applied"
   else:
-    echo "  [WARN] No changes made (patterns may have already been applied)"
+    echo "  [OK] No changes made (already patched)"
 
   # Also patch index.pre.js if it exists (new in v1.2278.0 -- bootstrap file)
   let preJs = parentDir(filePath) / "index.pre.js"
   if fileExists(preJs):
     let oldResourcePathStr = "process.resourcesPath"
-    let newResourcePathStr = """(require("path").dirname(require("electron").app.getAppPath())+"/locales")"""
+    let newResourcePathStr =
+      """(require("path").dirname(require("electron").app.getAppPath())+"/locales")"""
     let preContent = readFile(preJs)
     let preCount = preContent.count(oldResourcePathStr)
     if preCount > 0:

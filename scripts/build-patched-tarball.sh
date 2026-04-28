@@ -230,27 +230,34 @@ cd "$WORK_DIR/app"
 asar pack app.asar.contents app.asar --unpack "{**/*.node,**/spawn-helper}"
 rm -rf app.asar.contents
 
-# Copy locales (must be in place before smoke test — app loads them on startup)
-log_info "Copying locales..."
+# Copy all upstream resources to locales/ (must be in place before smoke test)
+# This is future-proof: new resources Anthropic adds are automatically included.
+# Electron's process.resourcesPath is patched to resolve to this locales/ dir.
+log_info "Copying upstream resources to locales/..."
 mkdir -p "$WORK_DIR/app/locales"
-cp "$WORK_DIR/extract/lib/net45/resources/"*.json "$WORK_DIR/app/locales/" 2>/dev/null || true
+cp -r "$WORK_DIR/extract/lib/net45/resources/"* "$WORK_DIR/app/locales/"
 
-# Copy tray icons
-log_info "Copying tray icons..."
-cp "$WORK_DIR/extract/lib/net45/resources/TrayIconTemplate"*.png "$WORK_DIR/app/locales/" 2>/dev/null || true
+# Remove items already handled separately or Windows-only
+rm -rf "$WORK_DIR/app/locales/app.asar" "$WORK_DIR/app/locales/app.asar.unpacked"
+find "$WORK_DIR/app/locales" \( -name "*.exe" -o -name "*.dll" -o -name "*.vhdx" -o -name "*.ico" \) -delete
 
-# Copy claude-ssh binaries (needed for SSH remote environment feature)
-if [ -d "$WORK_DIR/extract/lib/net45/resources/claude-ssh" ]; then
-    log_info "Copying claude-ssh binaries..."
-    cp -r "$WORK_DIR/extract/lib/net45/resources/claude-ssh" "$WORK_DIR/app/locales/"
-    chmod +x "$WORK_DIR/app/locales/claude-ssh/claude-ssh-"* 2>/dev/null || true
-fi
+# Ensure claude-ssh binaries are executable
+chmod +x "$WORK_DIR/app/locales/claude-ssh/claude-ssh-"* 2>/dev/null || true
 
-# Copy cowork-plugin-shim.sh (needed for Cowork plugin/skill permission bridge)
-# Electron's process.resourcesPath resolves to the locales/ dir in our layout
-if [ -f "$WORK_DIR/extract/lib/net45/resources/cowork-plugin-shim.sh" ]; then
-    log_info "Copying cowork-plugin-shim.sh..."
-    cp "$WORK_DIR/extract/lib/net45/resources/cowork-plugin-shim.sh" "$WORK_DIR/app/locales/"
+# Apply ion-dist patches (the SPA has content-hashed filenames, so the patch
+# finds its target file dynamically by grepping for a unique pattern)
+ION_DIST_DIR="$WORK_DIR/app/locales/ion-dist"
+ION_DIST_PATCH="$PATCHES_DIR/fix_ion_dist_linux"
+if [ -d "$ION_DIST_DIR" ] && [ -x "$ION_DIST_PATCH" ]; then
+    log_info "Applying ion-dist patches..."
+    if ! "$ION_DIST_PATCH" "$ION_DIST_DIR"; then
+        log_error "ion-dist patch failed"
+        exit 1
+    fi
+elif [ -d "$ION_DIST_DIR" ]; then
+    log_warn "ion-dist found but patch binary not available — skipping"
+else
+    log_warn "ion-dist not found in upstream resources — skipping"
 fi
 
 # Copy smol-bin VM image(s) — Desktop's startVM copies these from

@@ -90,10 +90,21 @@ while [ $ELAPSED -lt $TIMEOUT_SECONDS ]; do
     ELAPSED=$((ELAPSED + 1))
 done
 
-# Check stderr for JS runtime errors
-if grep -qE "(TypeError|ReferenceError|SyntaxError|Cannot read properties|ENOENT)" "$STDERR_LOG"; then
+# Check stderr for JS runtime errors. Filter out known-benign noise that
+# fires in the test environment but is harmless at runtime:
+#   - cowork-vm-service.sock ENOENT: cowork-svc is a separate user-level
+#     daemon installed alongside (not part of) Claude Desktop. The smoke
+#     test runs in a bare xvfb without it, so the VM client's eager
+#     subscription always fails. The connection is retried lazily once a
+#     real cowork session starts, so the absence at startup doesn't break
+#     anything we're testing here.
+ERROR_PATTERN='(TypeError|ReferenceError|SyntaxError|Cannot read properties|ENOENT)'
+ERRORS=$(grep -E "$ERROR_PATTERN" "$STDERR_LOG" \
+    | grep -v 'cowork-vm-service\.sock' \
+    || true)
+if [ -n "$ERRORS" ]; then
     echo -e "${RED}[FAIL]${NC} Runtime JS errors detected:"
-    grep -E "(TypeError|ReferenceError|SyntaxError|Cannot read properties|ENOENT)" "$STDERR_LOG"
+    echo "$ERRORS"
     kill "$APP_PID" 2>/dev/null; wait "$APP_PID" 2>/dev/null || true
     exit 1
 fi

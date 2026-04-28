@@ -20,7 +20,9 @@ import std/nre
 const EXPECTED_PATCHES = 3
 
 proc extractEipcUuid(content: string): string =
-  let m = content.find(re"\$eipc_message\$_([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})")
+  let m = content.find(
+    re"\$eipc_message\$_([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})"
+  )
   if m.isSome:
     return m.get().captures[0]
   return ""
@@ -34,77 +36,43 @@ proc extractSpaceManagerSingleton(content: string): string =
 proc buildSpacesServiceJs(eipcPrefix, singletonVar: string): string =
   let eventChannel = eipcPrefix & "onSpaceEvent"
 
-  result = "if(process.platform===\"linux\"){" &
-    "const _ipc=require(\"electron\").ipcMain;" &
+  result =
+    "if(process.platform===\"linux\"){" & "const _ipc=require(\"electron\").ipcMain;" &
     "const _BW=require(\"electron\").BrowserWindow;" &
-    "const _shell=require(\"electron\").shell;" &
-    "const _app=require(\"electron\").app;" &
-    "const _fs=require(\"fs\");" &
-    "const _path=require(\"path\");" &
-    "const _crypto=require(\"crypto\");" &
-    "const _EE=require(\"events\").EventEmitter;" &
-    "const _P=\"" & eipcPrefix & "\";" &
-    "const _EVT=\"" & eventChannel & "\";" &
-    "class _SpacesService extends _EE{" &
-    "constructor(){" &
-    "super();" &
+    "const _shell=require(\"electron\").shell;" & "const _app=require(\"electron\").app;" &
+    "const _fs=require(\"fs\");" & "const _path=require(\"path\");" &
+    "const _crypto=require(\"crypto\");" & "const _EE=require(\"events\").EventEmitter;" &
+    "const _P=\"" & eipcPrefix & "\";" & "const _EVT=\"" & eventChannel & "\";" &
+    "class _SpacesService extends _EE{" & "constructor(){" & "super();" &
     "this._file=_path.join(_app.getPath(\"userData\"),\"spaces.json\");" &
-    "this._spaces=[];" &
-    "this._load();" &
-    "}" &
-    "_load(){" &
-    "try{" &
-    "if(_fs.existsSync(this._file)){" &
-    "const d=_fs.readFileSync(this._file,\"utf-8\");" &
+    "this._spaces=[];" & "this._load();" & "}" & "_load(){" & "try{" &
+    "if(_fs.existsSync(this._file)){" & "const d=_fs.readFileSync(this._file,\"utf-8\");" &
     "const p=JSON.parse(d);" &
-    "this._spaces=Array.isArray(p.spaces)?p.spaces:Array.isArray(p)?p:[];" &
-    "}" &
-    "}catch(e){console.error(\"[SpacesService] load error:\",e);this._spaces=[];}" &
-    "}" &
-    "_save(){" &
-    "try{" &
-    "const dir=_path.dirname(this._file);" &
+    "this._spaces=Array.isArray(p.spaces)?p.spaces:Array.isArray(p)?p:[];" & "}" &
+    "}catch(e){console.error(\"[SpacesService] load error:\",e);this._spaces=[];}" & "}" &
+    "_save(){" & "try{" & "const dir=_path.dirname(this._file);" &
     "if(!_fs.existsSync(dir))_fs.mkdirSync(dir,{recursive:true});" &
     "_fs.writeFileSync(this._file,JSON.stringify({spaces:this._spaces},null,2));" &
-    "}catch(e){console.error(\"[SpacesService] save error:\",e);}" &
-    "}" &
-    "_notify(evt){" &
-    "this.emit(\"space_event\",evt);" &
-    "try{" &
-    "const wins=_BW.getAllWindows();" &
-    "for(const w of wins){" &
-    "if(w.webContents&&!w.webContents.isDestroyed())" &
-    "w.webContents.send(_EVT,evt);" &
-    "}" &
-    "}catch(e){}" &
-    "}" &
+    "}catch(e){console.error(\"[SpacesService] save error:\",e);}" & "}" &
+    "_notify(evt){" & "this.emit(\"space_event\",evt);" & "try{" &
+    "const wins=_BW.getAllWindows();" & "for(const w of wins){" &
+    "if(w.webContents&&!w.webContents.isDestroyed())" & "w.webContents.send(_EVT,evt);" &
+    "}" & "}catch(e){}" & "}" &
     "_find(id){return this._spaces.find(s=>s.id===id)||null;}" &
-    "getAllSpaces(){return this._spaces;}" &
-    "getSpace(id){return this._find(id);}" &
-    "createSpace(data){" &
-    "const now=new Date().toISOString();" &
-    "const id=_crypto.randomUUID();" &
-    "const space={" &
-    "id," &
-    "name:data.name||\"Untitled Space\"," &
-    "description:data.description||undefined," &
+    "getAllSpaces(){return this._spaces;}" & "getSpace(id){return this._find(id);}" &
+    "createSpace(data){" & "const now=new Date().toISOString();" &
+    "const id=_crypto.randomUUID();" & "const space={" & "id," &
+    "name:data.name||\"Untitled Space\"," & "description:data.description||undefined," &
     "folders:Array.isArray(data.folders)?data.folders:[]," &
     "projects:Array.isArray(data.projects)?data.projects:[]," &
     "links:Array.isArray(data.links)?data.links:[]," &
     "instructions:data.instructions||undefined," &
     "ccdFolderPath:data.ccdFolderPath||_path.join(_app.getPath(\"userData\"),\"spaces\",id)," &
-    "createdAt:now," &
-    "updatedAt:now" &
-    "};" &
+    "createdAt:now," & "updatedAt:now" & "};" &
     "try{_fs.mkdirSync(space.ccdFolderPath,{recursive:true});}catch(e){}" &
-    "this._spaces.push(space);" &
-    "this._save();" &
-    "this._notify({type:\"created\",space});" &
-    "return space;" &
-    "}" &
-    "updateSpace(id,updates){" &
-    "const s=this._find(id);" &
-    "if(!s)return null;" &
+    "this._spaces.push(space);" & "this._save();" &
+    "this._notify({type:\"created\",space});" & "return space;" & "}" &
+    "updateSpace(id,updates){" & "const s=this._find(id);" & "if(!s)return null;" &
     "if(updates.name!==undefined)s.name=updates.name;" &
     "if(updates.description!==undefined)s.description=updates.description;" &
     "if(updates.instructions!==undefined)s.instructions=updates.instructions;" &
@@ -112,147 +80,76 @@ proc buildSpacesServiceJs(eipcPrefix, singletonVar: string): string =
     "if(updates.projects!==undefined)s.projects=updates.projects;" &
     "if(updates.links!==undefined)s.links=updates.links;" &
     "if(updates.ccdFolderPath!==undefined)s.ccdFolderPath=updates.ccdFolderPath;" &
-    "s.updatedAt=new Date().toISOString();" &
-    "this._save();" &
-    "this._notify({type:\"updated\",space:s});" &
-    "return s;" &
-    "}" &
-    "deleteSpace(id){" &
-    "const idx=this._spaces.findIndex(s=>s.id===id);" &
-    "if(idx===-1)return null;" &
-    "const removed=this._spaces.splice(idx,1)[0];" &
-    "this._save();" &
-    "this._notify({type:\"deleted\",spaceId:id});" &
-    "return removed;" &
-    "}" &
-    "addFolderToSpace(id,folder){" &
-    "const s=this._find(id);" &
-    "if(!s)return null;" &
+    "s.updatedAt=new Date().toISOString();" & "this._save();" &
+    "this._notify({type:\"updated\",space:s});" & "return s;" & "}" & "deleteSpace(id){" &
+    "const idx=this._spaces.findIndex(s=>s.id===id);" & "if(idx===-1)return null;" &
+    "const removed=this._spaces.splice(idx,1)[0];" & "this._save();" &
+    "this._notify({type:\"deleted\",spaceId:id});" & "return removed;" & "}" &
+    "addFolderToSpace(id,folder){" & "const s=this._find(id);" & "if(!s)return null;" &
     "const p=typeof folder===\"string\"?folder:folder.path;" &
-    "if(!s.folders.some(f=>f.path===p)){" &
-    "s.folders.push({path:p});" &
-    "s.updatedAt=new Date().toISOString();" &
-    "this._save();" &
-    "this._notify({type:\"updated\",space:s});" &
-    "}" &
-    "return s;" &
-    "}" &
-    "removeFolderFromSpace(id,folderPath){" &
-    "const s=this._find(id);" &
+    "if(!s.folders.some(f=>f.path===p)){" & "s.folders.push({path:p});" &
+    "s.updatedAt=new Date().toISOString();" & "this._save();" &
+    "this._notify({type:\"updated\",space:s});" & "}" & "return s;" & "}" &
+    "removeFolderFromSpace(id,folderPath){" & "const s=this._find(id);" &
     "if(!s)return null;" &
     "const p=typeof folderPath===\"string\"?folderPath:folderPath.path;" &
     "s.folders=s.folders.filter(f=>f.path!==p);" &
-    "s.updatedAt=new Date().toISOString();" &
-    "this._save();" &
-    "this._notify({type:\"updated\",space:s});" &
-    "return s;" &
-    "}" &
-    "addProjectToSpace(id,project){" &
-    "const s=this._find(id);" &
-    "if(!s)return null;" &
+    "s.updatedAt=new Date().toISOString();" & "this._save();" &
+    "this._notify({type:\"updated\",space:s});" & "return s;" & "}" &
+    "addProjectToSpace(id,project){" & "const s=this._find(id);" & "if(!s)return null;" &
     "const u=typeof project===\"string\"?project:project.uuid;" &
-    "if(!s.projects.some(p=>p.uuid===u)){" &
-    "s.projects.push({uuid:u});" &
-    "s.updatedAt=new Date().toISOString();" &
-    "this._save();" &
-    "this._notify({type:\"updated\",space:s});" &
-    "}" &
-    "return s;" &
-    "}" &
-    "removeProjectFromSpace(id,projectUuid){" &
-    "const s=this._find(id);" &
+    "if(!s.projects.some(p=>p.uuid===u)){" & "s.projects.push({uuid:u});" &
+    "s.updatedAt=new Date().toISOString();" & "this._save();" &
+    "this._notify({type:\"updated\",space:s});" & "}" & "return s;" & "}" &
+    "removeProjectFromSpace(id,projectUuid){" & "const s=this._find(id);" &
     "if(!s)return null;" &
     "const u=typeof projectUuid===\"string\"?projectUuid:projectUuid.uuid;" &
     "s.projects=s.projects.filter(p=>p.uuid!==u);" &
-    "s.updatedAt=new Date().toISOString();" &
-    "this._save();" &
-    "this._notify({type:\"updated\",space:s});" &
-    "return s;" &
-    "}" &
-    "addLinkToSpace(id,link){" &
-    "const s=this._find(id);" &
-    "if(!s)return null;" &
-    "if(!s.links)s.links=[];" &
-    "const url=typeof link===\"string\"?link:link.url;" &
+    "s.updatedAt=new Date().toISOString();" & "this._save();" &
+    "this._notify({type:\"updated\",space:s});" & "return s;" & "}" &
+    "addLinkToSpace(id,link){" & "const s=this._find(id);" & "if(!s)return null;" &
+    "if(!s.links)s.links=[];" & "const url=typeof link===\"string\"?link:link.url;" &
     "if(!s.links.some(l=>l.url===url)){" &
     "s.links.push(typeof link===\"string\"?{url:link}:link);" &
-    "s.updatedAt=new Date().toISOString();" &
-    "this._save();" &
-    "this._notify({type:\"updated\",space:s});" &
-    "}" &
-    "return s;" &
-    "}" &
-    "removeLinkFromSpace(id,linkUrl){" &
-    "const s=this._find(id);" &
-    "if(!s)return null;" &
+    "s.updatedAt=new Date().toISOString();" & "this._save();" &
+    "this._notify({type:\"updated\",space:s});" & "}" & "return s;" & "}" &
+    "removeLinkFromSpace(id,linkUrl){" & "const s=this._find(id);" & "if(!s)return null;" &
     "const url=typeof linkUrl===\"string\"?linkUrl:linkUrl.url;" &
     "s.links=(s.links||[]).filter(l=>l.url!==url);" &
-    "s.updatedAt=new Date().toISOString();" &
-    "this._save();" &
-    "this._notify({type:\"updated\",space:s});" &
-    "return s;" &
-    "}" &
-    "getAutoMemoryDir(spaceId){" &
-    "const s=this._find(spaceId);" &
-    "if(!s)return null;" &
+    "s.updatedAt=new Date().toISOString();" & "this._save();" &
+    "this._notify({type:\"updated\",space:s});" & "return s;" & "}" &
+    "getAutoMemoryDir(spaceId){" & "const s=this._find(spaceId);" & "if(!s)return null;" &
     "const dir=_path.join(_app.getPath(\"userData\"),\"spaces\",spaceId,\"memory\");" &
-    "try{_fs.mkdirSync(dir,{recursive:true});}catch(e){}" &
-    "return dir;" &
-    "}" &
-    "listFolderContents(spaceId,folderPath){" &
-    "const s=this._find(spaceId);" &
-    "if(!s)return[];" &
-    "const resolved=_path.resolve(folderPath);" &
+    "try{_fs.mkdirSync(dir,{recursive:true});}catch(e){}" & "return dir;" & "}" &
+    "listFolderContents(spaceId,folderPath){" & "const s=this._find(spaceId);" &
+    "if(!s)return[];" & "const resolved=_path.resolve(folderPath);" &
     "const allowed=s.folders.some(f=>resolved.startsWith(_path.resolve(f.path)))" &
     "||resolved.startsWith(_path.resolve(s.ccdFolderPath||\"\"));" &
-    "if(!allowed)return[];" &
-    "try{" &
+    "if(!allowed)return[];" & "try{" &
     "const entries=_fs.readdirSync(resolved,{withFileTypes:true});" &
-    "return entries.map(e=>({" &
-    "name:e.name," &
-    "isDirectory:e.isDirectory()," &
-    "path:_path.join(resolved,e.name)" &
-    "}));" &
-    "}catch(e){return[];}" &
-    "}" &
-    "readFileContents(spaceId,filePath){" &
-    "const s=this._find(spaceId);" &
-    "if(!s)return null;" &
-    "const resolved=_path.resolve(filePath);" &
+    "return entries.map(e=>({" & "name:e.name," & "isDirectory:e.isDirectory()," &
+    "path:_path.join(resolved,e.name)" & "}));" & "}catch(e){return[];}" & "}" &
+    "readFileContents(spaceId,filePath){" & "const s=this._find(spaceId);" &
+    "if(!s)return null;" & "const resolved=_path.resolve(filePath);" &
     "const allowed=s.folders.some(f=>resolved.startsWith(_path.resolve(f.path)))" &
     "||resolved.startsWith(_path.resolve(s.ccdFolderPath||\"\"));" &
     "if(!allowed)return null;" &
-    "try{return _fs.readFileSync(resolved,\"utf-8\");}catch(e){return null;}" &
-    "}" &
+    "try{return _fs.readFileSync(resolved,\"utf-8\");}catch(e){return null;}" & "}" &
     "openFile(spaceId,filePath){" &
-    "try{_shell.openPath(_path.resolve(filePath));}catch(e){}" &
-    "return null;" &
-    "}" &
+    "try{_shell.openPath(_path.resolve(filePath));}catch(e){}" & "return null;" & "}" &
     "createSpaceFolder(parentPath,folderName){" &
-    "if(!folderName||!folderName.trim())return null;" &
-    "const name=folderName.trim();" &
-    "let dir=_path.join(parentPath,name);" &
-    "let n=0;" &
+    "if(!folderName||!folderName.trim())return null;" & "const name=folderName.trim();" &
+    "let dir=_path.join(parentPath,name);" & "let n=0;" &
     "while(_fs.existsSync(dir)){n++;dir=_path.join(parentPath,name+\" (\"+n+\")\");}" &
-    "try{_fs.mkdirSync(dir,{recursive:true});return dir;}catch(e){return null;}" &
-    "}" &
-    "copyFilesToSpaceFolder(spaceId,files){" &
-    "const s=this._find(spaceId);" &
-    "if(!s||!s.ccdFolderPath)return null;" &
-    "const results=[];" &
-    "const flist=Array.isArray(files)?files:[];" &
-    "for(const f of flist){" &
-    "try{" &
+    "try{_fs.mkdirSync(dir,{recursive:true});return dir;}catch(e){return null;}" & "}" &
+    "copyFilesToSpaceFolder(spaceId,files){" & "const s=this._find(spaceId);" &
+    "if(!s||!s.ccdFolderPath)return null;" & "const results=[];" &
+    "const flist=Array.isArray(files)?files:[];" & "for(const f of flist){" & "try{" &
     "const src=typeof f===\"string\"?f:f.path||f.sourcePath;" &
-    "const name=_path.basename(src);" &
-    "const dest=_path.join(s.ccdFolderPath,name);" &
-    "_fs.copyFileSync(src,dest);" &
-    "results.push({name,path:dest,success:true});" &
+    "const name=_path.basename(src);" & "const dest=_path.join(s.ccdFolderPath,name);" &
+    "_fs.copyFileSync(src,dest);" & "results.push({name,path:dest,success:true});" &
     "}catch(e){results.push({name:typeof f===\"string\"?_path.basename(f):\"unknown\",success:false,error:e.message});}" &
-    "}" &
-    "return results;" &
-    "}" &
-    "}" &  # end class _SpacesService
+    "}" & "return results;" & "}" & "}" & # end class _SpacesService
     "const _svc=new _SpacesService();" &
     "_ipc.handle(_P+\"getAllSpaces\",()=>_svc.getAllSpaces());" &
     "_ipc.handle(_P+\"getSpace\",(ev,id)=>_svc.getSpace(id));" &
@@ -275,7 +172,7 @@ proc buildSpacesServiceJs(eipcPrefix, singletonVar: string): string =
     "console.log(\"[SpacesService] Registered on " & singletonVar & " singleton\");" &
     "}catch(_e){console.warn(\"[SpacesService] Could not set singleton:\",_e);}" &
     "console.log(\"[SpacesService] Linux CoworkSpaces service initialized with\",_svc._spaces.length,\"spaces\");" &
-    "}"  # end if(process.platform==="linux")
+    "}" # end if(process.platform==="linux")
 
 proc apply*(input: string): string =
   result = input
@@ -301,7 +198,8 @@ proc apply*(input: string): string =
   var singletonVar = extractSpaceManagerSingleton(result)
   if singletonVar == "":
     echo "  [INFO] Patch B: primary singleton regex didn't match, trying fallback"
-    let fallbackMatch = result.find(re"peek\(\)\{return this\.current\}\}const (\w+)=new \w+,")
+    let fallbackMatch =
+      result.find(re"peek\(\)\{return this\.current\}\}const (\w+)=new \w+,")
     if fallbackMatch.isSome:
       singletonVar = fallbackMatch.get().captures[0]
       echo &"  [OK] Patch B: Found singleton via fallback pattern: {singletonVar}"
@@ -313,11 +211,14 @@ proc apply*(input: string): string =
   inc patchesApplied
 
   # --- Step 3: Remove any existing CoworkSpaces stubs (cleanup, not counted) ---
-  let oldStubPattern = re"""if\(process\.platform==="linux"\)\{const _ipc=require\("electron"\)\.ipcMain;const _P="\$eipc_message\$_[a-f0-9-]+_\$_claude\.web_\$_CoworkSpaces_\$_";[^}]*\}"""
+  let oldStubPattern =
+    re"""if\(process\.platform==="linux"\)\{const _ipc=require\("electron"\)\.ipcMain;const _P="\$eipc_message\$_[a-f0-9-]+_\$_claude\.web_\$_CoworkSpaces_\$_";[^}]*\}"""
   var removed = 0
-  result = result.replace(oldStubPattern, proc(m: RegexMatch): string =
-    inc removed
-    ""
+  result = result.replace(
+    oldStubPattern,
+    proc(m: RegexMatch): string =
+      inc removed
+      "",
   )
   if removed > 0:
     echo &"  [OK] Removed {removed} old CoworkSpaces stub block(s)"
@@ -327,11 +228,13 @@ proc apply*(input: string): string =
 
   let readyPattern = re"""app\.on\("ready",async\(\)=>\{"""
   var countC = 0
-  result = result.replace(readyPattern, proc(m: RegexMatch): string =
-    inc countC
-    if countC > 1:
-      return m.match  # only replace first
-    m.match & serviceJs
+  result = result.replace(
+    readyPattern,
+    proc(m: RegexMatch): string =
+      inc countC
+      if countC > 1:
+        return m.match # only replace first
+      m.match & serviceJs,
   )
   if countC >= 1:
     echo &"  [OK] Patch C: CoworkSpaces service injected ({countC} match)"

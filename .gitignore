@@ -22,6 +22,12 @@ claude-desktop-linux-flake/
 *.swp
 *~
 
+# Tool caches
+.claude/
+.playwright-mcp/
+cache/
+tmp-asar-extract/
+
 # System files
 .DS_Store
 Thumbs.db

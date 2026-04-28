@@ -9,6 +9,7 @@
 #   2  chillingSlothLocal (no-op -- inherently supported on Linux)
 #   3  mC() async merger overrides
 #   3b coworkKappa GrowthBook flag 123929380
+#   3c coworkArtifacts GrowthBook flag 2940196192
 #   4  preferences defaults (quietPenguinEnabled / louderPenguinEnabled)
 #   5  HTTP header platform spoof
 #   5b User-Agent header spoof
@@ -21,7 +22,7 @@
 import std/[os, strformat, strutils]
 import std/nre
 
-const EXPECTED_PATCHES = 11
+const EXPECTED_PATCHES = 14
 
 proc apply*(input: string): string =
   result = input
@@ -29,13 +30,15 @@ proc apply*(input: string): string =
   var patchesApplied = 0
 
   # Patch 1: Remove platform!=="darwin" gate from chillingSlothFeat and quietPenguin
-  let pattern1 = re"""(function )([\w$]+)(\(\)\{return )process\.platform!=="darwin"\?\{status:"unavailable"\}:(\{status:"supported"\}\})"""
+  let pattern1 =
+    re"""(function )([\w$]+)(\(\)\{return )process\.platform!=="darwin"\?\{status:"unavailable"\}:(\{status:"supported"\}\})"""
 
   var matches: seq[RegexMatch] = @[]
   var pos = 0
   while true:
     let m = result.find(pattern1, pos)
-    if m.isNone: break
+    if m.isNone:
+      break
     matches.add(m.get())
     pos = m.get().matchBounds.b + 1
 
@@ -64,17 +67,23 @@ proc apply*(input: string): string =
     quit(1)
 
   # Patch 1b: Bypass yukonSilver (NH) platform gate on Linux
-  let nhPatternOld = re"""(function [\w$]+\(\)\{)(const ([\w$]+)=process\.platform;if\(\3!=="darwin"&&\3!=="win32"\)return\{status:"unsupported",reason:`Unsupported platform: \$\{\3\}`\})"""
-  let nhPatternNew = re"""(function [\w$]+\(\)\{)(const ([\w$]+)=process\.platform;if\(\3!=="darwin"&&\3!=="win32"\)return\{status:"unsupported",reason:[\w$]+\.formatMessage\(\{defaultMessage:"Cowork is not currently supported on \{platform\}"(?:,id:"[^"]*")?\},\{platform:[\w$]+\(\)\}\),unsupportedCode:"unsupported_platform"\};)"""
+  let nhPatternOld =
+    re"""(function [\w$]+\(\)\{)(const ([\w$]+)=process\.platform;if\(\3!=="darwin"&&\3!=="win32"\)return\{status:"unsupported",reason:`Unsupported platform: \$\{\3\}`\})"""
+  # reason: can be either Qe.formatMessage (old) or Qe().formatMessage (new, v1.4758+)
+  let nhPatternNew =
+    re"""(function [\w$]+\(\)\{)(const ([\w$]+)=process\.platform;if\(\3!=="darwin"&&\3!=="win32"\)return\{status:"unsupported",reason:[\w$]+(?:\(\))?\.formatMessage\(\{defaultMessage:"Cowork is not currently supported on \{platform\}"(?:,id:"[^"]*")?\},\{platform:[\w$]+\(\)\}\),unsupportedCode:"unsupported_platform"\};)"""
 
   if "if(process.platform===\"linux\")return{status:\"supported\"};const" in result:
     echo "  [OK] yukonSilver (NH): already patched"
     inc patchesApplied
   else:
     var count1b = 0
-    let nhResult = result.replace(nhPatternOld, proc(m: RegexMatch): string =
-      inc count1b
-      m.captures[0] & "if(process.platform===\"linux\")return{status:\"supported\"};" & m.captures[1]
+    let nhResult = result.replace(
+      nhPatternOld,
+      proc(m: RegexMatch): string =
+        inc count1b
+        m.captures[0] & "if(process.platform===\"linux\")return{status:\"supported\"};" &
+          m.captures[1],
     )
     if count1b >= 1:
       result = nhResult
@@ -82,9 +91,12 @@ proc apply*(input: string): string =
       inc patchesApplied
     else:
       var count1bNew = 0
-      let nhResult2 = result.replace(nhPatternNew, proc(m: RegexMatch): string =
-        inc count1bNew
-        m.captures[0] & "if(process.platform===\"linux\")return{status:\"supported\"};" & m.captures[1]
+      let nhResult2 = result.replace(
+        nhPatternNew,
+        proc(m: RegexMatch): string =
+          inc count1bNew
+          m.captures[0] & "if(process.platform===\"linux\")return{status:\"supported\"};" &
+            m.captures[1],
       )
       if count1bNew >= 1:
         result = nhResult2
@@ -99,7 +111,8 @@ proc apply*(input: string): string =
   inc patchesApplied
 
   # Patch 3: Override features in mC() async merger
-  let overrides = ",quietPenguin:{status:\"supported\"},louderPenguin:{status:\"supported\"},chillingSlothFeat:{status:\"supported\"},chillingSlothLocal:{status:\"supported\"},yukonSilver:{status:\"supported\"},yukonSilverGems:{status:\"supported\"},ccdPlugins:{status:\"supported\"},computerUse:{status:\"supported\"},coworkKappa:{status:\"supported\"}"
+  let overrides =
+    ",quietPenguin:{status:\"supported\"},louderPenguin:{status:\"supported\"},chillingSlothFeat:{status:\"supported\"},chillingSlothLocal:{status:\"supported\"},chillingSlothPool:{status:\"supported\"},yukonSilver:{status:\"supported\"},yukonSilverGems:{status:\"supported\"},ccdPlugins:{status:\"supported\"},computerUse:{status:\"supported\"},coworkKappa:{status:\"supported\"},coworkArtifacts:{status:\"supported\"},markTaskComplete:{status:\"supported\"}"
 
   # New format: return{...FUNC(),...props}};
   let pattern3New = re"(return\{\.\.\.(?:[\w$]+)\(\),[^}]+)(\}\};)"
@@ -109,19 +122,23 @@ proc apply*(input: string): string =
     let endTag = "}};"
     let insertPos = bounds.b + 1 - endTag.len
     result = result[0 ..< insertPos] & overrides & endTag & result[bounds.b + 1 .. ^1]
-    echo "  [OK] mC() feature merger: 9 features overridden (1 match)"
+    echo "  [OK] mC() feature merger: 12 features overridden (1 match)"
     inc patchesApplied
   else:
     # Fallback: old format
-    let pattern3Old = re"(const [\w$]+=async\(\)=>\(\{\.\.\.[\w$]+\(\),[^}]+)(await [\w$]+\(\))\}\)"
+    let pattern3Old =
+      re"(const [\w$]+=async\(\)=>\(\{\.\.\.[\w$]+\(\),[^}]+)(await [\w$]+\(\))\}\)"
     var count3 = 0
-    result = result.replace(pattern3Old, proc(m: RegexMatch): string =
-      inc count3
-      if count3 > 1: return m.match
-      m.captures[0] & m.captures[1] & overrides & "})"
+    result = result.replace(
+      pattern3Old,
+      proc(m: RegexMatch): string =
+        inc count3
+        if count3 > 1:
+          return m.match
+        m.captures[0] & m.captures[1] & overrides & "})",
     )
     if count3 >= 1:
-      echo &"  [OK] mC() feature merger: 9 features overridden (old format, {count3} match)"
+      echo &"  [OK] mC() feature merger: 12 features overridden (old format, {count3} match)"
       inc patchesApplied
     else:
       echo "  [FAIL] mC() feature merger: 0 matches, expected 1"
@@ -130,9 +147,11 @@ proc apply*(input: string): string =
   # Patch 3b: Enable coworkKappa GrowthBook flag (123929380) on Linux
   let kappaPattern = re"""[\w$]+\("123929380"\)"""
   var kappaApplied = 0
-  result = result.replace(kappaPattern, proc(m: RegexMatch): string =
-    inc kappaApplied
-    "!0"
+  result = result.replace(
+    kappaPattern,
+    proc(m: RegexMatch): string =
+      inc kappaApplied
+      "!0",
   )
   if kappaApplied >= 3:
     echo &"  [OK] coworkKappa flag 123929380: forced ON ({kappaApplied} matches)"
@@ -142,6 +161,57 @@ proc apply*(input: string): string =
     failed = true
   else:
     echo "  [FAIL] coworkKappa flag 123929380: 0 matches"
+    failed = true
+
+  # Patch 3c: Enable coworkArtifacts GrowthBook flag (2940196192) on Linux
+  let artifactsPattern = re"""[\w$]+\("2940196192"\)"""
+  var artifactsApplied = 0
+  result = result.replace(
+    artifactsPattern,
+    proc(m: RegexMatch): string =
+      inc artifactsApplied
+      "!0",
+  )
+  if artifactsApplied >= 3:
+    echo &"  [OK] coworkArtifacts flag 2940196192: forced ON ({artifactsApplied} matches)"
+    inc patchesApplied
+  elif artifactsApplied > 0:
+    echo &"  [FAIL] coworkArtifacts flag 2940196192: only {artifactsApplied}/3 matches"
+    failed = true
+  else:
+    echo "  [FAIL] coworkArtifacts flag 2940196192: 0 matches"
+    failed = true
+
+  # Patch 3d: Enable chillingSlothPool GrowthBook flag (1992087837) on Linux
+  let poolPattern = re"""[\w$]+\("1992087837"\)"""
+  var poolApplied = 0
+  result = result.replace(
+    poolPattern,
+    proc(m: RegexMatch): string =
+      inc poolApplied
+      "!0",
+  )
+  if poolApplied >= 1:
+    echo &"  [OK] chillingSlothPool flag 1992087837: forced ON ({poolApplied} matches)"
+    inc patchesApplied
+  else:
+    echo "  [FAIL] chillingSlothPool flag 1992087837: 0 matches"
+    failed = true
+
+  # Patch 3e: Enable markTaskComplete GrowthBook flag (3732274605) on Linux
+  let mtcPattern = re"""[\w$]+\("3732274605"\)"""
+  var mtcApplied = 0
+  result = result.replace(
+    mtcPattern,
+    proc(m: RegexMatch): string =
+      inc mtcApplied
+      "!0",
+  )
+  if mtcApplied >= 1:
+    echo &"  [OK] markTaskComplete flag 3732274605: forced ON ({mtcApplied} matches)"
+    inc patchesApplied
+  else:
+    echo "  [FAIL] markTaskComplete flag 3732274605: 0 matches"
     failed = true
 
   # Patch 4: Change preferences defaults for Code features
@@ -161,15 +231,21 @@ proc apply*(input: string): string =
     quit(1)
 
   # Patch 5: Spoof platform as "darwin" in HTTP headers
-  let headerPattern = re"(const [\w$]+=[\w$]+\.app\.getVersion\(\),)([\w$]+)(=)([\w$]+)(\.platform,)([\w$]+)(=\4\.getSystemVersion\(\)[;,])"
+  let headerPattern =
+    re"(const [\w$]+=[\w$]+\.app\.getVersion\(\),)([\w$]+)(=)([\w$]+)(\.platform,)([\w$]+)(=\4\.getSystemVersion\(\)[;,])"
   var count5 = 0
-  result = result.replace(headerPattern, proc(m: RegexMatch): string =
-    inc count5
-    if count5 > 1: return m.match
-    let platVar = m.captures[1]
-    let osMod = m.captures[3]
-    let verVar = m.captures[5]
-    m.captures[0] & platVar & m.captures[2] & "process.platform===\"linux\"?\"darwin\":" & osMod & m.captures[4] & verVar & m.captures[6]
+  result = result.replace(
+    headerPattern,
+    proc(m: RegexMatch): string =
+      inc count5
+      if count5 > 1:
+        return m.match
+      let platVar = m.captures[1]
+      let osMod = m.captures[3]
+      let verVar = m.captures[5]
+      m.captures[0] & platVar & m.captures[2] &
+        "process.platform===\"linux\"?\"darwin\":" & osMod & m.captures[4] & verVar &
+        m.captures[6],
   )
   if count5 >= 1:
     echo &"  [OK] HTTP header platform spoof: {count5} match(es)"
@@ -184,15 +260,18 @@ proc apply*(input: string): string =
   # Patch 5b: Spoof User-Agent header
   let uaPattern = re"(let )([\w$]+)(=)([\w$]+)(;)([\w$]+\.set\(""user-agent"",)\2(\))"
   var count5b = 0
-  result = result.replace(uaPattern, proc(m: RegexMatch): string =
-    inc count5b
-    if count5b > 1: return m.match
-    let varName = m.captures[1]
-    let orig = m.captures[3]
-    m.captures[0] & varName & m.captures[2] & orig & m.captures[4] &
-      "if(process.platform===\"linux\"){" & varName & "=" & varName &
-      ".replace(/X11; Linux [^)]+/g,\"Macintosh; Intel Mac OS X 10_15_7\")}" &
-      m.captures[5] & varName & m.captures[6]
+  result = result.replace(
+    uaPattern,
+    proc(m: RegexMatch): string =
+      inc count5b
+      if count5b > 1:
+        return m.match
+      let varName = m.captures[1]
+      let orig = m.captures[3]
+      m.captures[0] & varName & m.captures[2] & orig & m.captures[4] &
+        "if(process.platform===\"linux\"){" & varName & "=" & varName &
+        ".replace(/X11; Linux [^)]+/g,\"Macintosh; Intel Mac OS X 10_15_7\")}" &
+        m.captures[5] & varName & m.captures[6],
   )
   if count5b >= 1:
     echo &"  [OK] User-Agent header spoof: {count5b} match(es)"
@@ -205,12 +284,17 @@ proc apply*(input: string): string =
     quit(1)
 
   # Patch 6: Spoof platform in getSystemInfo IPC response
-  let sysinfoPattern = re"(platform:)process\.platform(,arch:process\.arch,total_memory:[\w$]+\.totalmem\(\))"
+  let sysinfoPattern =
+    re"(platform:)process\.platform(,arch:process\.arch,total_memory:[\w$]+\.totalmem\(\))"
   var count6 = 0
-  result = result.replace(sysinfoPattern, proc(m: RegexMatch): string =
-    inc count6
-    if count6 > 1: return m.match
-    m.captures[0] & "(process.platform===\"linux\"?\"win32\":process.platform)" & m.captures[1]
+  result = result.replace(
+    sysinfoPattern,
+    proc(m: RegexMatch): string =
+      inc count6
+      if count6 > 1:
+        return m.match
+      m.captures[0] & "(process.platform===\"linux\"?\"win32\":process.platform)" &
+        m.captures[1],
   )
   if count6 >= 1:
     echo &"  [OK] getSystemInfo platform spoof: {count6} match(es)"
@@ -249,7 +333,7 @@ when isMainModule:
 
   # Patch 7: Spoof window.process.platform in mainView.js preload
   let mainviewPath = filePath.parentDir / "mainView.js"
-  var patchesApplied = EXPECTED_PATCHES - 2  # patches 1-6 + 3b + 4 = 9 so far
+  var patchesApplied = EXPECTED_PATCHES - 2 # patches 1-6 + 3b + 4 = 9 so far
 
   # Count patches from apply (we need to recalculate since apply already counted them)
   # Just handle patches 7 and 8 here
@@ -258,13 +342,18 @@ when isMainModule:
     var mvContent = readFile(mainviewPath)
     let mvOriginal = mvContent
 
-    let mvPattern = re"(Object\.fromEntries\(Object\.entries\(process\)\.filter\(\(\[[\w$]+\]\)=>[\w$]+\[[\w$]+\]\)\);)([\w$]+)(\.version=[\w$]+\(\)\.appVersion;)"
+    let mvPattern =
+      re"(Object\.fromEntries\(Object\.entries\(process\)\.filter\(\(\[[\w$]+\]\)=>[\w$]+\[[\w$]+\]\)\);)([\w$]+)(\.version=[\w$]+\(\)\.appVersion;)"
     var mvCount = 0
-    mvContent = mvContent.replace(mvPattern, proc(m: RegexMatch): string =
-      inc mvCount
-      if mvCount > 1: return m.match
-      let procVar = m.captures[1]
-      m.captures[0] & procVar & m.captures[2] & "if(process.platform===\"linux\"){" & procVar & ".platform=\"win32\"}"
+    mvContent = mvContent.replace(
+      mvPattern,
+      proc(m: RegexMatch): string =
+        inc mvCount
+        if mvCount > 1:
+          return m.match
+        let procVar = m.captures[1]
+        m.captures[0] & procVar & m.captures[2] & "if(process.platform===\"linux\"){" &
+          procVar & ".platform=\"win32\"}",
     )
     if mvCount >= 1:
       echo &"  [OK] mainView.js: window.process.platform spoof ({mvCount} match)"
@@ -293,16 +382,14 @@ when isMainModule:
     patchesApplied += 1
   else:
     let navSpoofJs =
-      "if(process.platform===\"linux\"){" &
-      "const __nav_spoof_applied=!0;" &
+      "if(process.platform===\"linux\"){" & "const __nav_spoof_applied=!0;" &
       "const __oUA=require(\"electron\").app.userAgentFallback||\"\";" &
       "require(\"electron\").app.userAgentFallback=" &
       "__oUA.replace(/X11; Linux [^)]+/g,\"Windows NT 10.0; Win64; x64\");" &
       "const __navJS=\"try{Object.defineProperty(navigator,\\\"platform\\\",{get:()=>\\\"Win32\\\",configurable:!0})}catch(e){}\";" &
       "require(\"electron\").app.on(\"web-contents-created\",(ev,wc)=>{" &
       "wc.on(\"did-navigate\",()=>{wc.executeJavaScript(__navJS).catch(()=>{})});" &
-      "wc.on(\"dom-ready\",()=>{wc.executeJavaScript(__navJS).catch(()=>{})})" &
-      "})" &
+      "wc.on(\"dom-ready\",()=>{wc.executeJavaScript(__navJS).catch(()=>{})})" & "})" &
       "}"
     let strictPrefix = "\"use strict\";"
     if content.startsWith(strictPrefix):
@@ -315,7 +402,7 @@ when isMainModule:
       quit(1)
 
   # Strictness check
-  if patchesApplied < 2:  # patches 7 and 8
+  if patchesApplied < 2: # patches 7 and 8
     echo &"  [FAIL] Only {patchesApplied}/2 mainModule patches applied"
     quit(1)
 
