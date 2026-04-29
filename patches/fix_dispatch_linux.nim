@@ -22,29 +22,33 @@ proc apply*(input: string): string =
   var patchesApplied = 0
 
   # -- Patch A: Force sessions-bridge init gate ON --
-  # Backreference: (\2) ensures captured gate var matches the one in the if-check
-  let gateAlready =
-    re"""let (?:[\w$]+=!(?:0|1),)*[\w$]+=!0;const [\w$]+=async\(\)=>\{if\(![\w$]+\)\{[\w$]+\.info\("\[sessions-bridge\] init skipped"""
-  if result.find(gateAlready).isSome:
-    echo "  [OK] Sessions-bridge gate: already patched (skipped)"
-    inc patchesApplied
-  else:
-    let gatePattern =
-      re"(let (?:[\w$]+=!1,)*)([\w$]+)(=)(!1)(;const [\w$]+=async\(\)=>\{if\(!\2\)\{[\w$]+\.info\(""\[sessions-bridge\] init skipped)"
-    var countA = 0
-    result = result.replace(
-      gatePattern,
-      proc(m: RegexMatch): string =
-        inc countA
-        if countA > 1:
-          return m.match
-        m.captures[0] & m.captures[1] & m.captures[2] & "!0" & m.captures[4],
-    )
-    if countA >= 1:
-      echo &"  [OK] Sessions-bridge gate: forced ON ({countA} match)"
+  # Strategy: find the gate variable name from the if-check near
+  # "[sessions-bridge] init skipped", then flip its =!1 to =!0 in the let decl.
+  # The gate var may appear anywhere in the comma-separated let list (not
+  # necessarily last), so we avoid a single backreference-based regex.
+  let gateFinderRe =
+    re"""let (?:[\w$]+=![01],)*[\w$]+=![01];const [\w$]+=async\(\)=>\{if\(!([\w$]+)\)\{[\w$]+\.info\("\[sessions-bridge\] init skipped"""
+  let gateFinderMatch = result.find(gateFinderRe)
+  if gateFinderMatch.isSome:
+    let m = gateFinderMatch.get()
+    let gateVar = m.captures[0]
+    # Check if it's already patched (=!0)
+    if (gateVar & "=!0") in m.match:
+      echo "  [OK] Sessions-bridge gate: already patched (skipped)"
       inc patchesApplied
     else:
-      echo "  [FAIL] Sessions-bridge gate: pattern not found"
+      # Replace gateVar=!1 with gateVar=!0 near the init function.
+      # We match the whole let...;const... span to ensure we only touch the right one.
+      let fullSpan = m.match
+      let patched = fullSpan.replace(gateVar & "=!1", gateVar & "=!0")
+      if patched != fullSpan:
+        result = result.replace(fullSpan, patched)
+        echo &"  [OK] Sessions-bridge gate: forced {gateVar}=!0"
+        inc patchesApplied
+      else:
+        echo &"  [FAIL] Sessions-bridge gate: found gate var '{gateVar}' but could not flip to !0"
+  else:
+    echo "  [FAIL] Sessions-bridge gate: pattern not found"
 
   # -- Patch B: Bypass remote session control check --
   let remotePattern = re"""![\w$]+\("2216414644"\)"""

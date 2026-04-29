@@ -1,4 +1,4 @@
-# Built-in MCP Servers — Claude Desktop v1.3883.0
+# Built-in MCP Servers — Claude Desktop v1.5354.0
 
 Claude Desktop registers internal MCP servers via a two-layer architecture:
 
@@ -10,14 +10,14 @@ A server may appear in both layers (e.g., Chrome, mcp-registry) or only one.
 ## Registration System
 
 ```
-gpA(serverName, displayLabel, factoryFn)   // v1.3561.0 (was DfA() in v1.3109.0, kce() in v1.3036.0)
+qwA(serverName, displayLabel, factoryFn)   // v1.5354.0 (was gpA() in v1.3561.0, DfA() in v1.3109.0, kce() in v1.3036.0)
 ```
 
-- Lazy singleton factory per server name; stored in `RL` (registry) + `VJA` (display labels)
+- Lazy singleton factory per server name; stored in `MG` (registry) + `VqA` (display labels)
 - UUID display label sent to renderer for identification
-- `v7()` enumerates registered server names via `Object.keys(RL)`
+- `Y7()` enumerates registered server names via `Object.keys(MG)`
 
-## Renderer-Facing Servers (via `gpA()`)
+## Renderer-Facing Servers (via `qwA()`)
 
 ### 1. Claude in Chrome
 
@@ -93,7 +93,7 @@ Communicates via WebSocket to `wss://localhost:8766` (configurable via `OFFICE_A
 | `open_office_file` | Open an Office file and the Claude add-in panel |
 | `close_office_file` | Close a currently open Office file |
 
-## Backend-Only Servers (not registered via `gpA()`)
+## Backend-Only Servers (not registered via `qwA()`)
 
 These are accessible to CCD/Cowork sessions but not directly from the renderer.
 
@@ -301,7 +301,7 @@ The `spawn_task` tool requires desktop approval card injection — cannot be aut
 
 ## Per-Session Dynamic MCP Servers (SDK-type)
 
-Claude Desktop creates 4 additional MCP servers **dynamically per cowork/dispatch session**. These are NOT registered via `gpA()` — they are created inline in the session manager and passed to the Claude Code CLI via `sdkMcpServers` in `--mcp-config`.
+Claude Desktop creates 4 additional MCP servers **dynamically per cowork/dispatch session**. These are NOT registered via `qwA()` — they are created inline in the session manager and passed to the Claude Code CLI via `sdkMcpServers` in `--mcp-config`.
 
 **Communication:** SDK-type servers use `MessagePort` bridges. On Mac/Windows, the VM SDK daemon (`nodeHost.js`) provides this bridge via vsock. On Linux native, `cowork-svc-linux` now **passes `--mcp-config` through unchanged** (since commit `d1dfc3b`). The CLI sends `control_request` messages on stdout, which flow through the event stream to Claude Desktop. Desktop's session manager intercepts them and sends `control_response` back via writeStdin — identical to VM mode on Mac/Windows.
 
@@ -564,6 +564,7 @@ When active, Operon provides 14 "brain tools" (multi-agent delegation, skills, d
 
 | Version | Changes |
 |---------|---------|
+| v1.5354.0 | Registration function renamed `qwA()` (was `gpA()`). Registry storage `RL`→`MG`, labels `VJA`→`VqA`, enumerator `v7()`→`Y7()`. No new MCP servers, no new tools — same 17 servers (3 renderer-facing + 14 backend). Three patches fixed: `fix_window_bounds` (profile title hook insertion reordering), `fix_dispatch_linux` (gate variable position change), `fix_dispatch_outputs_dir` (new `Tc()` path wrapper in `openPath`). All 44 patches compatible. |
 | v1.3561.0 | Registration function renamed `gpA()` (was `DfA()`). Platform gate variables `WhA`→`bfA` (darwin\|\|win32), `en` unchanged (darwin), `ws`→`ys` (win32). Computer-use Set `ele`→`rwA`, checker `Jne()`→`nBA()`. No new MCP servers, no new tools — same 17 servers (3 renderer-facing + 14 backend). Webpack re-minify only. All patches compatible. |
 | v1.3109.0 | Registration function renamed `DfA()` (was `kce()`). Platform gate variables `UMe`→`WhA` (darwin\|\|win32), `hi`→`en` (darwin), `xce`→`ws` (win32). No new MCP servers, no new tools — same 17 servers (3 renderer-facing + 14 backend). Webpack re-minify only. All patches compatible. |
 | v1.3036.0 | Registration function renamed `kce()` (was `ooe()`). Platform gate variable `r6e`→`UMe`, win32 `vs`→`xce`. No new MCP servers, no new tools — same 17 servers. Variable renames only. All patches compatible. |

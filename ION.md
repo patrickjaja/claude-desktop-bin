@@ -1,6 +1,6 @@
 # ion-dist Baseline — Third-Party Inference SPA
 
-**Last verified:** 2026-04-23 against v1.3883.0
+**Last verified:** 2026-04-29 against v1.5354.0
 
 The `ion-dist/` directory is a standalone React SPA bundled inside `locales/ion-dist/`. It powers the **Configure Third-Party Inference** UI (Developer menu). Served by the Electron main process via the `app://` protocol handler.
 
@@ -8,11 +8,11 @@ The `ion-dist/` directory is a standalone React SPA bundled inside `locales/ion-
 
 | Metric | Value |
 |--------|-------|
-| Total size | 85 MB, 842 files |
-| JS chunks | 624 files in `assets/v1/` (68 MB) |
+| Total size | 105 MB, 1612 files |
+| JS chunks | 660 files in `assets/v1/` |
 | CSS | 22 files |
 | Fonts | 31 woff2 + 21 ttf + 20 woff |
-| Images | 25 PNG, 18 SVG, 15 GIF |
+| Images | 25 PNG, 18 SVG, 17 GIF |
 | Audio | 25 MP3, 1 WebM, 1 MOV |
 | WASM | 1 file |
 | i18n | 11 languages (de, en, es, es-419, fr, hi, id, it, ja, ko, pt-BR) + `.overrides.json` sidecars + `statsig/` variants |
@@ -22,12 +22,12 @@ The `ion-dist/` directory is a standalone React SPA bundled inside `locales/ion-
 | File | Size | Role |
 |------|------|------|
 | `index.html` | 3.7 KB | SPA entry, loads `index-*.js` via `<script type="module">` |
-| `assets/v1/index-*.js` | ~7.6 MB | Main bundle (React app, API client, UI components) |
-| `assets/v1/vendor-*.js` | ~2.0 MB | Third-party vendor libs |
-| `assets/v1/c71860c77-*.js` | ~204 KB | 3P config UI (settings form, org-plugins, export) — **patched** |
+| `assets/v1/index-*.js` | ~7.9 MB | Main bundle (React app, API client, UI components) |
+| `assets/v1/vendor-*.js` | ~1.5 MB | Third-party vendor libs |
+| `assets/v1/c71860c77-*.js` | 12 files (main: ~223 KB) | 3P config UI, code-split into 12 lazy-loaded chunks — **main chunk patched** |
 | `assets/v1/tree-sitter-*.js` | — | Code parsing (tree-sitter WASM bindings) |
 
-Filenames include content hashes (e.g., `index-BlXy9TJN.js`) that change every upstream release.
+Filenames include content hashes (e.g., `index-BNbM_KX7.js`) that change every upstream release.
 
 ## How It's Served
 
@@ -59,11 +59,11 @@ Platform enum in the SPA (`U3`): `Darwin="darwin"`, `Win32="win32"`, `Linux="lin
 ```js
 mountPath:{mac:"/Library/Application Support/Claude/org-plugins",win:"%ProgramFiles%\\Claude\\org-plugins",caption:"..."}
 ```
-No `linux` key. Display component falls back: `r===W.Win32?t.win:t.mac`.
+No `linux` key. Display component falls back: `r===X.Win32?t.win:t.mac`.
 
 **Patched by `fix_ion_dist_linux.nim`:**
 - Adds `linux:"/etc/claude-desktop/org-plugins"` to mountPath
-- Changes ternary to `r===W.Win32?t.win:r===W.Linux?t.linux:t.mac`
+- Changes ternary to `r===X.Win32?t.win:r===X.Linux?t.linux:t.mac`
 
 ### 2. Export Formats
 
@@ -121,6 +121,8 @@ The 3P config supports these key categories (defined in the SPA's Zod schema):
 - **Models:** `inferenceModels` (supports `1m` context variant)
 - **Sandbox:** `disabledBuiltinTools`, `allowedWorkspaceFolders`, `coworkEgressAllowedHosts`, `isClaudeCodeForDesktopEnabled`
 - **Connectors:** `managedMcpServers`, `isLocalDevMcpEnabled`, `isDesktopExtensionEnabled`, `isDesktopExtensionDirectoryEnabled`, `isDesktopExtensionSignatureRequired`
+- **MCP server sub-schema (new in v1.5354.0):** `headersHelper`, `headersHelperTtlSec`, `oauth` (union: boolean or {clientId, tenantId?, scope?}), `transport` (enum: "http"|"sse"), `toolPolicy` (record: tool→"allow"|"ask"|"blocked"), `source` (enum: "mdm"|"org-plugin"|"user")
+- **IPC (new in v1.5354.0):** `probeEgressHosts` (egress connectivity probe)
 - **Telemetry:** `disableEssentialTelemetry`, `disableNonessentialTelemetry`, `disableNonessentialServices`, `disableAutoUpdates`, `autoUpdaterEnforcementHours`
 - **OTLP:** `otlpEndpoint`, `otlpProtocol`, `otlpHeaders`
 - **Usage limits:** `inferenceMaxTokensPerWindow`, `inferenceTokenWindowHours`
