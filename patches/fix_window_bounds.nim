@@ -37,11 +37,9 @@ proc apply*(input: string): string =
     applied.add("bounds-fix(skip)")
   else:
     # Pattern uses \2 backreference for winVar.
-    # The `.*?` between BrowserWindow(...) and the MAIN_WINDOW setup call
-    # tolerates other patches injecting comma-expressions in that gap (e.g.
-    # fix_profile_window_title's title hook).
+    # Allow optional code (e.g. profile title hook) between BrowserWindow() and the setup call.
     let mainWinPattern =
-      nre.re"(function [\w$]+\([\w$]+\)\{return )([\w$]+)=new ([\w$]+)\.BrowserWindow\(([\w$]+)\),(.*?[\w$]+\(\2\.webContents,[\w$]+\.MAIN_WINDOW\)),\2\}"
+      nre.re"(function [\w$]+\([\w$]+\)\{return )([\w$]+)=new ([\w$]+)\.BrowserWindow\(([\w$]+)\),(.*?)([\w$]+\(\2\.webContents,[\w$]+\.MAIN_WINDOW\)),\2\}"
 
     let m1 = result.find(mainWinPattern)
     if m1.isSome:
@@ -50,11 +48,12 @@ proc apply*(input: string): string =
       let winVar = m.captures[1]
       let electronVar = m.captures[2]
       let paramVar = m.captures[3]
-      let setupCall = m.captures[4]
+      let midCode = m.captures[4]
+      let setupCall = m.captures[5]
       let iife = BOUNDS_FIX_JS & "(" & winVar & ")"
       let replacement =
         prefix & winVar & "=new " & electronVar & ".BrowserWindow(" & paramVar & ")," &
-        setupCall & "," & iife & "," & winVar & "}"
+        midCode & setupCall & "," & iife & "," & winVar & "}"
       result =
         result[0 ..< m.matchBounds.a] & replacement & result[m.matchBounds.b + 1 .. ^1]
       echo "  [OK] Window bounds fix + size jiggle injected: 1 match(es)"

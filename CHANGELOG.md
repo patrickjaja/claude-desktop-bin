@@ -2,6 +2,31 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-29 — Marketplace plugin scope fix
+
+- **Fix:** Personal plugins installed via Claude Code CLI now appear under "Personal Plugins" instead of the current project header ([#74](https://github.com/patrickjaja/claude-desktop-bin/issues/74), [#75](https://github.com/patrickjaja/claude-desktop-bin/pull/75)). The CLI stores personal plugins with `scope="project"` + `projectPath=$HOME`, and since `$HOME` is a prefix of every project path, they matched the project branch instead of the user branch. New sub-patch B in `fix_marketplace_linux.nim` promotes these entries to `scope="user"` at read time (on-disk JSON unchanged). — contributed by [@boommasterxd](https://github.com/boommasterxd)
+- **Hardened:** Moved `patchesApplied` counter inside `proc apply*` (codebase convention), added `process.env.HOME` guard against undefined, added brace-balance verification
+
+---
+
+## 2026-04-29 (v1.5354.0) — Upstream update, 3 patches fixed, 2 new dev-gated features, 13 new GrowthBook flags
+
+- **Version bump:** v1.4758.0 → v1.5354.0
+- **Fixed patches:**
+  - `fix_window_bounds.nim` — regex now tolerates optional code (profile title hook) between BrowserWindow creation and setup call
+  - `fix_dispatch_linux.nim` — sessions-bridge gate variable no longer assumed to be last in `let` declaration; uses two-step find-then-replace approach
+  - `fix_dispatch_outputs_dir.nim` — upstream added `Tc()` path-translation wrapper in `shell.openPath()`; regex updated to optionally match wrapper function
+- **New upstream features (dev-gated, no action needed):**
+  - `framebufferPreview` — VNC framebuffer preview (GrowthBook `1928275548`), gated by `MW()` production gate
+  - `iosSimulator` — iOS Simulator integration, macOS-only + dev-gated
+- **New GrowthBook flags:** 13 new boolean flags (OAuth configs, memory sync, session notifications, updater rollback, PreToolUse hook, etc.), 2 new value flags, 1 new listener flag; 1 removed (`365342473` telemetry scrub)
+- **ion-dist SPA:** bundle grew from 85 MB / 842 files to 105 MB / 1612 files; config UI code-split into 12 lazy-loaded chunks; new MCP server sub-schema fields (`headersHelper`, `oauth`, `transport`, `toolPolicy`, `source`); new `probeEgressHosts` IPC method. Patched patterns unchanged — no patch updates needed.
+- **MCP registration:** `gpA()` → `qwA()`, registry `RL` → `MG`, labels `VJA` → `VqA`, enumerator `v7()` → `Y7()`
+- **Feature flag renames:** `d_()` → `v_()`, `$yA` → `ZDA`, `yFA()` → `MW()`, `zt()` → `Pt()`, `FG()` → `fM()`
+- **All 44 patches pass**, JS syntax validated
+
+---
+
 ## 2026-04-26 — Multiple Profiles (multi-instance support)
 
 Run several Claude Desktop windows side by side, each logged in to a different account, with fully isolated state for both Desktop and the Claude Code CLI it spawns. Closes [#58](https://github.com/patrickjaja/claude-desktop-bin/issues/58). — contributed by [@dcelasun](https://github.com/dcelasun) ([#70](https://github.com/patrickjaja/claude-desktop-bin/pull/70))
