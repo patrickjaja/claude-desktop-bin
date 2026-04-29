@@ -17,9 +17,7 @@
 #   D  pathToClaudeCodeExecutable (dynamic on Linux)
 #   E  error detection (extend /usr/local/bin/claude check)
 #   F  present_files (allow host outputs dir)
-#   G-mount  vmProcessId guard removal
-#   G-delete vmProcessId guard removal
-#   H  smol-bin copy gate (runtime-gated on kvm mode)
+#   G  smol-bin copy gate (runtime-gated on kvm mode)
 #
 # Patches always run on clean bundles — no "already patched" fast path.
 
@@ -50,7 +48,7 @@ proc apply*(input: string): string =
   var content = input
   let original = input
   var patchesApplied = 0
-  const EXPECTED_PATCHES = 11
+  const EXPECTED_PATCHES = 9
 
   # ── Patch 0: Mode preamble at file start (right after "use strict";) ──
   block:
@@ -227,37 +225,18 @@ proc apply*(input: string): string =
     else:
       echo "  [FAIL] F present_files: pattern not found"
 
-  # ── Patch G-mount: remove mountFolderForSession vmProcessId guard ──
-  block:
-    let pat = re"""if\s*\(\s*!\s*[a-zA-Z_$][\w$]*\s*\|\|\s*!\s*[a-zA-Z_$][\w$]*\s*\)\s*return\s*\{\s*ok\s*:\s*!\s*1\s*,\s*error\s*:\s*"Session VM process not available\. The session may not be fully initialized\."\s*\}\s*;?"""
-    let n = replaceAllRegex(content, pat, proc(m: RegexMatch): string = "")
-    if n >= 1:
-      echo &"  [OK] G-mount vmProcessId guard: removed ({n} match)"
-      inc patchesApplied
-    else:
-      echo "  [FAIL] G-mount vmProcessId guard: pattern not found"
 
-  # ── Patch G-delete: remove delete-permission vmProcessId guard ──
-  block:
-    let pat = re"""if\s*\(\s*!\s*[a-zA-Z_$][\w$]*\s*\)\s*return\s*\{\s*content\s*:\s*\[\s*\{\s*type\s*:\s*"text"\s*,\s*text\s*:\s*"Session VM process not available\. The session may not be fully initialized\."\s*\}\s*\]\s*,\s*isError\s*:\s*!\s*0\s*\}\s*;?"""
-    let n = replaceAllRegex(content, pat, proc(m: RegexMatch): string = "")
-    if n >= 1:
-      echo &"  [OK] G-delete vmProcessId guard: removed ({n} match)"
-      inc patchesApplied
-    else:
-      echo "  [FAIL] G-delete vmProcessId guard: pattern not found"
-
-  # ── Patch H: smol-bin copy gate — runtime-gated on kvm mode ──
+  # ── Patch G: smol-bin copy gate — runtime-gated on kvm mode ──
   block:
     let pat = re"""if\(process\.platform==="win32"\)(\{const [\w$]+=[\w$]+\(\),[\w$]+=[\w$]+\.join\(process\.resourcesPath,`smol-bin\.)"""
     let n = replaceAllRegex(content, pat, proc(m: RegexMatch): string =
       "if(process.platform===\"win32\"||process.platform===\"linux\"&&globalThis.__coworkKvmMode)" & m.captures[0]
     )
     if n >= 1:
-      echo &"  [OK] H smol-bin copy gate: kvm-mode Linux opt-in ({n} match)"
+      echo &"  [OK] G smol-bin copy gate: kvm-mode Linux opt-in ({n} match)"
       inc patchesApplied
     else:
-      echo "  [FAIL] H smol-bin copy gate: win32 gate pattern not found"
+      echo "  [FAIL] G smol-bin copy gate: win32 gate pattern not found"
 
   # ── Checks ────────────────────────────────────────────────────
   if patchesApplied < EXPECTED_PATCHES:

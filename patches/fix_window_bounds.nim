@@ -36,9 +36,12 @@ proc apply*(input: string): string =
     echo "  [INFO] Window bounds fix already injected"
     applied.add("bounds-fix(skip)")
   else:
-    # Pattern uses \2 backreference for winVar
+    # Pattern uses \2 backreference for winVar.
+    # The `.*?` between BrowserWindow(...) and the MAIN_WINDOW setup call
+    # tolerates other patches injecting comma-expressions in that gap (e.g.
+    # fix_profile_window_title's title hook).
     let mainWinPattern =
-      nre.re"(function [\w$]+\([\w$]+\)\{return )([\w$]+)=new ([\w$]+)\.BrowserWindow\(([\w$]+)\),([\w$]+\(\2\.webContents,[\w$]+\.MAIN_WINDOW\)),\2\}"
+      nre.re"(function [\w$]+\([\w$]+\)\{return )([\w$]+)=new ([\w$]+)\.BrowserWindow\(([\w$]+)\),(.*?[\w$]+\(\2\.webContents,[\w$]+\.MAIN_WINDOW\)),\2\}"
 
     let m1 = result.find(mainWinPattern)
     if m1.isSome:

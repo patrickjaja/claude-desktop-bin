@@ -523,7 +523,7 @@ proc apply*(input: string): string =
       echo "  [FAIL] rj pattern: 0 matches (computer-use tool calls may be blocked)"
 
   # ─── Tool description patches ────────────────────────────────────────
-  echo "  --- Tool description patches (non-fatal) ---"
+  echo "  --- Tool description patches ---"
   var descChanges = 0
 
   # 13a: Lf allowlist gate → empty on Linux
@@ -646,19 +646,21 @@ proc apply*(input: string): string =
       echo "  [FAIL] 13b.kwin-shell-grant desktop shell grant predicate: not found"
 
   # 13b.kwin-shell-detect: shell detection
+  # Function shape upstream:
+  #   function NAME(arg){if(arg===MAC_CONST)return!0;if(!X||!Y)return!1;...}
+  # We extend the early macOS-shell early-return with a kwin-mode plasmashell
+  # check so the "is this the desktop shell?" predicate accepts plasmashell on
+  # KDE Wayland too.
   block:
-    let pat = re"""(function [\w$]+\(([\w$]+)\)\{)return \2===([\w$]+)\?!0:!([\w$]+)\|\|!([\w$]+)\.has\(([\w$]+)\(\2\)\)\?!1:\2\.toLowerCase\(\)\.startsWith\(\4\)\}"""
+    let pat = re"""(function [\w$]+\(([\w$]+)\)\{)if\(\2===([\w$]+)\)return!0;(if\(![\w$]+\|\|![\w$]+\)return!1;)"""
     let n = replaceFirst(content, pat, proc(m: RegexMatch): string =
       let header = m.captures[0]
       let arg = m.captures[1]
       let macConst = m.captures[2]
-      let winPrefix = m.captures[3]
-      let winSet = m.captures[4]
-      let winNorm = m.captures[5]
-      header & "return " & arg & "===" & macConst & "||globalThis.__cuKwinMode&&(" &
-        arg & "===\"plasmashell\"||" & arg & "===\"org.kde.plasmashell\")?!0:!" &
-        winPrefix & "||!" & winSet & ".has(" & winNorm & "(" & arg & "))?!1:" &
-        arg & ".toLowerCase().startsWith(" & winPrefix & ")}"
+      let winGuard = m.captures[3]
+      header & "if(" & arg & "===" & macConst &
+        "||globalThis.__cuKwinMode&&(" & arg & "===\"plasmashell\"||" &
+        arg & "===\"org.kde.plasmashell\"))return!0;" & winGuard
     )
     if n >= 1:
       echo "  [OK] 13b.kwin-shell-detect: plasmashell recognized as shell (kwin-wayland only)"

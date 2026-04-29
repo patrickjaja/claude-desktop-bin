@@ -18,9 +18,11 @@ proc apply*(input: string): string =
     echo "  [OK] A openOutputsDir: already patched (skipped)"
     patchesApplied += 1
   else:
-    # Pattern uses backreferences \1, \5 to match repeated variable names
+    # Pattern uses backreferences \1, \5 to match repeated variable names.
+    # The 7th capture is the optional path-normalizing wrapper around the
+    # outputs dir (e.g. `kc(r)`); we preserve it when calling shell.openPath.
     let patternA =
-      re"""async openOutputsDir\(([\w$]+)\)\{const ([\w$]+)=([\w$]+)\.getOutputsDir\(\1\);([\w$]+)\.info\(`LocalAgentModeSessions\.openOutputsDir: sessionId=\$\{\1\}, outputsDir=\$\{\2\}`\);const ([\w$]+)=await ([\w$]+)\.shell\.openPath\(\2\);\5&&\4\.error\(`Failed to open outputs directory: \$\{\2\}, error: \$\{\5\}`\)\}"""
+      re"""async openOutputsDir\(([\w$]+)\)\{const ([\w$]+)=([\w$]+)\.getOutputsDir\(\1\);([\w$]+)\.info\(`LocalAgentModeSessions\.openOutputsDir: sessionId=\$\{\1\}, outputsDir=\$\{\2\}`\);const ([\w$]+)=await ([\w$]+)\.shell\.openPath\((?:([\w$]+)\()?\2\)?\);\5&&\4\.error\(`Failed to open outputs directory: \$\{\2\}, error: \$\{\5\}`\)\}"""
 
     let m = result.find(patternA)
     if m.isSome:
@@ -31,6 +33,8 @@ proc apply*(input: string): string =
       let L = match.captures[3] # logger
       let sv = match.captures[4] # error var
       let E = match.captures[5] # electron module
+      let wrapOpt = match.captures[6] # optional path-normalizer wrapper
+      let openArg = if wrapOpt.len > 0: wrapOpt & "(_td)" else: "_td"
 
       let replacement =
         "async openOutputsDir(" & p & "){" & "const " & d & "=" & c & ".getOutputsDir(" &
@@ -48,7 +52,7 @@ proc apply*(input: string): string =
         "if(_cf.length>0){" & L &
         ".info(`[openOutputsDir] found files in child: ${_co}`);_td=_co;break}" &
         "}catch(_e){}" & "}" & "}catch(_e){}" & "}" & "}catch(_e){}" & "const " & sv &
-        "=await " & E & ".shell.openPath(_td);" & sv & "&&" & L &
+        "=await " & E & ".shell.openPath(" & openArg & ");" & sv & "&&" & L &
         ".error(`Failed to open outputs directory: ${_td}, error: ${" & sv & "}`)" & "}"
 
       result =

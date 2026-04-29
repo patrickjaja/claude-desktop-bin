@@ -408,7 +408,7 @@ function dockableWindow(window) {
 
 function topRightDockBounds(display) {
   const margin = 20
-  const width = Math.max(240, Math.min(520, Math.round(display.width - margin)))
+  const width = Math.max(240, Math.min(600, Math.round(display.width - margin)))
   const height = Math.max(240, Math.min(720, Math.round(display.height - margin)))
   return {
     x: Math.round(display.originX + display.width - width - margin),
