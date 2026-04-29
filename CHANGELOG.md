@@ -2,6 +2,13 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-29 — Marketplace plugin scope fix
+
+- **Fix:** Personal plugins installed via Claude Code CLI now appear under "Personal Plugins" instead of the current project header ([#74](https://github.com/patrickjaja/claude-desktop-bin/issues/74), [#75](https://github.com/patrickjaja/claude-desktop-bin/pull/75)). The CLI stores personal plugins with `scope="project"` + `projectPath=$HOME`, and since `$HOME` is a prefix of every project path, they matched the project branch instead of the user branch. New sub-patch B in `fix_marketplace_linux.nim` promotes these entries to `scope="user"` at read time (on-disk JSON unchanged). — contributed by [@boommasterxd](https://github.com/boommasterxd)
+- **Hardened:** Moved `patchesApplied` counter inside `proc apply*` (codebase convention), added `process.env.HOME` guard against undefined, added brace-balance verification
+
+---
+
 ## 2026-04-29 (v1.5354.0) — Upstream update, 3 patches fixed, 2 new dev-gated features, 13 new GrowthBook flags
 
 - **Version bump:** v1.4758.0 → v1.5354.0
