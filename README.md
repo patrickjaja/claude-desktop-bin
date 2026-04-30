@@ -64,9 +64,7 @@ sudo pacman -S --needed xdotool scrot imagemagick wmctrl
 sudo pacman -S --needed ydotool grim jq
 # Wayland (Hyprland):
 sudo pacman -S --needed ydotool grim hyprland
-# Wayland (KDE Plasma) — bundled kwin-portal-bridge handles input+screenshots natively;
-# no extra packages needed. Optional fallbacks if bridge unavailable:
-# sudo pacman -S --needed ydotool xdotool spectacle imagemagick
+# Wayland (KDE Plasma) — no extra packages needed
 # Wayland (GNOME):
 sudo pacman -S --needed ydotool xdotool glib2 gnome-screenshot imagemagick python-gobject gst-plugin-pipewire
 # GNOME Wayland: enable Quick Entry hotkey (one-time, after install):
@@ -74,7 +72,7 @@ sudo pacman -S --needed ydotool xdotool glib2 gnome-screenshot imagemagick pytho
 # Optional: socat (faster Quick Entry toggle, ~2ms vs ~25ms python3 — not required)
 sudo pacman -S --needed socat
 ```
-On Wayland (except KDE Plasma — bundled `kwin-portal-bridge` handles input natively), the `ydotoold` daemon must be running — see [ydotool setup](#ydotool-setup-wayland).
+On Sway, Hyprland, or GNOME Wayland, the `ydotoold` daemon must be running — see [ydotool setup](#ydotool-setup-wayland).
 
 Updates arrive through your AUR helper (e.g. `yay -Syu`).
 
@@ -94,9 +92,7 @@ sudo apt install xdotool scrot imagemagick wmctrl
 sudo apt install ydotool grim jq
 # Wayland (Hyprland):
 sudo apt install ydotool grim hyprland
-# Wayland (KDE Plasma) — bundled kwin-portal-bridge handles input+screenshots natively;
-# no extra packages needed. Optional fallbacks if bridge unavailable:
-# sudo apt install ydotool xdotool kde-spectacle imagemagick
+# Wayland (KDE Plasma) — no extra packages needed
 # Wayland (GNOME):
 sudo apt install ydotool xdotool libglib2.0-bin gnome-screenshot imagemagick python3-gi gstreamer1.0-pipewire
 # GNOME Wayland: enable Quick Entry hotkey (one-time, after install):
@@ -105,7 +101,7 @@ sudo apt install ydotool xdotool libglib2.0-bin gnome-screenshot imagemagick pyt
 sudo apt install socat
 ```
 
-> **Wayland users (except KDE Plasma):** [Computer Use](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool) requires ydotool v1.0+, but Ubuntu/Debian ship v0.1.8 which is **too old**. Run the [ydotool setup script](#ydotool-setup-wayland) — without this, clicks will not work. KDE Plasma uses the bundled `kwin-portal-bridge` instead.
+> **Sway / Hyprland / GNOME Wayland users:** [Computer Use](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool) requires ydotool v1.0+, but Ubuntu/Debian ship v0.1.8 which is **too old**. Run the [ydotool setup script](#ydotool-setup-wayland) — without this, clicks will not work.
 
 Updates are automatic via `sudo apt update && sudo apt upgrade`.
 
@@ -134,9 +130,7 @@ sudo dnf install xdotool scrot ImageMagick wmctrl
 sudo dnf install ydotool grim jq
 # Wayland (Hyprland):
 sudo dnf install ydotool grim hyprland
-# Wayland (KDE Plasma) — bundled kwin-portal-bridge handles input+screenshots natively;
-# no extra packages needed. Optional fallbacks if bridge unavailable:
-# sudo dnf install ydotool xdotool spectacle ImageMagick
+# Wayland (KDE Plasma) — no extra packages needed
 # Wayland (GNOME):
 sudo dnf install ydotool xdotool glib2 gnome-screenshot ImageMagick python3-gobject gstreamer1-plugin-pipewire
 # GNOME Wayland: enable Quick Entry hotkey (one-time, after install):
@@ -144,7 +138,7 @@ sudo dnf install ydotool xdotool glib2 gnome-screenshot ImageMagick python3-gobj
 # Optional: socat (faster Quick Entry toggle, ~2ms vs ~25ms python3 — not required)
 sudo dnf install socat
 ```
-On Wayland (except KDE Plasma — bundled `kwin-portal-bridge` handles input natively), the `ydotoold` daemon must be running — see [ydotool setup](#ydotool-setup-wayland).
+On Sway, Hyprland, or GNOME Wayland, the `ydotoold` daemon must be running — see [ydotool setup](#ydotool-setup-wayland).
 
 Updates are automatic via `sudo dnf upgrade`.
 
@@ -175,10 +169,7 @@ claude-desktop.override {
   # Wayland (wlroots — Sway, Hyprland):
   # ydotool = pkgs.ydotool; grim = pkgs.grim; jq = pkgs.jq;
   # hyprland = pkgs.hyprland;
-  # Wayland (KDE Plasma) — bundled kwin-portal-bridge handles input+screenshots
-  # natively; no extra packages needed. Optional fallbacks if bridge unavailable:
-  # ydotool = pkgs.ydotool; xdotool = pkgs.xdotool;
-  # spectacle = pkgs.kdePackages.spectacle; imagemagick = pkgs.imagemagick;
+  # Wayland (KDE Plasma) — no extra packages needed
   # Wayland (GNOME):
   # ydotool = pkgs.ydotool; xdotool = pkgs.xdotool;
   # glib = pkgs.glib; gnome-screenshot = pkgs.gnome-screenshot;
@@ -221,7 +212,7 @@ chmod +x Claude_Desktop-*-x86_64.AppImage
 ./Claude_Desktop-*-x86_64.AppImage
 ```
 
-> **Computer Use:** Install optional dependencies using your distro's package manager — see the [Computer Use packages table](#optional-dependencies). On Wayland (except KDE Plasma), `ydotool` v1.0+ is required — see [ydotool setup](#ydotool-setup-wayland).
+> **Computer Use:** Install optional dependencies using your distro's package manager — see the [Computer Use packages table](#optional-dependencies). On Sway, Hyprland, or GNOME Wayland, `ydotool` v1.0+ is required — see [ydotool setup](#ydotool-setup-wayland).
 
 > **Update:** AppImage supports delta updates via [appimageupdatetool](https://github.com/AppImageCommunity/AppImageUpdate). Only changed blocks are downloaded.
 > ```bash
@@ -288,7 +279,7 @@ Claude Desktop works without these — features degrade gracefully when tools ar
 <a id="ydotool-setup-wayland"></a>
 ### ydotool setup (Wayland — GNOME, Sway, Hyprland)
 
-Computer Use needs `ydotool` **v1.0+** and the `ydotoold` daemon for mouse/keyboard input on Wayland (GNOME, Sway, Hyprland). **KDE Plasma users do not need ydotool** — the bundled `kwin-portal-bridge` handles input natively.
+Computer Use needs `ydotool` **v1.0+** and the `ydotoold` daemon for mouse/keyboard input on GNOME, Sway, and Hyprland Wayland sessions. KDE Plasma does not need ydotool.
 
 **Arch Linux / Fedora** — ydotool v1.x ships in the repos:
 ```bash
