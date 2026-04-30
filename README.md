@@ -74,7 +74,7 @@ sudo pacman -S --needed ydotool xdotool glib2 gnome-screenshot imagemagick pytho
 # Optional: socat (faster Quick Entry toggle, ~2ms vs ~25ms python3 — not required)
 sudo pacman -S --needed socat
 ```
-On Wayland, the `ydotoold` daemon must be running — see [ydotool setup](#ydotool-setup-wayland).
+On Wayland (except KDE Plasma — bundled `kwin-portal-bridge` handles input natively), the `ydotoold` daemon must be running — see [ydotool setup](#ydotool-setup-wayland).
 
 Updates arrive through your AUR helper (e.g. `yay -Syu`).
 
@@ -105,7 +105,7 @@ sudo apt install ydotool xdotool libglib2.0-bin gnome-screenshot imagemagick pyt
 sudo apt install socat
 ```
 
-> **Wayland users:** [Computer Use](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool) requires ydotool v1.0+, but Ubuntu/Debian ship v0.1.8 which is **too old**. Run the [ydotool setup script](#ydotool-setup-wayland) — without this, clicks will not work.
+> **Wayland users (except KDE Plasma):** [Computer Use](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool) requires ydotool v1.0+, but Ubuntu/Debian ship v0.1.8 which is **too old**. Run the [ydotool setup script](#ydotool-setup-wayland) — without this, clicks will not work. KDE Plasma uses the bundled `kwin-portal-bridge` instead.
 
 Updates are automatic via `sudo apt update && sudo apt upgrade`.
 
@@ -144,7 +144,7 @@ sudo dnf install ydotool xdotool glib2 gnome-screenshot ImageMagick python3-gobj
 # Optional: socat (faster Quick Entry toggle, ~2ms vs ~25ms python3 — not required)
 sudo dnf install socat
 ```
-On Wayland, the `ydotoold` daemon must be running — see [ydotool setup](#ydotool-setup-wayland).
+On Wayland (except KDE Plasma — bundled `kwin-portal-bridge` handles input natively), the `ydotoold` daemon must be running — see [ydotool setup](#ydotool-setup-wayland).
 
 Updates are automatic via `sudo dnf upgrade`.
 
@@ -221,7 +221,7 @@ chmod +x Claude_Desktop-*-x86_64.AppImage
 ./Claude_Desktop-*-x86_64.AppImage
 ```
 
-> **Computer Use:** Install optional dependencies using your distro's package manager — see the [Computer Use packages table](#optional-dependencies). On Wayland, `ydotool` v1.0+ is required — see [ydotool setup](#ydotool-setup-wayland).
+> **Computer Use:** Install optional dependencies using your distro's package manager — see the [Computer Use packages table](#optional-dependencies). On Wayland (except KDE Plasma), `ydotool` v1.0+ is required — see [ydotool setup](#ydotool-setup-wayland).
 
 > **Update:** AppImage supports delta updates via [appimageupdatetool](https://github.com/AppImageCommunity/AppImageUpdate). Only changed blocks are downloaded.
 > ```bash
@@ -286,7 +286,7 @@ Claude Desktop works without these — features degrade gracefully when tools ar
 > **Custom screenshot command:** Set `COWORK_SCREENSHOT_CMD` to override the auto-detection. Use placeholders `{FILE}` (output path), `{X}`, `{Y}`, `{W}`, `{H}` (region). Example: `COWORK_SCREENSHOT_CMD='spectacle -b -n -r -o {FILE}'`
 
 <a id="ydotool-setup-wayland"></a>
-### ydotool setup (Wayland — all compositors)
+### ydotool setup (Wayland — GNOME, Sway, Hyprland)
 
 Computer Use needs `ydotool` **v1.0+** and the `ydotoold` daemon for mouse/keyboard input on Wayland (GNOME, Sway, Hyprland). **KDE Plasma users do not need ydotool** — the bundled `kwin-portal-bridge` handles input natively.
 
@@ -308,7 +308,7 @@ curl -fsSL https://raw.githubusercontent.com/patrickjaja/claude-desktop-bin/mast
 ```bash
 gsettings set org.gnome.desktop.peripherals.mouse accel-profile flat
 ```
-> Note: this changes acceleration for all mice, not just ydotool. KDE handles this per-device automatically.
+> Note: this changes acceleration for all mice, not just ydotool.
 
 Restart Claude Desktop after setup.
 
