@@ -9,13 +9,11 @@
 # C. Add Linux to the HI() platform label.
 # D. Include Linux in the Xqe telemetry gate.
 # E. Override Jr() for Linux-critical GrowthBook flags.
-# F. Fix rjt() to forward text responses.
-# J. Auto-wake dispatch parent when child task completes.
 
 import std/[os, strformat, strutils]
 import std/nre
 
-const EXPECTED_PATCHES = 7
+const EXPECTED_PATCHES = 5
 
 proc apply*(input: string): string =
   result = input
@@ -157,92 +155,7 @@ proc apply*(input: string): string =
     else:
       echo "  [FAIL] Jr() dispatch flag override: pattern not found"
 
-  # -- Patch F: Fix rjt() to forward text responses --
-  # Upstream now has: (name==="SendUserMessage"||t&&(name===SU||name===T4))
-  # We add mcp__dispatch__send_message and mcp__cowork__present_files, plus text forwarding.
-  let rjtAlready =
-    re"""mcp__dispatch__send_message.{0,80}mcp__cowork__present_files.{0,80}\.some\(function\(j\)\{return j&&j\.type==="text"&&j\.text\}\)"""
-  if result.find(rjtAlready).isSome:
-    echo "  [OK] rjt() text forward: already patched (skipped)"
-    inc patchesApplied
-  else:
-    # Match new upstream pattern: ...name==="SendUserMessage"||t&&(name===VAR||name===VAR)))return!0}return!1}
-    let rjtPattern =
-      re"""for\(const ([\w$]+) of ([\w$]+)\)\{const ([\w$]+)=\1;if\(\(\3==null\?void 0:\3\.type\)==="tool_use"&&\(\3\.name==="SendUserMessage"\|\|([\w$]+)&&\(\3\.name===([\w$]+)\|\|\3\.name===([\w$]+)\)\)\)return!0\}return!1\}"""
-    let rjtMatch = result.find(rjtPattern)
-    if rjtMatch.isSome:
-      let m = rjtMatch.get()
-      let loopVar = m.captures[0]
-      let arrayVar = m.captures[1]
-      let itemVar = m.captures[2]
-      let gateVar = m.captures[3]
-      let toolVar1 = m.captures[4]
-      let toolVar2 = m.captures[5]
-      let rjtReplacement =
-        "for(const " & loopVar & " of " & arrayVar & "){const " & itemVar & "=" & loopVar &
-        ";" & "if((" & itemVar & "==null?void 0:" & itemVar & ".type)===\"tool_use\"&&(" &
-        itemVar & ".name===\"SendUserMessage\"||" & itemVar &
-        ".name===\"mcp__dispatch__send_message\"||" & itemVar &
-        ".name===\"mcp__cowork__present_files\"||" & gateVar & "&&(" & itemVar &
-        ".name===" & toolVar1 & "||" & itemVar & ".name===" & toolVar2 & ")))return!0}" &
-        "return " & arrayVar & ".some(function(j){return j&&j.type===\"text\"&&j.text})}"
-      let bounds = m.matchBounds
-      result = result[0 ..< bounds.a] & rjtReplacement & result[bounds.b + 1 .. ^1]
-      echo &"  [OK] rjt() text forward: patched (item={itemVar}, array={arrayVar}, gate={gateVar})"
-      inc patchesApplied
-    else:
-      # Fallback: try old pattern (no dispatch tool gate)
-      let rjtPatternOld =
-        re"for\(const ([\w$]+) of ([\w$]+)\)\{const ([\w$]+)=\1;if\(\(\3==null\?void 0:\3\.type\)===""tool_use""&&\3\.name===""SendUserMessage""\)return!0\}return!1\}"
-      let rjtMatchOld = result.find(rjtPatternOld)
-      if rjtMatchOld.isSome:
-        let m = rjtMatchOld.get()
-        let loopVar = m.captures[0]
-        let arrayVar = m.captures[1]
-        let itemVar = m.captures[2]
-        let rjtReplacement =
-          "for(const " & loopVar & " of " & arrayVar & "){const " & itemVar & "=" &
-          loopVar & ";" & "if((" & itemVar & "==null?void 0:" & itemVar &
-          ".type)===\"tool_use\"&&(" & itemVar & ".name===\"SendUserMessage\"||" &
-          itemVar & ".name===\"mcp__dispatch__send_message\"||" & itemVar &
-          ".name===\"mcp__cowork__present_files\"))return!0}" & "return " & arrayVar &
-          ".some(function(j){return j&&j.type===\"text\"&&j.text})}"
-        let bounds = m.matchBounds
-        result = result[0 ..< bounds.a] & rjtReplacement & result[bounds.b + 1 .. ^1]
-        echo &"  [OK] rjt() text forward: patched via old pattern (item={itemVar}, array={arrayVar})"
-        inc patchesApplied
-      else:
-        echo "  [FAIL] rjt() text forward: pattern not found"
 
-  # -- Patch J: Auto-wake dispatch parent when child task completes --
-  if "Auto-waking cold parent" in result:
-    echo "  [OK] dispatch auto-wake parent: already patched (skipped)"
-    inc patchesApplied
-  else:
-    let wakePattern =
-      re"(\(\(([\w$]+)\.pendingDispatchNotifications\?\?\(\2\.pendingDispatchNotifications=\[\]\)\)\.push\(([\w$]+)\),)([\w$]+)(\.info\(`\[Dispatch\] Queued notification for cold parent \$\{\2\.sessionId\} \(child \$\{([\w$]+)\.sessionId\} \$\{([\w$]+)\}\)`\)\))"
-    let wakeMatch = result.find(wakePattern)
-    if wakeMatch.isSome:
-      let m = wakeMatch.get()
-      let sessionVar = m.captures[1]
-      let notifVar = m.captures[2]
-      let logger = m.captures[3]
-      # Build replacement: original + setTimeout auto-wake
-      let origMatch = m.match
-      # Strip trailing ) from the original
-      let baseMatch = origMatch[0 ..< origMatch.len - 1]
-      let wakeReplacement =
-        baseMatch & ",setTimeout(()=>{" & logger &
-        ".info(`[Dispatch] Auto-waking cold parent ${" & sessionVar & ".sessionId}`);" &
-        "this.sendMessage(" & sessionVar & ".sessionId," & notifVar & ").catch(x=>" &
-        logger & ".error(`[Dispatch] Auto-wake failed for ${" & sessionVar &
-        ".sessionId}:`,x))},500))"
-      let bounds = m.matchBounds
-      result = result[0 ..< bounds.a] & wakeReplacement & result[bounds.b + 1 .. ^1]
-      echo &"  [OK] dispatch auto-wake parent: injected setTimeout sendMessage (session={sessionVar}, notif={notifVar}, logger={logger})"
-      inc patchesApplied
-    else:
-      echo "  [FAIL] dispatch auto-wake parent: pattern not found"
 
   # -- Results --
   if patchesApplied < EXPECTED_PATCHES:

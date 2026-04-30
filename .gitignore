@@ -58,3 +58,5 @@ UPDATE-PROMPT-CC-INPUT-MANUAL.md
 node_modules
 resources
 -
+.codex
+disabled
