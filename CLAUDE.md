@@ -21,7 +21,7 @@ This is an AUR package that repackages Claude Desktop (Windows) for Arch Linux. 
 | X11 | Any (GNOME, KDE, i3, …) | `xdotool` | `scrot`, `imagemagick`, `gnome-screenshot` |
 | Wayland — wlroots | Sway, Hyprland | `ydotool` (+`ydotoold`) | `grim` |
 | Wayland — GNOME | GNOME Shell | `ydotool` (+`ydotoold`) | `portal+pipewire` (GNOME 46+), `gnome-screenshot`, `gdbus` (glib2) |
-| Wayland — KDE | KDE Plasma | `ydotool` (+`ydotoold`) | `spectacle`, `imagemagick` (crop) |
+| Wayland — KDE | KDE Plasma | `kwin-portal-bridge` (bundled) | `kwin-portal-bridge` (bundled) |
 | XWayland | Any Wayland compositor | `xdotool` (fallback) | depends on compositor |
 
 Patches emit `[claude-cu] diagnostics:` lines to **stderr/stdout** at startup showing detected session, available/missing tools, and screenshot cascade order. Visible when running `claude-desktop` from a terminal. Ask users to share this output when debugging.

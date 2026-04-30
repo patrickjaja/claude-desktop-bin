@@ -301,6 +301,24 @@ cp -r "$WORK_DIR/app"/* "$TARBALL_DIR/app/"
 cp "$SCRIPT_DIR/claude-desktop-launcher.sh" "$TARBALL_DIR/launcher/claude-desktop"
 chmod +x "$TARBALL_DIR/launcher/claude-desktop"
 
+# Bundle kwin-portal-bridge into locales/ (= process.resourcesPath at runtime)
+if [ -n "${KWIN_PORTAL_BRIDGE_BIN:-}" ] && [ -f "$KWIN_PORTAL_BRIDGE_BIN" ]; then
+    log_info "Bundling kwin-portal-bridge from $KWIN_PORTAL_BRIDGE_BIN"
+    cp "$KWIN_PORTAL_BRIDGE_BIN" "$WORK_DIR/app/locales/kwin-portal-bridge"
+    chmod +x "$WORK_DIR/app/locales/kwin-portal-bridge"
+elif command -v cargo &>/dev/null && [ -d "$PROJECT_DIR/../kwin-portal-bridge" ]; then
+    log_info "Building kwin-portal-bridge from source..."
+    if (cd "$PROJECT_DIR/../kwin-portal-bridge" && cargo build --release 2>&1 | tail -3); then
+        cp "$PROJECT_DIR/../kwin-portal-bridge/target/release/kwin-portal-bridge" "$WORK_DIR/app/locales/kwin-portal-bridge"
+        chmod +x "$WORK_DIR/app/locales/kwin-portal-bridge"
+        log_info "kwin-portal-bridge built and bundled"
+    else
+        log_warn "kwin-portal-bridge build failed — skipping (KDE Wayland Computer Use will require manual install)"
+    fi
+else
+    log_warn "kwin-portal-bridge not available — skipping (KDE Wayland Computer Use will require manual install)"
+fi
+
 # Validate launcher with shellcheck (catches shebang issues, syntax errors, common bugs)
 if command -v shellcheck &>/dev/null; then
     if ! shellcheck -S error "$TARBALL_DIR/launcher/claude-desktop"; then

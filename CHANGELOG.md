@@ -2,6 +2,20 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-04-30 — KWin portal bridge & KVM mode for cowork/computer-use
+
+- **New:** Runtime-configured KWin portal bridge support for KDE/Wayland users. `cu_mode_preamble.js` sets `__cuKwinMode` dynamically based on desktop session and environment (detects `kwin-wayland`). `cowork_mode_preamble.js` configures `__coworkKvmMode` based on backend environment or auto-detect (KVM detection via socket presence). ([#54](https://github.com/patrickjaja/claude-desktop-bin/pull/54)) — contributed by [@mosi0815](https://github.com/mosi0815)
+- **New:** `executor_linux.js` — full Linux executor implementation (1614 lines) for computer-use input simulation and screenshot capture
+- **Refactored:** `fix_computer_use_linux.nim` — major rework with new `cu_mode_preamble.js` dependency
+- **Refactored:** `fix_cowork_linux.nim` — reworked with new `cowork_mode_preamble.js` dependency
+- **Refactored:** `fix_cowork_sandbox_refs.nim` — Nim port alignment for runtime compatibility
+- **Simplified:** `fix_dispatch_linux.nim` — reduced from 89 to 2 lines
+- **Removed:** `fix_dispatch_outputs_dir.nim` — no longer needed
+- **Bundled:** `kwin-portal-bridge` binary built in CI (`rust:1-bullseye` for glibc compat) and shipped in `locales/` — KDE Plasma Wayland users need zero extra packages for Computer Use
+- **Changed:** `cu_mode_preamble.js` resolves bridge binary via `process.resourcesPath` (bundled) before `$PATH` scan; `executor_linux.js` reads resolved path from `globalThis.__cuKwinBridgeBin`
+
+---
+
 ## 2026-04-29 — Marketplace plugin scope fix
 
 - **Fix:** Personal plugins installed via Claude Code CLI now appear under "Personal Plugins" instead of the current project header ([#74](https://github.com/patrickjaja/claude-desktop-bin/issues/74), [#75](https://github.com/patrickjaja/claude-desktop-bin/pull/75)). The CLI stores personal plugins with `scope="project"` + `projectPath=$HOME`, and since `$HOME` is a prefix of every project path, they matched the project branch instead of the user branch. New sub-patch B in `fix_marketplace_linux.nim` promotes these entries to `scope="user"` at read time (on-disk JSON unchanged). — contributed by [@boommasterxd](https://github.com/boommasterxd)

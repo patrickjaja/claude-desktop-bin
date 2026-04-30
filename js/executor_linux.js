@@ -46,9 +46,11 @@ function expandAllowedBundleIds(bundleIds) {
 }
 
 function buildBridgeCommand(command, args) {
-  const envBin = process.env.KWIN_PORTAL_BRIDGE_BIN
+  const bin = process.env.KWIN_PORTAL_BRIDGE_BIN
+    || globalThis.__cuKwinBridgeBin
+    || 'kwin-portal-bridge'
   const spec = {
-    command: envBin || 'kwin-portal-bridge',
+    command: bin,
     args: [command, ...args],
   }
   debugLog('bridge command prepared', spec)

@@ -303,6 +303,39 @@ jobs:
         with:
           name: claude-setup-exe
 
+      - name: Build kwin-portal-bridge (Rust, glibc-compat)
+        id: bridge
+        run: |
+          echo "=== Building kwin-portal-bridge in Debian 11 (glibc 2.31) for max distro compat ==="
+          mkdir -p /tmp/bridge-output
+
+          docker run --rm \
+            -v /tmp/bridge-output:/output \
+            rust:1-bullseye \
+            bash -c "
+              set -eo pipefail
+
+              apt-get update
+              apt-get install -y libdbus-1-dev libpipewire-0.3-dev pkg-config clang cmake
+
+              cd /tmp
+              git clone --depth=1 https://github.com/patrickjaja/kwin-portal-bridge.git
+              cd kwin-portal-bridge
+              cargo build --release 2>&1 | tail -10
+              cp target/release/kwin-portal-bridge /output/
+              echo 'kwin-portal-bridge built successfully'
+            " 2>&1 | tee bridge-build.log
+
+          if [ -f /tmp/bridge-output/kwin-portal-bridge ]; then
+            file /tmp/bridge-output/kwin-portal-bridge
+            GLIBC_MAX=$(objdump -T /tmp/bridge-output/kwin-portal-bridge 2>/dev/null | grep -oP 'GLIBC_\S+' | sort -uV | tail -1 || echo "unknown")
+            echo "kwin-portal-bridge binary ready (max glibc: ${GLIBC_MAX})"
+            echo "bridge_built=true" >> $GITHUB_OUTPUT
+          else
+            echo "bridge_built=false" >> $GITHUB_OUTPUT
+            echo "::warning::kwin-portal-bridge build failed — tarball will ship without it"
+          fi
+
       - name: Build Patched Tarball
         id: build
         run: |
@@ -311,6 +344,14 @@ jobs:
           mkdir -p /tmp/build-input /tmp/build-output
           cp Claude-Setup-x64.exe /tmp/build-input/
           cp -r scripts patches js /tmp/build-input/
+
+          # Pass kwin-portal-bridge binary if available
+          BRIDGE_MOUNT=""
+          BRIDGE_ENV=""
+          if [ -f /tmp/bridge-output/kwin-portal-bridge ]; then
+            cp /tmp/bridge-output/kwin-portal-bridge /tmp/build-input/kwin-portal-bridge
+            BRIDGE_ENV="KWIN_PORTAL_BRIDGE_BIN=/input/kwin-portal-bridge"
+          fi
 
           docker run --rm \
             -v /tmp/build-input:/input:ro \
@@ -337,7 +378,7 @@ jobs:
               su builder -c 'yay -S --noconfirm asar'
 
               echo '=== Running build script ==='
-              bash /input/scripts/build-patched-tarball.sh /input/Claude-Setup-x64.exe /output
+              ${BRIDGE_ENV} bash /input/scripts/build-patched-tarball.sh /input/Claude-Setup-x64.exe /output
 
               echo '=== Build completed ==='
             " 2>&1 | tee build-output.log

@@ -64,8 +64,9 @@ sudo pacman -S --needed xdotool scrot imagemagick wmctrl
 sudo pacman -S --needed ydotool grim jq
 # Wayland (Hyprland):
 sudo pacman -S --needed ydotool grim hyprland
-# Wayland (KDE Plasma):
-sudo pacman -S --needed ydotool xdotool spectacle imagemagick
+# Wayland (KDE Plasma) — bundled kwin-portal-bridge handles input+screenshots natively;
+# no extra packages needed. Optional fallbacks if bridge unavailable:
+# sudo pacman -S --needed ydotool xdotool spectacle imagemagick
 # Wayland (GNOME):
 sudo pacman -S --needed ydotool xdotool glib2 gnome-screenshot imagemagick python-gobject gst-plugin-pipewire
 # GNOME Wayland: enable Quick Entry hotkey (one-time, after install):
@@ -93,8 +94,9 @@ sudo apt install xdotool scrot imagemagick wmctrl
 sudo apt install ydotool grim jq
 # Wayland (Hyprland):
 sudo apt install ydotool grim hyprland
-# Wayland (KDE Plasma):
-sudo apt install ydotool xdotool kde-spectacle imagemagick
+# Wayland (KDE Plasma) — bundled kwin-portal-bridge handles input+screenshots natively;
+# no extra packages needed. Optional fallbacks if bridge unavailable:
+# sudo apt install ydotool xdotool kde-spectacle imagemagick
 # Wayland (GNOME):
 sudo apt install ydotool xdotool libglib2.0-bin gnome-screenshot imagemagick python3-gi gstreamer1.0-pipewire
 # GNOME Wayland: enable Quick Entry hotkey (one-time, after install):
@@ -132,8 +134,9 @@ sudo dnf install xdotool scrot ImageMagick wmctrl
 sudo dnf install ydotool grim jq
 # Wayland (Hyprland):
 sudo dnf install ydotool grim hyprland
-# Wayland (KDE Plasma):
-sudo dnf install ydotool xdotool spectacle ImageMagick
+# Wayland (KDE Plasma) — bundled kwin-portal-bridge handles input+screenshots natively;
+# no extra packages needed. Optional fallbacks if bridge unavailable:
+# sudo dnf install ydotool xdotool spectacle ImageMagick
 # Wayland (GNOME):
 sudo dnf install ydotool xdotool glib2 gnome-screenshot ImageMagick python3-gobject gstreamer1-plugin-pipewire
 # GNOME Wayland: enable Quick Entry hotkey (one-time, after install):
@@ -172,7 +175,8 @@ claude-desktop.override {
   # Wayland (wlroots — Sway, Hyprland):
   # ydotool = pkgs.ydotool; grim = pkgs.grim; jq = pkgs.jq;
   # hyprland = pkgs.hyprland;
-  # Wayland (KDE Plasma):
+  # Wayland (KDE Plasma) — bundled kwin-portal-bridge handles input+screenshots
+  # natively; no extra packages needed. Optional fallbacks if bridge unavailable:
   # ydotool = pkgs.ydotool; xdotool = pkgs.xdotool;
   # spectacle = pkgs.kdePackages.spectacle; imagemagick = pkgs.imagemagick;
   # Wayland (GNOME):
@@ -268,23 +272,23 @@ Claude Desktop works without these — features degrade gracefully when tools ar
 
 | Operation | X11 / XWayland | Wayland — wlroots (Sway, Hyprland) | Wayland — GNOME | Wayland — KDE Plasma |
 |-----------|---------------|-------------------------------------|-----------------|----------------------|
-| Input automation | `xdotool` | `ydotool` (+ `ydotoold` running) | `ydotool` (+ `ydotoold` running) | `ydotool` (+ `ydotoold` running) |
-| Screenshots | `scrot`, `imagemagick` | `grim` | Portal+PipeWire (GNOME 46+), `gdbus`, `gnome-screenshot` | `spectacle`, `imagemagick` |
-| Clipboard | Electron API (built-in) | Electron API (built-in) | Electron API (built-in) | Electron API (built-in) |
-| Display info | Electron API (built-in) | Electron API (built-in) | Electron API (built-in) | Electron API (built-in) |
-| Window queries | `wmctrl` | `swaymsg` (Sway), `jq` | — | — |
-| Cursor positioning | `xdotool` | `ydotool` | `xdotool` (read), `ydotool` (move) | `xdotool` (read), `ydotool` (move) |
+| Input automation | `xdotool` | `ydotool` (+ `ydotoold` running) | `ydotool` (+ `ydotoold` running) | **bundled** (`kwin-portal-bridge`) |
+| Screenshots | `scrot`, `imagemagick` | `grim` | Portal+PipeWire (GNOME 46+), `gdbus`, `gnome-screenshot` | **bundled** (`kwin-portal-bridge`) |
+| Clipboard | Electron API (built-in) | Electron API (built-in) | Electron API (built-in) | **bundled** (`kwin-portal-bridge`) |
+| Display info | Electron API (built-in) | Electron API (built-in) | Electron API (built-in) | **bundled** (`kwin-portal-bridge`) |
+| Window queries | `wmctrl` | `swaymsg` (Sway), `jq` | — | **bundled** (`kwin-portal-bridge`) |
+| Cursor positioning | `xdotool` | `ydotool` | `xdotool` (read), `ydotool` (move) | **bundled** (`kwin-portal-bridge`) |
 
-> **GNOME:** On GNOME 46+ (Ubuntu 25.10+, Fedora 40+), screenshots use the XDG ScreenCast portal with PipeWire restore tokens — the first screenshot shows a one-time permission dialog, all subsequent screenshots are silent (requires `python-gobject`/`python3-gi` and `gst-plugin-pipewire`, typically pre-installed on GNOME). Token is stored in `~/.config/Claude/pipewire-restore-token`. Falls back to `gnome-screenshot` and `gdbus` (glib2/libglib2.0-bin).
+> **KDE Plasma Wayland:** The bundled [`kwin-portal-bridge`](https://github.com/patrickjaja/kwin-portal-bridge) handles all Computer Use operations natively via XDG RemoteDesktop/ScreenCast portals — no extra packages needed. One consent prompt per session. Falls back to `ydotool` + `spectacle` if the bridge is unavailable.
 >
-> **KDE:** `spectacle` captures screenshots. `imagemagick` (`convert`) crops to monitor region on multi-monitor setups.
+> **GNOME:** On GNOME 46+ (Ubuntu 25.10+, Fedora 40+), screenshots use the XDG ScreenCast portal with PipeWire restore tokens — the first screenshot shows a one-time permission dialog, all subsequent screenshots are silent (requires `python-gobject`/`python3-gi` and `gst-plugin-pipewire`, typically pre-installed on GNOME). Token is stored in `~/.config/Claude/pipewire-restore-token`. Falls back to `gnome-screenshot` and `gdbus` (glib2/libglib2.0-bin).
 >
 > **Custom screenshot command:** Set `COWORK_SCREENSHOT_CMD` to override the auto-detection. Use placeholders `{FILE}` (output path), `{X}`, `{Y}`, `{W}`, `{H}` (region). Example: `COWORK_SCREENSHOT_CMD='spectacle -b -n -r -o {FILE}'`
 
 <a id="ydotool-setup-wayland"></a>
 ### ydotool setup (Wayland — all compositors)
 
-Computer Use needs `ydotool` **v1.0+** and the `ydotoold` daemon for mouse/keyboard input on Wayland. Without it, clicks won't reach native Wayland windows. Tested on KDE Plasma and GNOME.
+Computer Use needs `ydotool` **v1.0+** and the `ydotoold` daemon for mouse/keyboard input on Wayland (GNOME, Sway, Hyprland). **KDE Plasma users do not need ydotool** — the bundled `kwin-portal-bridge` handles input natively.
 
 **Arch Linux / Fedora** — ydotool v1.x ships in the repos:
 ```bash
@@ -331,7 +335,7 @@ Features unique to the Linux port — not available in upstream Claude Desktop:
 
 - [**Custom Themes**](#custom-themes-experimental) — 6 built-in color themes (Nord, Catppuccin variants, Sweet) or create your own via JSON config. See [themes/README.md](themes/README.md) for the full guide
 - [**Multiple Profiles**](#multiple-profiles) — run several instances side by side, each logged in to a different account with fully isolated state. `claude-desktop --create-profile=work` and you're done
-- [**Native Cowork Backend**](#cowork-integration) — [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service) replaces the macOS/Windows VM with a native Linux daemon, enabling Cowork, Dispatch, and Live Artifacts without emulation
+- [**Cowork Backend**](#cowork-integration) — [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service) enables Cowork, Dispatch, and Live Artifacts on Linux via a **native** backend (default, no VM overhead) or an experimental **[KVM backend](https://github.com/patrickjaja/claude-cowork-service#kvm-backend-experimental)** for sandboxed execution matching macOS/Windows
 
 ## Claude Chat
 
@@ -359,7 +363,10 @@ The patch auto-detects claude in `/usr/bin`, `~/.local/bin`, and `/usr/local/bin
 
 ## Cowork Integration
 
-Cowork is Claude Desktop's agentic workspace feature. This package patches it to work on Linux using a native backend daemon instead of the macOS/Windows VM.
+Cowork is Claude Desktop's agentic workspace feature. This package patches it to work on Linux using [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service), which offers two backends:
+
+- **Native** (default) — runs commands directly on your host. Zero VM overhead, ideal for most users.
+- **KVM** (experimental) — runs sessions inside a QEMU/KVM virtual machine, matching the sandboxed execution model of macOS and Windows. See the [KVM Backend docs](https://github.com/patrickjaja/claude-cowork-service#kvm-backend-experimental) for prerequisites and setup.
 
 ![Cowork in Claude Desktop](docs/cowork/co_in_cd.png)
 
