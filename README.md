@@ -169,7 +169,10 @@ claude-desktop.override {
   # Wayland (wlroots — Sway, Hyprland):
   # ydotool = pkgs.ydotool; grim = pkgs.grim; jq = pkgs.jq;
   # hyprland = pkgs.hyprland;
-  # Wayland (KDE Plasma) — no extra packages needed
+  # Wayland (KDE Plasma) — the bundled kwin-portal-bridge won't run on NixOS
+  # (glibc linker mismatch). Use the fallback tools:
+  # ydotool = pkgs.ydotool; xdotool = pkgs.xdotool;
+  # spectacle = pkgs.kdePackages.spectacle; imagemagick = pkgs.imagemagick;
   # Wayland (GNOME):
   # ydotool = pkgs.ydotool; xdotool = pkgs.xdotool;
   # glib = pkgs.glib; gnome-screenshot = pkgs.gnome-screenshot;
