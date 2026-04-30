@@ -162,7 +162,7 @@ Architecture: ${DEB_ARCH}
 Installed-Size: ${INSTALLED_SIZE}
 Depends: libgtk-3-0, libnotify4, libnss3, libxss1, libxtst6, libatspi2.0-0, libdrm2, libgbm1, libasound2
 Recommends: libnotify-bin
-Suggests: xdotool, scrot, imagemagick, wmctrl, socat, hyprland, ydotool, grim, jq, kde-spectacle, libglib2.0-bin, gnome-screenshot, nodejs
+Suggests: xdotool, scrot, imagemagick, wmctrl, socat, hyprland, ydotool, grim, jq, libglib2.0-bin, gnome-screenshot, nodejs
 Maintainer: Claude Desktop Linux Community <claude-desktop-linux@users.noreply.github.com>
 Homepage: https://claude.ai
 Description: Claude AI Desktop Application

@@ -15,8 +15,8 @@
 , grim ? null           # screenshot capture (wlroots)
 , jq ? null             # window queries on Sway (used with swaymsg)
 , hyprland ? null       # cursor positioning (Hyprland only)
-# Computer Use — KDE Plasma Wayland
-, spectacle ? null      # screenshot capture (KDE Plasma)
+# Computer Use — KDE Plasma Wayland (bundled bridge has glibc mismatch on NixOS)
+, spectacle ? null      # screenshot fallback (KDE Plasma on NixOS)
 # Computer Use — GNOME Wayland
 , gnome-screenshot ? null  # screenshot fallback (GNOME)
 , glib ? null              # gsettings (flat mouse acceleration)

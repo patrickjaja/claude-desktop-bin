@@ -27,13 +27,11 @@ Suggests:       xdotool
 Suggests:       scrot
 Suggests:       ImageMagick
 Suggests:       wmctrl
-# Computer Use — all Wayland compositors (input automation)
+# Computer Use — Wayland input automation (GNOME, Sway, Hyprland)
 Suggests:       ydotool
 # Computer Use — Wayland/wlroots (Sway, Hyprland)
 Suggests:       grim
 Suggests:       jq
-# Computer Use — KDE Plasma Wayland
-Suggests:       spectacle
 # Computer Use — GNOME Wayland
 Suggests:       glib2
 Suggests:       python3-gobject
