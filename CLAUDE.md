@@ -6,15 +6,22 @@ This is an AUR package that repackages Claude Desktop (Windows) for Arch Linux. 
 
 **Target platform:** Linux only. We do NOT need macOS or Windows compatibility — all patches target Linux exclusively (X11, Wayland, XWayland). Supported distros: Arch Linux (AUR primary), plus Fedora/Ubuntu via RPM/DEB packaging.
 
+**Architectures:** x86_64 (primary) and aarch64 (Raspberry Pi 5, NVIDIA Jetson/DGX Spark, etc.). All native binaries (node-pty, kwin-portal-bridge) must be built for both architectures.
+
 **Supported distros & session managers:**
 
-| Distro | Packaging |
-|--------|-----------|
-| Arch Linux | AUR (`claude-desktop-bin`) |
-| Ubuntu / Debian | `.deb` |
-| Fedora / RHEL | `.rpm` |
-| NixOS | Nix flake |
-| Any (glibc) | `.AppImage` |
+| Distro | Packaging | Min glibc | Arch |
+|--------|-----------|-----------|------|
+| Arch Linux | AUR (`claude-desktop-bin`) | 2.41 (rolling) | x86_64, aarch64 |
+| Ubuntu 22.04+ | `.deb` | 2.35 | amd64, arm64 |
+| Debian 11+ | `.deb` | 2.31 | amd64, arm64 |
+| Fedora 40+ | `.rpm` | 2.39 | x86_64, aarch64 |
+| RHEL 9+ | `.rpm` | 2.34 | x86_64, aarch64 |
+| NixOS | Nix flake | 2.40 (current) | x86_64, aarch64 |
+| NVIDIA Jetson (JetPack 6) | `.deb` | 2.35 | aarch64 |
+| Any (glibc) | `.AppImage` | varies | x86_64, aarch64 |
+
+**glibc floor: 2.31** (Debian 11 Bullseye). All compiled binaries shipped in the package (kwin-portal-bridge, node-pty) must run on glibc >= 2.31. CI enforces this via `cargo-zigbuild --target ...-gnu.2.31` and `objdump` verification. If a new native binary is added, it must follow the same constraint.
 
 | Session type | Compositors / DEs | Input backend | Screenshot tools |
 |-------------|-------------------|---------------|-----------------|

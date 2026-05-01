@@ -337,8 +337,11 @@ jobs:
               echo 'kwin-portal-bridge x86_64 built successfully'
 
               # Build aarch64
-              PKG_CONFIG_SYSROOT_DIR=/usr PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig \
-                cargo zigbuild --release --target aarch64-unknown-linux-gnu.2.31
+              # bindgen needs clang target + sysroot to find the right headers
+              export PKG_CONFIG_SYSROOT_DIR=/usr
+              export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig
+              export BINDGEN_EXTRA_CLANG_ARGS='--target=aarch64-linux-gnu --sysroot=/usr/aarch64-linux-gnu -I/usr/include -I/usr/include/pipewire-0.3 -I/usr/include/spa-0.2'
+              cargo zigbuild --release --target aarch64-unknown-linux-gnu.2.31
               cp target/aarch64-unknown-linux-gnu/release/kwin-portal-bridge /output/kwin-portal-bridge-aarch64
               echo 'kwin-portal-bridge aarch64 built successfully'
             "
