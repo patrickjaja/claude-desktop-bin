@@ -787,4 +787,4 @@ and install the `.desktop` file under the matching reverse-URL name.
 
 ---
 
-<p align="center"><sub>Built with love for the Linux community</sub></p>
+<p align="center"><sub>Built with ❤️ for the Linux community</sub></p>
