@@ -784,3 +784,7 @@ and install the `.desktop` file under the matching reverse-URL name.
 >
 > This project is not affiliated with, endorsed by, or sponsored by Anthropic.
 > "Claude" is a trademark of Anthropic PBC.
+
+---
+
+<p align="center"><sub>Built with love for the Linux community</sub></p>
