@@ -303,10 +303,10 @@ jobs:
         with:
           name: claude-setup-exe
 
-      - name: Build kwin-portal-bridge (Rust, glibc-compat)
+      - name: Build kwin-portal-bridge (x86_64 + aarch64, glibc 2.31 target)
         id: bridge
         run: |
-          echo "=== Building kwin-portal-bridge in Debian 12 (glibc 2.36) for max distro compat ==="
+          echo "=== Building kwin-portal-bridge (Bookworm headers, glibc 2.31 via zigbuild) ==="
           mkdir -p /tmp/bridge-output
 
           docker run --rm \
@@ -315,20 +315,45 @@ jobs:
             bash -c "
               set -eo pipefail
 
+              # Enable multiarch for aarch64 cross-compilation
+              dpkg --add-architecture arm64
               apt-get update
-              apt-get install -y libdbus-1-dev libpipewire-0.3-dev pkg-config clang cmake
+              apt-get install -y libdbus-1-dev libpipewire-0.3-dev pkg-config clang cmake \
+                libdbus-1-dev:arm64 libpipewire-0.3-dev:arm64 gcc-aarch64-linux-gnu
+
+              # Install zig + cargo-zigbuild for glibc version targeting
+              curl -L https://ziglang.org/download/0.13.0/zig-linux-x86_64-0.13.0.tar.xz | tar -xJ -C /usr/local
+              ln -s /usr/local/zig-linux-x86_64-0.13.0/zig /usr/local/bin/zig
+              cargo install cargo-zigbuild
+              rustup target add aarch64-unknown-linux-gnu
 
               cd /tmp
               git clone --depth=1 https://github.com/patrickjaja/kwin-portal-bridge.git
               cd kwin-portal-bridge
-              cargo build --release
-              cp target/release/kwin-portal-bridge /output/
-              echo 'kwin-portal-bridge built successfully'
+
+              # Build x86_64
+              cargo zigbuild --release --target x86_64-unknown-linux-gnu.2.31
+              cp target/x86_64-unknown-linux-gnu/release/kwin-portal-bridge /output/kwin-portal-bridge
+              echo 'kwin-portal-bridge x86_64 built successfully'
+
+              # Build aarch64
+              PKG_CONFIG_SYSROOT_DIR=/usr PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig \
+                cargo zigbuild --release --target aarch64-unknown-linux-gnu.2.31
+              cp target/aarch64-unknown-linux-gnu/release/kwin-portal-bridge /output/kwin-portal-bridge-aarch64
+              echo 'kwin-portal-bridge aarch64 built successfully'
             "
 
+          echo "--- x86_64 binary ---"
           file /tmp/bridge-output/kwin-portal-bridge
           GLIBC_MAX=$(objdump -T /tmp/bridge-output/kwin-portal-bridge 2>/dev/null | grep -oP 'GLIBC_\S+' | sort -uV | tail -1 || echo "unknown")
-          echo "kwin-portal-bridge binary ready (max glibc: ${GLIBC_MAX})"
+          echo "kwin-portal-bridge x86_64 max glibc: ${GLIBC_MAX}"
+          if [[ "${GLIBC_MAX}" > "GLIBC_2.31" ]]; then
+            echo "::error::x86_64 binary requires ${GLIBC_MAX}, expected GLIBC_2.31 or lower"
+            exit 1
+          fi
+
+          echo "--- aarch64 binary ---"
+          file /tmp/bridge-output/kwin-portal-bridge-aarch64
 
       - name: Build Patched Tarball
         id: build
@@ -497,6 +522,13 @@ jobs:
           path: /tmp/build-output/claude-desktop-*-linux.tar.gz
           retention-days: 1
 
+      - name: Upload kwin-portal-bridge aarch64 binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: kwin-portal-bridge-aarch64
+          path: /tmp/bridge-output/kwin-portal-bridge-aarch64
+          retention-days: 1
+
       - name: Upload Build Log
         if: always()
         uses: actions/upload-artifact@v4
@@ -534,11 +566,30 @@ jobs:
         with:
           platforms: arm64
 
+      - name: Download kwin-portal-bridge aarch64
+        if: matrix.arch == 'aarch64'
+        uses: actions/download-artifact@v4
+        with:
+          name: kwin-portal-bridge-aarch64
+
       - name: Rebuild node-pty for aarch64
         if: matrix.arch == 'aarch64'
         run: |
           TARBALL="claude-desktop-${{ needs.check-version.outputs.version }}-linux.tar.gz"
           bash scripts/rebuild-pty-for-arch.sh --arch aarch64 "$TARBALL"
+
+      - name: Swap kwin-portal-bridge for aarch64
+        if: matrix.arch == 'aarch64'
+        run: |
+          TARBALL="claude-desktop-${{ needs.check-version.outputs.version }}-linux.tar.gz"
+          REPACK_DIR=$(mktemp -d)
+          tar xzf "$TARBALL" -C "$REPACK_DIR"
+          cp kwin-portal-bridge-aarch64 "$REPACK_DIR/app/locales/kwin-portal-bridge"
+          chmod +x "$REPACK_DIR/app/locales/kwin-portal-bridge"
+          TARBALL_ABS="$(realpath "$TARBALL")"
+          (cd "$REPACK_DIR" && tar -czf "$TARBALL_ABS" app/ icons/ launcher/)
+          rm -rf "$REPACK_DIR"
+          echo "Swapped kwin-portal-bridge to aarch64 in tarball"
 
       - name: Build AppImage (${{ matrix.arch }})
         env:
@@ -636,11 +687,30 @@ jobs:
         with:
           platforms: arm64
 
+      - name: Download kwin-portal-bridge aarch64
+        if: matrix.arch == 'arm64'
+        uses: actions/download-artifact@v4
+        with:
+          name: kwin-portal-bridge-aarch64
+
       - name: Rebuild node-pty for arm64
         if: matrix.arch == 'arm64'
         run: |
           TARBALL="claude-desktop-${{ needs.check-version.outputs.version }}-linux.tar.gz"
           bash scripts/rebuild-pty-for-arch.sh --arch arm64 "$TARBALL"
+
+      - name: Swap kwin-portal-bridge for arm64
+        if: matrix.arch == 'arm64'
+        run: |
+          TARBALL="claude-desktop-${{ needs.check-version.outputs.version }}-linux.tar.gz"
+          REPACK_DIR=$(mktemp -d)
+          tar xzf "$TARBALL" -C "$REPACK_DIR"
+          cp kwin-portal-bridge-aarch64 "$REPACK_DIR/app/locales/kwin-portal-bridge"
+          chmod +x "$REPACK_DIR/app/locales/kwin-portal-bridge"
+          TARBALL_ABS="$(realpath "$TARBALL")"
+          (cd "$REPACK_DIR" && tar -czf "$TARBALL_ABS" app/ icons/ launcher/)
+          rm -rf "$REPACK_DIR"
+          echo "Swapped kwin-portal-bridge to aarch64 in tarball"
 
       - name: Build Debian Package (${{ matrix.arch }})
         env:
@@ -721,11 +791,30 @@ jobs:
         with:
           platforms: arm64
 
+      - name: Download kwin-portal-bridge aarch64
+        if: matrix.arch == 'aarch64'
+        uses: actions/download-artifact@v4
+        with:
+          name: kwin-portal-bridge-aarch64
+
       - name: Rebuild node-pty for aarch64
         if: matrix.arch == 'aarch64'
         run: |
           TARBALL="claude-desktop-${{ needs.check-version.outputs.version }}-linux.tar.gz"
           bash scripts/rebuild-pty-for-arch.sh --arch aarch64 "$TARBALL"
+
+      - name: Swap kwin-portal-bridge for aarch64
+        if: matrix.arch == 'aarch64'
+        run: |
+          TARBALL="claude-desktop-${{ needs.check-version.outputs.version }}-linux.tar.gz"
+          REPACK_DIR=$(mktemp -d)
+          tar xzf "$TARBALL" -C "$REPACK_DIR"
+          cp kwin-portal-bridge-aarch64 "$REPACK_DIR/app/locales/kwin-portal-bridge"
+          chmod +x "$REPACK_DIR/app/locales/kwin-portal-bridge"
+          TARBALL_ABS="$(realpath "$TARBALL")"
+          (cd "$REPACK_DIR" && tar -czf "$TARBALL_ABS" app/ icons/ launcher/)
+          rm -rf "$REPACK_DIR"
+          echo "Swapped kwin-portal-bridge to aarch64 in tarball"
 
       - name: Build RPM Package (${{ matrix.arch }})
         env:

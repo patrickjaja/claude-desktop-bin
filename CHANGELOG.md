@@ -2,6 +2,14 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-05-01 — kwin-portal-bridge CI: glibc 2.31 compat + aarch64 cross-build
+
+- **Fixed:** Bridge build uses `cargo-zigbuild` targeting glibc 2.31 (was building against Bookworm glibc 2.36, breaking Ubuntu 22.04 / RHEL 9 / Jetson)
+- **Added:** aarch64 cross-compilation in the same Docker step; aarch64 binary uploaded as artifact and swapped into tarball for ARM64 AppImage, DEB, and RPM packages
+- **Hardened:** Bridge build failure now stops the pipeline (was a non-fatal warning)
+
+---
+
 ## 2026-04-30 — KWin portal bridge & KVM mode for cowork/computer-use
 
 - **New:** Runtime-configured KWin portal bridge support for KDE/Wayland users. `cu_mode_preamble.js` sets `__cuKwinMode` dynamically based on desktop session and environment (detects `kwin-wayland`). `cowork_mode_preamble.js` configures `__coworkKvmMode` based on backend environment or auto-detect (KVM detection via socket presence). ([#54](https://github.com/patrickjaja/claude-desktop-bin/pull/54)) — contributed by [@mosi0815](https://github.com/mosi0815)
