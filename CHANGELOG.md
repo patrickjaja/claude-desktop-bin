@@ -11,7 +11,7 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 - **Refactored:** `fix_cowork_sandbox_refs.nim` — Nim port alignment for runtime compatibility
 - **Simplified:** `fix_dispatch_linux.nim` — reduced from 89 to 2 lines
 - **Removed:** `fix_dispatch_outputs_dir.nim` — no longer needed
-- **Bundled:** `kwin-portal-bridge` binary built in CI (`rust:1-bullseye` for glibc compat) and shipped in `locales/` — KDE Plasma Wayland users need zero extra packages for Computer Use
+- **Bundled:** `kwin-portal-bridge` binary built in CI (`rust:1-bookworm` for glibc compat) and shipped in `locales/` — KDE Plasma Wayland users need zero extra packages for Computer Use
 - **Changed:** `cu_mode_preamble.js` resolves bridge binary via `process.resourcesPath` (bundled) before `$PATH` scan; `executor_linux.js` reads resolved path from `globalThis.__cuKwinBridgeBin`
 
 ---
