@@ -306,12 +306,12 @@ jobs:
       - name: Build kwin-portal-bridge (x86_64 + aarch64, glibc 2.31 target)
         id: bridge
         run: |
-          echo "=== Building kwin-portal-bridge (Bookworm headers, glibc 2.31 via zigbuild) ==="
+          echo "=== Building kwin-portal-bridge (Trixie PipeWire 1.4, glibc 2.31 via zigbuild) ==="
           mkdir -p /tmp/bridge-output
 
           docker run --rm \
             -v /tmp/bridge-output:/output \
-            rust:1-bookworm \
+            rust:1-trixie \
             bash -c "
               set -eo pipefail
 

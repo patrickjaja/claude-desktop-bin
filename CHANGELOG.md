@@ -4,7 +4,7 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 
 ## 2026-05-01 — kwin-portal-bridge CI: glibc 2.31 compat + aarch64 cross-build
 
-- **Fixed:** Bridge build uses `cargo-zigbuild` targeting glibc 2.31 (was building against Bookworm glibc 2.36, breaking Ubuntu 22.04 / RHEL 9 / Jetson)
+- **Fixed:** Bridge build uses `rust:1-trixie` (PipeWire 1.4, needed for `pw_stream_get_nsec`) + `cargo-zigbuild` targeting glibc 2.31 (was Bullseye/Bookworm which lacked the required PipeWire APIs)
 - **Added:** aarch64 cross-compilation in the same Docker step; aarch64 binary uploaded as artifact and swapped into tarball for ARM64 AppImage, DEB, and RPM packages
 - **Hardened:** Bridge build failure now stops the pipeline (was a non-fatal warning)
 
