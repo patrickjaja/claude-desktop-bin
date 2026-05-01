@@ -109,7 +109,7 @@ Updates are automatic via `sudo apt update && sudo apt upgrade`.
 <summary>Manual .deb install (without APT repo)</summary>
 
 ```bash
-wget https://github.com/patrickjaja/claude-desktop-bin/releases/latest/download/claude-desktop-bin_1.5354.0-3_amd64.deb
+wget https://github.com/patrickjaja/claude-desktop-bin/releases/latest/download/claude-desktop-bin_1.5354.0-4_amd64.deb
 sudo dpkg -i claude-desktop-bin_*_amd64.deb
 ```
 </details>
@@ -146,7 +146,7 @@ Updates are automatic via `sudo dnf upgrade`.
 <summary>Manual .rpm install (without DNF repo)</summary>
 
 ```bash
-wget https://github.com/patrickjaja/claude-desktop-bin/releases/latest/download/claude-desktop-bin-1.5354.0-3.x86_64.rpm
+wget https://github.com/patrickjaja/claude-desktop-bin/releases/latest/download/claude-desktop-bin-1.5354.0-4.x86_64.rpm
 sudo dnf install ./claude-desktop-bin-*.x86_64.rpm
 ```
 </details>
