@@ -304,13 +304,13 @@ chmod +x "$TARBALL_DIR/launcher/claude-desktop"
 # Bundle kwin-portal-bridge into locales/ (= process.resourcesPath at runtime)
 if [ -n "${KWIN_PORTAL_BRIDGE_BIN:-}" ] && [ -f "$KWIN_PORTAL_BRIDGE_BIN" ]; then
     log_info "Bundling kwin-portal-bridge from $KWIN_PORTAL_BRIDGE_BIN"
-    cp "$KWIN_PORTAL_BRIDGE_BIN" "$WORK_DIR/app/locales/kwin-portal-bridge"
-    chmod +x "$WORK_DIR/app/locales/kwin-portal-bridge"
+    cp "$KWIN_PORTAL_BRIDGE_BIN" "$TARBALL_DIR/app/locales/kwin-portal-bridge"
+    chmod +x "$TARBALL_DIR/app/locales/kwin-portal-bridge"
 elif command -v cargo &>/dev/null && [ -d "$PROJECT_DIR/../kwin-portal-bridge" ]; then
     log_info "Building kwin-portal-bridge from source..."
     if (cd "$PROJECT_DIR/../kwin-portal-bridge" && cargo build --release 2>&1 | tail -3); then
-        cp "$PROJECT_DIR/../kwin-portal-bridge/target/release/kwin-portal-bridge" "$WORK_DIR/app/locales/kwin-portal-bridge"
-        chmod +x "$WORK_DIR/app/locales/kwin-portal-bridge"
+        cp "$PROJECT_DIR/../kwin-portal-bridge/target/release/kwin-portal-bridge" "$TARBALL_DIR/app/locales/kwin-portal-bridge"
+        chmod +x "$TARBALL_DIR/app/locales/kwin-portal-bridge"
         log_info "kwin-portal-bridge built and bundled"
     else
         log_warn "kwin-portal-bridge build failed — skipping (KDE Wayland Computer Use will require manual install)"
