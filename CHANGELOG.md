@@ -2,6 +2,15 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-05-04 — AUR: add aarch64 architecture support
+
+- **Added:** `PKGBUILD.template` now declares `arch=('x86_64' 'aarch64')` with arch-specific source arrays and Electron downloads
+- **Added:** CI produces a dedicated aarch64 tarball (node-pty + kwin-portal-bridge swapped) uploaded alongside the x86_64 tarball in GitHub releases
+- **Updated:** `.SRCINFO` generation emits both architectures and both `source_aarch64`/`sha256sums_aarch64` arrays
+- **Updated:** `generate-pkgbuild.sh` accepts `SHA256SUM_AARCH64` and `DOWNLOAD_URL_AARCH64` env vars
+
+---
+
 ## 2026-05-01 — kwin-portal-bridge CI: glibc 2.31 compat + aarch64 cross-build
 
 - **Fixed:** Bridge build uses `rust:1-trixie` (PipeWire 1.4, needed for `pw_stream_get_nsec`) + `cargo-zigbuild` targeting glibc 2.31 (was Bullseye/Bookworm which lacked the required PipeWire APIs)

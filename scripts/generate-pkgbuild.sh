@@ -32,6 +32,12 @@ if [ -z "$DOWNLOAD_URL" ]; then
     DOWNLOAD_URL="https://github.com/patrickjaja/claude-desktop-bin/releases/download/v${VERSION}/claude-desktop-${VERSION}-linux.tar.gz"
 fi
 
+# aarch64 tarball: env override or derive from x86_64 URL
+SHA256SUM_AARCH64="${SHA256SUM_AARCH64:-SKIP}"
+if [ -z "$DOWNLOAD_URL_AARCH64" ]; then
+    DOWNLOAD_URL_AARCH64=$(echo "$DOWNLOAD_URL" | sed 's/-linux\.tar\.gz/-linux-aarch64.tar.gz/')
+fi
+
 # Find the template
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
@@ -66,6 +72,8 @@ sed \
     -e "s/{{PKGREL}}/$PKGREL/g" \
     -e "s/{{SHA256SUM}}/$SHA256SUM/g" \
     -e "s|{{DOWNLOAD_URL}}|$DOWNLOAD_URL|g" \
+    -e "s/{{SHA256SUM_AARCH64}}/$SHA256SUM_AARCH64/g" \
+    -e "s|{{DOWNLOAD_URL_AARCH64}}|$DOWNLOAD_URL_AARCH64|g" \
     -e "s/{{ELECTRON_VERSION}}/$ELECTRON_VERSION/g" \
     -e "s/{{MAINTAINER_NAME}}/$MAINTAINER_NAME/g" \
     -e "s/{{MAINTAINER_EMAIL}}/$MAINTAINER_EMAIL/g" \

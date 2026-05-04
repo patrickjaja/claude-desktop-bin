@@ -542,6 +542,63 @@ jobs:
           if-no-files-found: ignore
 
   # ================================================================
+  # Job 2b: Build aarch64 tarball (swap node-pty + kwin-portal-bridge)
+  # ================================================================
+  build-aarch64-tarball:
+    needs: [check-version, build-tarball]
+    if: needs.check-version.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      tarball_aarch64_sha256: ${{ steps.repack.outputs.tarball_aarch64_sha256 }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download tarball
+        uses: actions/download-artifact@v4
+        with:
+          name: tarball
+
+      - name: Set up QEMU for ARM64
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Download kwin-portal-bridge aarch64
+        uses: actions/download-artifact@v4
+        with:
+          name: kwin-portal-bridge-aarch64
+
+      - name: Rebuild node-pty for aarch64
+        run: |
+          TARBALL="claude-desktop-${{ needs.check-version.outputs.version }}-linux.tar.gz"
+          bash scripts/rebuild-pty-for-arch.sh --arch aarch64 "$TARBALL"
+
+      - name: Swap kwin-portal-bridge and repack as aarch64 tarball
+        id: repack
+        run: |
+          VERSION="${{ needs.check-version.outputs.version }}"
+          TARBALL="claude-desktop-${VERSION}-linux.tar.gz"
+          REPACK_DIR=$(mktemp -d)
+          tar xzf "$TARBALL" -C "$REPACK_DIR"
+          cp kwin-portal-bridge-aarch64 "$REPACK_DIR/app/locales/kwin-portal-bridge"
+          chmod +x "$REPACK_DIR/app/locales/kwin-portal-bridge"
+          AARCH64_TARBALL="claude-desktop-${VERSION}-linux-aarch64.tar.gz"
+          (cd "$REPACK_DIR" && tar -czf "$(pwd)/../${AARCH64_TARBALL}" app/ icons/ launcher/)
+          rm -rf "$REPACK_DIR"
+          mv "$AARCH64_TARBALL" ./ 2>/dev/null || true
+          SHA256=$(sha256sum "claude-desktop-${VERSION}-linux-aarch64.tar.gz" | cut -d' ' -f1)
+          echo "tarball_aarch64_sha256=${SHA256}" >> $GITHUB_OUTPUT
+          echo "Built aarch64 tarball (SHA256: ${SHA256})"
+
+      - name: Upload aarch64 tarball
+        uses: actions/upload-artifact@v4
+        with:
+          name: tarball-aarch64
+          path: claude-desktop-*-linux-aarch64.tar.gz
+          retention-days: 1
+
+  # ================================================================
   # Job 3a: Build & test AppImage (matrix: x86_64, aarch64) — PARALLEL
   # ================================================================
   package-appimage:
@@ -922,7 +979,7 @@ jobs:
   # Job 3e: Generate PKGBUILD & .SRCINFO — PARALLEL
   # ================================================================
   generate-pkgbuild:
-    needs: [check-version, build-tarball]
+    needs: [check-version, build-tarball, build-aarch64-tarball]
     if: needs.check-version.outputs.should_build == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -937,9 +994,11 @@ jobs:
           TAG: ${{ needs.check-version.outputs.tag }}
           PKGREL: ${{ needs.check-version.outputs.pkgrel }}
           TARBALL_SHA256: ${{ needs.build-tarball.outputs.tarball_sha256 }}
+          SHA256SUM_AARCH64: ${{ needs.build-aarch64-tarball.outputs.tarball_aarch64_sha256 }}
           REPO: ${{ github.repository }}
         run: |
           PREBUILT_URL="https://github.com/${REPO}/releases/download/${TAG}/claude-desktop-${VERSION}-linux.tar.gz"
+          export DOWNLOAD_URL_AARCH64="https://github.com/${REPO}/releases/download/${TAG}/claude-desktop-${VERSION}-linux-aarch64.tar.gz"
           bash ./scripts/generate-pkgbuild.sh "${VERSION}" "${TARBALL_SHA256}" "$PREBUILT_URL" "${PKGREL}" > PKGBUILD
           cat PKGBUILD
 
@@ -954,7 +1013,11 @@ jobs:
           echo -e "\tpkgver = ${pkgver}"
           echo -e "\tpkgrel = ${pkgrel}"
           echo -e "\turl = ${url}"
-          echo -e "\tarch = ${arch[0]}"
+
+          for a in "${arch[@]}"; do
+            echo -e "\tarch = ${a}"
+          done
+
           echo -e "\tlicense = ${license[0]}"
 
           for dep in "${makedepends[@]}"; do
@@ -971,6 +1034,14 @@ jobs:
 
           for sum in "${sha256sums_x86_64[@]}"; do
             echo -e "\tsha256sums_x86_64 = ${sum}"
+          done
+
+          for src in "${source_aarch64[@]}"; do
+            echo -e "\tsource_aarch64 = ${src}"
+          done
+
+          for sum in "${sha256sums_aarch64[@]}"; do
+            echo -e "\tsha256sums_aarch64 = ${sum}"
           done
 
           echo ""
@@ -1026,6 +1097,11 @@ jobs:
           ELECTRON_SRC="electron-v${ELECTRON_VER}-linux-x64.zip::https://github.com/electron/electron/releases/download/v${ELECTRON_VER}/electron-v${ELECTRON_VER}-linux-x64.zip"
           sed -i "s|^source_x86_64=.*|source_x86_64=(\"${TARBALL}\" \"${ELECTRON_SRC}\")|" PKGBUILD
           sed -i "s|^sha256sums_x86_64=.*|sha256sums_x86_64=('${TARBALL_SHA}' 'SKIP')|" PKGBUILD
+
+          # Neutralize aarch64 sources — test runs on x86_64 only; prevents namcap
+          # from trying to fetch the not-yet-published aarch64 URLs
+          sed -i "s|^source_aarch64=.*|source_aarch64=()|" PKGBUILD
+          sed -i "s|^sha256sums_aarch64=.*|sha256sums_aarch64=()|" PKGBUILD
 
           # Copy everything into a staging dir for the Docker bind-mount
           mkdir -p /tmp/pkgbuild-test
@@ -1084,7 +1160,7 @@ jobs:
   # Job 4: Release & Publish (fan-in — waits for ALL parallel jobs)
   # ================================================================
   release:
-    needs: [check-version, build-tarball, lint-scripts, package-appimage, package-deb, package-rpm, test-nix, generate-pkgbuild, test-pkgbuild]
+    needs: [check-version, build-tarball, build-aarch64-tarball, lint-scripts, package-appimage, package-deb, package-rpm, test-nix, generate-pkgbuild, test-pkgbuild]
     if: needs.check-version.outputs.should_build == 'true'
     runs-on: ubuntu-latest
     permissions:
@@ -1105,8 +1181,9 @@ jobs:
         run: |
           mkdir -p release-files
 
-          # Tarball
+          # Tarballs
           cp artifacts/tarball/claude-desktop-*-linux.tar.gz release-files/
+          cp artifacts/tarball-aarch64/claude-desktop-*-linux-aarch64.tar.gz release-files/
 
           # AppImages
           cp artifacts/appimage-x86_64/Claude_Desktop-*-x86_64.AppImage release-files/
@@ -1129,7 +1206,10 @@ jobs:
           cp artifacts/pkgbuild/.SRCINFO .
 
           # Compute all SHA256 checksums
-          echo "tarball_sha256=$(sha256sum release-files/claude-desktop-*-linux.tar.gz | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+          # Use ls + grep to avoid glob matching both tarballs
+          TARBALL_X86=$(ls release-files/claude-desktop-*-linux.tar.gz | grep -v aarch64)
+          echo "tarball_sha256=$(sha256sum "$TARBALL_X86" | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+          echo "tarball_aarch64_sha256=$(sha256sum release-files/claude-desktop-*-linux-aarch64.tar.gz | cut -d' ' -f1)" >> $GITHUB_OUTPUT
           echo "appimage_x86_64_sha256=$(sha256sum release-files/Claude_Desktop-*-x86_64.AppImage | cut -d' ' -f1)" >> $GITHUB_OUTPUT
           echo "appimage_aarch64_sha256=$(sha256sum release-files/Claude_Desktop-*-aarch64.AppImage | cut -d' ' -f1)" >> $GITHUB_OUTPUT
           echo "deb_amd64_sha256=$(sha256sum release-files/claude-desktop-bin_*_amd64.deb | cut -d' ' -f1)" >> $GITHUB_OUTPUT
@@ -1225,7 +1305,8 @@ jobs:
             ### Checksums
             | File | SHA256 |
             |------|--------|
-            | Tarball | `${{ steps.files.outputs.tarball_sha256 }}` |
+            | Tarball (x86_64) | `${{ steps.files.outputs.tarball_sha256 }}` |
+            | Tarball (aarch64) | `${{ steps.files.outputs.tarball_aarch64_sha256 }}` |
             | AppImage (x86_64) | `${{ steps.files.outputs.appimage_x86_64_sha256 }}` |
             | AppImage (aarch64) | `${{ steps.files.outputs.appimage_aarch64_sha256 }}` |
             | Debian (amd64) | `${{ steps.files.outputs.deb_amd64_sha256 }}` |
