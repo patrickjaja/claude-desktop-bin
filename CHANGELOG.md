@@ -2,6 +2,15 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-05-05 — CI: add PR validation (full pipeline for contributors)
+
+- **Added:** `pull_request` trigger on `build-and-release.yml` — contributors now get the full build pipeline on PRs (patches, kwin-portal-bridge, all packaging formats, glibc verification, both architectures)
+- **Added:** Concurrency control — pushing new commits to a PR cancels in-progress CI runs
+- **Added:** `paths-ignore` — docs-only PRs skip the pipeline
+- **Changed:** Release-only jobs (`release`, `deploy-rpm-repo`, `deploy-pages`, `validate-nix`) gated with `github.event_name == 'workflow_dispatch'` — skipped on PRs, no code duplication
+
+---
+
 ## 2026-05-04 — AUR: add aarch64 architecture support
 
 - **Added:** `PKGBUILD.template` now declares `arch=('x86_64' 'aarch64')` with arch-specific source arrays and Electron downloads

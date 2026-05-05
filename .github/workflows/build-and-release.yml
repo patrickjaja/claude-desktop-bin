@@ -1,7 +1,14 @@
 name: Build & Release
 
 on:
-  workflow_dispatch:  # Manual trigger only (version-check.yml notifies of new versions)
+  pull_request:
+    branches: [master]
+    paths-ignore:
+      - '*.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - '.gitignore'
+  workflow_dispatch:  # Manual trigger for releases (version-check.yml notifies of new versions)
     inputs:
       download_url:
         description: 'Manual download URL (optional - bypasses auto-detection if Cloudflare blocks)'
@@ -13,6 +20,10 @@ on:
         type: boolean
         default: false
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 # ──────────────────────────────────────────────────────────────────────
 # Job graph (fan-out / fan-in):
 #
@@ -22,11 +33,14 @@ on:
 #                                     ├── test-nix
 #                                     └── generate-pkgbuild ──► test-pkgbuild (makepkg + namcap)
 #                                              │
-#                                     release (needs all above, assembles APT repo)
+#                                     release (needs all above — workflow_dispatch only)
 #                                              │
-#                                     deploy-rpm-repo (fedora:40, signs RPMs, uploads Pages artifact)
+#                                     deploy-rpm-repo (fedora:40, signs RPMs — workflow_dispatch only)
 #                                              │
-#                                     deploy-pages (deploys to GitHub Pages)
+#                                     deploy-pages (deploys to GitHub Pages — workflow_dispatch only)
+#
+# On pull_request: all validation jobs run, release/deploy jobs are skipped.
+# On workflow_dispatch: full pipeline including release and deploy.
 # ──────────────────────────────────────────────────────────────────────
 
 jobs:
@@ -39,10 +53,10 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       needs_update: ${{ steps.check.outputs.needs_update }}
       highest_version: ${{ steps.check.outputs.highest_version }}
-      pkgrel: ${{ steps.pkgrel.outputs.pkgrel }}
-      tag: ${{ steps.pkgrel.outputs.tag }}
-      release_name: ${{ steps.pkgrel.outputs.release_name }}
-      make_latest: ${{ steps.pkgrel.outputs.make_latest }}
+      pkgrel: ${{ steps.pkgrel.outputs.pkgrel || steps.pr-defaults.outputs.pkgrel || '1' }}
+      tag: ${{ steps.pkgrel.outputs.tag || steps.pr-defaults.outputs.tag }}
+      release_name: ${{ steps.pkgrel.outputs.release_name || steps.pr-defaults.outputs.release_name }}
+      make_latest: ${{ steps.pkgrel.outputs.make_latest || steps.pr-defaults.outputs.make_latest }}
       changelog: ${{ steps.git_changelog.outputs.content }}
       should_build: ${{ steps.decide.outputs.should_build }}
     steps:
@@ -212,11 +226,22 @@ jobs:
       - name: Decide if build should proceed
         id: decide
         run: |
-          if [ "${{ steps.check.outputs.needs_update }}" == "true" ] || [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+          if [ "${{ github.event_name }}" == "pull_request" ] || \
+             [ "${{ steps.check.outputs.needs_update }}" == "true" ] || \
+             [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             echo "should_build=true" >> $GITHUB_OUTPUT
           else
             echo "should_build=false" >> $GITHUB_OUTPUT
           fi
+
+      - name: Set defaults for PR builds
+        id: pr-defaults
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "pkgrel=1" >> $GITHUB_OUTPUT
+          echo "tag=v${{ steps.version.outputs.version }}-pr" >> $GITHUB_OUTPUT
+          echo "release_name=PR Validation" >> $GITHUB_OUTPUT
+          echo "make_latest=false" >> $GITHUB_OUTPUT
 
       - name: Upload exe for build job
         if: steps.decide.outputs.should_build == 'true'
@@ -1161,7 +1186,7 @@ jobs:
   # ================================================================
   release:
     needs: [check-version, build-tarball, build-aarch64-tarball, lint-scripts, package-appimage, package-deb, package-rpm, test-nix, generate-pkgbuild, test-pkgbuild]
-    if: needs.check-version.outputs.should_build == 'true'
+    if: needs.check-version.outputs.should_build == 'true' && github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -1593,7 +1618,7 @@ jobs:
   # ================================================================
   deploy-rpm-repo:
     needs: [check-version, release]
-    if: needs.check-version.outputs.should_build == 'true'
+    if: needs.check-version.outputs.should_build == 'true' && github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     container: fedora:40
     permissions:
@@ -1662,6 +1687,7 @@ jobs:
   # ================================================================
   deploy-pages:
     needs: [deploy-rpm-repo]
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       pages: write
@@ -1679,7 +1705,7 @@ jobs:
   # ================================================================
   validate-nix:
     needs: [check-version, release]
-    if: needs.check-version.outputs.should_build == 'true'
+    if: needs.check-version.outputs.should_build == 'true' && github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository (latest master with updated hash)
