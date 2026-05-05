@@ -328,8 +328,23 @@ jobs:
         with:
           name: claude-setup-exe
 
+      - name: Get kwin-portal-bridge repo HEAD
+        id: bridge-rev
+        run: |
+          BRIDGE_SHA=$(git ls-remote https://github.com/patrickjaja/kwin-portal-bridge.git HEAD | cut -f1)
+          echo "sha=${BRIDGE_SHA}" >> $GITHUB_OUTPUT
+          echo "kwin-portal-bridge HEAD: ${BRIDGE_SHA}"
+
+      - name: Cache kwin-portal-bridge binaries
+        id: bridge-cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/bridge-output
+          key: kwin-portal-bridge-${{ steps.bridge-rev.outputs.sha }}
+
       - name: Build kwin-portal-bridge (x86_64 + aarch64, glibc 2.31 target)
         id: bridge
+        if: steps.bridge-cache.outputs.cache-hit != 'true'
         run: |
           echo "=== Building kwin-portal-bridge (Trixie PipeWire 1.4, glibc 2.31 via zigbuild) ==="
           mkdir -p /tmp/bridge-output
@@ -371,6 +386,8 @@ jobs:
               echo 'kwin-portal-bridge aarch64 built successfully'
             "
 
+      - name: Verify kwin-portal-bridge binaries
+        run: |
           echo "--- x86_64 binary ---"
           file /tmp/bridge-output/kwin-portal-bridge
           GLIBC_MAX=$(objdump -T /tmp/bridge-output/kwin-portal-bridge 2>/dev/null | grep -oP 'GLIBC_\S+' | sort -uV | tail -1 || echo "unknown")

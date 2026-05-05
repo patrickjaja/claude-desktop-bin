@@ -2,12 +2,13 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
-## 2026-05-05 — CI: add PR validation (full pipeline for contributors)
+## 2026-05-05 — CI: add PR validation + kwin-portal-bridge cache
 
 - **Added:** `pull_request` trigger on `build-and-release.yml` — contributors now get the full build pipeline on PRs (patches, kwin-portal-bridge, all packaging formats, glibc verification, both architectures)
 - **Added:** Concurrency control — pushing new commits to a PR cancels in-progress CI runs
 - **Added:** `paths-ignore` — docs-only PRs skip the pipeline
 - **Changed:** Release-only jobs (`release`, `deploy-rpm-repo`, `deploy-pages`, `validate-nix`) gated with `github.event_name == 'workflow_dispatch'` — skipped on PRs, no code duplication
+- **Optimized:** Cache kwin-portal-bridge binaries keyed on upstream repo HEAD SHA — skips the ~13min Rust build on cache hit, glibc verification still runs every time
 
 ---
 
