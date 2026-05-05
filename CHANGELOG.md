@@ -2,6 +2,12 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-05-05 — Fix session name leaking into bash tool description (native mode)
+
+- **Fixed:** Patch A in `fix_cowork_sandbox_refs.nim` leaked `vmProcessName` into the native-mode bash tool description — the session name variable was concatenated between two separate ternaries instead of being inside a single ternary's KVM branch. This caused the model to hallucinate `/sessions/<name>/mnt/outputs` paths that don't exist without root.
+
+---
+
 ## 2026-05-05 — CI: add PR validation + kwin-portal-bridge cache
 
 - **Added:** `pull_request` trigger on `build-and-release.yml` — contributors now get the full build pipeline on PRs (patches, kwin-portal-bridge, all packaging formats, glibc verification, both architectures)
