@@ -626,9 +626,9 @@ jobs:
           cp kwin-portal-bridge-aarch64 "$REPACK_DIR/app/locales/kwin-portal-bridge"
           chmod +x "$REPACK_DIR/app/locales/kwin-portal-bridge"
           AARCH64_TARBALL="claude-desktop-${VERSION}-linux-aarch64.tar.gz"
-          (cd "$REPACK_DIR" && tar -czf "$(pwd)/../${AARCH64_TARBALL}" app/ icons/ launcher/)
+          AARCH64_TARBALL_ABS="$(pwd)/${AARCH64_TARBALL}"
+          (cd "$REPACK_DIR" && tar -czf "$AARCH64_TARBALL_ABS" app/ icons/ launcher/)
           rm -rf "$REPACK_DIR"
-          mv "$AARCH64_TARBALL" ./ 2>/dev/null || true
           SHA256=$(sha256sum "claude-desktop-${VERSION}-linux-aarch64.tar.gz" | cut -d' ' -f1)
           echo "tarball_aarch64_sha256=${SHA256}" >> $GITHUB_OUTPUT
           echo "Built aarch64 tarball (SHA256: ${SHA256})"
