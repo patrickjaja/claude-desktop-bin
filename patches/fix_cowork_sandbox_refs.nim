@@ -17,10 +17,12 @@
 import std/[os, strformat, strutils, options]
 import std/nre
 
-proc replaceFirstRe(content: var string, pattern: Regex,
-                    subFn: proc(m: RegexMatch): string): int =
+proc replaceFirstRe(
+    content: var string, pattern: Regex, subFn: proc(m: RegexMatch): string
+): int =
   let maybe = content.find(pattern)
-  if maybe.isNone: return 0
+  if maybe.isNone:
+    return 0
   let m = maybe.get()
   let bounds = m.matchBounds
   content = content[0 ..< bounds.a] & subFn(m) & content[bounds.b + 1 .. ^1]
@@ -70,24 +72,24 @@ proc apply*(input: string): string =
 
   # ── Patch A: Bash tool description ─────────────────────────────
   block:
-    let pat = re"""("Run a shell command in the session's isolated Linux workspace\.[^"]*?/sessions/")(\+[\w$.]+\+)("/mnt/[^"]*?")"""
+    let pat =
+      re"""("Run a shell command in the session's isolated Linux workspace\.[^"]*?/sessions/")(\+[\w$.]+\+)("/mnt/[^"]*?")"""
 
     # Native-mode rewrites (byte-for-byte identical to the Python source).
     const nativeHalf1 =
       "\"Run a shell command on the host Linux system." &
       " There is no VM or sandbox \\u2014 commands execute directly" &
       " on the user\\u2019s computer." &
-      " Each bash call is independent (no cwd/env carryover)." &
-      " Use absolute paths.\""
-    const nativeHalf2 = "\"\""
-
-    let n = replaceFirstRe(content, pat, proc(m: RegexMatch): string =
-      let origHalf1 = m.captures[0]
-      let concat = m.captures[1]
-      let origHalf2 = m.captures[2]
-      "(globalThis.__coworkKvmMode?" & origHalf1 & ":" & nativeHalf1 & ")" &
-        concat &
-        "(globalThis.__coworkKvmMode?" & origHalf2 & ":" & nativeHalf2 & ")"
+      " Each bash call is independent (no cwd/env carryover)." & " Use absolute paths.\""
+    let n = replaceFirstRe(
+      content,
+      pat,
+      proc(m: RegexMatch): string =
+        let origHalf1 = m.captures[0]
+        let concat = m.captures[1]
+        let origHalf2 = m.captures[2]
+        "(globalThis.__coworkKvmMode?" & origHalf1 & concat & origHalf2 & ":" &
+          nativeHalf1 & ")",
     )
     if n == 1:
       echo "  [OK] A bash tool description: wrapped in runtime ternary"
@@ -97,8 +99,10 @@ proc apply*(input: string): string =
 
   # ── Patch B: Cowork identity system prompt ─────────────────────
   block:
-    const origB = "Claude runs in a lightweight Linux VM on the user's computer, which provides a secure sandbox for executing code while allowing controlled access to a workspace folder."
-    const newB = "Claude runs directly on the user's Linux computer with full access to the local filesystem and installed tools. There is no VM or sandbox."
+    const origB =
+      "Claude runs in a lightweight Linux VM on the user's computer, which provides a secure sandbox for executing code while allowing controlled access to a workspace folder."
+    const newB =
+      "Claude runs directly on the user's Linux computer with full access to the local filesystem and installed tools. There is no VM or sandbox."
 
     let n = replaceSubstringContextAware(content, origB, newB)
     if n >= 1:
@@ -109,8 +113,10 @@ proc apply*(input: string): string =
 
   # ── Patch C: Computer use high-level explanation ───────────────
   block:
-    const origC = "Claude runs in a lightweight Linux VM (Ubuntu 22) on the user's computer. This VM provides a secure sandbox for executing code while allowing controlled access to user files."
-    const newC = "Claude runs directly on the user's Linux computer. Commands execute on the host system with full access to local files and tools. There is no VM or sandbox."
+    const origC =
+      "Claude runs in a lightweight Linux VM (Ubuntu 22) on the user's computer. This VM provides a secure sandbox for executing code while allowing controlled access to user files."
+    const newC =
+      "Claude runs directly on the user's Linux computer. Commands execute on the host system with full access to local files and tools. There is no VM or sandbox."
 
     let n = replaceSubstringContextAware(content, origC, newC)
     if n >= 1:
@@ -136,14 +142,17 @@ proc apply*(input: string): string =
 
   # ── Checks ────────────────────────────────────────────────────
   if patchesApplied < EXPECTED_PATCHES:
-    raise newException(ValueError,
-      &"Only {patchesApplied}/{EXPECTED_PATCHES} patches applied")
+    raise newException(
+      ValueError, &"Only {patchesApplied}/{EXPECTED_PATCHES} patches applied"
+    )
 
   let originalDelta = original.count('{') - original.count('}')
   let patchedDelta = content.count('{') - content.count('}')
   if originalDelta != patchedDelta:
     let diff = patchedDelta - originalDelta
-    raise newException(ValueError, &"Patch introduced brace imbalance: {diff:+d} unmatched braces")
+    raise newException(
+      ValueError, &"Patch introduced brace imbalance: {diff:+d} unmatched braces"
+    )
 
   echo &"  [PASS] All {patchesApplied} sandbox/VM references wrapped for runtime selection"
   result = content
