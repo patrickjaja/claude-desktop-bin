@@ -21,7 +21,14 @@ This is an AUR package that repackages Claude Desktop (Windows) for Arch Linux. 
 | NVIDIA Jetson (JetPack 6) | `.deb` | 2.35 | aarch64 |
 | Any (glibc) | `.AppImage` | varies | x86_64, aarch64 |
 
-**glibc floor: 2.31** (Debian 11 Bullseye). All compiled binaries shipped in the package (kwin-portal-bridge, node-pty) must run on glibc >= 2.31. CI enforces this via `cargo-zigbuild --target ...-gnu.2.31` and `objdump` verification. If a new native binary is added, it must follow the same constraint.
+**glibc floors** (per-binary, because kwin-portal-bridge requires KWin 6.6+ which only ships on newer distros):
+
+| Binary | glibc floor | Rationale | CI build base |
+|--------|-------------|-----------|---------------|
+| node-pty | 2.31 (Debian 11) | Must run on all supported distros | `node:20-bullseye` |
+| kwin-portal-bridge | 2.39 (Ubuntu Noble) | KWin 6.6+ only ships on Noble+ / Fedora 40+ | `ubuntu:noble` + native cross |
+
+CI enforces floors via `objdump -T | grep GLIBC_` verification. If a new native binary is added, pick the floor that matches its minimum viable distro.
 
 | Session type | Compositors / DEs | Input backend | Screenshot tools |
 |-------------|-------------------|---------------|-----------------|
@@ -33,7 +40,7 @@ This is an AUR package that repackages Claude Desktop (Windows) for Arch Linux. 
 
 Patches emit `[claude-cu] diagnostics:` lines to **stderr/stdout** at startup showing detected session, available/missing tools, and screenshot cascade order. Visible when running `claude-desktop` from a terminal. Ask users to share this output when debugging.
 
-**Key constraint:** The upstream binary (`Claude-Setup-x64.exe`) is managed remotely by Anthropic and changes without notice. Every minified variable name, function signature, and feature flag can change between releases. This makes the project inherently fragile — patches and documentation must be re-validated on each upstream update.
+**Key constraint:** The upstream binary (`Claude.msix`) is managed remotely by Anthropic and changes without notice. Every minified variable name, function signature, and feature flag can change between releases. This makes the project inherently fragile — patches and documentation must be re-validated on each upstream update.
 
 ## Version-Sensitive Artifacts
 
@@ -58,13 +65,13 @@ These files embed assumptions about upstream internals and **must be challenged 
 
 When a new Claude Desktop version drops, follow [update-prompt.md](update-prompt.md) — it has copy-paste prompts for:
 
-1. **Prompt 1:** Build & fix patches (download exe, run build, fix failures)
+1. **Prompt 1:** Build & fix patches (download msix, run build, fix failures)
 2. **Prompt 2:** Diff & discover new changes (compare old vs new JS bundles)
 3. **Prompt 3:** Feature flag audit (catch new/changed flags)
 
 Quick start:
 ```bash
-# Build (auto-cleans build dir, auto-downloads latest exe, applies patches, packages)
+# Build (auto-cleans build dir, auto-downloads latest msix, applies patches, packages)
 ./scripts/build-local.sh
 ```
 
@@ -83,7 +90,7 @@ See also: [validate_and_fix_claude-setup-x64.md](validate_and_fix_claude-setup-x
 
 ## Debugging Patch Failures
 
-**IMPORTANT:** Always work against a **freshly extracted** bundle in `./tmp/` (project-local, gitignored). If the `Claude-Setup-x64.exe` or any extracted `index.js` in `./tmp/` is older than today, re-fetch from upstream and re-extract before doing any patch work (review, debugging, writing). Stale extracts have different minified variable names and will lead to wrong conclusions.
+**IMPORTANT:** Always work against a **freshly extracted** bundle in `./tmp/` (project-local, gitignored). If the `Claude.msix` or any extracted `index.js` in `./tmp/` is older than today, re-fetch from upstream and re-extract before doing any patch work (review, debugging, writing). Stale extracts have different minified variable names and will lead to wrong conclusions.
 
 ```bash
 # Re-download + extract in one step (compares local vs upstream version automatically):
@@ -91,13 +98,14 @@ See also: [validate_and_fix_claude-setup-x64.md](validate_and_fix_claude-setup-x
 
 # Or manually: download latest, extract to ./tmp/:
 mkdir -p tmp
-./scripts/build-patched-tarball.sh Claude-Setup-x64.exe ./tmp
+./scripts/build-patched-tarball.sh Claude.msix ./tmp
 # The unpatched index.js is at: ./tmp/app/app.asar.contents/.vite/build/index.js
 
 # ion-dist (3P config SPA) is in the upstream resources, not inside app.asar:
 # After build: build/src/app/locales/ion-dist/
-# Or extract manually from the nupkg:
-#   ls extract/lib/net45/resources/ion-dist/
+# Or extract manually from the MSIX:
+#   7z x -o./tmp/extract Claude.msix -y
+#   ls ./tmp/extract/app/resources/ion-dist/
 ```
 
 When patches fail after a new Claude Desktop release, follow this workflow:
@@ -105,15 +113,12 @@ When patches fail after a new Claude Desktop release, follow this workflow:
 ### 1. Extract and Test Locally
 
 ```bash
-# Extract the exe (place Claude-Setup-x64.exe in project root first)
+# Extract the MSIX (place Claude.msix in project root first)
 mkdir -p tmp
-7z x -o./tmp Claude-Setup-x64.exe -y
-
-# Extract the nupkg (version number will vary)
-7z x -o./tmp/nupkg ./tmp/AnthropicClaude-*.nupkg -y
+7z x -o./tmp/extract Claude.msix -y
 
 # Extract app.asar
-asar extract ./tmp/nupkg/lib/net45/resources/app.asar ./tmp/app.asar.contents
+asar extract ./tmp/extract/app/resources/app.asar ./tmp/app.asar.contents
 ```
 
 ### 2. Run Validation Script
@@ -372,11 +377,11 @@ rm -rf ~/.config/Claude/local-agent-mode-sessions/
 ## CI Pipeline
 
 GitHub Actions workflow:
-1. Downloads latest Claude Desktop exe
+1. Downloads latest Claude Desktop MSIX package
 2. Runs patch validation in Docker
 3. If validation passes, pushes to AUR
 
-When CI fails, download the exe locally and debug using the workflow above.
+When CI fails, download the MSIX locally and debug using the workflow above.
 
 
 # Ubuntu VM

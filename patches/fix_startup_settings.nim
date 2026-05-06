@@ -15,7 +15,8 @@
 #    No env var distinguishes a session-restore launch from a normal user launch.
 #
 # Fix:
-# - isStartupOnLoginEnabled(): check ~/.config/autostart/claude[-PROFILE].desktop
+# - isStartupOnLoginEnabled(): migrate old com.anthropic.claude-desktop[-PROFILE].desktop
+#   to claude[-PROFILE].desktop, then check ~/.config/autostart/claude[-PROFILE].desktop
 # - setStartupOnLoginEnabled(enabled): create/remove that file with
 #   Exec=/usr/bin/claude-desktop [--profile=PROFILE] --startup
 # - Augment the --startup argv check: /run/user/UID/bus is created by systemd-logind at
@@ -39,7 +40,7 @@ proc apply*(input: string): string =
   let pattern1 =
     re2"""isStartupOnLoginEnabled\(\)\{if\(process\.env\.CLAUDE_AVOID_READING_LOGING_ITEM_SETTINGS\)return!1;"""
   const replacement1 =
-    """isStartupOnLoginEnabled(){if(process.platform==="linux"){try{const _ps=process.env.CLAUDE_PROFILE?"-"+process.env.CLAUDE_PROFILE:"";return require("fs").existsSync(require("path").join(require("os").homedir(),".config","autostart","claude"+_ps+".desktop"))}catch(e){return false}}if(process.env.CLAUDE_AVOID_READING_LOGING_ITEM_SETTINGS)return!1;"""
+    """isStartupOnLoginEnabled(){if(process.platform==="linux"){try{const _ps=process.env.CLAUDE_PROFILE?"-"+process.env.CLAUDE_PROFILE:"";const _fs=require("fs"),_path=require("path"),_home=require("os").homedir();const _oldF=_path.join(_home,".config","autostart","com.anthropic.claude-desktop"+_ps+".desktop");const _newF=_path.join(_home,".config","autostart","claude"+_ps+".desktop");if(_fs.existsSync(_oldF)){if(!_fs.existsSync(_newF)){try{_fs.renameSync(_oldF,_newF)}catch(e){}}else{try{_fs.unlinkSync(_oldF)}catch(e){}}}return _fs.existsSync(_newF)}catch(e){return false}}if(process.env.CLAUDE_AVOID_READING_LOGING_ITEM_SETTINGS)return!1;"""
 
   # Already-applied sentinel: Pattern 1 changes the function to start with platform check.
   # Must be specific - other patches (fix_asar_workspace_cwd, fix_browser_tools_linux)

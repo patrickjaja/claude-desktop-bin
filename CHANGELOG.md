@@ -2,6 +2,14 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-05-06 — Dispatch hostLoop fix, autostart migration, CLAUDE.md MSIX updates
+
+- **Dispatch patch (`fix_dispatch_linux.nim`):** Force GrowthBook flag `1143815894` (hostLoopMode) OFF alongside dispatch ON. HostLoop bypasses cowork-svc, breaking skills/plugins on Linux. Patch E now handles three states: fully patched, stale combined override, and dispatch-only — adding hostLoop OFF in all cases. Renamed references from `Jr()` to `Pt()` to match v1.6259.1 minified names.
+- **Autostart migration (`fix_startup_settings.nim`):** `isStartupOnLoginEnabled()` now migrates old `com.anthropic.claude-desktop[-PROFILE].desktop` files to `claude[-PROFILE].desktop` before checking, so users upgrading from the old APP_ID don't lose their startup-on-login setting.
+- **CLAUDE.md:** Updated all references from `Claude-Setup-x64.exe` / nupkg extraction to `Claude.msix` extraction paths. Added per-binary glibc floor table (node-pty 2.31, kwin-portal-bridge 2.39).
+
+---
+
 ## 2026-05-06 — Pin Electron version, cache in CI
 
 - **Pinned Electron version:** New `.electron-version` file at project root (currently `42.0.0`). To bump: edit the file and commit — all scripts and CI pick it up automatically.
