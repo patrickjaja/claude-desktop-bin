@@ -10,12 +10,8 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Fetch latest stable Electron version from GitHub
-ELECTRON_VERSION=$(curl -sf https://api.github.com/repos/electron/electron/releases/latest | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/' || true)
-if [ -z "$ELECTRON_VERSION" ]; then
-    echo "Error: Could not fetch latest Electron version from GitHub API." >&2
-    exit 1
-fi
+# Resolve Electron version (pinned in .electron-version, overridable via env)
+source "$SCRIPT_DIR/../../scripts/resolve-electron-version.sh"
 
 # Colors
 RED='\033[0;31m'

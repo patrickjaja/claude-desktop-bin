@@ -42,23 +42,8 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
-# Resolve Electron version: env override → local cache → GitHub API
-ELECTRON_CACHE="$PROJECT_DIR/build/.electron-version"
-if [ -n "$ELECTRON_VERSION" ]; then
-    : # caller provided via env
-elif [ -f "$ELECTRON_CACHE" ]; then
-    ELECTRON_VERSION=$(cat "$ELECTRON_CACHE")
-    echo "Using cached Electron version: $ELECTRON_VERSION (delete $ELECTRON_CACHE to refresh)" >&2
-else
-    ELECTRON_VERSION=$(curl -sf https://api.github.com/repos/electron/electron/releases/latest | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/' || true)
-    if [ -z "$ELECTRON_VERSION" ]; then
-        echo "Error: Could not fetch latest Electron version from GitHub API." >&2
-        echo "Tip: set ELECTRON_VERSION=<ver> or create $ELECTRON_CACHE" >&2
-        exit 1
-    fi
-    mkdir -p "$(dirname "$ELECTRON_CACHE")"
-    echo "$ELECTRON_VERSION" > "$ELECTRON_CACHE"
-fi
+# Resolve Electron version (pinned in .electron-version, overridable via env)
+source "$SCRIPT_DIR/resolve-electron-version.sh"
 TEMPLATE_FILE="$PROJECT_DIR/PKGBUILD.template"
 
 if [ ! -f "$TEMPLATE_FILE" ]; then

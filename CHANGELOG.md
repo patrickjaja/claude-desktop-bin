@@ -2,6 +2,15 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-05-06 — Pin Electron version, cache in CI
+
+- **Pinned Electron version:** New `.electron-version` file at project root (currently `42.0.0`). To bump: edit the file and commit — all scripts and CI pick it up automatically.
+- **Shared resolution helper:** `scripts/resolve-electron-version.sh` replaces duplicated GitHub API calls in 4 scripts (`generate-pkgbuild.sh`, `build-appimage.sh`, `build-deb.sh`, `build-rpm.sh`). Resolution chain: env override → `.electron-version` → GitHub API fallback.
+- **CI caching:** `test-pkgbuild` job now caches the Electron zip (~90MB) with `actions/cache@v4`, avoiding re-download on every run. All packaging jobs receive the pinned version via `ELECTRON_VERSION` env from the `check-version` job output.
+- **Removed:** hardcoded `33.2.1` fallback in `build-rpm.sh`, per-build `build/.electron-version` cache in `generate-pkgbuild.sh`.
+
+---
+
 ## 2026-05-06 — MSIX migration, APP_ID rename to `claude`, kwin-portal-bridge rebased on Noble
 
 - **MSIX migration:** Anthropic switched the upstream Windows artifact from the Squirrel installer (`Claude-Setup-x64.exe` → nupkg → `lib/net45/resources/`) to a flat MSIX package (`Claude.msix` → `app/resources/`). All build paths updated:

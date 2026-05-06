@@ -59,11 +59,19 @@ jobs:
       make_latest: ${{ steps.pkgrel.outputs.make_latest || steps.pr-defaults.outputs.make_latest }}
       changelog: ${{ steps.git_changelog.outputs.content }}
       should_build: ${{ steps.decide.outputs.should_build }}
+      electron_version: ${{ steps.electron.outputs.electron_version }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Full history for git changelog generation
+
+      - name: Read pinned Electron version
+        id: electron
+        run: |
+          ELECTRON_VERSION=$(cat .electron-version)
+          echo "Electron version: $ELECTRON_VERSION"
+          echo "electron_version=$ELECTRON_VERSION" >> $GITHUB_OUTPUT
 
       - name: Install dependencies
         run: |
@@ -739,6 +747,7 @@ jobs:
       - name: Build AppImage (${{ matrix.arch }})
         env:
           VERSION: ${{ needs.check-version.outputs.version }}
+          ELECTRON_VERSION: ${{ needs.check-version.outputs.electron_version }}
         run: |
           TARBALL="claude-desktop-${VERSION}-linux.tar.gz"
 
@@ -861,6 +870,7 @@ jobs:
         env:
           VERSION: ${{ needs.check-version.outputs.version }}
           PKGREL: ${{ needs.check-version.outputs.pkgrel }}
+          ELECTRON_VERSION: ${{ needs.check-version.outputs.electron_version }}
         run: |
           TARBALL="claude-desktop-${VERSION}-linux.tar.gz"
 
@@ -965,6 +975,7 @@ jobs:
         env:
           VERSION: ${{ needs.check-version.outputs.version }}
           PKGREL: ${{ needs.check-version.outputs.pkgrel }}
+          ELECTRON_VERSION: ${{ needs.check-version.outputs.electron_version }}
         run: |
           TARBALL="claude-desktop-${VERSION}-linux.tar.gz"
 
@@ -1081,6 +1092,7 @@ jobs:
           TARBALL_SHA256: ${{ needs.build-tarball.outputs.tarball_sha256 }}
           SHA256SUM_AARCH64: ${{ needs.build-aarch64-tarball.outputs.tarball_aarch64_sha256 }}
           REPO: ${{ github.repository }}
+          ELECTRON_VERSION: ${{ needs.check-version.outputs.electron_version }}
         run: |
           PREBUILT_URL="https://github.com/${REPO}/releases/download/${TAG}/claude-desktop-${VERSION}-linux.tar.gz"
           export DOWNLOAD_URL_AARCH64="https://github.com/${REPO}/releases/download/${TAG}/claude-desktop-${VERSION}-linux-aarch64.tar.gz"
@@ -1165,13 +1177,33 @@ jobs:
         with:
           name: pkgbuild
 
+      - name: Cache Electron zip
+        uses: actions/cache@v4
+        with:
+          path: /tmp/electron-cache
+          key: electron-v${{ needs.check-version.outputs.electron_version }}-linux-x64
+
+      - name: Pre-download Electron zip
+        env:
+          ELECTRON_VERSION: ${{ needs.check-version.outputs.electron_version }}
+        run: |
+          mkdir -p /tmp/electron-cache
+          ELECTRON_ZIP="electron-v${ELECTRON_VERSION}-linux-x64.zip"
+          if [ ! -f "/tmp/electron-cache/$ELECTRON_ZIP" ]; then
+            wget -q -O "/tmp/electron-cache/$ELECTRON_ZIP" \
+              "https://github.com/electron/electron/releases/download/v${ELECTRON_VERSION}/$ELECTRON_ZIP"
+            echo "Downloaded $ELECTRON_ZIP"
+          else
+            echo "Using cached $ELECTRON_ZIP"
+          fi
+
       - name: Test makepkg (cross-device build dir)
         env:
           VERSION: ${{ needs.check-version.outputs.version }}
         run: |
           # Point the PKGBUILD source at the local tarball so makepkg doesn't
           # need to download anything (the release hasn't been published yet).
-          # The electron zip is fetched by makepkg from GitHub (not overridden).
+          # The electron zip is pre-downloaded and cached to avoid repeated fetches.
           TARBALL="claude-desktop-${VERSION}-linux.tar.gz"
           TARBALL_SHA=$(sha256sum "$TARBALL" | cut -d' ' -f1)
 
@@ -1191,6 +1223,8 @@ jobs:
           # Copy everything into a staging dir for the Docker bind-mount
           mkdir -p /tmp/pkgbuild-test
           cp PKGBUILD .SRCINFO "$TARBALL" /tmp/pkgbuild-test/
+          # Copy cached Electron zip so makepkg skips downloading it
+          cp /tmp/electron-cache/electron-v*.zip /tmp/pkgbuild-test/ 2>/dev/null || true
 
           docker run --rm \
             --tmpfs /tmp/cross-device:exec,size=2g \
