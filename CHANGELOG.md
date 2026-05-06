@@ -2,6 +2,29 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-05-06 — MSIX migration, APP_ID rename to `claude`, kwin-portal-bridge rebased on Noble
+
+- **MSIX migration:** Anthropic switched the upstream Windows artifact from the Squirrel installer (`Claude-Setup-x64.exe` → nupkg → `lib/net45/resources/`) to a flat MSIX package (`Claude.msix` → `app/resources/`). All build paths updated:
+  - `scripts/build-patched-tarball.sh`, `scripts/build-local.sh`, `scripts/build-ubuntu-local.sh`, `scripts/build-fedora-local.sh`, `scripts/extract-version.sh`, and `.github/workflows/build-and-release.yml` now download/extract `Claude.msix`
+  - Version is read from `AppxManifest.xml` (`Identity.Version` is `X.Y.Z.0`; trailing `.0` stripped)
+  - URL-decoding pass added after extract — MSIX encodes `@` as `%40` (e.g. `@scope` → `%40scope`), which breaks asar's unpacked-file resolver
+  - Icon now extracted from `assets/Square150x150Logo.png` (300×300) and resized to 256×256 via ImageMagick; `icotool`/`icoutils` dependency dropped, replaced by `imagemagick`
+  - `smol-bin.*.vhdx` now lives under `app/resources/`; missing vhdx is now a hard fail (was best-effort)
+  - `.gitignore`: added `/Claude.msix`
+- **APP_ID renamed `com.anthropic.claude-desktop` → `claude`:** Chromium auto-generates its inner systemd scope as `app-<app.getName().toLowerCase()>-PID.scope` = `app-claude-…`. Aligning every identifier on the same string (binary basename, `.desktop` filename, `StartupWMClass`, Wayland `app_id`, systemd outer scope, autostart entry, executor `hostBundleId`) makes KDE global shortcuts and persistent xdg-desktop-portal RemoteDesktop authorizations stick across sessions.
+  - Launcher: `scripts/claude-desktop-launcher.sh` (`APP_ID='claude'`)
+  - Packaging: `PKGBUILD.template`, `packaging/debian/build-deb.sh` + `rules` + new `claude.desktop` (old `com.anthropic.claude-desktop.desktop` deleted), `packaging/rpm/claude-desktop-bin.spec`, `packaging/nix/package.nix`, `packaging/appimage/build-appimage.sh`
+  - Patches: `fix_computer_use_linux.nim` (`hostBundleId`), `fix_quick_entry_app_id.nim` (main + Quick Entry app_ids → `claude` / `claude-quick-entry`), `fix_startup_settings.nim` (autostart filename)
+  - JS: `js/executor_linux.js` (`DEFAULT_HOST_BUNDLE_ID = 'claude'`)
+  - CI smoke tests updated to assert the new binary name
+  - **User-visible breaking change:** anyone with the old `com.anthropic.claude-desktop.desktop` pinned to their taskbar must re-pin once after this update; custom WM rules matching `Claude` or `com.anthropic.claude-desktop` need to switch to `claude` (named profiles get `claude-<name>`)
+- **kwin-portal-bridge CI rebased Trixie+zigbuild → Noble+native cross:** Build now uses `ubuntu:noble` with a deb822 multiarch sources file (host=amd64, ports=arm64), `gcc-aarch64-linux-gnu` for cross-link, and rustup-installed toolchain. Removed `cargo-zigbuild` and the glibc 2.31 target. Rationale: kwin-portal-bridge requires KWin 6.6+, and Noble (glibc 2.39) is the oldest base any 6.6+ distro ships — older glibc targeting was buying nothing. The glibc check now version-compares with `sort -V` instead of lexicographic `[[ > ]]` (which would mis-rank `2.10 < 2.4`) and asserts ≤ 2.39.
+- **KWin 6.6+ gate in `js/cu_mode_preamble.js`:** Auto-mode now runs `kwin_wayland --version` on KDE Wayland sessions and only enables the kwin-portal-bridge path when `>= 6.6`. Older Plasma sessions fall back to the cross-distro path; the diagnostic line includes the detected KWin version (`auto: cross-distro fallback; KWin 6.5 < 6.6`).
+- **`scripts/build-local.sh --pkgrel <REL>`:** New flag (also `-r`) overrides the package release number passed to `generate-pkgbuild.sh`. Unknown args now error out instead of being silently swallowed.
+- **`js/executor_linux.js`:** Added `debugLog` calls to `resolvePrepareCapture`, `screenshot`, and `type` for runtime diagnosis of computer-use input/capture issues.
+
+---
+
 ## 2026-05-06 — Fix duplicate tray icon on theme change
 
 - **Fixed:** Toggling appearance (light/dark/system) in Settings caused a ghost tray icon on XFCE and other StatusNotifierWatcher-based panels. Root cause: the `nativeTheme.on("updated")` handler needlessly destroyed and recreated the tray, even though the Linux icon is always `TrayIconTemplate-Dark.png` regardless of theme. The panel couldn't process the DBus unregistration before the new registration arrived. Fix: `fix_tray_dbus.nim` Step 7 removes the tray function call from the theme handler.

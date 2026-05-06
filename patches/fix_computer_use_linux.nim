@@ -120,7 +120,7 @@ proc buildKwinLinuxExecutorInjection(): string =
   # std/nre's default mode treats ^/$ as buffer boundaries, so enable multiline via (?m).
   js = js.replace(re"(?m)^export\s+", "")
   result = "(function(){\n" & js.strip(leading = false, trailing = true) &
-    "\n\nglobalThis.__linuxExecutor = createLinuxExecutor({ hostBundleId: \"com.anthropic.claude-desktop\" });\n})();\n"
+    "\n\nglobalThis.__linuxExecutor = createLinuxExecutor({ hostBundleId: \"claude\" });\n})();\n"
 
 # ─── main patch ─────────────────────────────────────────────────────────────
 

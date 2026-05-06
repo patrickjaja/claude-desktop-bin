@@ -57,7 +57,7 @@ done
 # Check dependencies
 log_info "Checking build dependencies..."
 MISSING_DEPS=()
-for dep in wget 7z asar python3 icotool dpkg-deb unzip; do
+for dep in wget 7z asar python3 dpkg-deb unzip; do
     if ! command -v "$dep" &> /dev/null; then
         MISSING_DEPS+=("$dep")
     fi
@@ -66,7 +66,7 @@ done
 if [ ${#MISSING_DEPS[@]} -ne 0 ]; then
     log_error "Missing dependencies: ${MISSING_DEPS[*]}"
     echo "Install them with:"
-    echo "  sudo apt install p7zip-full wget dpkg-dev unzip icoutils fakeroot"
+    echo "  sudo apt install p7zip-full wget dpkg-dev unzip imagemagick fakeroot"
     echo "  npm install -g @electron/asar  (if asar is missing)"
     exit 1
 fi
@@ -76,9 +76,9 @@ log_info "Setting up build directory..."
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
 
-# Download latest exe (same logic as build-local.sh)
-EXE_FILE="$BUILD_DIR/Claude-Setup-x64.exe"
-LOCAL_EXE="$PROJECT_DIR/Claude-Setup-x64.exe"
+# Download latest msix (same logic as build-local.sh)
+MSIX_FILE="$BUILD_DIR/Claude.msix"
+LOCAL_MSIX="$PROJECT_DIR/Claude.msix"
 
 log_info "Querying Claude Desktop version API..."
 LATEST_JSON=$(wget -q -O - "https://downloads.claude.ai/releases/win32/x64/.latest")
@@ -88,50 +88,50 @@ if [ -z "$LATEST_JSON" ]; then
 fi
 LATEST_VERSION=$(echo "$LATEST_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['version'])")
 LATEST_HASH=$(echo "$LATEST_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['hash'])")
-DOWNLOAD_URL="https://downloads.claude.ai/releases/win32/x64/${LATEST_VERSION}/Claude-${LATEST_HASH}.exe"
+DOWNLOAD_URL="https://downloads.claude.ai/releases/win32/x64/${LATEST_VERSION}/Claude-${LATEST_HASH}.msix"
 
-if [ -f "$LOCAL_EXE" ]; then
-    LOCAL_VERSION=$("$SCRIPT_DIR/extract-version.sh" "$LOCAL_EXE" 2>/dev/null || echo "unknown")
+if [ -f "$LOCAL_MSIX" ]; then
+    LOCAL_VERSION=$("$SCRIPT_DIR/extract-version.sh" "$LOCAL_MSIX" 2>/dev/null || echo "unknown")
     if [ "$LOCAL_VERSION" = "$LATEST_VERSION" ]; then
-        log_info "Local exe is already latest (v$LATEST_VERSION), reusing"
-        cp "$LOCAL_EXE" "$EXE_FILE"
+        log_info "Local msix is already latest (v$LATEST_VERSION), reusing"
+        cp "$LOCAL_MSIX" "$MSIX_FILE"
     else
-        log_info "Local exe is v$LOCAL_VERSION, latest is v$LATEST_VERSION — downloading update"
-        wget -O "$EXE_FILE" \
+        log_info "Local msix is v$LOCAL_VERSION, latest is v$LATEST_VERSION — downloading update"
+        wget -O "$MSIX_FILE" \
             -U "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
             "$DOWNLOAD_URL" 2>&1
 
-        if [ ! -f "$EXE_FILE" ] || [ ! -s "$EXE_FILE" ]; then
+        if [ ! -f "$MSIX_FILE" ] || [ ! -s "$MSIX_FILE" ]; then
             log_error "Download failed."
             log_info "You can manually download from: https://claude.ai/download"
-            log_info "Then place the exe in $PROJECT_DIR/Claude-Setup-x64.exe and re-run"
+            log_info "Then place the msix in $PROJECT_DIR/Claude.msix and re-run"
             exit 1
         fi
-        cp "$EXE_FILE" "$LOCAL_EXE"
-        log_info "Download complete, local exe updated"
+        cp "$MSIX_FILE" "$LOCAL_MSIX"
+        log_info "Download complete, local msix updated"
     fi
 else
-    log_info "Downloading Claude Desktop for Windows..."
+    log_info "Downloading Claude Desktop for Windows (msix)..."
     log_info "Latest version: $LATEST_VERSION"
     log_info "Download URL: $DOWNLOAD_URL"
 
-    wget -O "$EXE_FILE" \
+    wget -O "$MSIX_FILE" \
         -U "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
         "$DOWNLOAD_URL" 2>&1
 
-    if [ ! -f "$EXE_FILE" ] || [ ! -s "$EXE_FILE" ]; then
+    if [ ! -f "$MSIX_FILE" ] || [ ! -s "$MSIX_FILE" ]; then
         log_error "Download failed."
         log_info "You can manually download from: https://claude.ai/download"
-        log_info "Then place the exe in $PROJECT_DIR/Claude-Setup-x64.exe and re-run"
+        log_info "Then place the msix in $PROJECT_DIR/Claude.msix and re-run"
         exit 1
     fi
-    cp "$EXE_FILE" "$LOCAL_EXE"
+    cp "$MSIX_FILE" "$LOCAL_MSIX"
     log_info "Download complete"
 fi
 
 # Build the patched tarball (shared with all distros)
 log_info "Building patched tarball..."
-SKIP_SMOKE_TEST="$SKIP_SMOKE_TEST" "$SCRIPT_DIR/build-patched-tarball.sh" "$EXE_FILE" "$BUILD_DIR"
+SKIP_SMOKE_TEST="$SKIP_SMOKE_TEST" "$SCRIPT_DIR/build-patched-tarball.sh" "$MSIX_FILE" "$BUILD_DIR"
 
 # Read build info
 source "$BUILD_DIR/build-info.txt"

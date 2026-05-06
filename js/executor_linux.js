@@ -4,7 +4,7 @@ import { promisify } from 'node:util'
 
 const execFile = promisify(execFileCb)
 
-const DEFAULT_HOST_BUNDLE_ID = 'com.anthropic.claude-desktop'
+const DEFAULT_HOST_BUNDLE_ID = 'claude'
 
 const LINUX_CU_CAPABILITIES = {
   screenshotFiltering: 'native',
@@ -1477,6 +1477,7 @@ export function createLinuxExecutor(opts = {}) {
     },
 
     async resolvePrepareCapture(opts) {
+      debugLog('resolvePrepareCapture', opts)
       let hidden = []
       let activated = null
 
@@ -1520,6 +1521,7 @@ export function createLinuxExecutor(opts = {}) {
     },
 
     async screenshot(opts) {
+      debugLog('screenshot', opts)
       const display = await getDisplaySize(backend, opts.displayId)
       return toScreenshotResult(await backend.screenshot(opts.displayId), display)
     },
@@ -1538,6 +1540,7 @@ export function createLinuxExecutor(opts = {}) {
     },
 
     async type(text, opts) {
+      debugLog('type', { textLength: text?.length, opts })
       await backend.type(text, opts)
     },
 

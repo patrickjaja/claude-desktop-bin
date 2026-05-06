@@ -573,9 +573,9 @@ A named profile is created with `--create-profile=NAME`. Names must match `[a-zA
 
 | Path | Purpose |
 |---|---|
-| `~/.local/lib/claude-desktop/com.anthropic.claude-desktop-NAME` | Per-profile Electron binary (real file - see [Why a copy?](#why-a-copy-of-the-binary) below). Sibling files in the same directory are symlinks back to the system install. |
+| `~/.local/lib/claude-desktop/claude-NAME` | Per-profile Electron binary (real file - see [Why a copy?](#why-a-copy-of-the-binary) below). Sibling files in the same directory are symlinks back to the system install. |
 | `~/.local/bin/claude-desktop-NAME` | Convenience launcher - symlink to the system launcher. Pulls profile name from its own basename. |
-| `~/.local/share/applications/com.anthropic.claude-desktop-NAME.desktop` | Application-menu entry titled `Claude (NAME)`. `Exec=` is absolute so it works regardless of `$PATH`. |
+| `~/.local/share/applications/claude-NAME.desktop` | Application-menu entry titled `Claude (NAME)`. `Exec=` is absolute so it works regardless of `$PATH`. |
 
 User data is **not** created until first launch - that way `--create-profile` is cheap and reversible.
 
@@ -598,9 +598,9 @@ Subcommands honor the active profile: `claude-desktop-work --toggle` toggles wor
 | Electron userData (login, logs, settings, custom themes, spaces.json, PipeWire portal token) | `~/.config/Claude` | `~/.config/Claude-work` |
 | Claude Code config (settings, projects, sessions, plugins) | `~/.claude` | `~/.claude-work` |
 | Quick Entry toggle socket | `$XDG_RUNTIME_DIR/claude-desktop-qe.sock` | `…/claude-desktop-qe-work.sock` |
-| systemd user scope (cgroup, portal identity) | `app-com.anthropic.claude-desktop-PID.scope` | `app-com.anthropic.claude-desktop-work-PID.scope` |
-| WM_CLASS / Wayland app_id (taskbar grouping, Alt-Tab) | `com.anthropic.claude-desktop` | `com.anthropic.claude-desktop-work` |
-| XDG autostart entry ("Start at login") | `~/.config/autostart/com.anthropic.claude-desktop.desktop` | `…/com.anthropic.claude-desktop-work.desktop` |
+| systemd user scope (cgroup, portal identity) | `app-claude-PID.scope` | `app-claude-work-PID.scope` |
+| WM_CLASS / Wayland app_id (taskbar grouping, Alt-Tab) | `claude` | `claude-work` |
+| XDG autostart entry ("Start at login") | `~/.config/autostart/claude.desktop` | `…/claude-work.desktop` |
 
 The cowork VM-service socket (`$XDG_RUNTIME_DIR/cowork-vm-service.sock`) is **shared** across all profiles. The cowork-svc daemon is a stateless process spawner - per-profile isolation comes from the spawned `claude` CLI inheriting `CLAUDE_CONFIG_DIR=~/.claude-NAME` and using the per-profile `--plugin-dir` (which derives from Electron's `app.getPath("userData")`). One daemon serves them all.
 
@@ -647,7 +647,7 @@ claude-desktop --profile=NAME 'claude://<callback-url>'
 ### Limitations
 
 - **~200 MB disk per profile on cross-filesystem installs.** See [Why a copy?](#why-a-copy-of-the-binary) below.
-- **Auto-refresh after package upgrades.** Hardlinks and reflinks snapshot the binary at creation; an upgrade replaces `/usr/lib/claude-desktop-bin/com.anthropic.claude-desktop` with a new file while the per-profile copy keeps pointing at the old version. The launcher detects this on every named-profile launch (canonical newer than per-profile, or per-profile non-executable on NixOS where store paths move, or any sibling symlink dangling) and re-materialises the binary plus refreshes the symlink mirror automatically. You'll see `claude-desktop: refreshing stale per-profile binary (...)` on stderr when this fires. To force-refresh manually:
+- **Auto-refresh after package upgrades.** Hardlinks and reflinks snapshot the binary at creation; an upgrade replaces `/usr/lib/claude-desktop-bin/claude` with a new file while the per-profile copy keeps pointing at the old version. The launcher detects this on every named-profile launch (canonical newer than per-profile, or per-profile non-executable on NixOS where store paths move, or any sibling symlink dangling) and re-materialises the binary plus refreshes the symlink mirror automatically. You'll see `claude-desktop: refreshing stale per-profile binary (...)` on stderr when this fires. To force-refresh manually:
   ```bash
   for p in $(claude-desktop --list-profiles | awk 'NR>1 {print $1}'); do
       claude-desktop --delete-profile="$p"
@@ -662,7 +662,7 @@ claude-desktop --profile=NAME 'claude://<callback-url>'
 
 ### Why a copy of the binary?
 
-Electron derives its WM_CLASS (X11) and Wayland `app_id` from the basename of `/proc/self/exe`, which the kernel always resolves through symlinks. A symlink at `~/.local/lib/claude-desktop/com.anthropic.claude-desktop-work` pointing to `/usr/lib/claude-desktop-bin/com.anthropic.claude-desktop` would still report the system path as the exe - and the WM would group all profile windows as one app. That's how Chrome itself handles channels: `google-chrome-stable` and `google-chrome-beta` are separate copies, not symlinks.
+Electron derives its WM_CLASS (X11) and Wayland `app_id` from the basename of `/proc/self/exe`, which the kernel always resolves through symlinks. A symlink at `~/.local/lib/claude-desktop/claude-work` pointing to `/usr/lib/claude-desktop-bin/claude` would still report the system path as the exe - and the WM would group all profile windows as one app. That's how Chrome itself handles channels: `google-chrome-stable` and `google-chrome-beta` are separate copies, not symlinks.
 
 To get distinct app identity per profile, `--create-profile` materialises a real, independently-named binary file. It tries (in order):
 
@@ -757,13 +757,17 @@ This toggles Quick Entry in ~5-25 ms via a Unix domain socket. If the app is not
 ### App identity on Wayland
 
 `xdg-desktop-portal` resolves unsandboxed apps via the systemd user scope /
-cgroup name. Starting with this release we launch under
-`app-com.anthropic.claude-desktop-*.scope` (via `systemd-run --user --scope`)
-and install the `.desktop` file under the matching reverse-URL name.
+cgroup name. We launch under `app-claude-*.scope` (via `systemd-run --user --scope`)
+and install the `.desktop` file as `claude.desktop`. The id `claude` matches
+Chromium's autogenerated systemd scope (derived from `app.getName().toLowerCase()`),
+so all identifiers — outer launcher scope, Chromium's inner scope, WM_CLASS,
+Wayland `app_id`, and the .desktop basename — agree. KDE Plasma global
+shortcuts and persistent xdg-desktop-portal RemoteDesktop authorizations
+attach to the same id and survive across sessions.
 
-- **Pinned taskbar entries**: if you had the old `claude-desktop.desktop` pinned, re-pin once after this update.
-- **Custom X11 WM rules**: `WM_CLASS` / Wayland `app_id` changed from `Claude` to `com.anthropic.claude-desktop`. Users with i3 / xmonad / awesome / bspwm / KWin rules matching the old class will need to update them. Named profiles (see [Multiple Profiles](#multiple-profiles)) get a `-<profile>` suffix on this class so each profile shows up as a separate app - write WM rules accordingly.
-- **NixOS**: the Nix package materialises a renamed Electron binary (`com.anthropic.claude-desktop`) for correct Wayland `app_id`, but does not use `systemd-run --scope`. Portal identity may not resolve on GNOME Wayland - use `--install-gnome-hotkey` instead. Other sessions (KDE, Hyprland, Sway, X11) are unaffected.
+- **Pinned taskbar entries**: if you had `com.anthropic.claude-desktop.desktop` pinned (from an earlier release), re-pin once after this update.
+- **Custom X11 WM rules**: `WM_CLASS` / Wayland `app_id` is `claude`. Users who previously matched on `Claude` or `com.anthropic.claude-desktop` need to update their i3 / xmonad / awesome / bspwm / KWin rules. Named profiles (see [Multiple Profiles](#multiple-profiles)) get a `-<profile>` suffix on this class so each profile shows up as a separate app - write WM rules accordingly.
+- **NixOS**: the Nix package materialises a renamed Electron binary (`claude`) for correct Wayland `app_id`, but does not use `systemd-run --scope`. Portal identity may not resolve on GNOME Wayland - use `--install-gnome-hotkey` instead. Other sessions (KDE, Hyprland, Sway, X11) are unaffected.
 
 ## Tips
 - Press **Alt** to toggle the app menu bar (Electron default)

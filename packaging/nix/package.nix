@@ -57,14 +57,14 @@ stdenvNoCC.mkDerivation {
   # materialise a copy of Electron's libexec dir with the binary renamed.
   desktopItems = [
     (makeDesktopItem {
-      name = "com.anthropic.claude-desktop";
+      name = "claude";
       desktopName = "Claude";
       comment = "Claude AI Desktop Application";
       exec = "claude-desktop %u";
       icon = "claude-desktop";
       categories = [ "Office" "Utility" "Chat" ];
       mimeTypes = [ "x-scheme-handler/claude" ];
-      startupWMClass = "com.anthropic.claude-desktop";
+      startupWMClass = "claude";
       terminal = false;
     })
   ];
@@ -82,8 +82,8 @@ stdenvNoCC.mkDerivation {
     mkdir -p $out/libexec/claude-desktop
     cp -rL ${electron}/libexec/electron/. $out/libexec/claude-desktop/
     mv $out/libexec/claude-desktop/electron \
-       $out/libexec/claude-desktop/com.anthropic.claude-desktop
-    chmod +x $out/libexec/claude-desktop/com.anthropic.claude-desktop
+       $out/libexec/claude-desktop/claude
+    chmod +x $out/libexec/claude-desktop/claude
 
     # Install launcher script (handles --toggle, --install-gnome-hotkey, --diagnose
     # and all Wayland/X11 detection, GPU fallback, etc.)
@@ -91,7 +91,7 @@ stdenvNoCC.mkDerivation {
     cp launcher/claude-desktop $out/lib/claude-desktop/launcher.sh
     chmod +x $out/lib/claude-desktop/launcher.sh
     makeWrapper $out/lib/claude-desktop/launcher.sh $out/bin/claude-desktop \
-      --set CLAUDE_ELECTRON "$out/libexec/claude-desktop/com.anthropic.claude-desktop" \
+      --set CLAUDE_ELECTRON "$out/libexec/claude-desktop/claude" \
       --set CLAUDE_APP_ASAR "$out/lib/claude-desktop/resources/app.asar" \
       --set ELECTRON_OZONE_PLATFORM_HINT "auto" \
       --set ELECTRON_FORCE_IS_PACKAGED "true" \
