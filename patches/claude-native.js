@@ -8,8 +8,7 @@
  * stubs and implementations using Electron APIs.
  */
 
-const { app, Tray, Menu, nativeImage, Notification } = require('electron');
-const path = require('path');
+const { app, Notification } = require('electron');
 
 const KeyboardKey = {
     Backspace: 43, Tab: 280, Enter: 261, Shift: 272, Control: 61,
@@ -34,28 +33,6 @@ class AuthRequest {
     }
 }
 
-let tray = null;
-
-function createTray() {
-    if (tray) return tray;
-    try {
-        const iconPath = path.join(process.resourcesPath || __dirname, 'tray-icon.png');
-        if (require('fs').existsSync(iconPath)) {
-            tray = new Tray(nativeImage.createFromPath(iconPath));
-            tray.setToolTip('Claude Desktop');
-            const menu = Menu.buildFromTemplate([
-                { label: 'Show', click: () => app.focus() },
-                { type: 'separator' },
-                { label: 'Quit', click: () => app.quit() }
-            ]);
-            tray.setContextMenu(menu);
-        }
-    } catch (e) {
-        console.warn('Tray creation failed:', e);
-    }
-    return tray;
-}
-
 module.exports = {
     getWindowsVersion: () => "10.0.0",
     setWindowEffect: () => {},
@@ -72,8 +49,8 @@ module.exports = {
     clearProgressBar: () => {},
     setOverlayIcon: () => {},
     clearOverlayIcon: () => {},
-    createTray,
-    getTray: () => tray,
+    createTray: () => null,
+    getTray: () => null,
     KeyboardKey,
     AuthRequest,
     // Windows registry stubs

@@ -82,7 +82,7 @@ proc apply*(input: string): string =
 
   # 4. Patch start bridge
   let patStart =
-    re2"(async start\()([\w$]+)(\)\{)(return [\w$]+\.info\(""LocalSessions\.start:""\))"
+    re2"(async start\()([\w$]+)(\)\{)([\w$]+\.info\(""LocalSessions\.start:""\))"
   var countStart = result.replaceFirst(
     patStart,
     proc(m: RegexMatch2, s: string): string =

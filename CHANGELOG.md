@@ -2,6 +2,25 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-05-06 (v1.6259.0) — Upstream update, 1 patch fixed, 2 new macOS-only features, auth refactor
+
+- **Version bump:** v1.5354.0 → v1.6259.0
+- **Fixed patches:**
+  - `fix_asar_workspace_cwd.nim` — upstream removed `return` keyword before `LocalSessions.start:` log statement; regex updated to match standalone log call instead of `return <var>.info(...)` pattern
+- **New upstream features (macOS-only, no action needed):**
+  - `androidEmulator` — Android emulator integration (dev-gated via `UO()` + macOS-only)
+  - `grandPrix` — Device pairing system with pair/disconnect/status IPC bridge (macOS-only + GrowthBook `873030668` partner config)
+- **Auth refactor:** Vertex-specific auth (`vertexAuth`, `triggerVertexAuth`, `revokeVertexAuth`) replaced by generic `interactiveAuth` system; gateway SSO endpoints (`gatewaySsoUserCode`, `triggerGatewaySso`) replaced by `authorizeAndProbeMcpServer`
+- **New IPC endpoints:** 18 added including `GrandPrix_$_pair`, `interactiveAuth` store, credential helper (`Custom3pHelperRun`, `Custom3pSetup`), `FileSystem_$_writeFileDownload`, `LocalSessions_$_cancelQueuedMessage`, `resolveSSHSettings`, `submitFeedback`
+- **New GrowthBook flags:** 3 new boolean flags (`982691970` cowork plugin host ops, `1802019210` cowork plugin upload migration, `2307090146` plugin OAuth storage — added to force-ON defaults); 3 new value flags (`873030668` grandPrix partner config, `1126577245` cowork memory remote sync config, `2921038508` cowork memory guide prompt); 1 removed (`839037100` cowork OAuth configs)
+- **New feature:** `desktopTopBar` — always supported (unconditional), new UI chrome element
+- **Feature flag renames:** `v_()` → `Y_()`, `ZDA` → `xDA`, `MW()` → `UO()`, `Pt()` → `Jt()`, `fM()` → `kM()`
+- **ion-dist SPA:** minor growth (1612→1634 files, 660→669 JS chunks); patched patterns unchanged
+- **Cleanup:** Removed duplicate tray implementation from `claude-native.js` — the real tray is created by upstream code (patched by `fix_tray_dbus.nim`); the stub now returns `null` instead of creating a second tray
+- **All 43 patches pass**, JS syntax validated
+
+---
+
 ## 2026-05-05 — Fix aarch64 tarball path in CI release job
 
 - **Fixed:** `build-aarch64-tarball` job wrote the tarball to `/tmp/` instead of the working directory due to `$(pwd)` resolving inside a subshell after `cd` into a temp dir. Capture absolute path before `cd` (matches DEB/RPM job pattern).
