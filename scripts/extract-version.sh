@@ -1,32 +1,37 @@
 #!/bin/bash
 set -e
 
+if [ -z "$1" ]; then
+    echo "Usage: $0 <path-to-Claude.msix>"
+    exit 1
+fi
+
+MSIX_PATH="$1"
+
+if [ ! -f "$MSIX_PATH" ]; then
+    echo "Error: File not found: $MSIX_PATH"
+    exit 1
+fi
+
+REAL_PATH=$(realpath "$MSIX_PATH")
 TEMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TEMP_DIR"' EXIT
 
-if [ -z "$1" ]; then
-    echo "Usage: $0 <path-to-Claude-Setup-x64.exe>"
+7z e -y "$REAL_PATH" -o"$TEMP_DIR" AppxManifest.xml >/dev/null 2>&1 || true
+
+if [ ! -f "$TEMP_DIR/AppxManifest.xml" ]; then
+    echo "Error: AppxManifest.xml not found in $MSIX_PATH (is this a valid msix?)" >&2
     exit 1
 fi
 
-EXE_PATH="$1"
-
-if [ ! -f "$EXE_PATH" ]; then
-    echo "Error: File not found: $EXE_PATH"
-    exit 1
-fi
-
-REAL_PATH=$(realpath "$EXE_PATH")
-7z x -y "$REAL_PATH" -o"$TEMP_DIR" >/dev/null 2>&1 || true
-
-cd "$TEMP_DIR"
-NUPKG_FILE=$(ls AnthropicClaude-*.nupkg 2>/dev/null | head -1)
-
-if [ -z "$NUPKG_FILE" ]; then
-    echo "Error: Could not find AnthropicClaude nupkg file"
-    exit 1
-fi
-
-VERSION=$(echo "$NUPKG_FILE" | sed 's/AnthropicClaude-\(.*\)-full\.nupkg/\1/')
+# msix Identity Version is X.Y.Z.0; strip trailing build component to match upstream X.Y.Z
+VERSION=$(python3 -c "
+import sys, re, xml.etree.ElementTree as ET
+root = ET.parse('$TEMP_DIR/AppxManifest.xml').getroot()
+ns = {'m': 'http://schemas.microsoft.com/appx/manifest/foundation/windows10'}
+ident = root.find('m:Identity', ns)
+v = ident.attrib['Version']
+print(re.sub(r'\.0$', '', v))
+")
 
 echo "$VERSION"

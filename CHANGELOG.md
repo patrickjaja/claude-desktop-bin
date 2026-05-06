@@ -2,6 +2,46 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-05-06 — Dispatch hostLoop fix, autostart migration, CLAUDE.md MSIX updates
+
+- **Dispatch patch (`fix_dispatch_linux.nim`):** Force GrowthBook flag `1143815894` (hostLoopMode) OFF alongside dispatch ON. HostLoop bypasses cowork-svc, breaking skills/plugins on Linux. Patch E now handles three states: fully patched, stale combined override, and dispatch-only — adding hostLoop OFF in all cases. Renamed references from `Jr()` to `Pt()` to match v1.6259.1 minified names.
+- **Autostart migration (`fix_startup_settings.nim`):** `isStartupOnLoginEnabled()` now migrates old `com.anthropic.claude-desktop[-PROFILE].desktop` files to `claude[-PROFILE].desktop` before checking, so users upgrading from the old APP_ID don't lose their startup-on-login setting.
+- **CLAUDE.md:** Updated all references from `Claude-Setup-x64.exe` / nupkg extraction to `Claude.msix` extraction paths. Added per-binary glibc floor table (node-pty 2.31, kwin-portal-bridge 2.39).
+
+---
+
+## 2026-05-06 — Pin Electron version, cache in CI
+
+- **Pinned Electron version:** New `.electron-version` file at project root (currently `42.0.0`). To bump: edit the file and commit — all scripts and CI pick it up automatically.
+- **Shared resolution helper:** `scripts/resolve-electron-version.sh` replaces duplicated GitHub API calls in 4 scripts (`generate-pkgbuild.sh`, `build-appimage.sh`, `build-deb.sh`, `build-rpm.sh`). Resolution chain: env override → `.electron-version` → GitHub API fallback.
+- **CI caching:** `test-pkgbuild` job now caches the Electron zip (~90MB) with `actions/cache@v4`, avoiding re-download on every run. All packaging jobs receive the pinned version via `ELECTRON_VERSION` env from the `check-version` job output.
+- **Removed:** hardcoded `33.2.1` fallback in `build-rpm.sh`, per-build `build/.electron-version` cache in `generate-pkgbuild.sh`.
+
+---
+
+## 2026-05-06 — MSIX migration, APP_ID rename to `claude`, kwin-portal-bridge rebased on Noble
+
+- **MSIX migration:** Anthropic switched the upstream Windows artifact from the Squirrel installer (`Claude-Setup-x64.exe` → nupkg → `lib/net45/resources/`) to a flat MSIX package (`Claude.msix` → `app/resources/`). All build paths updated:
+  - `scripts/build-patched-tarball.sh`, `scripts/build-local.sh`, `scripts/build-ubuntu-local.sh`, `scripts/build-fedora-local.sh`, `scripts/extract-version.sh`, and `.github/workflows/build-and-release.yml` now download/extract `Claude.msix`
+  - Version is read from `AppxManifest.xml` (`Identity.Version` is `X.Y.Z.0`; trailing `.0` stripped)
+  - URL-decoding pass added after extract — MSIX encodes `@` as `%40` (e.g. `@scope` → `%40scope`), which breaks asar's unpacked-file resolver
+  - Icon now extracted from `assets/Square150x150Logo.png` (300×300) and resized to 256×256 via ImageMagick; `icotool`/`icoutils` dependency dropped, replaced by `imagemagick`
+  - `smol-bin.*.vhdx` now lives under `app/resources/`; missing vhdx is now a hard fail (was best-effort)
+  - `.gitignore`: added `/Claude.msix`
+- **APP_ID renamed `com.anthropic.claude-desktop` → `claude`:** Chromium auto-generates its inner systemd scope as `app-<app.getName().toLowerCase()>-PID.scope` = `app-claude-…`. Aligning every identifier on the same string (binary basename, `.desktop` filename, `StartupWMClass`, Wayland `app_id`, systemd outer scope, autostart entry, executor `hostBundleId`) makes KDE global shortcuts and persistent xdg-desktop-portal RemoteDesktop authorizations stick across sessions.
+  - Launcher: `scripts/claude-desktop-launcher.sh` (`APP_ID='claude'`)
+  - Packaging: `PKGBUILD.template`, `packaging/debian/build-deb.sh` + `rules` + new `claude.desktop` (old `com.anthropic.claude-desktop.desktop` deleted), `packaging/rpm/claude-desktop-bin.spec`, `packaging/nix/package.nix`, `packaging/appimage/build-appimage.sh`
+  - Patches: `fix_computer_use_linux.nim` (`hostBundleId`), `fix_quick_entry_app_id.nim` (main + Quick Entry app_ids → `claude` / `claude-quick-entry`), `fix_startup_settings.nim` (autostart filename)
+  - JS: `js/executor_linux.js` (`DEFAULT_HOST_BUNDLE_ID = 'claude'`)
+  - CI smoke tests updated to assert the new binary name
+  - **User-visible breaking change:** anyone with the old `com.anthropic.claude-desktop.desktop` pinned to their taskbar must re-pin once after this update; custom WM rules matching `Claude` or `com.anthropic.claude-desktop` need to switch to `claude` (named profiles get `claude-<name>`)
+- **kwin-portal-bridge CI rebased Trixie+zigbuild → Noble+native cross:** Build now uses `ubuntu:noble` with a deb822 multiarch sources file (host=amd64, ports=arm64), `gcc-aarch64-linux-gnu` for cross-link, and rustup-installed toolchain. Removed `cargo-zigbuild` and the glibc 2.31 target. Rationale: kwin-portal-bridge requires KWin 6.6+, and Noble (glibc 2.39) is the oldest base any 6.6+ distro ships — older glibc targeting was buying nothing. The glibc check now version-compares with `sort -V` instead of lexicographic `[[ > ]]` (which would mis-rank `2.10 < 2.4`) and asserts ≤ 2.39.
+- **KWin 6.6+ gate in `js/cu_mode_preamble.js`:** Auto-mode now runs `kwin_wayland --version` on KDE Wayland sessions and only enables the kwin-portal-bridge path when `>= 6.6`. Older Plasma sessions fall back to the cross-distro path; the diagnostic line includes the detected KWin version (`auto: cross-distro fallback; KWin 6.5 < 6.6`).
+- **`scripts/build-local.sh --pkgrel <REL>`:** New flag (also `-r`) overrides the package release number passed to `generate-pkgbuild.sh`. Unknown args now error out instead of being silently swallowed.
+- **`js/executor_linux.js`:** Added `debugLog` calls to `resolvePrepareCapture`, `screenshot`, and `type` for runtime diagnosis of computer-use input/capture issues.
+
+---
+
 ## 2026-05-06 (v1.6259.1) — Point release, 3 features removed, new MCP servers & tools
 
 - **Version bump:** v1.6259.0 → v1.6259.1

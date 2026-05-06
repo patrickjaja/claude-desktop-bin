@@ -59,18 +59,26 @@ jobs:
       make_latest: ${{ steps.pkgrel.outputs.make_latest || steps.pr-defaults.outputs.make_latest }}
       changelog: ${{ steps.git_changelog.outputs.content }}
       should_build: ${{ steps.decide.outputs.should_build }}
+      electron_version: ${{ steps.electron.outputs.electron_version }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Full history for git changelog generation
 
+      - name: Read pinned Electron version
+        id: electron
+        run: |
+          ELECTRON_VERSION=$(cat .electron-version)
+          echo "Electron version: $ELECTRON_VERSION"
+          echo "electron_version=$ELECTRON_VERSION" >> $GITHUB_OUTPUT
+
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y p7zip-full wget
 
-      - name: Download Claude Setup and capture URL
+      - name: Download Claude msix and capture URL
         id: download
         env:
           MANUAL_URL: ${{ github.event.inputs.download_url }}
@@ -79,7 +87,7 @@ jobs:
             echo "Using manually provided download URL"
             echo "Download URL: ${MANUAL_URL}"
 
-            wget -q -O Claude-Setup-x64.exe \
+            wget -q -O Claude.msix \
               -U "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
               "${MANUAL_URL}"
 
@@ -95,12 +103,12 @@ jobs:
 
             LATEST_VERSION=$(echo "$LATEST_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['version'])")
             LATEST_HASH=$(echo "$LATEST_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['hash'])")
-            DOWNLOAD_URL="https://downloads.claude.ai/releases/win32/x64/${LATEST_VERSION}/Claude-${LATEST_HASH}.exe"
+            DOWNLOAD_URL="https://downloads.claude.ai/releases/win32/x64/${LATEST_VERSION}/Claude-${LATEST_HASH}.msix"
 
             echo "Latest version: ${LATEST_VERSION}"
             echo "Download URL: ${DOWNLOAD_URL}"
 
-            wget -q -O Claude-Setup-x64.exe \
+            wget -q -O Claude.msix \
               -U "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
               "$DOWNLOAD_URL"
 
@@ -110,7 +118,7 @@ jobs:
       - name: Extract version
         id: version
         run: |
-          VERSION=$(bash ./scripts/extract-version.sh Claude-Setup-x64.exe)
+          VERSION=$(bash ./scripts/extract-version.sh Claude.msix)
           echo "Version extracted: ${VERSION}"
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
 
@@ -243,12 +251,12 @@ jobs:
           echo "release_name=PR Validation" >> $GITHUB_OUTPUT
           echo "make_latest=false" >> $GITHUB_OUTPUT
 
-      - name: Upload exe for build job
+      - name: Upload msix for build job
         if: steps.decide.outputs.should_build == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: claude-setup-exe
-          path: Claude-Setup-x64.exe
+          name: claude-setup-msix
+          path: Claude.msix
           retention-days: 1
 
   # ================================================================
@@ -323,10 +331,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Download exe artifact
+      - name: Download msix artifact
         uses: actions/download-artifact@v4
         with:
-          name: claude-setup-exe
+          name: claude-setup-msix
 
       - name: Get kwin-portal-bridge repo HEAD
         id: bridge-rev
@@ -342,58 +350,101 @@ jobs:
           path: /tmp/bridge-output
           key: kwin-portal-bridge-${{ steps.bridge-rev.outputs.sha }}
 
-      - name: Build kwin-portal-bridge (x86_64 + aarch64, glibc 2.31 target)
+      - name: Build kwin-portal-bridge (x86_64 + aarch64)
         id: bridge
         if: steps.bridge-cache.outputs.cache-hit != 'true'
         run: |
-          echo "=== Building kwin-portal-bridge (Trixie PipeWire 1.4, glibc 2.31 via zigbuild) ==="
+          echo "=== Building kwin-portal-bridge (Ubuntu Noble base, native cargo cross) ==="
           mkdir -p /tmp/bridge-output
 
           docker run --rm \
             -v /tmp/bridge-output:/output \
-            rust:1-trixie \
-            bash -c "
+            -e DEBIAN_FRONTEND=noninteractive \
+            ubuntu:noble \
+            bash -c '
               set -eo pipefail
 
-              # Enable multiarch for aarch64 cross-compilation
+              # multiarch apt: split host (amd64) and ports (arm64). Noble uses
+              # deb822 sources; rewrite ubuntu.sources from scratch so
+              # dpkg --add-architecture arm64 doesnt make apt fetch arm64
+              # indexes from archive.ubuntu.com (which 404s for non-x86).
               dpkg --add-architecture arm64
-              apt-get update
-              apt-get install -y libdbus-1-dev libpipewire-0.3-dev pkg-config clang cmake \
-                libdbus-1-dev:arm64 libpipewire-0.3-dev:arm64 gcc-aarch64-linux-gnu
+              cat >/etc/apt/sources.list.d/ubuntu.sources <<SOURCES
+          Types: deb
+          URIs: http://archive.ubuntu.com/ubuntu
+          Suites: noble noble-updates noble-backports
+          Components: main restricted universe multiverse
+          Architectures: amd64
+          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
 
-              # Install zig + cargo-zigbuild for glibc version targeting
-              curl -L https://ziglang.org/download/0.13.0/zig-linux-x86_64-0.13.0.tar.xz | tar -xJ -C /usr/local
-              ln -s /usr/local/zig-linux-x86_64-0.13.0/zig /usr/local/bin/zig
-              cargo install cargo-zigbuild
-              rustup target add aarch64-unknown-linux-gnu
+          Types: deb
+          URIs: http://security.ubuntu.com/ubuntu
+          Suites: noble-security
+          Components: main restricted universe multiverse
+          Architectures: amd64
+          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+
+          Types: deb
+          URIs: http://ports.ubuntu.com/ubuntu-ports
+          Suites: noble noble-updates noble-security
+          Components: main restricted universe multiverse
+          Architectures: arm64
+          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+          SOURCES
+
+              apt-get update
+              apt-get install -y --no-install-recommends \
+                build-essential pkg-config clang cmake curl ca-certificates git \
+                gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
+                libxkbcommon-dev libpipewire-0.3-dev \
+                libxkbcommon-dev:arm64 libpipewire-0.3-dev:arm64
+
+              # Rust toolchain via rustup (Noble has no rust preinstalled)
+              curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | \
+                sh -s -- -y --profile minimal --default-toolchain stable \
+                         --target x86_64-unknown-linux-gnu \
+                         --target aarch64-unknown-linux-gnu
+              export PATH=/root/.cargo/bin:$PATH
 
               cd /tmp
               git clone --depth=1 https://github.com/patrickjaja/kwin-portal-bridge.git
               cd kwin-portal-bridge
 
-              # Build x86_64
-              cargo zigbuild --release --target x86_64-unknown-linux-gnu.2.31
+              # x86_64 build (native)
+              cargo build --release --target x86_64-unknown-linux-gnu
               cp target/x86_64-unknown-linux-gnu/release/kwin-portal-bridge /output/kwin-portal-bridge
-              echo 'kwin-portal-bridge x86_64 built successfully'
+              echo "kwin-portal-bridge x86_64 built successfully"
 
-              # Build aarch64
-              # bindgen must use system headers (not zig stubs) for FFI generation
-              export PKG_CONFIG_SYSROOT_DIR=/usr
+              # aarch64 cross build (gcc-aarch64-linux-gnu as linker)
+              export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
+              export CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc
+              export CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++
+              export AR_aarch64_unknown_linux_gnu=aarch64-linux-gnu-ar
+              export PKG_CONFIG_ALLOW_CROSS=1
               export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig
-              export BINDGEN_EXTRA_CLANG_ARGS_aarch64_unknown_linux_gnu='--target=aarch64-linux-gnu -I/usr/include/aarch64-linux-gnu -I/usr/include -I/usr/include/pipewire-0.3 -I/usr/include/spa-0.2'
-              cargo zigbuild --release --target aarch64-unknown-linux-gnu.2.31
+              export PKG_CONFIG_SYSROOT_DIR=/
+              export BINDGEN_EXTRA_CLANG_ARGS_aarch64_unknown_linux_gnu="--target=aarch64-linux-gnu -I/usr/include/aarch64-linux-gnu -I/usr/include -I/usr/include/pipewire-0.3 -I/usr/include/spa-0.2"
+
+              cargo build --release --target aarch64-unknown-linux-gnu
               cp target/aarch64-unknown-linux-gnu/release/kwin-portal-bridge /output/kwin-portal-bridge-aarch64
-              echo 'kwin-portal-bridge aarch64 built successfully'
-            "
+              echo "kwin-portal-bridge aarch64 built successfully"
+            '
 
       - name: Verify kwin-portal-bridge binaries
         run: |
           echo "--- x86_64 binary ---"
           file /tmp/bridge-output/kwin-portal-bridge
-          GLIBC_MAX=$(objdump -T /tmp/bridge-output/kwin-portal-bridge 2>/dev/null | grep -oP 'GLIBC_\S+' | sort -uV | tail -1 || echo "unknown")
+          # objdump prints `(GLIBC_2.34)` — strip the parens with a digit-only
+          # char class; `\S+` would swallow the trailing `)`.
+          GLIBC_MAX=$(objdump -T /tmp/bridge-output/kwin-portal-bridge 2>/dev/null | grep -oP 'GLIBC_[0-9.]+' | sort -uV | tail -1 || echo "unknown")
           echo "kwin-portal-bridge x86_64 max glibc: ${GLIBC_MAX}"
-          if [[ "${GLIBC_MAX}" > "GLIBC_2.31" ]]; then
-            echo "::error::x86_64 binary requires ${GLIBC_MAX}, expected GLIBC_2.31 or lower"
+          # Noble (glibc 2.39) is the floor: kwin-portal-bridge requires Plasma
+          # 6.6+ and Noble is the oldest base any 6.6+ distro ships.
+          # Version-compare via sort -V; `[[ a > b ]]` is lexicographic and
+          # would mis-rank e.g. GLIBC_2.10 < GLIBC_2.4.
+          HIGHEST=$(printf '%s\nGLIBC_2.39\n' "${GLIBC_MAX}" | sort -V | tail -1)
+          if [[ "${HIGHEST}" != "GLIBC_2.39" ]]; then
+            echo "::error::x86_64 binary requires ${GLIBC_MAX}, expected GLIBC_2.39 or lower"
             exit 1
           fi
 
@@ -406,7 +457,7 @@ jobs:
           echo "=== Building pre-patched tarball in Arch Linux container ==="
 
           mkdir -p /tmp/build-input /tmp/build-output
-          cp Claude-Setup-x64.exe /tmp/build-input/
+          cp Claude.msix /tmp/build-input/
           cp -r scripts patches js /tmp/build-input/
 
           # Pass kwin-portal-bridge binary if available
@@ -426,7 +477,7 @@ jobs:
 
               echo '=== Installing build dependencies ==='
               pacman -Syu --noconfirm
-              pacman -S --noconfirm p7zip python nodejs npm git icoutils xorg-server-xvfb electron shellcheck nim nimble
+              pacman -S --noconfirm p7zip python nodejs npm git imagemagick xorg-server-xvfb electron shellcheck nim nimble
 
               echo '=== Installing Nim regex package ==='
               nimble install -y regex
@@ -442,7 +493,7 @@ jobs:
               su builder -c 'yay -S --noconfirm asar'
 
               echo '=== Running build script ==='
-              ${BRIDGE_ENV} bash /input/scripts/build-patched-tarball.sh /input/Claude-Setup-x64.exe /output
+              ${BRIDGE_ENV} bash /input/scripts/build-patched-tarball.sh /input/Claude.msix /output
 
               echo '=== Build completed ==='
             " 2>&1 | tee build-output.log
@@ -696,6 +747,7 @@ jobs:
       - name: Build AppImage (${{ matrix.arch }})
         env:
           VERSION: ${{ needs.check-version.outputs.version }}
+          ELECTRON_VERSION: ${{ needs.check-version.outputs.electron_version }}
         run: |
           TARBALL="claude-desktop-${VERSION}-linux.tar.gz"
 
@@ -726,8 +778,8 @@ jobs:
 
             # 3. Verify inner contents
             test -f /tmp/squashfs-root/usr/lib/claude-desktop/resources/app.asar
-            test -x /tmp/squashfs-root/usr/lib/claude-desktop/com.anthropic.claude-desktop
-            file /tmp/squashfs-root/usr/lib/claude-desktop/com.anthropic.claude-desktop | grep -q 'aarch64\|ARM aarch64'
+            test -x /tmp/squashfs-root/usr/lib/claude-desktop/claude
+            file /tmp/squashfs-root/usr/lib/claude-desktop/claude | grep -q 'aarch64\|ARM aarch64'
             echo "aarch64 AppImage smoke test passed"
             rm -rf /tmp/squashfs-root
           else
@@ -748,7 +800,7 @@ jobs:
 
                 SKIP_SANDBOX_CHECK=1 bash /scripts/smoke-test.sh \
                   /tmp/squashfs-root/usr/lib/claude-desktop/resources/app.asar \
-                  /tmp/squashfs-root/usr/lib/claude-desktop/com.anthropic.claude-desktop
+                  /tmp/squashfs-root/usr/lib/claude-desktop/claude
               "
           fi
 
@@ -818,6 +870,7 @@ jobs:
         env:
           VERSION: ${{ needs.check-version.outputs.version }}
           PKGREL: ${{ needs.check-version.outputs.pkgrel }}
+          ELECTRON_VERSION: ${{ needs.check-version.outputs.electron_version }}
         run: |
           TARBALL="claude-desktop-${VERSION}-linux.tar.gz"
 
@@ -840,7 +893,7 @@ jobs:
                 export DEBIAN_FRONTEND=noninteractive
                 apt-get update
                 apt-get install -y /dist/claude-desktop-bin_*_arm64.deb
-                test -f /usr/lib/claude-desktop/com.anthropic.claude-desktop
+                test -f /usr/lib/claude-desktop/claude
                 test -f /usr/lib/claude-desktop/resources/app.asar
                 test -x /usr/bin/claude-desktop
                 echo 'ARM64 Debian package installed successfully'
@@ -857,7 +910,7 @@ jobs:
                 apt-get install -y xvfb /dist/claude-desktop-bin_*_amd64.deb
                 bash /scripts/smoke-test.sh \
                   /usr/lib/claude-desktop/resources/app.asar \
-                  /usr/lib/claude-desktop/com.anthropic.claude-desktop
+                  /usr/lib/claude-desktop/claude
               "
           fi
 
@@ -922,6 +975,7 @@ jobs:
         env:
           VERSION: ${{ needs.check-version.outputs.version }}
           PKGREL: ${{ needs.check-version.outputs.pkgrel }}
+          ELECTRON_VERSION: ${{ needs.check-version.outputs.electron_version }}
         run: |
           TARBALL="claude-desktop-${VERSION}-linux.tar.gz"
 
@@ -931,6 +985,7 @@ jobs:
           fi
 
           docker run --rm \
+            -e ELECTRON_VERSION="${ELECTRON_VERSION}" \
             -v "$(pwd):/build:ro" \
             -v "$(pwd)/dist:/output" \
             fedora:40 \
@@ -949,7 +1004,7 @@ jobs:
               bash -c "
                 set -e
                 dnf install -y /dist/claude-desktop-bin-*.aarch64.rpm
-                test -f /usr/lib/claude-desktop/com.anthropic.claude-desktop
+                test -f /usr/lib/claude-desktop/claude
                 test -f /usr/lib/claude-desktop/resources/app.asar
                 test -x /usr/bin/claude-desktop
                 echo 'aarch64 RPM package installed successfully'
@@ -964,7 +1019,7 @@ jobs:
                 dnf install -y xorg-x11-server-Xvfb /dist/claude-desktop-bin-*.x86_64.rpm
                 bash /scripts/smoke-test.sh \
                   /usr/lib/claude-desktop/resources/app.asar \
-                  /usr/lib/claude-desktop/com.anthropic.claude-desktop
+                  /usr/lib/claude-desktop/claude
               "
           fi
 
@@ -1038,6 +1093,7 @@ jobs:
           TARBALL_SHA256: ${{ needs.build-tarball.outputs.tarball_sha256 }}
           SHA256SUM_AARCH64: ${{ needs.build-aarch64-tarball.outputs.tarball_aarch64_sha256 }}
           REPO: ${{ github.repository }}
+          ELECTRON_VERSION: ${{ needs.check-version.outputs.electron_version }}
         run: |
           PREBUILT_URL="https://github.com/${REPO}/releases/download/${TAG}/claude-desktop-${VERSION}-linux.tar.gz"
           export DOWNLOAD_URL_AARCH64="https://github.com/${REPO}/releases/download/${TAG}/claude-desktop-${VERSION}-linux-aarch64.tar.gz"
@@ -1122,13 +1178,33 @@ jobs:
         with:
           name: pkgbuild
 
+      - name: Cache Electron zip
+        uses: actions/cache@v4
+        with:
+          path: /tmp/electron-cache
+          key: electron-v${{ needs.check-version.outputs.electron_version }}-linux-x64
+
+      - name: Pre-download Electron zip
+        env:
+          ELECTRON_VERSION: ${{ needs.check-version.outputs.electron_version }}
+        run: |
+          mkdir -p /tmp/electron-cache
+          ELECTRON_ZIP="electron-v${ELECTRON_VERSION}-linux-x64.zip"
+          if [ ! -f "/tmp/electron-cache/$ELECTRON_ZIP" ]; then
+            wget -q -O "/tmp/electron-cache/$ELECTRON_ZIP" \
+              "https://github.com/electron/electron/releases/download/v${ELECTRON_VERSION}/$ELECTRON_ZIP"
+            echo "Downloaded $ELECTRON_ZIP"
+          else
+            echo "Using cached $ELECTRON_ZIP"
+          fi
+
       - name: Test makepkg (cross-device build dir)
         env:
           VERSION: ${{ needs.check-version.outputs.version }}
         run: |
           # Point the PKGBUILD source at the local tarball so makepkg doesn't
           # need to download anything (the release hasn't been published yet).
-          # The electron zip is fetched by makepkg from GitHub (not overridden).
+          # The electron zip is pre-downloaded and cached to avoid repeated fetches.
           TARBALL="claude-desktop-${VERSION}-linux.tar.gz"
           TARBALL_SHA=$(sha256sum "$TARBALL" | cut -d' ' -f1)
 
@@ -1148,6 +1224,8 @@ jobs:
           # Copy everything into a staging dir for the Docker bind-mount
           mkdir -p /tmp/pkgbuild-test
           cp PKGBUILD .SRCINFO "$TARBALL" /tmp/pkgbuild-test/
+          # Copy cached Electron zip so makepkg skips downloading it
+          cp /tmp/electron-cache/electron-v*.zip /tmp/pkgbuild-test/ 2>/dev/null || true
 
           docker run --rm \
             --tmpfs /tmp/cross-device:exec,size=2g \

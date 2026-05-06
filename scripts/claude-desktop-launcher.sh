@@ -21,7 +21,7 @@ set -euo pipefail
 #   - Bundled Electron binary basename (Electron ignores Chromium's --class
 #     flag; Wayland app_id and X11 WM_CLASS both derive from the binary name)
 #   - systemd --user scope name (cgroup → portal identity)
-APP_ID='com.anthropic.claude-desktop'
+APP_ID='claude'
 
 # ---------------------------------------------------------------------------
 # Profile resolution

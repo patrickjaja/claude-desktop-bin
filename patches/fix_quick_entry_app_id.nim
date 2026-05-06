@@ -29,7 +29,7 @@
 # The extensions let users exclude windows via a `WM_CLASS` /
 # Wayland `app_id` blacklist, but Electron assigns app_id
 # process-wide, so the main Claude window and Quick Entry share
-# `com.anthropic.claude-desktop` and can only be blacklisted
+# `claude` and can only be blacklisted
 # together. The user loses rounded corners on the main window just
 # to hide the opaque rectangle behind Quick Entry, or keeps the
 # rectangle.
@@ -88,9 +88,9 @@
 #
 # So the app_id is the basename of whatever the `CHROME_DESKTOP`
 # environment variable points at, with any `.desktop` suffix stripped.
-# The launcher script sets `CHROME_DESKTOP=com.anthropic.claude-desktop.desktop`
+# The launcher script sets `CHROME_DESKTOP=claude.desktop`
 # at startup, so every BrowserWindow gets
-# `app_id = com.anthropic.claude-desktop` by default.
+# `app_id = claude` by default.
 #
 # Critically, Chromium re-reads `CHROME_DESKTOP` at each new
 # `xdg_toplevel.set_app_id` call, not once at process start. If we
@@ -98,9 +98,9 @@
 # resulting window gets whatever id we set. This was verified
 # empirically: with the swap below in place, the extension's debug
 # log reports
-#     wmClass = com.anthropic.claude-quick-entry
+#     wmClass = claude-quick-entry
 # for the Quick Entry window, while the main window keeps
-#     wmClass = com.anthropic.claude-desktop
+#     wmClass = claude
 #
 # Electron's `app.setDesktopName()` is a thin wrapper around setting
 # the same env var from the JS side, so we call both for safety.
@@ -111,12 +111,12 @@
 # Two small injections in the Quick Entry setup chain:
 #
 #  1. BEFORE the `new wA.BrowserWindow(...)` that creates `Po`:
-#     set CHROME_DESKTOP to "com.anthropic.claude-quick-entry.desktop"
+#     set CHROME_DESKTOP to "claude-quick-entry.desktop"
 #     (and call app.setDesktopName).
 #
 #  2. ON the window's first "ready-to-show" event: reset CHROME_DESKTOP
 #     (and app.setDesktopName) back to
-#     "com.anthropic.claude-desktop.desktop", so any later
+#     "claude.desktop", so any later
 #     BrowserWindow the app creates (dialogs, printing preview, etc.)
 #     gets the original app_id again.
 #
@@ -135,7 +135,7 @@
 # ============================================================================
 # With the patch in place, GNOME shell-extension users who see the
 # opaque-rectangle symptom can simply add
-#     com.anthropic.claude-quick-entry
+#     claude-quick-entry
 # to the extension's blacklist (Rounded Window Corners Reborn,
 # Unite, Blur My Shell, ...). The Quick Entry then renders with no
 # compositor-side shadow or rounded-corner paint, so the transparent
@@ -161,8 +161,8 @@
 import std/[os]
 import regex
 
-const MAIN_APP_ID = "com.anthropic.claude-desktop"
-const QE_APP_ID = "com.anthropic.claude-quick-entry"
+const MAIN_APP_ID = "claude"
+const QE_APP_ID = "claude-quick-entry"
 
 proc apply*(input: string): string =
   result = input
@@ -213,7 +213,7 @@ proc apply*(input: string): string =
       let winVar = s[m.group(1)]
       let electronVar = s[m.group(3)]
       # Resolve the per-profile main app_id at runtime so windows opened after
-      # Quick Entry (settings, dialogs) get com.anthropic.claude-desktop-NAME
+      # Quick Entry (settings, dialogs) get claude-NAME
       # rather than the unsuffixed default. CLAUDE_PROFILE is exported by the
       # launcher; absent for the default profile.
       original & "," & winVar & ".once(\"ready-to-show\",()=>{" & "try{" &

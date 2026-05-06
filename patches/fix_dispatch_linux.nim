@@ -8,7 +8,7 @@
 # B. Bypass remote session control check.
 # C. Add Linux to the HI() platform label.
 # D. Include Linux in the Xqe telemetry gate.
-# E. Override Jr() for Linux-critical GrowthBook flags.
+# E. Override Pt() for Linux-critical GrowthBook flags (dispatch ON, hostLoop OFF).
 
 import std/[os, strformat, strutils]
 import std/nre
@@ -112,20 +112,34 @@ proc apply*(input: string): string =
     else:
       echo "  [FAIL] Telemetry gate: pattern not found"
 
-  # -- Patch E: Override Jr() for dispatch agent name flag --
-  let jrAlready = re"""if\([\w$]+===\"3558849738\"\)return!0;"""
+  # -- Patch E: Override Pt() for Linux-critical GrowthBook flags --
+  # Force 3558849738 (dispatch) ON and 1143815894 (hostLoopMode) OFF.
+  # HostLoop bypasses cowork-svc, breaking skills/plugins on Linux.
+  let jrFullyPatched =
+    re"""if\([\w$]+===\"3558849738\"\)return!0;if\([\w$]+===\"1143815894\"\)return!1;"""
+  let jrDispatchOnly = re"""if\(([\w$]+)===\"3558849738\"\)return!0;(const)"""
   let jrStaleBothRe =
     re"""if\(([\w$]+)===\"3558849738\"\|\|\1===\"1143815894\"\)return!0;"""
-  if result.find(jrStaleBothRe).isSome:
+  if result.find(jrFullyPatched).isSome:
+    echo "  [OK] Pt() flag overrides: already patched (dispatch ON + hostLoop OFF)"
+    inc patchesApplied
+  elif result.find(jrStaleBothRe).isSome:
     result = result.replace(
       jrStaleBothRe,
       proc(m: RegexMatch): string =
-        "if(" & m.captures[0] & "===\"3558849738\")return!0;",
+        "if(" & m.captures[0] & "===\"3558849738\")return!0;if(" & m.captures[0] &
+          "===\"1143815894\")return!1;",
     )
-    echo "  [OK] Jr() dispatch flag override: removed stale hostLoopMode override"
+    echo "  [OK] Pt() flag overrides: replaced stale combined override with dispatch ON + hostLoop OFF"
     inc patchesApplied
-  elif result.find(jrAlready).isSome:
-    echo "  [OK] Jr() dispatch flag override: already patched (skipped)"
+  elif result.find(jrDispatchOnly).isSome:
+    result = result.replace(
+      jrDispatchOnly,
+      proc(m: RegexMatch): string =
+        "if(" & m.captures[0] & "===\"3558849738\")return!0;if(" & m.captures[0] &
+          "===\"1143815894\")return!1;" & m.captures[1],
+    )
+    echo "  [OK] Pt() flag overrides: added hostLoop OFF to existing dispatch override"
     inc patchesApplied
   else:
     # Remove stale blanket override if present
@@ -147,15 +161,14 @@ proc apply*(input: string): string =
           return m.match
         let param = m.captures[3]
         m.captures[0] & m.captures[1] & m.captures[2] & m.captures[3] & m.captures[4] &
-          "if(" & param & "===\"3558849738\")return!0;" & m.captures[5],
+          "if(" & param & "===\"3558849738\")return!0;if(" & param &
+          "===\"1143815894\")return!1;" & m.captures[5],
     )
     if countE >= 1:
-      echo &"  [OK] Jr() dispatch flag override: injected ({countE} match)"
+      echo &"  [OK] Pt() flag overrides: injected dispatch ON + hostLoop OFF ({countE} match)"
       inc patchesApplied
     else:
-      echo "  [FAIL] Jr() dispatch flag override: pattern not found"
-
-
+      echo "  [FAIL] Pt() flag overrides: pattern not found"
 
   # -- Results --
   if patchesApplied < EXPECTED_PATCHES:

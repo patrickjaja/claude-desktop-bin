@@ -1,12 +1,12 @@
 #!/bin/bash
 #
-# Build a pre-patched tarball from Claude Desktop Windows exe
+# Build a pre-patched tarball from Claude Desktop Windows msix
 #
-# This script extracts the Windows installer, applies all Linux patches,
+# This script extracts the Windows msix package, applies all Linux patches,
 # and creates a distributable tarball. The tarball can then be packaged
 # for any Linux distribution (Arch, Debian, Snap, Flatpak, etc.)
 #
-# Usage: ./scripts/build-patched-tarball.sh <exe_path> <output_dir>
+# Usage: ./scripts/build-patched-tarball.sh <msix_path> <output_dir>
 #
 set -e
 
@@ -37,14 +37,14 @@ log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 # Parse arguments
-EXE_PATH="$1"
+MSIX_PATH="$1"
 OUTPUT_DIR="$2"
 
-if [ -z "$EXE_PATH" ] || [ -z "$OUTPUT_DIR" ]; then
-    echo "Usage: $0 <exe_path> <output_dir>"
+if [ -z "$MSIX_PATH" ] || [ -z "$OUTPUT_DIR" ]; then
+    echo "Usage: $0 <msix_path> <output_dir>"
     echo ""
     echo "Arguments:"
-    echo "  exe_path    Path to Claude-Setup-x64.exe"
+    echo "  msix_path   Path to Claude.msix"
     echo "  output_dir  Directory to write tarball and extracted files"
     echo ""
     echo "Output:"
@@ -52,23 +52,29 @@ if [ -z "$EXE_PATH" ] || [ -z "$OUTPUT_DIR" ]; then
     exit 1
 fi
 
-if [ ! -f "$EXE_PATH" ]; then
-    log_error "Exe file not found: $EXE_PATH"
+if [ ! -f "$MSIX_PATH" ]; then
+    log_error "msix file not found: $MSIX_PATH"
     exit 1
 fi
 
 # Check dependencies
 log_info "Checking dependencies..."
 MISSING_DEPS=()
-for dep in 7z asar python3 icotool; do
+for dep in 7z asar python3; do
     if ! command -v "$dep" &> /dev/null; then
         MISSING_DEPS+=("$dep")
     fi
 done
 
+# convert (ImageMagick) is optional — used to resize the 300x300 logo to 256x256.
+# If missing we copy the source PNG as-is.
+if ! command -v convert &> /dev/null && ! command -v magick &> /dev/null; then
+    log_warn "ImageMagick (convert/magick) not found — icon will be copied at 300x300 instead of 256x256"
+fi
+
 if [ ${#MISSING_DEPS[@]} -ne 0 ]; then
     log_error "Missing dependencies: ${MISSING_DEPS[*]}"
-    echo "Install them with: sudo pacman -S p7zip icoutils python"
+    echo "Install them with: sudo pacman -S p7zip imagemagick python"
     echo "For asar: yay -S asar (or npm install -g @electron/asar)"
     exit 1
 fi
@@ -79,29 +85,47 @@ WORK_DIR="$OUTPUT_DIR/work"
 rm -rf "$WORK_DIR"
 mkdir -p "$WORK_DIR"
 
-# Extract the Windows installer
-log_info "Extracting Windows installer..."
-7z x -y "$EXE_PATH" -o"$WORK_DIR/extract" >/dev/null 2>&1
+# Extract the msix package (flat zip with app/, assets/, AppxManifest.xml)
+log_info "Extracting msix package..."
+7z x -y "$MSIX_PATH" -o"$WORK_DIR/extract" >/dev/null 2>&1
 
-# Extract the nupkg
-log_info "Extracting nupkg..."
-cd "$WORK_DIR/extract"
-NUPKG=$(find . -maxdepth 1 -name "AnthropicClaude-*.nupkg" | head -1)
-if [ -z "$NUPKG" ]; then
-    log_error "No nupkg found in installer"
+# msix encodes special chars in paths (e.g. `@` → `%40`, `@2x` → `%402x`).
+# Asar needs `@scope` directories restored before it can resolve unpacked files,
+# so URL-decode every path under extract/.
+log_info "URL-decoding msix paths..."
+python3 -c "
+import os, urllib.parse
+root = '$WORK_DIR/extract'
+# Walk bottom-up so renaming a parent doesn't invalidate child paths.
+for dirpath, dirnames, filenames in os.walk(root, topdown=False):
+    for name in filenames + dirnames:
+        decoded = urllib.parse.unquote(name)
+        if decoded != name:
+            os.rename(os.path.join(dirpath, name), os.path.join(dirpath, decoded))
+"
+
+# Resources live at app/resources/ in the msix layout
+RES_DIR="$WORK_DIR/extract/app/resources"
+if [ ! -f "$RES_DIR/app.asar" ]; then
+    log_error "app.asar not found at $RES_DIR — is this a valid Claude msix?"
     exit 1
 fi
-7z x -y "$NUPKG" >/dev/null 2>&1
 
-# Extract version from nupkg filename
-VERSION=$(echo "$NUPKG" | sed -E 's/.*AnthropicClaude-([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
+# Extract version from AppxManifest.xml (Identity Version is X.Y.Z.0)
+VERSION=$(python3 -c "
+import re, xml.etree.ElementTree as ET
+root = ET.parse('$WORK_DIR/extract/AppxManifest.xml').getroot()
+ns = {'m': 'http://schemas.microsoft.com/appx/manifest/foundation/windows10'}
+v = root.find('m:Identity', ns).attrib['Version']
+print(re.sub(r'\.0$', '', v))
+")
 log_info "Detected version: $VERSION"
 
 # Prepare app directory
 log_info "Preparing app directory..."
 mkdir -p "$WORK_DIR/app"
-cp "lib/net45/resources/app.asar" "$WORK_DIR/app/"
-cp -r "lib/net45/resources/app.asar.unpacked" "$WORK_DIR/app/" 2>/dev/null || true
+cp "$RES_DIR/app.asar" "$WORK_DIR/app/"
+cp -r "$RES_DIR/app.asar.unpacked" "$WORK_DIR/app/" 2>/dev/null || true
 
 # Extract app.asar for patching
 log_info "Extracting app.asar..."
@@ -111,8 +135,8 @@ asar extract app.asar app.asar.contents
 # Copy i18n files into app.asar contents
 log_info "Copying i18n files..."
 mkdir -p app.asar.contents/resources/i18n
-if ls "$WORK_DIR/extract/lib/net45/resources/"*.json 1> /dev/null 2>&1; then
-    cp "$WORK_DIR/extract/lib/net45/resources/"*.json app.asar.contents/resources/i18n/
+if ls "$RES_DIR"/*.json 1> /dev/null 2>&1; then
+    cp "$RES_DIR"/*.json app.asar.contents/resources/i18n/
 fi
 
 # Compile Nim patches (native build or Docker fallback)
@@ -235,7 +259,7 @@ rm -rf app.asar.contents
 # Electron's process.resourcesPath is patched to resolve to this locales/ dir.
 log_info "Copying upstream resources to locales/..."
 mkdir -p "$WORK_DIR/app/locales"
-cp -r "$WORK_DIR/extract/lib/net45/resources/"* "$WORK_DIR/app/locales/"
+cp -r "$RES_DIR"/* "$WORK_DIR/app/locales/"
 
 # Remove items already handled separately or Windows-only
 rm -rf "$WORK_DIR/app/locales/app.asar" "$WORK_DIR/app/locales/app.asar.unpacked"
@@ -265,16 +289,19 @@ fi
 # `smol-bin.vhdx`, which the claude-cowork-service daemon then converts
 # to qcow2 on first boot. Without this, the guest boots without the SDK
 # binary disk and every spawn fails with "claude: No such file".
-# The Windows installer ships smol-bin.*.vhdx at lib/net45/ (alongside
-# cowork-svc.exe), not inside resources/, so copy from either location.
+# In the msix layout the vhdx ships at app/resources/smol-bin.*.vhdx.
 log_info "Copying smol-bin VM image(s)..."
-for src in \
-    "$WORK_DIR/extract/lib/net45/smol-bin."*.vhdx \
-    "$WORK_DIR/extract/lib/net45/resources/smol-bin."*.vhdx; do
+SMOL_FOUND=0
+for src in "$RES_DIR"/smol-bin.*.vhdx; do
     [ -f "$src" ] || continue
     cp "$src" "$WORK_DIR/app/locales/"
     log_info "  -> $(basename "$src")"
+    SMOL_FOUND=1
 done
+if [ "$SMOL_FOUND" = 0 ]; then
+    log_error "No smol-bin.*.vhdx found at $RES_DIR — VM guest will fail to boot"
+    exit 1
+fi
 
 # Run Electron smoke test if dependencies are available
 if [ "${SKIP_SMOKE_TEST:-0}" = "1" ]; then
@@ -350,14 +377,20 @@ else
     log_warn "desktop-file-validate not installed — skipping .desktop validation"
 fi
 
-# Extract icon
-if [ -f "$WORK_DIR/extract/setupIcon.ico" ]; then
-    icotool -x -o "$TARBALL_DIR/icons/" "$WORK_DIR/extract/setupIcon.ico"
-    # Use the 256x256 icon
-    mv "$TARBALL_DIR/icons/setupIcon_6_256x256x32.png" "$TARBALL_DIR/icons/claude-desktop.png" 2>/dev/null || \
-    mv "$TARBALL_DIR/icons/"setupIcon_*_256x256*.png "$TARBALL_DIR/icons/claude-desktop.png" 2>/dev/null || true
-    # Clean up other sizes
-    rm -f "$TARBALL_DIR/icons/setupIcon_"*.png 2>/dev/null || true
+# Extract icon — msix ships pre-rendered PNGs in assets/.
+# Square150x150Logo.png is 300x300; resize to 256x256 for the hicolor theme.
+ICON_SRC="$WORK_DIR/extract/assets/Square150x150Logo.png"
+ICON_DST="$TARBALL_DIR/icons/claude-desktop.png"
+if [ -f "$ICON_SRC" ]; then
+    if command -v magick &>/dev/null; then
+        magick "$ICON_SRC" -resize 256x256 "$ICON_DST"
+    elif command -v convert &>/dev/null; then
+        convert "$ICON_SRC" -resize 256x256 "$ICON_DST"
+    else
+        cp "$ICON_SRC" "$ICON_DST"
+    fi
+else
+    log_warn "Icon source not found at $ICON_SRC — package will ship without an icon"
 fi
 
 # Create the tarball
