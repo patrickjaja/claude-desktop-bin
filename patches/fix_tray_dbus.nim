@@ -98,6 +98,36 @@ proc apply*(input: string): string =
       echo "  [FAIL] DBus cleanup delay: destroy pattern not found"
       failed = true
 
+  # Step 7: Remove tray recreation from nativeTheme.on("updated") handler.
+  # On Linux the icon is always TrayIconTemplate-Dark.png (patched by
+  # fix_tray_icon_theme), so destroying and recreating the tray on theme
+  # change is pointless and causes ghost icons on XFCE/StatusNotifierWatcher.
+  if trayFunc != "":
+    let themeCallPat = re2(
+      "(nativeTheme\\.on\\(\"updated\",\\(\\)=>\\{[^}]*?[\\w$]+\\(\\),)" & trayFunc &
+        "\\(\\),"
+    )
+    var themeCount = 0
+    result = result.replace(
+      themeCallPat,
+      proc(m: RegexMatch2, s: string): string =
+        inc themeCount
+        s[m.group(0)],
+    )
+    if themeCount > 0:
+      echo &"  [OK] nativeTheme handler: removed {trayFunc}() call (Linux icon is static)"
+    elif ("nativeTheme.on(\"updated\"" in result) and (
+      trayFunc & "()" notin
+      result[
+        result.find("nativeTheme.on(\"updated\"") ..
+          result.find("nativeTheme.on(\"updated\"") + 200
+      ]
+    ):
+      echo "  [INFO] nativeTheme handler: tray call already absent"
+    else:
+      echo &"  [FAIL] nativeTheme handler: could not remove {trayFunc}() call"
+      failed = true
+
   if failed:
     raise
       newException(ValueError, "fix_tray_dbus: Some required patterns did not match")

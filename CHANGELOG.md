@@ -2,6 +2,12 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-05-06 — Fix duplicate tray icon on theme change
+
+- **Fixed:** Toggling appearance (light/dark/system) in Settings caused a ghost tray icon on XFCE and other StatusNotifierWatcher-based panels. Root cause: the `nativeTheme.on("updated")` handler needlessly destroyed and recreated the tray, even though the Linux icon is always `TrayIconTemplate-Dark.png` regardless of theme. The panel couldn't process the DBus unregistration before the new registration arrived. Fix: `fix_tray_dbus.nim` Step 7 removes the tray function call from the theme handler.
+
+---
+
 ## 2026-05-06 (v1.6259.0) — Upstream update, 1 patch fixed, 2 new macOS-only features, auth refactor
 
 - **Version bump:** v1.5354.0 → v1.6259.0
