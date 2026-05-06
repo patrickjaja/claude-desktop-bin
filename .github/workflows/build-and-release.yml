@@ -985,6 +985,7 @@ jobs:
           fi
 
           docker run --rm \
+            -e ELECTRON_VERSION="${ELECTRON_VERSION}" \
             -v "$(pwd):/build:ro" \
             -v "$(pwd)/dist:/output" \
             fedora:40 \

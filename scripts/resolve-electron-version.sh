@@ -13,7 +13,8 @@
 # If not set, we try to derive a sensible default.
 
 # Guard: if ELECTRON_VERSION is already set, respect it
-if [ -n "$ELECTRON_VERSION" ]; then
+# Use ${:-} to avoid "unbound variable" errors when caller uses set -u
+if [ -n "${ELECTRON_VERSION:-}" ]; then
     echo "Using Electron version: $ELECTRON_VERSION (from environment override)" >&2
     return 0 2>/dev/null || exit 0
 fi
