@@ -1,6 +1,6 @@
 # ion-dist Baseline — Third-Party Inference SPA
 
-**Last verified:** 2026-05-06 against v1.6259.0
+**Last verified:** 2026-05-06 against v1.6259.1
 
 The `ion-dist/` directory is a standalone React SPA bundled inside `locales/ion-dist/`. It powers the **Configure Third-Party Inference** UI (Developer menu). Served by the Electron main process via the `app://` protocol handler.
 
@@ -8,8 +8,8 @@ The `ion-dist/` directory is a standalone React SPA bundled inside `locales/ion-
 
 | Metric | Value |
 |--------|-------|
-| Total size | 106 MB, 1634 files |
-| JS chunks | 669 files in `assets/v1/` |
+| Total size | 105 MB, 1612 files |
+| JS chunks | 660 files in `assets/v1/` |
 | CSS | 22 files |
 | Fonts | 31 woff2 + 21 ttf + 20 woff |
 | Images | 25 PNG, 18 SVG, 17 GIF |
@@ -126,3 +126,10 @@ The 3P config supports these key categories (defined in the SPA's Zod schema):
 - **Telemetry:** `disableEssentialTelemetry`, `disableNonessentialTelemetry`, `disableNonessentialServices`, `disableAutoUpdates`, `autoUpdaterEnforcementHours`
 - **OTLP:** `otlpEndpoint`, `otlpProtocol`, `otlpHeaders`
 - **Usage limits:** `inferenceMaxTokensPerWindow`, `inferenceTokenWindowHours`
+- **Bootstrap:** `bootstrapEnabled`, `bootstrapUrl`, `bootstrapOidc`
+- **Auth/Org:** `forceLoginOrgUUID`
+- **Bedrock (new sub-keys):** `inferenceBedrockAwsDir`, `inferenceBedrockBearerToken`, `inferenceBedrockServiceTier` (enum: `"flex"` | `"priority"`)
+- **Vertex (new sub-keys):** `inferenceVertexBaseUrl`, `inferenceVertexCredentialsFile`, `inferenceVertexOAuthClientId`, `inferenceVertexOAuthClientSecret`, `inferenceVertexOAuthScopes`
+- **Gateway (new enum):** `inferenceGatewayAuthScheme` now supports `"sso"` (in addition to `"auto"`, `"x-api-key"`, `"bearer"`)
+- **OTLP (new sub-key):** `otlpResourceAttributes`
+- **Cowork/Sandbox (new keys):** `requireCoworkFullVmSandbox`, `secureVmFeaturesEnabled`

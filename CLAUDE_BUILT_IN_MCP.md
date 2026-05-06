@@ -1,4 +1,4 @@
-# Built-in MCP Servers — Claude Desktop v1.5354.0
+# Built-in MCP Servers — Claude Desktop v1.6259.1
 
 Claude Desktop registers internal MCP servers via a two-layer architecture:
 
@@ -10,7 +10,7 @@ A server may appear in both layers (e.g., Chrome, mcp-registry) or only one.
 ## Registration System
 
 ```
-qwA(serverName, displayLabel, factoryFn)   // v1.5354.0 (was gpA() in v1.3561.0, DfA() in v1.3109.0, kce() in v1.3036.0)
+qwA(serverName, displayLabel, factoryFn)   // v1.5354.0+ (unchanged in v1.6259.1; was gpA() in v1.3561.0, DfA() in v1.3109.0, kce() in v1.3036.0)
 ```
 
 - Lazy singleton factory per server name; stored in `MG` (registry) + `VqA` (display labels)
@@ -29,7 +29,7 @@ qwA(serverName, displayLabel, factoryFn)   // v1.5354.0 (was gpA() in v1.3561.0,
 
 Communicates with the Chrome browser extension via Unix socket at `/tmp/claude-mcp-browser-bridge-<username>/0.sock`.
 
-**Tools (20):**
+**Tools (22):**
 
 | Tool | Description |
 |------|-------------|
@@ -52,7 +52,9 @@ Communicates with the Chrome browser extension via Unix socket at `/tmp/claude-m
 | `tabs_context_mcp` | Get tab group context and tab IDs |
 | `tabs_create_mcp` | Create new tab in MCP tab group |
 | `tabs_close_mcp` | Close a tab in MCP tab group |
-| `update_plan` | Update a plan in the chat UI |
+| `browser_batch` | Execute a sequence of browser tool calls in one round trip |
+| `list_connected_browsers` | List all Chrome browsers connected to this account |
+| `select_browser` | Select a specific Chrome browser by deviceId |
 
 ### 2. MCP Registry
 
@@ -199,11 +201,11 @@ Browser interaction (30-second timeout each):
 |-------|-------|
 | Server name | `"terminal"` (constant `Egi`) |
 | Factory | `xgi()` via `getTerminalServerDef` |
-| Platform | **All** (macOS, Windows, Linux) — upstream uses `bfA` (darwin\|\|win32 only), but `fix_dispatch_linux.nim` patches it to include Linux |
-| Gating | `t.sessionType === "ccd"` AND `bfA` platform check AND server flag `397125142` |
+| Platform | **All** (macOS, Windows, Linux) — upstream uses `BwA` (darwin\|\|win32 only), but `fix_dispatch_linux.nim` patches it to include Linux |
+| Gating | `t.sessionType === "ccd"` AND `BwA` platform check AND server flag `397125142` |
 | Session types | **CCD only** — NOT available in Cowork sessions. The `sessionType==="ccd"` check is hardcoded in `isEnabled` |
 | Backend | `node-pty` — spawns a PTY shell, streams output to xterm.js terminal panel in the UI |
-| Linux status | **Works** — `bfA` patched by `fix_dispatch_linux.nim`, node-pty rebuilt from source by `build-patched-tarball.sh` |
+| Linux status | **Works** — `BwA` patched by `fix_dispatch_linux.nim`, node-pty rebuilt from source by `build-patched-tarball.sh` |
 
 | Tool | Description |
 |------|-------------|
@@ -254,6 +256,7 @@ An AI-powered inbox scanner that reads from user's remote MCP servers (Gmail, Sl
 | Tool | Description |
 |------|-------------|
 | `record_card` | Record one actionable item pointed at the user. Call once per item — an @-mention waiting on a reply, a review request, a direct ask. The `source_ref` must be the stable upstream identifier (Gmail thread ID, Slack message ts, GitHub owner/repo#N) so re-runs map to the same card. |
+| `retire_card` | Retire a previously-surfaced card whose upstream item is no longer actionable |
 
 **`record_card` input schema:**
 
@@ -296,8 +299,22 @@ An AI-powered inbox scanner that reads from user's remote MCP servers (Gmail, Sl
 | Tool | Description |
 |------|-------------|
 | `spawn_task` | Spin off a parallel task into a separate Claude Code Desktop session |
+| `mark_chapter` | Flag an out-of-scope issue for a separate background task |
 
 The `spawn_task` tool requires desktop approval card injection — cannot be auto-approved by hooks or permission rules.
+
+### 18. Skills
+
+| Field | Value |
+|-------|-------|
+| Server name | `"skills"` (constant `k1r`) |
+| Gating | Cowork session + `skillsEnabled !== false` |
+| Added in | v1.6259.1 |
+
+| Tool | Description |
+|------|-------------|
+| `list_skills` | Render the user's slash-menu skills as an interactive widget |
+| `search_skills` | Search available skills |
 
 ## Per-Session Dynamic MCP Servers (SDK-type)
 
@@ -345,6 +362,7 @@ Claude Desktop creates 4 additional MCP servers **dynamically per cowork/dispatc
 | `create_artifact` | — | Create a self-contained HTML artifact (inline CSS/JS, data: URLs for images). Conditional on GrowthBook flag `2940196192` (**new in v1.1348.0**) |
 | `update_artifact` | — | Update an existing artifact. Same constraints as `create_artifact`. Conditional on GrowthBook flag `2940196192` (**new in v1.1348.0**) |
 | `save_skill` | — | Save a reusable skill to the user's account. Conditional on `canSaveSkill` (**new in v1.1348.0**) |
+| `propose_skills` | — | Propose skills for the user to save |
 
 **Note:** `present_files`, `allow_cowork_file_delete`, `launch_code_session`, `create_artifact`, and `update_artifact` are added to `disallowedTools` for bridge/dispatch-child sessions. On Linux native, `cowork-svc-linux` removes `present_files` from `disallowedTools` as a workaround for file sharing.
 
@@ -449,13 +467,13 @@ disallowedTools: ["AskUserQuestion", "mcp__cowork__allow_cowork_file_delete",
 | Server name | `"computer-use"` (constant `p6t`) |
 | Tool prefix | `mcp__computer-use__` |
 | Platform | macOS (native), **Linux (patched)** |
-| Gating (macOS/Windows) | Set-based: `nBA()` checks `rwA = new Set(["darwin","win32"])` + `chicagoEnabled` preference |
-| Gating (Linux) | Enabled via Set modification (add "linux" to `rwA`) + feature flag and preference bypassed |
+| Gating (macOS/Windows) | Set-based: `nBA()` checks `qDA = new Set(["darwin","win32"])` + `chicagoEnabled` preference |
+| Gating (Linux) | Enabled via Set modification (add "linux" to `qDA`) + feature flag and preference bypassed |
 | Internal codename | "chicago" |
 
 **Background:** Computer-use was previously a separate `computer-use-server.js` file in the app root (removed in v1.1.7714). As of v1.1.8359, it's fully integrated into `index.js` as an internal MCP server. In v1.1.9134, 5 new tools were added (multi-monitor, batch actions, teach mode).
 
-**Feature flag (v1.3561.0):** Computer-use has a **triple gate**: (1) `rwA` Set platform check (`nBA()`), (2) static registry `computerUse` flag (`status` key), and (3) runtime enabled check (reading GrowthBook `chicago_config.enabled` + `chicagoEnabled` preference). Our patches bypass all three: `fix_computer_use_linux.nim` adds "linux" to `rwA` (gate 1), forces registration gate true on Linux, and forces runtime gate true on Linux (bypasses both GrowthBook and the `chicagoEnabled` preference). `enable_local_agent_mode.nim` Patch 3 overrides `computerUse` to `{status:"supported"}` (gate 2). The Settings toggle for CU is rendered server-side by claude.ai's web UI and hidden on Linux — runtime bypass means no toggle is needed.
+**Feature flag (v1.3561.0):** Computer-use has a **triple gate**: (1) `qDA` Set platform check (`nBA()`), (2) static registry `computerUse` flag (`status` key), and (3) runtime enabled check (reading GrowthBook `chicago_config.enabled` + `chicagoEnabled` preference). Our patches bypass all three: `fix_computer_use_linux.nim` adds "linux" to `qDA` (gate 1), forces registration gate true on Linux, and forces runtime gate true on Linux (bypasses both GrowthBook and the `chicagoEnabled` preference). `enable_local_agent_mode.nim` Patch 3 overrides `computerUse` to `{status:"supported"}` (gate 2). The Settings toggle for CU is rendered server-side by claude.ai's web UI and hidden on Linux — runtime bypass means no toggle is needed.
 
 **Tools (27):**
 
@@ -504,7 +522,7 @@ Uses `createDarwinExecutor()` → `@ant/claude-swift` native module for screen c
 | # | Sub-patch | What it does |
 |---|-----------|-------------|
 | 1 | Inject `__linuxExecutor` | Linux executor using xdotool/scrot/Electron APIs at `app.on("ready")` |
-| 2 | Add "linux" to `rwA` Set | `new Set(["darwin","win32"])` → `new Set(["darwin","win32","linux"])` — fixes all `nBA()` gates (server push, chicagoEnabled, overlay init) |
+| 2 | Add "linux" to `qDA` Set | `new Set(["darwin","win32"])` → `new Set(["darwin","win32","linux"])` — fixes all `nBA()` gates (server push, chicagoEnabled, overlay init) |
 | 3 | Patch `createDarwinExecutor` | Return `__linuxExecutor` on Linux instead of throwing |
 | 4 | Patch `ensureOsPermissions` | Return `{granted: true}` on Linux (skip macOS TCC checks) |
 | 5 | Bypass permission model | Direct tool dispatch on Linux, skip allowlist/tier system |
@@ -542,7 +560,7 @@ Uses `createDarwinExecutor()` → `@ant/claude-swift` native module for screen c
 
 - **Claude in Chrome**: Works on Linux via `fix_browser_tools_linux.py` — redirects native host binary to Claude Code's `~/.claude/chrome/chrome-native-host` and installs NativeMessagingHosts manifests for 6 Linux browsers (Chrome, Chromium, Brave, Edge, Vivaldi, Opera). Requires Claude Code CLI and the [Claude in Chrome](https://chromewebstore.google.com/detail/claude-code/fcoeoabgfenejglbffodgkkbkcdhcgfn) extension.
 - **Office Add-in**: Platform-gated to macOS/Windows. Patched to enable on Linux via `fix_office_addin_linux.nim`.
-- **Terminal (`read_terminal`)**: CCD sessions only — `isEnabled` checks `sessionType==="ccd"` (hardcoded, not patchable without changing session semantics). NOT available in Cowork sessions. In Cowork, the model uses `mcp__workspace__bash` instead which runs directly on the host. Platform gate `bfA` patched by `fix_dispatch_linux.nim`. node-pty rebuilt by build script.
+- **Terminal (`read_terminal`)**: CCD sessions only — `isEnabled` checks `sessionType==="ccd"` (hardcoded, not patchable without changing session semantics). NOT available in Cowork sessions. In Cowork, the model uses `mcp__workspace__bash` instead which runs directly on the host. Platform gate `BwA` patched by `fix_dispatch_linux.nim`. node-pty rebuilt by build script.
 - **Computer Use**: Works on Linux via `fix_computer_use_linux.nim` — uses xdotool/scrot + Electron built-in APIs (clipboard, screen, desktopCapturer) instead of `@ant/claude-swift`. Available in Cowork and Code sessions.
 - **Visualize (Imagine)**: Enabled on Linux via `fix_imagine_linux.nim` — forces GrowthBook flag `3444158716`. No platform gate. Renders SVG/HTML inline in cowork sessions.
 - **Radar**: Not yet activatable — server disabled at MCP level, session creation in renderer code. No platform gate. Future feature.
@@ -564,6 +582,7 @@ When active, Operon provides 14 "brain tools" (multi-agent delegation, skills, d
 
 | Version | Changes |
 |---------|---------|
+| v1.6259.1 | Registration function still `qwA()`, unchanged. Computer-use Set variable `rwA`→`qDA`. Platform gate `bfA`→`BwA` (darwin\|\|win32). **New MCP server: `skills`** (list_skills, search_skills). **New Chrome tools:** `browser_batch`, `list_connected_browsers`, `select_browser`. **Removed Chrome tool:** `update_plan`. New tools: `mark_chapter` (ccd_session), `retire_card` (radar), `propose_skills` (cowork). New Operon tools (NOT MCP): `copy_file_user_to_claude`, `delete_host_files`, `select_relevant_inputs`. Chrome tool count 20→22, office-addin unchanged (5). All patches compatible. |
 | v1.5354.0 | Registration function renamed `qwA()` (was `gpA()`). Registry storage `RL`→`MG`, labels `VJA`→`VqA`, enumerator `v7()`→`Y7()`. No new MCP servers, no new tools — same 17 servers (3 renderer-facing + 14 backend). Three patches fixed: `fix_window_bounds` (profile title hook insertion reordering), `fix_dispatch_linux` (gate variable position change), `fix_dispatch_outputs_dir` (new `Tc()` path wrapper in `openPath`). All 44 patches compatible. |
 | v1.3561.0 | Registration function renamed `gpA()` (was `DfA()`). Platform gate variables `WhA`→`bfA` (darwin\|\|win32), `en` unchanged (darwin), `ws`→`ys` (win32). Computer-use Set `ele`→`rwA`, checker `Jne()`→`nBA()`. No new MCP servers, no new tools — same 17 servers (3 renderer-facing + 14 backend). Webpack re-minify only. All patches compatible. |
 | v1.3109.0 | Registration function renamed `DfA()` (was `kce()`). Platform gate variables `UMe`→`WhA` (darwin\|\|win32), `hi`→`en` (darwin), `xce`→`ws` (win32). No new MCP servers, no new tools — same 17 servers (3 renderer-facing + 14 backend). Webpack re-minify only. All patches compatible. |

@@ -25,6 +25,27 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 
 ---
 
+## 2026-05-06 (v1.6259.1) — Point release, 3 features removed, new MCP servers & tools
+
+- **Version bump:** v1.6259.0 → v1.6259.1
+- **No patch changes needed** — all 43 patches applied cleanly without modification
+- **3 features removed upstream:** `floatingAtoll` (was always-supported, now gone), `androidEmulator` (was dev-gated macOS-only), `grandPrix` (was macOS-only device pairing) → static registry 26→23 features
+- **New MCP server:** `"skills"` — `list_skills` (interactive skill widget), `search_skills`
+- **New tools on existing servers:**
+  - Chrome: `browser_batch` (batch browser tool calls), `list_connected_browsers`, `select_browser`
+  - ccd_session: `mark_chapter` (flag out-of-scope issues)
+  - Radar: `retire_card` (retire no-longer-actionable cards)
+  - Cowork: `propose_skills`
+- **New Operon tools** (NOT MCP — part of Nest local agent runtime): `copy_file_user_to_claude`, `delete_host_files`, `select_relevant_inputs`
+- **Removed tool:** `update_plan` (Chrome)
+- **Function renames:** `Y_()→v_()`, `xDA→ZDA`, `UO()→MW()`, `Jt()→Pt()`, `kM()→fM()`, `lp()→ew()`, `dn()→Bn()`; platform vars `Xi→Zr`, `Ds→ys`, `ryA→BwA`; computer-use Set `rwA→qDA`; async helpers `DFA→D1A`, `j_r→evr`, `mFt→jxt`
+- **Force-ON defaults:** `2307090146` (plugin OAuth storage) removed from force-ON map; remaining 5 flags unchanged
+- **ion-dist SPA:** minor shrinkage (1634→1612 files, 669→660 JS chunks); patched patterns unchanged (same content hashes)
+- **New ion-dist config keys:** Bootstrap (bootstrapEnabled/Url/Oidc), Bedrock (AwsDir, BearerToken, ServiceTier), Vertex (BaseUrl, CredentialsFile, OAuth*), Gateway auth scheme `"sso"`, OTLP resource attributes, Cowork/Sandbox (requireCoworkFullVmSandbox, secureVmFeaturesEnabled)
+- **All 43 patches pass**, JS syntax validated
+
+---
+
 ## 2026-05-06 — Fix duplicate tray icon on theme change
 
 - **Fixed:** Toggling appearance (light/dark/system) in Settings caused a ghost tray icon on XFCE and other StatusNotifierWatcher-based panels. Root cause: the `nativeTheme.on("updated")` handler needlessly destroyed and recreated the tray, even though the Linux icon is always `TrayIconTemplate-Dark.png` regardless of theme. The panel couldn't process the DBus unregistration before the new registration arrived. Fix: `fix_tray_dbus.nim` Step 7 removes the tray function call from the theme handler.
