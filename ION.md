@@ -1,6 +1,6 @@
 # ion-dist Baseline — Third-Party Inference SPA
 
-**Last verified:** 2026-05-06 against v1.6259.1
+**Last verified:** 2026-05-07 against v1.6608.0
 
 The `ion-dist/` directory is a standalone React SPA bundled inside `locales/ion-dist/`. It powers the **Configure Third-Party Inference** UI (Developer menu). Served by the Electron main process via the `app://` protocol handler.
 
@@ -8,8 +8,8 @@ The `ion-dist/` directory is a standalone React SPA bundled inside `locales/ion-
 
 | Metric | Value |
 |--------|-------|
-| Total size | 105 MB, 1612 files |
-| JS chunks | 660 files in `assets/v1/` |
+| Total size | 100 MB, 1552 files |
+| JS chunks | 627 files in `assets/v1/` |
 | CSS | 22 files |
 | Fonts | 31 woff2 + 21 ttf + 20 woff |
 | Images | 25 PNG, 18 SVG, 17 GIF |
@@ -24,7 +24,7 @@ The `ion-dist/` directory is a standalone React SPA bundled inside `locales/ion-
 | `index.html` | 3.7 KB | SPA entry, loads `index-*.js` via `<script type="module">` |
 | `assets/v1/index-*.js` | ~7.9 MB | Main bundle (React app, API client, UI components) |
 | `assets/v1/vendor-*.js` | ~1.5 MB | Third-party vendor libs |
-| `assets/v1/c71860c77-*.js` | 12 files (main: ~223 KB) | 3P config UI, code-split into 12 lazy-loaded chunks — **main chunk patched** |
+| `assets/v1/c71860c77-*.js` | 12 files (main: ~223 KB) | 3P config UI, code-split into 12 lazy-loaded chunks — **main chunk patched** (v1.6608.0: `c71860c77-Cy4WEBKv.js`) |
 | `assets/v1/tree-sitter-*.js` | — | Code parsing (tree-sitter WASM bindings) |
 
 Filenames include content hashes (e.g., `index-BNbM_KX7.js`) that change every upstream release.
@@ -32,7 +32,7 @@ Filenames include content hashes (e.g., `index-BNbM_KX7.js`) that change every u
 ## How It's Served
 
 ```
-Main process (v1.3883.0 names — these change every release):
+Main process (v1.6608.0 names — these change every release):
   $Mr(path.join(ljt(), "ion-dist"), rendererConfig)
 
 ljt() → locales/ dir (patched by fix_locale_paths.nim)
@@ -45,11 +45,11 @@ The 3P setup window opens `app://localhost/setup-desktop-3p` in a `BrowserWindow
 
 The SPA receives platform from the main process via `readLocalConfig()` IPC:
 ```js
-// Main process (v1.3883.0: KNn function — name changes every release):
+// Main process (v1.6608.0: KNn function — name changes every release):
 { ok: true, config: ..., source: ..., platform: process.platform, ... }
 ```
 
-Platform enum in the SPA (`U3`): `Darwin="darwin"`, `Win32="win32"`, `Linux="linux"`.
+Platform enum in the SPA (v1.6608.0: `Y`; previously `U3`, `W` — name changes every release): `Darwin="darwin"`, `Win32="win32"`, `Linux="linux"`.
 
 ## Linux-Specific Issues (Patched)
 
@@ -73,7 +73,7 @@ Export enum (`An`): `Mobileconfig`, `Reg`, `Json`, `FirewallTxt`, `ClipboardReda
 
 - Enterprise config: reads `/etc/claude-desktop/enterprise.json`
 - User config: `~/.config/Claude-3p/claude_desktop_config.json`
-- File manager text: `W.Linux ? "Show in file manager"`
+- File manager text: `Y.Linux ? "Show in file manager"` (v1.6608.0; var name changes every release)
 - Keyboard shortcuts: Ctrl-based when platform !== Darwin
 - Platform enum includes Linux
 - CLI detection: includes `cli-linux-x64` and `cli-linux-arm64`

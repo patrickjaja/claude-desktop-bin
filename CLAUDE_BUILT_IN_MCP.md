@@ -1,4 +1,4 @@
-# Built-in MCP Servers — Claude Desktop v1.6259.1
+# Built-in MCP Servers — Claude Desktop v1.6608.0
 
 Claude Desktop registers internal MCP servers via a two-layer architecture:
 
@@ -10,14 +10,14 @@ A server may appear in both layers (e.g., Chrome, mcp-registry) or only one.
 ## Registration System
 
 ```
-qwA(serverName, displayLabel, factoryFn)   // v1.5354.0+ (unchanged in v1.6259.1; was gpA() in v1.3561.0, DfA() in v1.3109.0, kce() in v1.3036.0)
+lrA(serverName, displayLabel, factoryFn)   // v1.6608.0+ (was qwA() in v1.5354.0, gpA() in v1.3561.0, DfA() in v1.3109.0, kce() in v1.3036.0)
 ```
 
 - Lazy singleton factory per server name; stored in `MG` (registry) + `VqA` (display labels)
 - UUID display label sent to renderer for identification
 - `Y7()` enumerates registered server names via `Object.keys(MG)`
 
-## Renderer-Facing Servers (via `qwA()`)
+## Renderer-Facing Servers (via `lrA()`)
 
 ### 1. Claude in Chrome
 
@@ -64,7 +64,7 @@ Communicates with the Chrome browser extension via Unix socket at `/tmp/claude-m
 | Platform | All |
 | Gating | Always enabled |
 
-The `gpA()` registration is a **stub returning no tools**. Actual tools are provided via the backend session layer.
+The `lrA()` registration is a **stub returning no tools**. Actual tools are provided via the backend session layer.
 
 **Tools (via P8t):**
 
@@ -95,7 +95,7 @@ Communicates via WebSocket to `wss://localhost:8766` (configurable via `OFFICE_A
 | `open_office_file` | Open an Office file and the Claude add-in panel |
 | `close_office_file` | Close a currently open Office file |
 
-## Backend-Only Servers (not registered via `qwA()`)
+## Backend-Only Servers (not registered via `lrA()`)
 
 These are accessible to CCD/Cowork sessions but not directly from the renderer.
 
@@ -318,7 +318,7 @@ The `spawn_task` tool requires desktop approval card injection — cannot be aut
 
 ## Per-Session Dynamic MCP Servers (SDK-type)
 
-Claude Desktop creates 4 additional MCP servers **dynamically per cowork/dispatch session**. These are NOT registered via `qwA()` — they are created inline in the session manager and passed to the Claude Code CLI via `sdkMcpServers` in `--mcp-config`.
+Claude Desktop creates 4 additional MCP servers **dynamically per cowork/dispatch session**. These are NOT registered via `lrA()` — they are created inline in the session manager and passed to the Claude Code CLI via `sdkMcpServers` in `--mcp-config`.
 
 **Communication:** SDK-type servers use `MessagePort` bridges. On Mac/Windows, the VM SDK daemon (`nodeHost.js`) provides this bridge via vsock. On Linux native, `cowork-svc-linux` now **passes `--mcp-config` through unchanged** (since commit `d1dfc3b`). The CLI sends `control_request` messages on stdout, which flow through the event stream to Claude Desktop. Desktop's session manager intercepts them and sends `control_response` back via writeStdin — identical to VM mode on Mac/Windows.
 
@@ -428,7 +428,7 @@ Linux native (current, since cowork-svc commit d1dfc3b):
 
 When a Cowork session creates artifacts, Claude Desktop registers **dynamic** MCP servers named `cowork-artifact-<uuid>` for each artifact. These are NOT statically registered via `kce()` — they are created inline per artifact. The `cowork-artifact` string also serves as an Electron custom protocol scheme (`cowork-artifact:`) for rendering artifact content in the UI.
 
-**Not a static server** — no tools to document. Not registered via `DfA()`. Calls route via `callRemoteTool("cowork-artifact-<id>", ...)`.
+**Not a static server** — no tools to document. Not registered via `lrA()`. Calls route via `callRemoteTool("cowork-artifact-<id>", ...)`.
 
 ### Anthropic API Built-in Tool: `web_search`
 
@@ -582,6 +582,7 @@ When active, Operon provides 14 "brain tools" (multi-agent delegation, skills, d
 
 | Version | Changes |
 |---------|---------|
+| v1.6608.0 | Registration function renamed `lrA()` (was `qwA()`). No new MCP servers, no removed servers — same 10 in Xxi array (mcp-registry, plugins, skills, cowork-onboarding, radar, "Claude Preview", dev-debug, ccd_session_mgmt, ccd_directory, ccd_session) plus renderer-facing ("Claude in Chrome", terminal, visualize). No new tools. Webpack re-minify only. All patches compatible. |
 | v1.6259.1 | Registration function still `qwA()`, unchanged. Computer-use Set variable `rwA`→`qDA`. Platform gate `bfA`→`BwA` (darwin\|\|win32). **New MCP server: `skills`** (list_skills, search_skills). **New Chrome tools:** `browser_batch`, `list_connected_browsers`, `select_browser`. **Removed Chrome tool:** `update_plan`. New tools: `mark_chapter` (ccd_session), `retire_card` (radar), `propose_skills` (cowork). New Operon tools (NOT MCP): `copy_file_user_to_claude`, `delete_host_files`, `select_relevant_inputs`. Chrome tool count 20→22, office-addin unchanged (5). All patches compatible. |
 | v1.5354.0 | Registration function renamed `qwA()` (was `gpA()`). Registry storage `RL`→`MG`, labels `VJA`→`VqA`, enumerator `v7()`→`Y7()`. No new MCP servers, no new tools — same 17 servers (3 renderer-facing + 14 backend). Three patches fixed: `fix_window_bounds` (profile title hook insertion reordering), `fix_dispatch_linux` (gate variable position change), `fix_dispatch_outputs_dir` (new `Tc()` path wrapper in `openPath`). All 44 patches compatible. |
 | v1.3561.0 | Registration function renamed `gpA()` (was `DfA()`). Platform gate variables `WhA`→`bfA` (darwin\|\|win32), `en` unchanged (darwin), `ws`→`ys` (win32). Computer-use Set `ele`→`rwA`, checker `Jne()`→`nBA()`. No new MCP servers, no new tools — same 17 servers (3 renderer-facing + 14 backend). Webpack re-minify only. All patches compatible. |
