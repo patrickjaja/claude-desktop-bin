@@ -103,7 +103,7 @@ proc apply*(input: string): string =
       let replacement =
         varName &
         "=process.platform===\"linux\"?" &
-        "(process.env.XDG_RUNTIME_DIR||\"/tmp\")+(globalThis.__coworkKvmMode?\"/cowork-kvm-service.sock\":\"/cowork-vm-service.sock\")" &
+        "(process.env.XDG_RUNTIME_DIR||\"/tmp\")+(globalThis.__coworkKvmMode?\"/cowork-kvm-service.sock\":globalThis.__coworkSandboxMode?\"/cowork-sandbox-service.sock\":\"/cowork-vm-service.sock\")" &
         ":" & pipePath
 
       content = content[0 ..< start] & replacement & content[idx + pipeSearch.len .. ^1]
