@@ -10,7 +10,7 @@ Rules-Requires-Root: no
 Package: claude-desktop-bin
 Architecture: amd64
 Depends: ${shlibs:Depends}, ${misc:Depends}, electron | electron-bin | electron33
-Recommends: libnotify-bin
+Recommends: libnotify-bin, sqlite3
 Suggests: xdotool, scrot, imagemagick, wmctrl, socat, hyprland, ydotool, grim, jq, kde-spectacle, libglib2.0-bin, python3-gi, gstreamer1.0-pipewire, gnome-screenshot, nodejs
 Description: Claude AI Desktop Application
  Claude is an AI assistant created by Anthropic to be helpful,
