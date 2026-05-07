@@ -767,6 +767,7 @@ attach to the same id and survive across sessions.
 
 - **Pinned taskbar entries**: if you had `com.anthropic.claude-desktop.desktop` pinned (from an earlier release), re-pin once after this update.
 - **Custom X11 WM rules**: `WM_CLASS` / Wayland `app_id` is `claude`. Users who previously matched on `Claude` or `com.anthropic.claude-desktop` need to update their i3 / xmonad / awesome / bspwm / KWin rules. Named profiles (see [Multiple Profiles](#multiple-profiles)) get a `-<profile>` suffix on this class so each profile shows up as a separate app - write WM rules accordingly.
+- **GNOME shell extension blacklist (Rounded Window Corners Reborn, Unite, Blur My Shell, ...)**: if you added `com.anthropic.claude-quick-entry` to your extension's exclude list to hide the opaque shadow rectangle behind Quick Entry, update that entry to `claude-quick-entry`.
 - **NixOS**: the Nix package materialises a renamed Electron binary (`claude`) for correct Wayland `app_id`, but does not use `systemd-run --scope`. Portal identity may not resolve on GNOME Wayland - use `--install-gnome-hotkey` instead. Other sessions (KDE, Hyprland, Sway, X11) are unaffected.
 
 ## Tips
