@@ -12,6 +12,7 @@ license=('custom:Claude')
 depends=('alsa-lib' 'gtk3' 'nss')
 makedepends=('unzip')
 optdepends=('nodejs: System Node.js for MCP extensions that require specific versions (Electron bundles Node.js as fallback)'
+            'sqlite: Project detection (detectedProjects) — without it, periodic ENOENT errors spam logs/main.log'
             'claude-code: Claude Code CLI for agentic coding features (npm i -g @anthropic-ai/claude-code)'
             'claude-cowork-service: Enables Cowork VM features on Linux'
             'xdotool: Computer Use input (X11), cursor reading + XWayland fallback (Wayland), Quick Entry positioning'
