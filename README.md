@@ -434,6 +434,8 @@ The configuration window lets you manage connection settings, provider credentia
 
 **Enterprise deployment:** Use MDM (macOS), GPO (Windows), or drop a JSON file at `/etc/claude-desktop/enterprise.json` (Linux) to manage fleet-wide configuration. See the [Anthropic 3P configuration docs](https://claude.com/docs/cowork/3p/configuration) for the full key reference and recommended security profiles.
 
+**Linux setup walkthrough:** The official 3P docs only cover macOS and Windows. See [docs/third-party-inference.md](docs/third-party-inference.md) for a Linux-specific quickstart — both the in-app wizard route (requires Developer Mode) and a headless `enterprise.json` route with a worked Vertex AI example using `gcloud` ADC.
+
 ## Custom Themes (Experimental)
 
 Themes override CSS variables in **all windows** (main chat, Quick Entry, Find-in-Page, About) via Electron's `insertCSS()` API. Set Claude Desktop to **dark mode** for best results with dark themes.
