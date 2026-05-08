@@ -2,6 +2,17 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-05-08 (v1.6608.1) — Point release, re-minify only
+
+- **Version bump:** v1.6608.0 → v1.6608.1
+- **No patch changes required:** All 35+ sub-patches applied cleanly without modification — this is a pure webpack re-minify with no structural changes
+- **No new features, flags, MCP servers, or platform gates**
+- **Minified variable renames:** `MW()`→`DT()` (production gate), `woA`→`DoA` (async merger), `fM()`→`Cm()` (listener), `ew()`→`wr()` (single-value reader), `Bn()`→`OQ()` (multi-key reader), `Nvi()`→`vbi()` (louderPenguin async), `D1A()`→`dhA()` (cowork async helper), `Zr`→`sr` (darwin bool), `ys`→`fn` (win32 bool), `BwA`→`YiA` (darwin||win32), `BoA`→`QoA` (computer-use Set), `lrA`→`BrA` (MCP registration)
+- **New `1978029737` session config keys:** `coworkWebFetchPrompt`, `memoryIndexSnapshotIdleMs`, `peakHoursStartPst`, `peakHoursEndPst`
+- **ion-dist SPA:** JS file count 627→632 (+5), CSS 22→21 (-1), main index bundle ~7.9→~6.9 MB, c71860c77 chunks 12→13; patched patterns unchanged
+
+---
+
 ## 2026-05-07 (v1.6608.0) — Upstream update, computer-use patch fix, operon removed
 
 - **Version bump:** v1.6259.1 → v1.6608.0

@@ -1,6 +1,6 @@
 # ion-dist Baseline — Third-Party Inference SPA
 
-**Last verified:** 2026-05-07 against v1.6608.0
+**Last verified:** 2026-05-08 against v1.6608.1
 
 The `ion-dist/` directory is a standalone React SPA bundled inside `locales/ion-dist/`. It powers the **Configure Third-Party Inference** UI (Developer menu). Served by the Electron main process via the `app://` protocol handler.
 
@@ -8,9 +8,9 @@ The `ion-dist/` directory is a standalone React SPA bundled inside `locales/ion-
 
 | Metric | Value |
 |--------|-------|
-| Total size | 100 MB, 1552 files |
-| JS chunks | 627 files in `assets/v1/` |
-| CSS | 22 files |
+| Total size | 99 MB, 1552 files |
+| JS chunks | 632 files in `assets/v1/` |
+| CSS | 21 files |
 | Fonts | 31 woff2 + 21 ttf + 20 woff |
 | Images | 25 PNG, 18 SVG, 17 GIF |
 | Audio | 25 MP3, 1 WebM, 1 MOV |
@@ -21,18 +21,18 @@ The `ion-dist/` directory is a standalone React SPA bundled inside `locales/ion-
 
 | File | Size | Role |
 |------|------|------|
-| `index.html` | 3.7 KB | SPA entry, loads `index-*.js` via `<script type="module">` |
-| `assets/v1/index-*.js` | ~7.9 MB | Main bundle (React app, API client, UI components) |
+| `index.html` | 4.1 KB | SPA entry, loads `index-*.js` via `<script type="module">` |
+| `assets/v1/index-*.js` | ~6.9 MB | Main bundle (React app, API client, UI components) |
 | `assets/v1/vendor-*.js` | ~1.5 MB | Third-party vendor libs |
-| `assets/v1/c71860c77-*.js` | 12 files (main: ~223 KB) | 3P config UI, code-split into 12 lazy-loaded chunks — **main chunk patched** (v1.6608.0: `c71860c77-Cy4WEBKv.js`) |
+| `assets/v1/c71860c77-*.js` | 13 files (main: ~239 KB) | 3P config UI, code-split into 13 lazy-loaded chunks — **main chunk patched** (v1.6608.1: `c71860c77-BOaDa5w5.js`) |
 | `assets/v1/tree-sitter-*.js` | — | Code parsing (tree-sitter WASM bindings) |
 
-Filenames include content hashes (e.g., `index-BNbM_KX7.js`) that change every upstream release.
+Filenames include content hashes (e.g., `index-BELzQL5P.js`) that change every upstream release.
 
 ## How It's Served
 
 ```
-Main process (v1.6608.0 names — these change every release):
+Main process (v1.6608.1 names — these change every release):
   $Mr(path.join(ljt(), "ion-dist"), rendererConfig)
 
 ljt() → locales/ dir (patched by fix_locale_paths.nim)
@@ -45,11 +45,11 @@ The 3P setup window opens `app://localhost/setup-desktop-3p` in a `BrowserWindow
 
 The SPA receives platform from the main process via `readLocalConfig()` IPC:
 ```js
-// Main process (v1.6608.0: KNn function — name changes every release):
+// Main process (v1.6608.1: KNn function — name changes every release):
 { ok: true, config: ..., source: ..., platform: process.platform, ... }
 ```
 
-Platform enum in the SPA (v1.6608.0: `Y`; previously `U3`, `W` — name changes every release): `Darwin="darwin"`, `Win32="win32"`, `Linux="linux"`.
+Platform enum in the SPA (v1.6608.1: `Y`; previously `U3`, `W` — name changes every release): `Darwin="darwin"`, `Win32="win32"`, `Linux="linux"`.
 
 ## Linux-Specific Issues (Patched)
 
@@ -67,13 +67,13 @@ No `linux` key. Display component falls back: `r===X.Win32?t.win:t.mac`.
 
 ### 2. Export Formats
 
-Export enum (`An`): `Mobileconfig`, `Reg`, `Json`, `FirewallTxt`, `ClipboardRedacted`. JSON is already available as a menu option — no patch needed. The binary export ternary (`n===An.Reg?pe.Reg:pe.Mobileconfig`) only applies to `.mobileconfig`/`.reg` exports.
+Export enum (`as`): `Mobileconfig`, `Reg`, `Json`, `FirewallTxt`, `ClipboardRedacted`. JSON is already available as a menu option — no patch needed. The binary export ternary (`n===as.Reg?Ne.Reg:Ne.Mobileconfig`) only applies to `.mobileconfig`/`.reg` exports.
 
 ## What's Already Linux-Compatible (No Patch Needed)
 
 - Enterprise config: reads `/etc/claude-desktop/enterprise.json`
 - User config: `~/.config/Claude-3p/claude_desktop_config.json`
-- File manager text: `Y.Linux ? "Show in file manager"` (v1.6608.0; var name changes every release)
+- File manager text: `Y.Linux ? "Show in file manager"` (v1.6608.1; var name changes every release)
 - Keyboard shortcuts: Ctrl-based when platform !== Darwin
 - Platform enum includes Linux
 - CLI detection: includes `cli-linux-x64` and `cli-linux-arm64`
