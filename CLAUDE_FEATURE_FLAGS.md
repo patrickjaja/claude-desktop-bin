@@ -1,6 +1,6 @@
 # Claude Desktop Feature Flag Architecture
 
-Reference documentation for the feature flag system in Claude Desktop's Electron app. This documents v1.6608.1 internals to aid patch maintenance.
+Reference documentation for the feature flag system in Claude Desktop's Electron app. This documents v1.6608.2 internals to aid patch maintenance.
 
 ## Overview
 
@@ -154,7 +154,7 @@ Feature flags can also be affected by organization-level admin settings:
 
 Calls the merger, validates the result against a Zod schema, and sends it to the renderer process via IPC. The renderer uses these flags to conditionally render UI elements (e.g., Chat|Code toggle).
 
-## GrowthBook Flag Catalog (v1.6608.1)
+## GrowthBook Flag Catalog (v1.6608.2)
 
 ### Boolean Flags (pt())
 
@@ -301,6 +301,47 @@ Calls the merger, validates the result against a Zod schema, and sends it to the
 | `2433104842` | Operon/CU-related | Completely removed |
 | `2486083521` | Operon/CU-related | Completely removed |
 | `4019128077` | Cowork browser/CU `alwaysLoad` | Completely removed |
+
+#### New Server-Side GrowthBook Flags in v1.6608.2
+
+21 new server-side GrowthBook flag IDs observed. These are **not** feature flags in the static registry (`pw()`); they are server-side toggles read via `pt()` at runtime. All function names unchanged from v1.6608.1.
+
+| Flag ID | Purpose | Patched? |
+|---------|---------|----------|
+| `66187241` | `CLAUDE_CODE_EMIT_TOOL_USE_SUMMARIES` for local-agent sessions | No |
+| `451382573` | `DISABLE_BRIEF_MODE_STOP_HOOK` for dispatch sessions | No |
+| `658929541` | Lock mid-session model changes when message buffer non-empty | No |
+| `939257113` | Dispatch subscription check (`isRemoteDispatchChild` qualifier) | No |
+| `975112542` | Cowork memory remote sync (`canSyncCoworkMemoryRemotely()`) | No |
+| `1496676413` | SSH plugin/MCP stripping — gates plugin and MCP forwarding to SSH sessions | No |
+| `1696890383` | Cowork memory guidelines injection (`CLAUDE_COWORK_MEMORY_GUIDE` env) | No |
+| `1824824999` | Memory-consolidation skill config (configurable descriptions) | No |
+| `2049450122` | Session handoff — cross-device session activity broadcasting | No |
+| `2114777685` | Cowork-only MCP tool (`show_onboarding_role_picker`) | No |
+| `2140326016` | Hard-fail on author-supplied bin/ stubs | No |
+| `2192324205` | Tool use result filtering (dispatch structured content forwarding) | No |
+| `2216901299` | Org policy backend check — remote management policy enforcement | No |
+| `2393677837` | PreToolUse hook for worktree-aware permission blocking | No |
+| `2800354941` | Sort plugin skills alphabetically — deterministic ordering | No |
+| `2815031518` | CCD lock mid-session model change (LocalSessionManager equivalent) | No |
+| `2979038612` | Notify user on missing session folders (`queueSessionNotification`) | No |
+| `3023518717` | Auto-update nudge — extends auto-update triggers (rollback detection) | No |
+| `3371831021` | Cowork CU-only mode (`COWORK_CU_ONLY`) | No |
+| `3792010343` | `CLAUDE_CODE_EMIT_TOOL_USE_SUMMARIES` for CCD (non-LAM) sessions | No |
+| `4141490266` | Extended tool actions (framebuffer system prompt injection) | No |
+
+**Note:** Many of these flag IDs already appeared in earlier version sections (e.g., `66187241` and `3792010343` in v1.1.9134, `451382573` in v1.5354.0). They are listed here because they were newly observed in server-side GrowthBook payloads for v1.6608.2, confirming they remain active.
+
+#### MCP Registration Renames in v1.6608.2
+
+| Old | New | Context |
+|-----|-----|---------|
+| `lrA()` | `BrA()` | MCP server registration function |
+| `MG` | `I_` | MCP-related variable |
+| `VqA` | `xSA` | MCP-related variable |
+| `Y7()` | `pq()` | MCP-related function |
+
+**Note:** `lrA()`→`BrA()` was already noted in the v1.6608.1 version history entry. The remaining three renames (`MG`→`I_`, `VqA`→`xSA`, `Y7()`→`pq()`) are new in v1.6608.2.
 
 #### Removed in v1.5354.0
 
@@ -656,3 +697,4 @@ Feature name strings are stable across versions because they're IPC identifiers 
 | v1.6259.1 | `v_()` | `ZDA` | `MW()` | **3 features removed:** `floatingAtoll` (always supported, now gone), `androidEmulator` (dev-gated macOS), `grandPrix` (macOS-only device pairing) → 23 features, 5 async overrides unchanged; `Pt()` flag reader; `fM()` listener; `ew()` single-value flag reader; `Bn()` multi-key flag reader; platform vars `Zr` (darwin), `ys` (win32), `BwA` (darwin\|\|win32); MCP registration still `qwA()`; computer-use Set `rwA`→`qDA`; force-ON defaults map: `2307090146` removed (5→5 entries, replaced by existing); async merger helpers `DFA`→`D1A`, `j_r`→`evr`, `mFt`→`jxt`; new MCP server `"skills"` (list_skills, search_skills); new Chrome tools (browser_batch, list_connected_browsers, select_browser); update_plan removed from Chrome; new tools: mark_chapter (ccd_session), retire_card (radar), propose_skills (cowork); all 43 patches compatible |
 | v1.6608.0 | `pw()` | `woA` | `pt()` | +framebufferPreview, +iosSimulator, +androidEmulator, +grandPrix, -operon; 6 flags removed → 23 static + 4 async = 27 total features; `pt()` flag reader (was `Pt()`); async merger reduced from 5→4 overrides (operon removed); 6 GrowthBook flags removed: `1306813456`, `1496450144`, `2216480658`, `2433104842`, `2486083521`, `4019128077` (all operon/CU-related); louderPenguin async check `evr()`→`Nvi()`; all 43 patches compatible |
 | v1.6608.1 | `pw()` | `DoA` | `pt()` | **Webpack re-minify only** — no new/removed features or GrowthBook flags; `MW()`→`DT()` (production gate), `woA`→`DoA` (merger), `fM()`→`Cm()` (listener), `ew()`→`wr()` (single-value reader), `Bn()`→`OQ()` (multi-key reader), `Nvi()`→`vbi()` (louderPenguin async), `D1A()`→`dhA()` (cowork helper), `lrA()`→`BrA()` (MCP registration); 4 new session config keys under `1978029737`: `coworkWebFetchPrompt`, `memoryIndexSnapshotIdleMs`, `peakHoursStartPst`, `peakHoursEndPst`; all 43 patches compatible |
+| v1.6608.2 | `pw()` | `DoA` | `pt()` | **No feature flag changes** — same 27 features, same function names (`pw`, `DoA`, `mT`, `ft`, `Cm`, `wr`, `OQ`); 21 new server-side GrowthBook flags observed (see "New Server-Side GrowthBook Flags in v1.6608.2"); MCP registration renames: `lrA()`→`BrA()` (already in v1.6608.1), `MG`→`I_`, `VqA`→`xSA`, `Y7()`→`pq()`; all 43 patches compatible |

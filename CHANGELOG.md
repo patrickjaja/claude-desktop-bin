@@ -2,6 +2,23 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-05-10 (v1.6608.2) — Point release, 4 new built-in MCP servers
+
+- **Version bump:** v1.6608.1 → v1.6608.2
+- **No patch changes required:** All 35+ sub-patches applied cleanly without modification — no minified variable name renames in the main JS (function names `pw()`, `DoA`, `mT()`, etc. all unchanged)
+- **MCP registration renames:** `lrA()`→`BrA()` (registration function), `MG`→`I_` (registry storage), `VqA`→`xSA` (display labels), `Y7()`→`pq()` (enumerator)
+- **4 new built-in MCP servers** (total 18→22):
+  - `computer-use` — standalone computer-use MCP (9 tools), platform-gated
+  - `Framebuffer` — 13 `framebuffer_*` tools for remote display, currently hardcoded disabled
+  - `ccd_directory` — 1 tool (`request_directory`) for CCD directory browsing
+  - `ccd_session_mgmt` — 3 tools (`list_sessions`, `search_session_transcripts`, `archive_session`)
+- **21 new GrowthBook server-side flags added** (no feature flag structural changes)
+- **Notable new flag capabilities:** session handoff (`2049450122`), cowork memory sync (`975112542`), cowork CU-only mode (`3371831021`), auto-update nudge (`3023518717`), tool-use summaries (`66187241`, `3792010343`)
+- **ion-dist SPA:** unchanged (identical build timestamp `1778285308`)
+- **All 35+ patches pass**, JS syntax validated
+
+---
+
 ## 2026-05-08 (v1.6608.1) — Point release, re-minify only
 
 - **Version bump:** v1.6608.0 → v1.6608.1
