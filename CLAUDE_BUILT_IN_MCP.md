@@ -346,7 +346,7 @@ Standalone computer-use MCP server, separate from the Chrome browser's built-in 
 | Server name | `"Framebuffer"` |
 | Platform | All (no platform gate) |
 | Gating | **Hardcoded disabled** (`isEnabled: () => false`) |
-| Added in | v1.6608.2 |
+| Added in | ≤v1.6608.0 (documented in v1.6608.2) |
 
 Infrastructure for future remote display/VM framebuffer control. Currently disabled — `isEnabled` returns `false` unconditionally. Backend/session-level.
 
@@ -372,7 +372,7 @@ Infrastructure for future remote display/VM framebuffer control. Currently disab
 |-------|-------|
 | Server name | `"ccd_directory"` |
 | Gating | Non-SSH CCD sessions |
-| Added in | v1.6608.2 |
+| Added in | ≤v1.6608.0 (documented in v1.6608.2) |
 
 | Tool | Description |
 |------|-------------|
@@ -384,7 +384,7 @@ Infrastructure for future remote display/VM framebuffer control. Currently disab
 |-------|-------|
 | Server name | `"ccd_session_mgmt"` |
 | Gating | CCD sessions |
-| Added in | v1.6608.2 |
+| Added in | ≤v1.6608.0 (documented in v1.6608.2) |
 
 | Tool | Description |
 |------|-------------|
@@ -658,7 +658,7 @@ When active, Operon provides 14 "brain tools" (multi-agent delegation, skills, d
 
 | Version | Changes |
 |---------|---------|
-| v1.6608.2 | Registration function renamed `BrA()` (was `lrA()`). Registry storage `MG`→`I_`, labels `VqA`→`xSA`, enumerator `Y7()`→`pq()`. **4 new MCP servers:** `computer-use` (standalone, 9 tools, platform-gated by `uoA()`), `Framebuffer` (13 tools, hardcoded disabled), `ccd_directory` (1 tool: `request_directory`), `ccd_session_mgmt` (3 tools: `list_sessions`, `search_session_transcripts`, `archive_session`). Server count 18→22. All patches compatible. |
+| v1.6608.2 | Registration function renamed `BrA()` (was `lrA()`). Registry storage `MG`→`I_`, labels `VqA`→`xSA`, enumerator `Y7()`→`pq()`. **No new MCP servers** — `computer-use`, `Framebuffer`, `ccd_directory`, `ccd_session_mgmt` all already present in v1.6608.0; now documented as standalone entries (#19–#22). All patches compatible. |
 | v1.6608.0 | Registration function renamed `lrA()` (was `qwA()`). No new MCP servers, no removed servers — same 10 in Xxi array (mcp-registry, plugins, skills, cowork-onboarding, radar, "Claude Preview", dev-debug, ccd_session_mgmt, ccd_directory, ccd_session) plus renderer-facing ("Claude in Chrome", terminal, visualize). No new tools. Webpack re-minify only. All patches compatible. |
 | v1.6259.1 | Registration function still `qwA()`, unchanged. Computer-use Set variable `rwA`→`qDA`. Platform gate `bfA`→`BwA` (darwin\|\|win32). **New MCP server: `skills`** (list_skills, search_skills). **New Chrome tools:** `browser_batch`, `list_connected_browsers`, `select_browser`. **Removed Chrome tool:** `update_plan`. New tools: `mark_chapter` (ccd_session), `retire_card` (radar), `propose_skills` (cowork). New Operon tools (NOT MCP): `copy_file_user_to_claude`, `delete_host_files`, `select_relevant_inputs`. Chrome tool count 20→22, office-addin unchanged (5). All patches compatible. |
 | v1.5354.0 | Registration function renamed `qwA()` (was `gpA()`). Registry storage `RL`→`MG`, labels `VJA`→`VqA`, enumerator `v7()`→`Y7()`. No new MCP servers, no new tools — same 17 servers (3 renderer-facing + 14 backend). Three patches fixed: `fix_window_bounds` (profile title hook insertion reordering), `fix_dispatch_linux` (gate variable position change), `fix_dispatch_outputs_dir` (new `Tc()` path wrapper in `openPath`). All 44 patches compatible. |
