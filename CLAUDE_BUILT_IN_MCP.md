@@ -316,30 +316,7 @@ The `spawn_task` tool requires desktop approval card injection — cannot be aut
 | `list_skills` | Render the user's slash-menu skills as an interactive widget |
 | `search_skills` | Search available skills |
 
-### 19. Computer Use (standalone)
-
-| Field | Value |
-|-------|-------|
-| Server name | `"computer-use"` |
-| Platform | Platform-gated by `uoA()` |
-| Gating | `uoA()` platform check |
-| Added in | ~v1.5354.0 (documented as standalone entry in v1.6608.2) |
-
-Standalone computer-use MCP server, separate from the Chrome browser's built-in `computer` tool. Provides direct computer control tools at the backend/session level. Patched for Linux by `fix_computer_use_linux.nim` (xdotool/ydotool/kwin-portal-bridge backends).
-
-| Tool | Description |
-|------|-------------|
-| `computer` | Full computer control action |
-| `cursor_position` | Get current cursor position |
-| `double_click` | Double-click at coordinates |
-| `hold_key` | Hold a key for a duration |
-| `key` | Press a key or key combination |
-| `screenshot` | Take a screenshot |
-| `scroll` | Scroll at coordinates |
-| `type` | Type text |
-| `computer_batch` | Execute a sequence of computer actions in one call |
-
-### 20. Framebuffer
+### 19. Framebuffer
 
 | Field | Value |
 |-------|-------|
@@ -366,7 +343,7 @@ Infrastructure for future remote display/VM framebuffer control. Currently disab
 | `framebuffer_type` | Type text in framebuffer context |
 | `framebuffer_zoom` | Zoom into a framebuffer region |
 
-### 21. CCD Directory
+### 20. CCD Directory
 
 | Field | Value |
 |-------|-------|
@@ -378,7 +355,7 @@ Infrastructure for future remote display/VM framebuffer control. Currently disab
 |------|-------------|
 | `request_directory` | Browse and request access to a directory in CCD |
 
-### 22. CCD Session Management
+### 21. CCD Session Management
 
 | Field | Value |
 |-------|-------|
@@ -540,11 +517,11 @@ disallowedTools: ["AskUserQuestion", "mcp__cowork__allow_cowork_file_delete",
 
 | Field | Value |
 |-------|-------|
-| Server name | `"computer-use"` (constant `p6t`) |
+| Server name | `"computer-use"` (constant `l5e`, was `p6t` pre-v1.6608.0, `c9e` in v1.6608.0) |
 | Tool prefix | `mcp__computer-use__` |
 | Platform | macOS (native), **Linux (patched)** |
-| Gating (macOS/Windows) | Set-based: `nBA()` checks `qDA = new Set(["darwin","win32"])` + `chicagoEnabled` preference |
-| Gating (Linux) | Enabled via Set modification (add "linux" to `qDA`) + feature flag and preference bypassed |
+| Gating (macOS/Windows) | Set-based: `uoA()` checks `QoA = new Set(["darwin","win32"])` + `chicagoEnabled` preference (was `nBA()`/`qDA` pre-v1.6608.0) |
+| Gating (Linux) | Enabled via Set modification (add "linux" to `QoA`) + feature flag and preference bypassed |
 | Internal codename | "chicago" |
 
 **Background:** Computer-use was previously a separate `computer-use-server.js` file in the app root (removed in v1.1.7714). As of v1.1.8359, it's fully integrated into `index.js` as an internal MCP server. In v1.1.9134, 5 new tools were added (multi-monitor, batch actions, teach mode).
@@ -658,7 +635,7 @@ When active, Operon provides 14 "brain tools" (multi-agent delegation, skills, d
 
 | Version | Changes |
 |---------|---------|
-| v1.6608.2 | Registration function renamed `BrA()` (was `lrA()`). Registry storage `MG`→`I_`, labels `VqA`→`xSA`, enumerator `Y7()`→`pq()`. **No new MCP servers** — `computer-use`, `Framebuffer`, `ccd_directory`, `ccd_session_mgmt` all already present in v1.6608.0; now documented as standalone entries (#19–#22). All patches compatible. |
+| v1.6608.2 | Registration function renamed `BrA()` (was `lrA()`). Registry storage `MG`→`I_`, labels `VqA`→`xSA`, enumerator `Y7()`→`pq()`. **No new MCP servers** — Framebuffer, ccd_directory, ccd_session_mgmt already present in v1.6608.0; now documented as standalone entries (#19–#21). All patches compatible. |
 | v1.6608.0 | Registration function renamed `lrA()` (was `qwA()`). No new MCP servers, no removed servers — same 10 in Xxi array (mcp-registry, plugins, skills, cowork-onboarding, radar, "Claude Preview", dev-debug, ccd_session_mgmt, ccd_directory, ccd_session) plus renderer-facing ("Claude in Chrome", terminal, visualize). No new tools. Webpack re-minify only. All patches compatible. |
 | v1.6259.1 | Registration function still `qwA()`, unchanged. Computer-use Set variable `rwA`→`qDA`. Platform gate `bfA`→`BwA` (darwin\|\|win32). **New MCP server: `skills`** (list_skills, search_skills). **New Chrome tools:** `browser_batch`, `list_connected_browsers`, `select_browser`. **Removed Chrome tool:** `update_plan`. New tools: `mark_chapter` (ccd_session), `retire_card` (radar), `propose_skills` (cowork). New Operon tools (NOT MCP): `copy_file_user_to_claude`, `delete_host_files`, `select_relevant_inputs`. Chrome tool count 20→22, office-addin unchanged (5). All patches compatible. |
 | v1.5354.0 | Registration function renamed `qwA()` (was `gpA()`). Registry storage `RL`→`MG`, labels `VJA`→`VqA`, enumerator `v7()`→`Y7()`. No new MCP servers, no new tools — same 17 servers (3 renderer-facing + 14 backend). Three patches fixed: `fix_window_bounds` (profile title hook insertion reordering), `fix_dispatch_linux` (gate variable position change), `fix_dispatch_outputs_dir` (new `Tc()` path wrapper in `openPath`). All 44 patches compatible. |
