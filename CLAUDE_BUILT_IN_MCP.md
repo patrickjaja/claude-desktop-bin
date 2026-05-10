@@ -323,9 +323,9 @@ The `spawn_task` tool requires desktop approval card injection — cannot be aut
 | Server name | `"computer-use"` |
 | Platform | Platform-gated by `uoA()` |
 | Gating | `uoA()` platform check |
-| Added in | v1.6608.2 |
+| Added in | ~v1.5354.0 (documented as standalone entry in v1.6608.2) |
 
-Standalone computer-use MCP server, separate from the Chrome browser's built-in `computer` tool (server #17). Provides direct computer control tools at the backend/session level.
+Standalone computer-use MCP server, separate from the Chrome browser's built-in `computer` tool. Provides direct computer control tools at the backend/session level. Patched for Linux by `fix_computer_use_linux.nim` (xdotool/ydotool/kwin-portal-bridge backends).
 
 | Tool | Description |
 |------|-------------|
