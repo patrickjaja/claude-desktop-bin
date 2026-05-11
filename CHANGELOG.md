@@ -2,6 +2,44 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-05-10 (v1.6608.2) — Point release, doc-only updates
+
+- **Version bump:** v1.6608.1 → v1.6608.2
+- **No patch changes required:** All 35+ sub-patches applied cleanly without modification — no minified variable name renames in the main JS (function names `pw()`, `DoA`, `mT()`, etc. all unchanged)
+- **MCP registration renames:** `lrA()`→`BrA()` (registration function), `MG`→`I_` (registry storage), `VqA`→`xSA` (display labels), `Y7()`→`pq()` (enumerator)
+- **No new MCP servers** — all servers (including Framebuffer, ccd_directory, ccd_session_mgmt) already existed in v1.6608.0; now documented as standalone entries in CLAUDE_BUILT_IN_MCP.md (total documented: 22)
+- **21 new GrowthBook server-side flags added** (no feature flag structural changes)
+- **Notable new flag capabilities:** session handoff (`2049450122`), cowork memory sync (`975112542`), cowork CU-only mode (`3371831021`), auto-update nudge (`3023518717`), tool-use summaries (`66187241`, `3792010343`)
+- **ion-dist SPA:** unchanged (identical build timestamp `1778285308`)
+- **All 35+ patches pass**, JS syntax validated
+
+---
+
+## 2026-05-08 (v1.6608.1) — Point release, re-minify only
+
+- **Version bump:** v1.6608.0 → v1.6608.1
+- **No patch changes required:** All 35+ sub-patches applied cleanly without modification — this is a pure webpack re-minify with no structural changes
+- **No new features, flags, MCP servers, or platform gates**
+- **Minified variable renames:** `MW()`→`DT()` (production gate), `woA`→`DoA` (async merger), `fM()`→`Cm()` (listener), `ew()`→`wr()` (single-value reader), `Bn()`→`OQ()` (multi-key reader), `Nvi()`→`vbi()` (louderPenguin async), `D1A()`→`dhA()` (cowork async helper), `Zr`→`sr` (darwin bool), `ys`→`fn` (win32 bool), `BwA`→`YiA` (darwin||win32), `BoA`→`QoA` (computer-use Set), `lrA`→`BrA` (MCP registration)
+- **New `1978029737` session config keys:** `coworkWebFetchPrompt`, `memoryIndexSnapshotIdleMs`, `peakHoursStartPst`, `peakHoursEndPst`
+- **ion-dist SPA:** JS file count 627→632 (+5), CSS 22→21 (-1), main index bundle ~7.9→~6.9 MB, c71860c77 chunks 12→13; patched patterns unchanged
+
+---
+
+## 2026-05-07 (v1.6608.0) — Upstream update, computer-use patch fix, operon removed
+
+- **Version bump:** v1.6259.1 → v1.6608.0
+- **1 patch fix required:** `fix_computer_use_linux.nim` Patch 11 (isEnabled gate) — upstream simplified the function from a ternary `return X(Y)?Z.has(process.platform)&&W():V()` to a direct `return Z.has(process.platform)&&W()`. Updated regex to try new pattern first, old pattern as fallback. All other 42 patches applied cleanly without modification.
+- **`operon` feature removed upstream:** Was always `{status:"unavailable"}`, now completely deleted from code. 6 related GrowthBook flags removed: `1306813456`, `1496450144`, `2216480658`, `2433104842`, `2486083521`, `4019128077`. None were referenced by our patches.
+- **4 new features added upstream:** `framebufferPreview` (dev-only + flag `1928275548`), `iosSimulator` (dev+darwin-only), `androidEmulator` (dev+darwin-only), `grandPrix` (darwin-only device pairing). None require Linux patches.
+- **Async merger reduced:** 5 → 4 overrides (operon evaluator removed); now: louderPenguin, coworkKappa, coworkArtifacts, markTaskComplete
+- **New Windows env passthrough:** `$oA()` function passes Windows-specific env vars to CLI spawns; returns `{}` on Linux — no patch needed
+- **Function renames:** `v_()→pw()` (static registry), `ZDA→woA` (merger), `Jt()→pt()` (GrowthBook accessor), `qwA→lrA` (MCP registration IPC), computer-use Set `qDA→BoA`, `mVt→ITi` (isEnabled)
+- **ion-dist SPA:** minor shrinkage (1612→1552 files, 660→627 chunks, 105→100 MB); patched patterns unchanged
+- **No new MCP servers, IPC handlers, or platform gates**
+
+---
+
 ## 2026-05-06 — Dispatch hostLoop fix, autostart migration, CLAUDE.md MSIX updates
 
 - **Dispatch patch (`fix_dispatch_linux.nim`):** Force GrowthBook flag `1143815894` (hostLoopMode) OFF alongside dispatch ON. HostLoop bypasses cowork-svc, breaking skills/plugins on Linux. Patch E now handles three states: fully patched, stale combined override, and dispatch-only — adding hostLoop OFF in all cases. Renamed references from `Jr()` to `Pt()` to match v1.6259.1 minified names.

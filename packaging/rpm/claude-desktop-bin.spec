@@ -22,6 +22,10 @@ Requires:       libdrm
 Requires:       mesa-libgbm
 Requires:       alsa-lib
 Requires:       libnotify
+# Project detection (detectedProjects source) — without it, periodic ENOENT
+# errors spam ~/.config/Claude/logs/main.log and detected-projects features
+# don't surface. Soft dep so the app still installs without it.
+Recommends:     sqlite
 # Computer Use — X11/XWayland
 Suggests:       xdotool
 Suggests:       scrot

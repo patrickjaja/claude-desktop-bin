@@ -109,7 +109,7 @@ Updates are automatic via `sudo apt update && sudo apt upgrade`.
 <summary>Manual .deb install (without APT repo)</summary>
 
 ```bash
-wget https://github.com/patrickjaja/claude-desktop-bin/releases/latest/download/claude-desktop-bin_1.6259.1-1_amd64.deb
+wget https://github.com/patrickjaja/claude-desktop-bin/releases/latest/download/claude-desktop-bin_1.6608.0-1_amd64.deb
 sudo dpkg -i claude-desktop-bin_*_amd64.deb
 ```
 </details>
@@ -146,7 +146,7 @@ Updates are automatic via `sudo dnf upgrade`.
 <summary>Manual .rpm install (without DNF repo)</summary>
 
 ```bash
-wget https://github.com/patrickjaja/claude-desktop-bin/releases/latest/download/claude-desktop-bin-1.6259.1-1.x86_64.rpm
+wget https://github.com/patrickjaja/claude-desktop-bin/releases/latest/download/claude-desktop-bin-1.6608.0-1.x86_64.rpm
 sudo dnf install ./claude-desktop-bin-*.x86_64.rpm
 ```
 </details>
@@ -210,7 +210,7 @@ claude-desktop.override {
 ### AppImage (Any Distro)
 ```bash
 # Download from GitHub Releases
-wget https://github.com/patrickjaja/claude-desktop-bin/releases/latest/download/Claude_Desktop-1.6259.1-x86_64.AppImage
+wget https://github.com/patrickjaja/claude-desktop-bin/releases/latest/download/Claude_Desktop-1.6608.0-x86_64.AppImage
 chmod +x Claude_Desktop-*-x86_64.AppImage
 ./Claude_Desktop-*-x86_64.AppImage
 ```
@@ -433,6 +433,8 @@ The configuration window lets you manage connection settings, provider credentia
 **How it works on Linux:** The upstream SPA is mostly Linux-compatible - the main process already reads enterprise config from `/etc/claude-desktop/enterprise.json` and passes `platform: "linux"` to the frontend. The patch ([fix_ion_dist_linux.nim](patches/fix_ion_dist_linux.nim)) adds the Linux org-plugins path (`/etc/claude-desktop/org-plugins`) to the UI.
 
 **Enterprise deployment:** Use MDM (macOS), GPO (Windows), or drop a JSON file at `/etc/claude-desktop/enterprise.json` (Linux) to manage fleet-wide configuration. See the [Anthropic 3P configuration docs](https://claude.com/docs/cowork/3p/configuration) for the full key reference and recommended security profiles.
+
+**Linux setup walkthrough:** The official 3P docs only cover macOS and Windows. See [docs/third-party-inference.md](docs/third-party-inference.md) for a Linux-specific quickstart — both the in-app wizard route (requires Developer Mode) and a headless `enterprise.json` route with a worked Vertex AI example using `gcloud` ADC.
 
 ## Custom Themes (Experimental)
 
