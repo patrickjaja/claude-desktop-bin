@@ -48,7 +48,7 @@ proc apply*(input: string): string =
   var content = input
   let original = input
   var patchesApplied = 0
-  const EXPECTED_PATCHES = 9
+  const EXPECTED_PATCHES = 8
 
   # ── Patch 0: Mode preamble at file start (right after "use strict";) ──
   block:
@@ -201,29 +201,29 @@ proc apply*(input: string): string =
     else:
       echo "  [FAIL] E error detection: pattern not found"
 
-  # ── Patch F: present_files — allow host outputs dir paths ──
-  block:
-    let pat = re"""for\(const\{file_path:([\w$]+),vmPath:([\w$]+)\}of ([\w$]+)\)\{if\(([\w$]+)\(\2,([\w$]+)\.vmProcessName\)\)continue;\(([\w$]+)\?([\w$]+)\(\2,\6\):null\)===null&&([\w$]+)\.push\(\1\)\}"""
-    let n = replaceAllRegex(content, pat, proc(m: RegexMatch): string =
-      let fVar = m.captures[0]
-      let pVar = m.captures[1]
-      let lVar = m.captures[2]
-      let scratchpadFn = m.captures[3]
-      let tVar = m.captures[4]
-      let cVar = m.captures[5]
-      let resolveFn = m.captures[6]
-      let uVar = m.captures[7]
-      "for(const{file_path:" & fVar & ",vmPath:" & pVar & "}of " & lVar & "){" &
-        "if(" & scratchpadFn & "(" & pVar & "," & tVar & ".vmProcessName))continue;" &
-        "(" & cVar & "?" & resolveFn & "(" & pVar & "," & cVar & "):null)===null&&" &
-        "(()=>{const _ho=" & tVar & ".getHostOutputsDir();" &
-        "if(_ho&&(" & fVar & "===_ho||" & fVar & ".startsWith(_ho+\"/\")))return;" & uVar & ".push(" & fVar & ")})()}"
-    )
-    if n >= 1:
-      echo &"  [OK] F present_files: host outputs dir allowed ({n} match)"
-      inc patchesApplied
-    else:
-      echo "  [FAIL] F present_files: pattern not found"
+  # # ── Patch F: present_files — allow host outputs dir paths ──
+  # block:
+  #   let pat = re"""for\(const\{file_path:([\w$]+),vmPath:([\w$]+)\}of ([\w$]+)\)\{if\(([\w$]+)\(\2,([\w$]+)\.vmProcessName\)\)continue;\(([\w$]+)\?([\w$]+)\(\2,\6\):null\)===null&&([\w$]+)\.push\(\1\)\}"""
+  #   let n = replaceAllRegex(content, pat, proc(m: RegexMatch): string =
+  #     let fVar = m.captures[0]
+  #     let pVar = m.captures[1]
+  #     let lVar = m.captures[2]
+  #     let scratchpadFn = m.captures[3]
+  #     let tVar = m.captures[4]
+  #     let cVar = m.captures[5]
+  #     let resolveFn = m.captures[6]
+  #     let uVar = m.captures[7]
+  #     "for(const{file_path:" & fVar & ",vmPath:" & pVar & "}of " & lVar & "){" &
+  #       "if(" & scratchpadFn & "(" & pVar & "," & tVar & ".vmProcessName))continue;" &
+  #       "(" & cVar & "?" & resolveFn & "(" & pVar & "," & cVar & "):null)===null&&" &
+  #       "(()=>{const _ho=" & tVar & ".getHostOutputsDir();" &
+  #       "if(_ho&&(" & fVar & "===_ho||" & fVar & ".startsWith(_ho+\"/\")))return;" & uVar & ".push(" & fVar & ")})()}"
+  #   )
+  #   if n >= 1:
+  #     echo &"  [OK] F present_files: host outputs dir allowed ({n} match)"
+  #     inc patchesApplied
+  #   else:
+  #     echo "  [FAIL] F present_files: pattern not found"
 
 
   # ── Patch G: smol-bin copy gate — runtime-gated on kvm mode ──

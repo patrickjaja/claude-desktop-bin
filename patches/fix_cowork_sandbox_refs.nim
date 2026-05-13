@@ -81,7 +81,7 @@ proc apply*(input: string): string =
   var content = input
   let original = input
   var patchesApplied = 0
-  const EXPECTED_PATCHES = 4
+  const EXPECTED_PATCHES = 8
 
   # ── Patch A: Bash tool description ─────────────────────────────
   block:
@@ -166,6 +166,86 @@ proc apply*(input: string): string =
       inc patchesApplied
     else:
       echo "  [FAIL] D isolated Linux environment: pattern not found"
+
+  # ── Patch E: "Files you create in the sandbox" sentence ───────
+  # Two occurrences in the CU section, one per template-literal var
+  # name (`${e}` and `${AA}`). In native cowork mode the whole sentence
+  # is misleading — there is no sandbox, files Claude creates are
+  # directly visible to host desktop apps (covered by the "Same
+  # filesystem" wording the CU patch emits). Omit the sentence in
+  # native; keep upstream in kvm/sandbox.
+  block:
+    let variants = [
+      "Files you create in the sandbox (under \\`${e}\\` or \\`/tmp\\`) do NOT exist on the user's machine. If you put a command or file path in the user's clipboard, or type into one of their apps, the path must exist on THEIR computer \xe2\x80\x94 not a sandbox path they can't reach.",
+      "Files you create in the sandbox (under \\`${AA}\\` or \\`/tmp\\`) do NOT exist on the user's machine. If you put a command or file path in the user's clipboard, or type into one of their apps, the path must exist on THEIR computer \xe2\x80\x94 not a sandbox path they can't reach.",
+    ]
+    var hits = 0
+    for sentence in variants:
+      if content.contains(sentence):
+        let repl =
+          "${(globalThis.__coworkKvmMode||globalThis.__coworkSandboxMode)?`" &
+          sentence & "`:\"\"}"
+        content = content.replace(sentence, repl)
+        inc hits
+    if hits >= 2:
+      echo &"  [OK] E sandbox-file warning: omitted in native ({hits} occurrences)"
+      inc patchesApplied
+    else:
+      echo &"  [FAIL] E sandbox-file warning: expected 2, found {hits}"
+
+  # ── Patch F: Shell access — "Paths in bash differ ... translate." ──
+  # In native mode bash and the file tools share the same filesystem;
+  # the path-mapping block (and the "translate" instruction) is wrong
+  # and has actually misled the model in practice. Replace with a
+  # single line clarifying that no translation is needed.
+  block:
+    const original_block =
+      "Paths in bash differ from what file tools (Read/Write/Edit) see:\n${Ae}${EA}${W}\n\nSo a file you Read at ${dA}/foo.txt is reached in bash at ${nA}/foo.txt \xe2\x80\x94 use the mapping above to translate."
+    if content.contains(original_block):
+      let repl =
+        "${(globalThis.__coworkKvmMode||globalThis.__coworkSandboxMode)?`" &
+        original_block &
+        "`:\"Bash and the file tools (Read/Write/Edit) see the same filesystem \\u2014 no path translation needed; use absolute paths directly.\"}"
+      content = content.replace(original_block, repl)
+      echo "  [OK] F shell-access path mapping: native gets same-fs note"
+      inc patchesApplied
+    else:
+      echo "  [FAIL] F shell-access path mapping: anchor not found"
+
+  # ── Patch G: Skill scripts via VM path ─────────────────────────
+  # The "VM path above" wording only makes sense when there IS a
+  # separate VM-side path. In native mode the file-tool path and the
+  # bash path are the same, so this sentence is wrong (and the "above"
+  # reference dangles since Patch F removes the mapping). Suppress in
+  # native cowork mode.
+  block:
+    const anchor =
+      "+(M?\" Skill scripts can be run via bash using the VM path above.\":\"\")+"
+    if content.contains(anchor):
+      const repl =
+        "+((M&&(globalThis.__coworkKvmMode||globalThis.__coworkSandboxMode))?\" Skill scripts can be run via bash using the VM path above.\":\"\")+"
+      content = content.replace(anchor, repl)
+      echo "  [OK] G skill-scripts VM path: cowork-only"
+      inc patchesApplied
+    else:
+      echo "  [FAIL] G skill-scripts VM path: anchor not found"
+
+  # ── Patch H: "Linux environment boots in the background" ───────
+  # No Linux environment boots in native cowork mode — the shell is
+  # just the user's host. Omit the sentence (and its leading blank
+  # line) in native; keep upstream in kvm/sandbox.
+  block:
+    const anchor =
+      "\n\nThe Linux environment boots in the background. If bash returns \"Workspace still starting\", wait a few seconds and retry."
+    if content.contains(anchor):
+      let repl =
+        "${(globalThis.__coworkKvmMode||globalThis.__coworkSandboxMode)?`" &
+        anchor & "`:\"\"}"
+      content = content.replace(anchor, repl)
+      echo "  [OK] H workspace-starting notice: cowork-only"
+      inc patchesApplied
+    else:
+      echo "  [FAIL] H workspace-starting notice: anchor not found"
 
   # ── Checks ────────────────────────────────────────────────────
   if patchesApplied < EXPECTED_PATCHES:

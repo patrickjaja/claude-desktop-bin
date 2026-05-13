@@ -13,7 +13,7 @@
 import std/[os, strformat, strutils]
 import std/nre
 
-const EXPECTED_PATCHES = 4
+const EXPECTED_PATCHES = 2
 
 proc apply*(input: string): string =
   result = input
@@ -24,51 +24,51 @@ proc apply*(input: string): string =
   # "[sessions-bridge] init skipped", then flip its =!1 to =!0 in the let decl.
   # The gate var may appear anywhere in the comma-separated let list (not
   # necessarily last), so we avoid a single backreference-based regex.
-  let gateFinderRe =
-    re"""let (?:[\w$]+=![01],)*[\w$]+=![01];const [\w$]+=async\(\)=>\{if\(!([\w$]+)\)\{[\w$]+\.info\("\[sessions-bridge\] init skipped"""
-  let gateFinderMatch = result.find(gateFinderRe)
-  if gateFinderMatch.isSome:
-    let m = gateFinderMatch.get()
-    let gateVar = m.captures[0]
-    # Check if it's already patched (=!0)
-    if (gateVar & "=!0") in m.match:
-      echo "  [OK] Sessions-bridge gate: already patched (skipped)"
-      inc patchesApplied
-    else:
-      # Replace gateVar=!1 with gateVar=!0 near the init function.
-      # We match the whole let...;const... span to ensure we only touch the right one.
-      let fullSpan = m.match
-      let patched = fullSpan.replace(gateVar & "=!1", gateVar & "=!0")
-      if patched != fullSpan:
-        result = result.replace(fullSpan, patched)
-        echo &"  [OK] Sessions-bridge gate: forced {gateVar}=!0"
-        inc patchesApplied
-      else:
-        echo &"  [FAIL] Sessions-bridge gate: found gate var '{gateVar}' but could not flip to !0"
-  else:
-    echo "  [FAIL] Sessions-bridge gate: pattern not found"
+  # let gateFinderRe =
+  #   re"""let (?:[\w$]+=![01],)*[\w$]+=![01];const [\w$]+=async\(\)=>\{if\(!([\w$]+)\)\{[\w$]+\.info\("\[sessions-bridge\] init skipped"""
+  # let gateFinderMatch = result.find(gateFinderRe)
+  # if gateFinderMatch.isSome:
+  #   let m = gateFinderMatch.get()
+  #   let gateVar = m.captures[0]
+  #   # Check if it's already patched (=!0)
+  #   if (gateVar & "=!0") in m.match:
+  #     echo "  [OK] Sessions-bridge gate: already patched (skipped)"
+  #     inc patchesApplied
+  #   else:
+  #     # Replace gateVar=!1 with gateVar=!0 near the init function.
+  #     # We match the whole let...;const... span to ensure we only touch the right one.
+  #     let fullSpan = m.match
+  #     let patched = fullSpan.replace(gateVar & "=!1", gateVar & "=!0")
+  #     if patched != fullSpan:
+  #       result = result.replace(fullSpan, patched)
+  #       echo &"  [OK] Sessions-bridge gate: forced {gateVar}=!0"
+  #       inc patchesApplied
+  #     else:
+  #       echo &"  [FAIL] Sessions-bridge gate: found gate var '{gateVar}' but could not flip to !0"
+  # else:
+  #   echo "  [FAIL] Sessions-bridge gate: pattern not found"
 
-  # -- Patch B: Bypass remote session control check --
-  let remotePattern = re"""![\w$]+\("2216414644"\)"""
-  if not result.find(remotePattern).isSome:
-    if "Remote session control is disabled" in result:
-      echo "  [OK] Remote session control: already patched (skipped)"
-      inc patchesApplied
-    else:
-      echo "  [FAIL] Remote session control: pattern not found"
-  else:
-    var countB = 0
-    result = result.replace(
-      remotePattern,
-      proc(m: RegexMatch): string =
-        inc countB
-        "!1",
-    )
-    if countB >= 1:
-      echo &"  [OK] Remote session control: bypassed ({countB} matches)"
-      inc patchesApplied
-    else:
-      echo "  [FAIL] Remote session control: pattern not found"
+  # # # -- Patch B: Bypass remote session control check --
+  # let remotePattern = re"""![\w$]+\("2216414644"\)"""
+  # if not result.find(remotePattern).isSome:
+  #   if "Remote session control is disabled" in result:
+  #     echo "  [OK] Remote session control: already patched (skipped)"
+  #     inc patchesApplied
+  #   else:
+  #     echo "  [FAIL] Remote session control: pattern not found"
+  # else:
+  #   var countB = 0
+  #   result = result.replace(
+  #     remotePattern,
+  #     proc(m: RegexMatch): string =
+  #       inc countB
+  #       "!1",
+  #   )
+  #   if countB >= 1:
+  #     echo &"  [OK] Remote session control: bypassed ({countB} matches)"
+  #     inc patchesApplied
+  #   else:
+  #     echo "  [FAIL] Remote session control: pattern not found"
 
   # -- Patch C: Add Linux to HI() platform label --
   let platformOld = "default:return\"Unsupported Platform\""
@@ -112,6 +112,63 @@ proc apply*(input: string): string =
     else:
       echo "  [FAIL] Telemetry gate: pattern not found"
 
+  # # -- Patch E: Override Pt() for Linux-critical GrowthBook flags --
+  # # Force 3558849738 (dispatch) ON and 1143815894 (hostLoopMode) OFF.
+  # # HostLoop bypasses cowork-svc, breaking skills/plugins on Linux.
+  # let jrFullyPatched =
+  #   re"""if\([\w$]+===\"3558849738\"\)return!0;if\([\w$]+===\"1143815894\"\)return!1;"""
+  # let jrDispatchOnly = re"""if\(([\w$]+)===\"3558849738\"\)return!0;(const)"""
+  # let jrStaleBothRe =
+  #   re"""if\(([\w$]+)===\"3558849738\"\|\|\1===\"1143815894\"\)return!0;"""
+  # if result.find(jrFullyPatched).isSome:
+  #   echo "  [OK] Pt() flag overrides: already patched (dispatch ON + hostLoop OFF)"
+  #   inc patchesApplied
+  # elif result.find(jrStaleBothRe).isSome:
+  #   result = result.replace(
+  #     jrStaleBothRe,
+  #     proc(m: RegexMatch): string =
+  #       "if(" & m.captures[0] & "===\"3558849738\")return!0;if(" & m.captures[0] &
+  #         "===\"1143815894\")return!1;",
+  #   )
+  #   echo "  [OK] Pt() flag overrides: replaced stale combined override with dispatch ON + hostLoop OFF"
+  #   inc patchesApplied
+  # elif result.find(jrDispatchOnly).isSome:
+  #   result = result.replace(
+  #     jrDispatchOnly,
+  #     proc(m: RegexMatch): string =
+  #       "if(" & m.captures[0] & "===\"3558849738\")return!0;if(" & m.captures[0] &
+  #         "===\"1143815894\")return!1;" & m.captures[1],
+  #   )
+  #   echo "  [OK] Pt() flag overrides: added hostLoop OFF to existing dispatch override"
+  #   inc patchesApplied
+  # else:
+  #   # Remove stale blanket override if present
+  #   let blanketMarker = re"(return!0;)(const [\w$]+=[\w$]+\[[\w$]+\];return)"
+  #   result = result.replace(
+  #     blanketMarker,
+  #     proc(m: RegexMatch): string =
+  #       m.captures[1],
+  #   )
+
+  #   let jrPattern =
+  #     re"(function )([\w$]+)(\()([\w$]+)(\)\{)(const [\w$]+=[\w$]+\[\4\];return\([\w$]+==null\?void 0:[\w$]+\.on\)\?\?!1\})"
+  #   var countE = 0
+  #   result = result.replace(
+  #     jrPattern,
+  #     proc(m: RegexMatch): string =
+  #       inc countE
+  #       if countE > 1:
+  #         return m.match
+  #       let param = m.captures[3]
+  #       m.captures[0] & m.captures[1] & m.captures[2] & m.captures[3] & m.captures[4] &
+  #         "if(" & param & "===\"3558849738\")return!0;if(" & param &
+  #         "===\"1143815894\")return!1;" & m.captures[5],
+  #   )
+  #   if countE >= 1:
+  #     echo &"  [OK] Pt() flag overrides: injected dispatch ON + hostLoop OFF ({countE} match)"
+  #     inc patchesApplied
+  #   else:
+  #     echo "  [FAIL] Pt() flag overrides: pattern not found"
 
   # -- Results --
   if patchesApplied < EXPECTED_PATCHES:

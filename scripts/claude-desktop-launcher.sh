@@ -944,6 +944,8 @@ ELECTRON_ARGS=()
 
 # Disable CustomTitlebar for better Linux integration
 ELECTRON_ARGS+=('--disable-features=CustomTitlebar')
+# Enable Bluetooth
+ELECTRON_ARGS+=('--enable-experimental-web-platform-features')
 
 # Force ARGB visuals so `transparent:true` popups (Quick Entry) render their
 # outer window transparently on compositors that wouldn't otherwise expose
