@@ -687,6 +687,7 @@ The `Created profile` output tells you which path was taken. Sibling files in th
 | `CLAUDE_DEV_TOOLS` | `detach` | Open Chromium DevTools on launch |
 | `CLAUDE_ELECTRON` | path | Override Electron binary path |
 | `CLAUDE_APP_ASAR` | path | Override app.asar path |
+| `CLAUDE_DISABLE_SYSTEMD_SCOPE` | `1` | Skip the `systemd-run --user --scope` wrapper. Use in sandboxes (bwrap, distrobox, ...) where the systemd private socket is unreachable. Equivalent to the `--no-systemd-scope` CLI flag. See [#89](https://github.com/patrickjaja/claude-desktop-bin/issues/89) |
 | `ELECTRON_ENABLE_LOGGING` | `1` | Log Electron main process to stderr |
 
 Set permanently in `~/.bashrc` or `~/.zshrc`, or pass per-launch: `CLAUDE_DISABLE_GPU=1 claude-desktop`
@@ -771,6 +772,7 @@ attach to the same id and survive across sessions.
 - **Custom X11 WM rules**: `WM_CLASS` / Wayland `app_id` is `claude`. Users who previously matched on `Claude` or `com.anthropic.claude-desktop` need to update their i3 / xmonad / awesome / bspwm / KWin rules. Named profiles (see [Multiple Profiles](#multiple-profiles)) get a `-<profile>` suffix on this class so each profile shows up as a separate app - write WM rules accordingly.
 - **GNOME shell extension blacklist (Rounded Window Corners Reborn, Unite, Blur My Shell, ...)**: if you added `com.anthropic.claude-quick-entry` to your extension's exclude list to hide the opaque shadow rectangle behind Quick Entry, update that entry to `claude-quick-entry`.
 - **NixOS**: the Nix package materialises a renamed Electron binary (`claude`) for correct Wayland `app_id`, but does not use `systemd-run --scope`. Portal identity may not resolve on GNOME Wayland - use `--install-gnome-hotkey` instead. Other sessions (KDE, Hyprland, Sway, X11) are unaffected.
+- **Sandboxes / containers without a reachable user-systemd** (bwrap, distrobox, restricted Flatpaks): the launcher auto-detects when `$XDG_RUNTIME_DIR/systemd/private` is missing and skips the scope wrap. Portal identity may not resolve in these environments; the app still starts. If the socket exists but is still unreachable (SELinux, bind-mount filters), force the bypass with `--no-systemd-scope` or `CLAUDE_DISABLE_SYSTEMD_SCOPE=1`. See [#89](https://github.com/patrickjaja/claude-desktop-bin/issues/89).
 
 ## Tips
 - Press **Alt** to toggle the app menu bar (Electron default)
