@@ -2,6 +2,14 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-05-14 — Sandbox compatibility: systemd user scope optional
+
+- **Launcher skips `systemd-run --user --scope` automatically** when the systemd private socket (`$XDG_RUNTIME_DIR/systemd/private`) is missing or unreachable. Fixes a hard start failure in sandboxes (bwrap, distrobox, containers) where the binary exists but the socket is filtered. Contributed by [@boommasterxd](https://github.com/boommasterxd) in [#92](https://github.com/patrickjaja/claude-desktop-bin/pull/92). Fixes [#89](https://github.com/patrickjaja/claude-desktop-bin/issues/89).
+- **`--no-systemd-scope` CLI flag** and **`CLAUDE_DISABLE_SYSTEMD_SCOPE=1` env var** for explicit opt-out when the socket exists but is unreachable (SELinux, bind-mount filters).
+- **`--diagnose` output** now shows systemd user socket status.
+
+---
+
 ## 2026-05-14 (v1.7196.0) — Upstream update, 3 patch refreshes, no new Linux patches needed
 
 - **Version bump:** v1.6608.2 → v1.7196.0
