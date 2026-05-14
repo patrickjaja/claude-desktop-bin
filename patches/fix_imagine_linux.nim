@@ -33,24 +33,40 @@ proc apply*(input: string): string =
   var patchesApplied = 0
 
   # Patch A: Force isEnabled in visualize server definition
-  let alreadyA = "isEnabled:t=>(true)&&t.sessionType===\"cowork\"" in result
+  # v1.6608: isEnabled:e=>(pt("3444158716")||!1)&&e.sessionType==="cowork"
+  # v1.7196: isEnabled:e=>(pt("3444158716")||!1)&&(e.sessionType==="cowork"||e.sessionType==="ccd"&&pt("2204227020"))
+  let alreadyA =
+    "isEnabled:t=>(true)&&(t.sessionType===\"cowork\"||t.sessionType===\"ccd\")" in result or
+    "isEnabled:t=>(true)&&t.sessionType===\"cowork\"" in result
   if alreadyA:
     echo "  [OK] isEnabled: already patched (skipped)"
     patchesApplied += 1
   else:
-    let patternA =
-      re2"isEnabled:[\w$]+=>\([\w$]+\(""3444158716""\)\|\|!1\)&&[\w$]+\.sessionType===""cowork"""
-
+    # Try v1.7196+ pattern first (cowork || ccd with second flag)
+    let patternANew =
+      re2"isEnabled:[\w$]+=>\([\w$]+\(""3444158716""\)\|\|!1\)&&\([\w$]+\.sessionType===""cowork""\|\|[\w$]+\.sessionType===""ccd""&&[\w$]+\(""\d+""\)\)"
     var countA = result.replaceFirst(
-      patternA,
+      patternANew,
       proc(m: RegexMatch2, s: string): string =
-        "isEnabled:t=>(true)&&t.sessionType===\"cowork\"",
+        "isEnabled:t=>(true)&&(t.sessionType===\"cowork\"||t.sessionType===\"ccd\")",
     )
     if countA >= 1:
-      echo &"  [OK] isEnabled: forced ON for cowork sessions ({countA} match)"
+      echo &"  [OK] isEnabled: forced ON for cowork+ccd sessions ({countA} match, v1.7196+ pattern)"
       patchesApplied += 1
     else:
-      echo "  [FAIL] isEnabled pattern not found"
+      # Fallback: v1.6608 pattern (cowork only)
+      let patternAOld =
+        re2"isEnabled:[\w$]+=>\([\w$]+\(""3444158716""\)\|\|!1\)&&[\w$]+\.sessionType===""cowork"""
+      countA = result.replaceFirst(
+        patternAOld,
+        proc(m: RegexMatch2, s: string): string =
+          "isEnabled:t=>(true)&&t.sessionType===\"cowork\"",
+      )
+      if countA >= 1:
+        echo &"  [OK] isEnabled: forced ON for cowork sessions ({countA} match, v1.6608 pattern)"
+        patchesApplied += 1
+      else:
+        echo "  [FAIL] isEnabled pattern not found"
 
   # Patch B: Force hasImagine variable
   let flagCheck = re2"[\w$]+=[\w$]+\(""3444158716""\)\|\|!1"
