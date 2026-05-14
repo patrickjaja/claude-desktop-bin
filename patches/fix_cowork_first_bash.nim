@@ -16,9 +16,16 @@ proc apply*(input: string): string =
     return result
 
   # Step 1: find the events socket variable name
-  let evSockPat =
+  # v1.6608 shape: function NAME(){if(VAR)return;const X=Y.createConnection
+  # v1.7196 shape: function NAME(){return VAR?Promise.resolve():new Promise((e,A)=>{const X=Y.createConnection
+  let evSockPatOld =
     re"function ([\w$]+)\(\)\{if\(([\w$]+)\)return;const [\w$]+=[\w$]+\.createConnection"
-  let evSockMatch = result.find(evSockPat)
+  let evSockPatNew =
+    re"function ([\w$]+)\(\)\{return ([\w$]+)\?Promise\.resolve\(\):new Promise\(\([\w$]+,[\w$]+\)=>\{const [\w$]+=[\w$]+\.createConnection"
+
+  var evSockMatch = result.find(evSockPatNew)
+  if evSockMatch.isNone:
+    evSockMatch = result.find(evSockPatOld)
   if evSockMatch.isNone:
     echo "  [FAIL] A events socket wait: cannot find events socket function"
     raise newException(
