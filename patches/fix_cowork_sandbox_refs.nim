@@ -71,26 +71,42 @@ proc apply*(input: string): string =
   const EXPECTED_PATCHES = 4
 
   # ── Patch A: Bash tool description ─────────────────────────────
+  # Upstream v1.7196.1 collapsed the prior three-piece concat
+  #   "...sessions/" + VAR + "/mnt/..."
+  # into a single literal that uses "<session>" as an in-string placeholder.
+  # Match the whole literal and wrap it in the runtime ternary.
   block:
-    let pat =
+    let patNew =
+      re"""("Run a shell command in the session's isolated Linux workspace\.[^"]*?wait a few seconds and retry\.")"""
+    let patOld =
       re"""("Run a shell command in the session's isolated Linux workspace\.[^"]*?/sessions/")(\+[\w$.]+\+)("/mnt/[^"]*?")"""
 
-    # Native-mode rewrites (byte-for-byte identical to the Python source).
+    # Native-mode rewrite (byte-for-byte identical to the Python source).
     const nativeHalf1 =
       "\"Run a shell command on the host Linux system." &
       " There is no VM or sandbox \\u2014 commands execute directly" &
       " on the user\\u2019s computer." &
       " Each bash call is independent (no cwd/env carryover)." & " Use absolute paths.\""
-    let n = replaceFirstRe(
+
+    var n = replaceFirstRe(
       content,
-      pat,
+      patNew,
       proc(m: RegexMatch): string =
-        let origHalf1 = m.captures[0]
-        let concat = m.captures[1]
-        let origHalf2 = m.captures[2]
-        "(globalThis.__coworkKvmMode?" & origHalf1 & concat & origHalf2 & ":" &
-          nativeHalf1 & ")",
+        let origStr = m.captures[0]
+        "(globalThis.__coworkKvmMode?" & origStr & ":" & nativeHalf1 & ")",
     )
+    if n == 0:
+      # Fallback to the pre-v1.7196.1 three-piece concat pattern.
+      n = replaceFirstRe(
+        content,
+        patOld,
+        proc(m: RegexMatch): string =
+          let origHalf1 = m.captures[0]
+          let concat = m.captures[1]
+          let origHalf2 = m.captures[2]
+          "(globalThis.__coworkKvmMode?" & origHalf1 & concat & origHalf2 & ":" &
+            nativeHalf1 & ")",
+      )
     if n == 1:
       echo "  [OK] A bash tool description: wrapped in runtime ternary"
       inc patchesApplied
