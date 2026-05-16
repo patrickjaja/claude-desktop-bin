@@ -2,6 +2,12 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-05-16 — Fix cowork sandbox refs for v1.7196.1
+
+- **`fix_cowork_sandbox_refs.nim` sub-patch A updated** for Claude Desktop v1.7196.1 - upstream collapsed the bash tool description from a three-piece string concat into a single literal, breaking the existing regex. Adds a new pattern for the collapsed literal while keeping the old concat pattern as a fallback for v1.6608.x and v1.7196.0. Contributed by [@boommasterxd](https://github.com/boommasterxd) in [#95](https://github.com/patrickjaja/claude-desktop-bin/pull/95). Fixes [#94](https://github.com/patrickjaja/claude-desktop-bin/issues/94), [#93](https://github.com/patrickjaja/claude-desktop-bin/issues/93).
+
+---
+
 ## 2026-05-14 — Sandbox compatibility: systemd user scope optional
 
 - **Launcher skips `systemd-run --user --scope` automatically** when the systemd private socket (`$XDG_RUNTIME_DIR/systemd/private`) is missing or unreachable. Fixes a hard start failure in sandboxes (bwrap, distrobox, containers) where the binary exists but the socket is filtered. Contributed by [@boommasterxd](https://github.com/boommasterxd) in [#92](https://github.com/patrickjaja/claude-desktop-bin/pull/92). Fixes [#89](https://github.com/patrickjaja/claude-desktop-bin/issues/89).
