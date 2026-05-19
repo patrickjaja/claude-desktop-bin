@@ -186,48 +186,57 @@ proc apply*(input: string): string =
 
   # ── Patch E: "Files you create in the sandbox" sentence ───────
   # Two occurrences in the CU section, one per template-literal var
-  # name (`${e}` and `${AA}`). In native cowork mode the whole sentence
+  # name (the workspace path interpolation). The minified name shifts
+  # across upstream releases (v1.6608: ${AA}; v1.7196.1: ${eA}; the
+  # first variant has stayed at ${e}). Match with [\w$]+ so this
+  # survives future renames. In native cowork mode the whole sentence
   # is misleading — there is no sandbox, files Claude creates are
-  # directly visible to host desktop apps (covered by the "Same
-  # filesystem" wording the CU patch emits). Omit the sentence in
+  # directly visible to host desktop apps. Omit the sentence in
   # native; keep upstream in kvm/sandbox.
   block:
-    let variants = [
-      "Files you create in the sandbox (under \\`${e}\\` or \\`/tmp\\`) do NOT exist on the user's machine. If you put a command or file path in the user's clipboard, or type into one of their apps, the path must exist on THEIR computer \xe2\x80\x94 not a sandbox path they can't reach.",
-      "Files you create in the sandbox (under \\`${AA}\\` or \\`/tmp\\`) do NOT exist on the user's machine. If you put a command or file path in the user's clipboard, or type into one of their apps, the path must exist on THEIR computer \xe2\x80\x94 not a sandbox path they can't reach.",
-    ]
-    var hits = 0
-    for sentence in variants:
-      if content.contains(sentence):
-        let repl =
-          "${(globalThis.__coworkKvmMode||globalThis.__coworkSandboxMode)?`" &
-          sentence & "`:\"\"}"
-        content = content.replace(sentence, repl)
-        inc hits
-    if hits >= 2:
-      echo &"  [OK] E sandbox-file warning: omitted in native ({hits} occurrences)"
+    let patE =
+      re"""Files you create in the sandbox \(under \\`\$\{[\w$]+\}\\` or \\`/tmp\\`\) do NOT exist on the user's machine\. If you put a command or file path in the user's clipboard, or type into one of their apps, the path must exist on THEIR computer — not a sandbox path they can't reach\."""
+    var hitsE = 0
+    content = content.replace(
+      patE,
+      proc(m: RegexMatch): string =
+        inc hitsE
+        "${(globalThis.__coworkKvmMode||globalThis.__coworkSandboxMode)?`" &
+          m.match & "`:\"\"}",
+    )
+    if hitsE >= 2:
+      echo &"  [OK] E sandbox-file warning: omitted in native ({hitsE} occurrences)"
       inc patchesApplied
     else:
-      echo &"  [FAIL] E sandbox-file warning: expected 2, found {hits}"
+      echo &"  [FAIL] E sandbox-file warning: expected 2, found {hitsE}"
 
   # ── Patch F: Shell access — "Paths in bash differ ... translate." ──
+  # The block interpolates 3 template-vars on the mapping line and 2
+  # path-vars on the example line. All five names are minified and
+  # have shifted across releases (v1.6608: ${Ae}${EA}${W} / ${dA},${nA};
+  # v1.7196.1: ${uA}${W}${IA} / ${nA},${lA}). Match each with [\w$]+
+  # so renames don't break the patch.
   # In native mode bash and the file tools share the same filesystem;
   # the path-mapping block (and the "translate" instruction) is wrong
   # and has actually misled the model in practice. Replace with a
   # single line clarifying that no translation is needed.
   block:
-    const original_block =
-      "Paths in bash differ from what file tools (Read/Write/Edit) see:\n${Ae}${EA}${W}\n\nSo a file you Read at ${dA}/foo.txt is reached in bash at ${nA}/foo.txt \xe2\x80\x94 use the mapping above to translate."
-    if content.contains(original_block):
-      let repl =
+    let patF =
+      re"""Paths in bash differ from what file tools \(Read/Write/Edit\) see:\n\$\{[\w$]+\}\$\{[\w$]+\}\$\{[\w$]+\}\n\nSo a file you Read at \$\{[\w$]+\}/foo\.txt is reached in bash at \$\{[\w$]+\}/foo\.txt — use the mapping above to translate\."""
+    var hitsF = 0
+    content = content.replace(
+      patF,
+      proc(m: RegexMatch): string =
+        inc hitsF
         "${(globalThis.__coworkKvmMode||globalThis.__coworkSandboxMode)?`" &
-        original_block &
-        "`:\"Bash and the file tools (Read/Write/Edit) see the same filesystem \\u2014 no path translation needed; use absolute paths directly.\"}"
-      content = content.replace(original_block, repl)
+          m.match &
+          "`:\"Bash and the file tools (Read/Write/Edit) see the same filesystem \\u2014 no path translation needed; use absolute paths directly.\"}",
+    )
+    if hitsF == 1:
       echo "  [OK] F shell-access path mapping: native gets same-fs note"
       inc patchesApplied
     else:
-      echo "  [FAIL] F shell-access path mapping: anchor not found"
+      echo &"  [FAIL] F shell-access path mapping: expected 1, found {hitsF}"
 
   # ── Patch G: Skill scripts via VM path ─────────────────────────
   # The "VM path above" wording only makes sense when there IS a
