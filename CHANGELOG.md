@@ -2,6 +2,16 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-05-19 - Enhanced version-check issue template with Linux compatibility checklist
+
+- **Version-check workflow** now creates comprehensive issues with:
+  - Copy-paste Claude Code update prompt (injected from `UPDATE-PROMPT-CC-INPUT-MANUAL.md`)
+  - Linux compatibility reference tables (5 session types, 7 distros/archs)
+  - Full update checklist with dedicated Linux compatibility analysis step
+  - Collapsible quick reference commands for platform gate diffs, flag audits
+- **New file:** `.github/issue-templates/new-version-body.md` - Markdown template with `{{UPSTREAM}}`, `{{RELEASED}}`, `{{REPO}}`, `{{CC_PROMPT}}` placeholders rendered at workflow runtime
+- **UPDATE-PROMPT-CC-INPUT-MANUAL.md** - converted code blocks to indented style (fence-safe for embedding)
+
 ## 2026-05-19 (v1.8089.0) - Upstream update, ion-dist upstreamed, 12 new flags, Chrome integration, sandbox dirs
 
 - **Version bump:** v1.7196.0 -> v1.8089.0

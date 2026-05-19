@@ -79,6 +79,48 @@ jobs:
           echo "count=${ISSUE_COUNT}" >> $GITHUB_OUTPUT
           echo "Open issues for v${UPSTREAM}: ${ISSUE_COUNT}"
 
+      - name: Checkout repo (for issue template)
+        if: |
+          steps.upstream.outputs.version &&
+          steps.released.outputs.version != steps.upstream.outputs.version &&
+          steps.existing.outputs.count == '0'
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            .github/issue-templates
+            UPDATE-PROMPT-CC-INPUT-MANUAL.md
+          sparse-checkout-cone-mode: false
+
+      - name: Render issue body from template
+        id: body
+        if: |
+          steps.upstream.outputs.version &&
+          steps.released.outputs.version != steps.upstream.outputs.version &&
+          steps.existing.outputs.count == '0'
+        env:
+          UPSTREAM: ${{ steps.upstream.outputs.version }}
+          RELEASED: ${{ steps.released.outputs.version }}
+          REPO: ${{ github.repository }}
+        run: |
+          TEMPLATE=".github/issue-templates/new-version-body.md"
+
+          # Substitute simple placeholders
+          BODY=$(cat "$TEMPLATE")
+          BODY="${BODY//\{\{UPSTREAM\}\}/${UPSTREAM}}"
+          BODY="${BODY//\{\{RELEASED\}\}/${RELEASED}}"
+          BODY="${BODY//\{\{REPO\}\}/${REPO}}"
+
+          # Inject CC_PROMPT (multi-line): split at marker, reassemble with file content
+          BEFORE=$(echo "$BODY" | sed '/{{CC_PROMPT}}/Q')
+          AFTER=$(echo "$BODY" | sed '1,/{{CC_PROMPT}}/d')
+          CC_CONTENT=$(cat UPDATE-PROMPT-CC-INPUT-MANUAL.md)
+
+          {
+            echo "$BEFORE"
+            echo "$CC_CONTENT"
+            echo "$AFTER"
+          } > /tmp/issue-body.md
+
       - name: Create notification issue
         if: |
           steps.upstream.outputs.version &&
@@ -87,38 +129,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           UPSTREAM: ${{ steps.upstream.outputs.version }}
-          RELEASED: ${{ steps.released.outputs.version }}
           REPO: ${{ github.repository }}
         run: |
           gh issue create \
             --repo "${REPO}" \
             --label "new-version" \
             --title "New Claude Desktop v${UPSTREAM} detected" \
-            --body "$(cat <<EOF
-          ## New upstream version detected
-
-          | | Version |
-          |---|---|
-          | **Upstream** | \`${UPSTREAM}\` |
-          | **Current release** | \`${RELEASED}\` |
-
-          ### Next steps
-
-          1. Check if patches still apply: \`./scripts/build-local.sh\`
-          2. If patches break, debug with: \`./scripts/validate-patches.sh\`
-          3. Once working, trigger the build workflow:
-
-          **[▶ Trigger build manually](https://github.com/${REPO}/actions/workflows/build-and-release.yml)**
-
-          Or via CLI:
-          \`\`\`bash
-          gh workflow run build-and-release.yml
-          \`\`\`
-
-          ---
-          *Auto-detected by [version-check workflow](https://github.com/${REPO}/actions/workflows/version-check.yml)*
-          EOF
-          )"
+            --body-file /tmp/issue-body.md
 
           echo "::notice::Created issue for new version v${UPSTREAM}"
 
