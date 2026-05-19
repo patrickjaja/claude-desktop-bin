@@ -84,8 +84,14 @@ proc apply*(input: string): string =
   const EXPECTED_PATCHES = 8
 
   # ── Patch A: Bash tool description ─────────────────────────────
+  # Upstream v1.7196.1 collapsed the prior three-piece concat
+  #   "...sessions/" + VAR + "/mnt/..."
+  # into a single literal that uses "<session>" as an in-string placeholder.
+  # Match the whole literal and wrap it in the runtime ternary.
   block:
-    let pat =
+    let patNew =
+      re"""("Run a shell command in the session's isolated Linux workspace\.[^"]*?wait a few seconds and retry\.")"""
+    let patOld =
       re"""("Run a shell command in the session's isolated Linux workspace\.[^"]*?/sessions/")(\+[\w$.]+\+)("/mnt/[^"]*?")"""
 
     # Native-mode rewrite (byte-for-byte identical to the Python source).
@@ -103,17 +109,28 @@ proc apply*(input: string): string =
       " Network egress is filtered through an allowlist proxy." &
       " Each bash call is independent (no cwd/env carryover)." & " Use absolute paths.\""
 
-    let n = replaceFirstRe(
+    var n = replaceFirstRe(
       content,
-      pat,
+      patNew,
       proc(m: RegexMatch): string =
-        let origHalf1 = m.captures[0]
-        let concat = m.captures[1]
-        let origHalf2 = m.captures[2]
-        "(globalThis.__coworkKvmMode?" & origHalf1 & concat & origHalf2 & ":" &
+        let origStr = m.captures[0]
+        "(globalThis.__coworkKvmMode?" & origStr & ":" &
           "globalThis.__coworkSandboxMode?" & sandboxHalf1 & ":" &
           nativeHalf1 & ")",
     )
+    if n == 0:
+      # Fallback to the pre-v1.7196.1 three-piece concat pattern.
+      n = replaceFirstRe(
+        content,
+        patOld,
+        proc(m: RegexMatch): string =
+          let origHalf1 = m.captures[0]
+          let concat = m.captures[1]
+          let origHalf2 = m.captures[2]
+          "(globalThis.__coworkKvmMode?" & origHalf1 & concat & origHalf2 & ":" &
+            "globalThis.__coworkSandboxMode?" & sandboxHalf1 & ":" &
+            nativeHalf1 & ")",
+      )
     if n == 1:
       echo "  [OK] A bash tool description: wrapped in three-way runtime ternary"
       inc patchesApplied

@@ -150,8 +150,13 @@ proc apply*(input: string): string =
   #       m.captures[1],
   #   )
 
+  #   # v1.6608: function pt(e){const A=Hu[e];return(A==null?void 0:A.on)??!1}
+  #   # v1.7196: function pt(e){const A=Hu[e];return D8(e,A),(A==null?void 0:A.on)??!1}
+  #   # The optional non-capturing group (?:[\w$]+\([\w$,]+\),)? matches the
+  #   # new telemetry call (e.g. "D8(e,A),") that may sit between `return` and
+  #   # the actual flag check.
   #   let jrPattern =
-  #     re"(function )([\w$]+)(\()([\w$]+)(\)\{)(const [\w$]+=[\w$]+\[\4\];return\([\w$]+==null\?void 0:[\w$]+\.on\)\?\?!1\})"
+  #     re"(function )([\w$]+)(\()([\w$]+)(\)\{)(const [\w$]+=[\w$]+\[\4\];return\s*(?:[\w$]+\([\w$,]+\),)?\([\w$]+==null\?void 0:[\w$]+\.on\)\?\?!1\})"
   #   var countE = 0
   #   result = result.replace(
   #     jrPattern,

@@ -1,6 +1,6 @@
 # ion-dist Baseline — Third-Party Inference SPA
 
-**Last verified:** 2026-05-08 against v1.6608.1
+**Last verified:** 2026-05-14 against v1.7196.0
 
 The `ion-dist/` directory is a standalone React SPA bundled inside `locales/ion-dist/`. It powers the **Configure Third-Party Inference** UI (Developer menu). Served by the Electron main process via the `app://` protocol handler.
 
@@ -8,8 +8,9 @@ The `ion-dist/` directory is a standalone React SPA bundled inside `locales/ion-
 
 | Metric | Value |
 |--------|-------|
-| Total size | 99 MB, 1552 files |
+| Total size | 100 MB |
 | JS chunks | 632 files in `assets/v1/` |
+| Compressed | 704 `.zst` files (new in v1.7196.0 — Zstandard-compressed variants of JS chunks) |
 | CSS | 21 files |
 | Fonts | 31 woff2 + 21 ttf + 20 woff |
 | Images | 25 PNG, 18 SVG, 17 GIF |
@@ -24,15 +25,15 @@ The `ion-dist/` directory is a standalone React SPA bundled inside `locales/ion-
 | `index.html` | 4.1 KB | SPA entry, loads `index-*.js` via `<script type="module">` |
 | `assets/v1/index-*.js` | ~6.9 MB | Main bundle (React app, API client, UI components) |
 | `assets/v1/vendor-*.js` | ~1.5 MB | Third-party vendor libs |
-| `assets/v1/c71860c77-*.js` | 13 files (main: ~239 KB) | 3P config UI, code-split into 13 lazy-loaded chunks — **main chunk patched** (v1.6608.1: `c71860c77-BOaDa5w5.js`) |
+| `assets/v1/c71860c77-*.js` | 14+ files (main: ~239 KB) | 3P config UI, code-split into lazy-loaded chunks — **main chunk patched** (v1.7196.0: `c71860c77-Cy4WEBKv.js`) |
 | `assets/v1/tree-sitter-*.js` | — | Code parsing (tree-sitter WASM bindings) |
 
-Filenames include content hashes (e.g., `index-BELzQL5P.js`) that change every upstream release.
+Filenames include content hashes (e.g., `index-BHrKNf9Q.js`) that change every upstream release.
 
 ## How It's Served
 
 ```
-Main process (v1.6608.1 names — these change every release):
+Main process (v1.7196.0 names — these change every release):
   $Mr(path.join(ljt(), "ion-dist"), rendererConfig)
 
 ljt() → locales/ dir (patched by fix_locale_paths.nim)

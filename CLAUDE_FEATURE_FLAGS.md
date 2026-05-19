@@ -1,16 +1,16 @@
 # Claude Desktop Feature Flag Architecture
 
-Reference documentation for the feature flag system in Claude Desktop's Electron app. This documents v1.6608.2 internals to aid patch maintenance.
+Reference documentation for the feature flag system in Claude Desktop's Electron app. This documents v1.7196.0 internals to aid patch maintenance.
 
 ## Overview
 
 27 feature flags are controlled by a 3-layer system:
 
 1. **`pw()` (static)** - Calls individual feature functions, builds base object (23 features)
-2. **`DoA` (async merger)** - Spreads `pw()`, adds `louderPenguin` + `coworkKappa` + `coworkArtifacts` + `markTaskComplete` as async overrides (4 total; `operon` removed)
+2. **`woA` (async merger)** - Spreads `pw()`, adds `louderPenguin` + `coworkKappa` + `coworkArtifacts` + `markTaskComplete` as async overrides (4 total)
 3. **IPC handler** - Calls merger, validates against schema, sends to renderer
 
-`pt()` flag reader (was `Jt()`), `Cm()` listener (was `fM()`), `wr()` single-value reader (was `ew()`), `OQ()` multi-key reader (was `Bn()`).
+`pt()` flag reader, `Cm()` listener, `OQ()` multi-key reader. `wr()` single-value reader removed in v1.7196.0 — `pr()` now handles all value/object flag reads with nested property access.
 
 Feature name strings (`chillingSlothFeat`, `louderPenguin`, etc.) are runtime IPC identifiers, **not minified** - they are stable pattern anchors.
 
@@ -47,7 +47,7 @@ Feature name strings (`chillingSlothFeat`, `louderPenguin`, etc.) are runtime IP
 ## The DT() Production Gate (was MW() in v1.6608.0)
 
 ```javascript
-function DT(e){return hA.app.isPackaged?{status:"unavailable"}:e()}
+function DT(e){return gA.app.isPackaged?{status:"unavailable"}:e()}
 ```
 
 In production builds (`app.isPackaged === true`), MW() returns `{status:"unavailable"}` **without calling** the wrapped function. Only in development builds does it call `e()`.
@@ -94,16 +94,16 @@ function pw(){
 
 Returns 23 features synchronously. Features wrapped by `MW()` are always `{status:"unavailable"}` in packaged builds.
 
-### Layer 2: DoA - Async Merger (was woA in v1.6608.0)
+### Layer 2: woA - Async Merger (was DoA in v1.6608.2)
 
 ```javascript
-const DoA=async()=>{
-  const[e,A,t,i]=await Promise.all([vbi(),dhA(()=>pt("123929380")),dhA(()=>pt("2940196192")),dhA(()=>pt("3732274605"))]);
+const woA=async()=>{
+  const[e,A,t,i]=await Promise.all([Nvi(),QhA(()=>pt("123929380")),QhA(()=>pt("2940196192")),QhA(()=>pt("3732274605"))]);
   return{...pw(),louderPenguin:e,coworkKappa:A,coworkArtifacts:t,markTaskComplete:i}
 };
 ```
 
-Uses `Promise.all` to parallelize louderPenguin (`vbi()`), coworkKappa (`dhA()+pt("123929380")`), coworkArtifacts (`dhA()+pt("2940196192")`), and markTaskComplete (`dhA()+pt("3732274605")`) async checks. Spreads `pw()` then adds the four as async overrides. `vbi()` checks platform (darwin/win32) then checks server feature flag `4116586025`. The `dhA()` helper checks yukonSilver first, waits 5 seconds, then checks the respective GrowthBook flag. **`operon` was removed in v1.6608.0** — no longer has a static entry or async override.
+Uses `Promise.all` to parallelize louderPenguin (`Nvi()`), coworkKappa (`QhA()+pt("123929380")`), coworkArtifacts (`QhA()+pt("2940196192")`), and markTaskComplete (`QhA()+pt("3732274605")`) async checks. Spreads `pw()` then adds the four as async overrides. `Nvi()` checks platform (darwin/win32) then checks server feature flag `4116586025`. The `QhA()` helper checks yukonSilver first, waits 5 seconds, then checks the respective GrowthBook flag. **`operon` was removed in v1.6608.0** — no longer has a static entry or async override.
 
 **v1.1.3770 → v1.1.3918 changes:**
 - `chillingSlothEnterprise` moved from async-only (mC) to static (Fd)
@@ -154,7 +154,7 @@ Feature flags can also be affected by organization-level admin settings:
 
 Calls the merger, validates the result against a Zod schema, and sends it to the renderer process via IPC. The renderer uses these flags to conditionally render UI elements (e.g., Chat|Code toggle).
 
-## GrowthBook Flag Catalog (v1.6608.2)
+## GrowthBook Flag Catalog (v1.7196.0)
 
 ### Boolean Flags (pt())
 
@@ -698,3 +698,4 @@ Feature name strings are stable across versions because they're IPC identifiers 
 | v1.6608.0 | `pw()` | `woA` | `pt()` | +framebufferPreview, +iosSimulator, +androidEmulator, +grandPrix, -operon; 6 flags removed → 23 static + 4 async = 27 total features; `pt()` flag reader (was `Pt()`); async merger reduced from 5→4 overrides (operon removed); 6 GrowthBook flags removed: `1306813456`, `1496450144`, `2216480658`, `2433104842`, `2486083521`, `4019128077` (all operon/CU-related); louderPenguin async check `evr()`→`Nvi()`; all 43 patches compatible |
 | v1.6608.1 | `pw()` | `DoA` | `pt()` | **Webpack re-minify only** — no new/removed features or GrowthBook flags; `MW()`→`DT()` (production gate), `woA`→`DoA` (merger), `fM()`→`Cm()` (listener), `ew()`→`wr()` (single-value reader), `Bn()`→`OQ()` (multi-key reader), `Nvi()`→`vbi()` (louderPenguin async), `D1A()`→`dhA()` (cowork helper), `lrA()`→`BrA()` (MCP registration); 4 new session config keys under `1978029737`: `coworkWebFetchPrompt`, `memoryIndexSnapshotIdleMs`, `peakHoursStartPst`, `peakHoursEndPst`; all 43 patches compatible |
 | v1.6608.2 | `pw()` | `DoA` | `pt()` | **No feature flag changes** — same 27 features, same function names (`pw`, `DoA`, `mT`, `ft`, `Cm`, `wr`, `OQ`); 21 new server-side GrowthBook flags observed (see "New Server-Side GrowthBook Flags in v1.6608.2"); MCP registration renames: `lrA()`→`BrA()` (already in v1.6608.1), `MG`→`I_`, `VqA`→`xSA`, `Y7()`→`pq()`; all 43 patches compatible |
+| v1.7196.0 | `pw()` | `woA` | `pt()` | **No new/removed features** — same 27 features (23 static + 4 async overrides); `wr()` single-value reader removed (`pr()` now handles value reads); async merger reverted `DoA`→`woA`, MCP registration reverted `BrA()`→`lrA()`, display labels `xSA`→`FSA`; computer-use Set `QoA`→`BoA`; platform vars unchanged (`or`/`fn`/`OiA`); `pw()`, `pt()`, `Cm()`, `OQ()`, `DT()`, `Gu` all unchanged; no new GrowthBook flags; imagine `isEnabled` may gain `ccd` session type (flag `2204227020`) in future builds; `pt()` may gain pre-return telemetry call in future builds; 3 patches refreshed by @boommasterxd with forward-looking fallbacks; all 45 patches compatible |

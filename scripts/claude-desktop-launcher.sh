@@ -12,6 +12,10 @@
 #   CLAUDE_DISABLE_GPU=full  - Disable GPU entirely (more aggressive fallback)
 #   CLAUDE_ELECTRON          - Override path to Electron binary
 #   CLAUDE_APP_ASAR          - Override path to app.asar
+#   CLAUDE_DISABLE_SYSTEMD_SCOPE=1
+#                            - Skip the systemd --user --scope wrapper (for
+#                              sandboxes without access to the systemd private
+#                              socket; portal app identity may not resolve)
 
 set -euo pipefail
 
@@ -44,8 +48,10 @@ if [[ -z "${CLAUDE_PROFILE:-}" && "$_invocation_basename" =~ ^claude-desktop-([a
     CLAUDE_PROFILE="${BASH_REMATCH[1]}"
 fi
 
-# Strip --profile=<name> / --profile <name> from argv before subcommand
-# dispatch and Electron pass-through.
+# Strip launcher-only flags from argv before subcommand dispatch and Electron
+# pass-through:
+#   --profile=NAME / --profile NAME: sets CLAUDE_PROFILE
+#   --no-systemd-scope:              sets CLAUDE_DISABLE_SYSTEMD_SCOPE=1
 _filtered_args=()
 while (( $# > 0 )); do
     case "$1" in
@@ -60,6 +66,10 @@ while (( $# > 0 )); do
                 exit 2
             fi
             CLAUDE_PROFILE="$1"
+            shift
+            ;;
+        --no-systemd-scope)
+            CLAUDE_DISABLE_SYSTEMD_SCOPE=1
             shift
             ;;
         *)
@@ -657,6 +667,11 @@ _diagnose() {
         fi
     fi
     echo "systemd-run = $(command -v systemd-run || echo '(missing)')"
+    if [[ -n "${XDG_RUNTIME_DIR:-}" && -S "${XDG_RUNTIME_DIR}/systemd/private" ]]; then
+        echo "systemd user socket = ${XDG_RUNTIME_DIR}/systemd/private (present)"
+    else
+        echo "systemd user socket = (missing or unreachable; scope wrap will be skipped)"
+    fi
     echo "gsettings = $(command -v gsettings || echo '(missing)')"
     echo "gdbus = $(command -v gdbus || echo '(missing)')"
     echo
@@ -777,6 +792,10 @@ Options:
   --delete-profile=NAME     Remove the entry points for profile NAME. User data
                             (~/.config/Claude-NAME, ~/.claude-NAME) is preserved.
   --list-profiles           List installed profiles.
+  --no-systemd-scope        Skip the systemd --user --scope wrapper for this
+                            launch. Use in sandboxes (bwrap, distrobox, ...)
+                            where the systemd private socket is unreachable.
+                            Same as setting CLAUDE_DISABLE_SYSTEMD_SCOPE=1.
   --help, -h                Show this help message.
 
 Environment variables:
@@ -789,6 +808,10 @@ Environment variables:
   CLAUDE_DISABLE_GPU=full   Disable GPU entirely (more aggressive fallback).
   CLAUDE_ELECTRON=PATH      Override path to Electron binary.
   CLAUDE_APP_ASAR=PATH      Override path to app.asar.
+  CLAUDE_DISABLE_SYSTEMD_SCOPE=1
+                            Skip the systemd --user --scope wrapper (for
+                            sandboxes without access to the systemd private
+                            socket; portal app identity may not resolve).
 
 All other arguments are passed through to Electron.
 HELP
@@ -1078,11 +1101,19 @@ log "Launching: $ELECTRON_BIN $APP_ASAR ${ELECTRON_ARGS[*]} $*"
 # xdg-desktop-portal a second identity signal alongside the Wayland app_id /
 # X11 WM_CLASS, which come from the binary basename. Both must match APP_ID.
 # Fall back to direct exec in environments without user systemd (rare).
-if command -v systemd-run &>/dev/null && [[ -n "${XDG_RUNTIME_DIR:-}" ]]; then
+# Three gates: explicit opt-out, binary present, runtime dir set, and the
+# user-systemd private socket actually reachable. The last check matters in
+# sandboxes (bwrap, distrobox, some container setups) where `systemd-run`
+# exists but the socket is filtered: without the probe we would `exec` into
+# systemd-run and die there, with no fallback. See issue #89.
+if [[ "${CLAUDE_DISABLE_SYSTEMD_SCOPE:-}" != '1' ]] \
+    && command -v systemd-run &>/dev/null \
+    && [[ -n "${XDG_RUNTIME_DIR:-}" ]] \
+    && [[ -S "${XDG_RUNTIME_DIR}/systemd/private" ]]; then
     exec systemd-run --user --scope --quiet \
         --unit="app-${APP_ID}${profile_suffix}-$$.scope" \
         --description='Claude Desktop' \
         -- "$ELECTRON_BIN" "$APP_ASAR" "${ELECTRON_ARGS[@]}" "$@"
 fi
-log 'systemd-run unavailable — launching without scope; xdg-desktop-portal may fail to identify the app'
+log 'systemd user scope unavailable (binary missing, socket unreachable, or CLAUDE_DISABLE_SYSTEMD_SCOPE=1): launching without scope; xdg-desktop-portal may fail to identify the app'
 exec "$ELECTRON_BIN" "$APP_ASAR" "${ELECTRON_ARGS[@]}" "$@"

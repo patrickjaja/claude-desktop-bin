@@ -2,6 +2,45 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-05-16 — Fix cowork sandbox refs for v1.7196.1
+
+- **`fix_cowork_sandbox_refs.nim` sub-patch A updated** for Claude Desktop v1.7196.1 - upstream collapsed the bash tool description from a three-piece string concat into a single literal, breaking the existing regex. Adds a new pattern for the collapsed literal while keeping the old concat pattern as a fallback for v1.6608.x and v1.7196.0. Contributed by [@boommasterxd](https://github.com/boommasterxd) in [#95](https://github.com/patrickjaja/claude-desktop-bin/pull/95). Fixes [#94](https://github.com/patrickjaja/claude-desktop-bin/issues/94), [#93](https://github.com/patrickjaja/claude-desktop-bin/issues/93).
+
+---
+
+## 2026-05-14 — Sandbox compatibility: systemd user scope optional
+
+- **Launcher skips `systemd-run --user --scope` automatically** when the systemd private socket (`$XDG_RUNTIME_DIR/systemd/private`) is missing or unreachable. Fixes a hard start failure in sandboxes (bwrap, distrobox, containers) where the binary exists but the socket is filtered. Contributed by [@boommasterxd](https://github.com/boommasterxd) in [#92](https://github.com/patrickjaja/claude-desktop-bin/pull/92). Fixes [#89](https://github.com/patrickjaja/claude-desktop-bin/issues/89).
+- **`--no-systemd-scope` CLI flag** and **`CLAUDE_DISABLE_SYSTEMD_SCOPE=1` env var** for explicit opt-out when the socket exists but is unreachable (SELinux, bind-mount filters).
+- **`--diagnose` output** now shows systemd user socket status.
+
+---
+
+## 2026-05-14 (v1.7196.0) — Upstream update, 3 patch refreshes, no new Linux patches needed
+
+- **Version bump:** v1.6608.2 → v1.7196.0
+- **3 patches refreshed** (contributed by @boommasterxd in [#91](https://github.com/patrickjaja/claude-desktop-bin/pull/91)):
+  - `fix_imagine_linux.nim` — upstream extended the Visualize MCP server's `isEnabled` callback with an optional `ccd` session type gate (flag `2204227020`). Patch now tries the new disjunction pattern first, falls back to the v1.6608 cowork-only pattern. Forces both `cowork` and `ccd` sessions enabled on Linux.
+  - `fix_cowork_first_bash.nim` — upstream may rewrite the events-socket helper from an early-return guard to a Promise-based singleton. Added a second regex for the `Promise.resolve()` pattern. Falls back to the v1.6608 `if(VAR)return` pattern.
+  - `fix_dispatch_linux.nim` — upstream added an optional telemetry call (`D8(e,A),`) before the flag return expression in `pt()`. Extended the regex with an optional non-capturing group `(?:[\w$]+\([\w$,]+\),)?`. Existing capture groups unchanged. Falls back to the v1.6608 pattern without telemetry.
+- **All other patches applied cleanly** without modification
+- **No new features requiring Linux patches** — no new platform gates, no new darwin/win32-only features
+- **Function renames (minification changes):**
+  - `DoA`→`woA` (async merger — reverted to v1.6608.0 name)
+  - `BrA()`→`lrA()` (MCP registration — reverted to v1.6608.0 name)
+  - `QoA`→`BoA` (computer-use Set)
+  - `xSA`→`FSA` (MCP display labels)
+  - `I_` unchanged (MCP registry storage)
+  - `or` (darwin), `fn` (win32), `OiA` (darwin||win32) — all unchanged
+  - `pw()` (static registry), `pt()` (flag reader), `Cm()` (listener), `OQ()` (value reader), `DT()` (production gate), `Gu` (GrowthBook storage) — all unchanged
+- **`wr()` single-value flag reader removed** — function no longer exists. `pr()` now handles all value/object flag reads with nested property access.
+- **GrowthBook flags:** 60 boolean (`pt()`), 9 value/object (`pr()`), 5 listeners (`Cm()`), 10 multi-key (`OQ()`). No new or removed flags compared to v1.6608.2.
+- **MCP servers unchanged:** Same 22 servers (3 renderer-facing, 14 backend, 4 dynamic per-session, 1 per-artifact). No new servers, no removed servers, no new tools.
+- **ion-dist SPA:** 100 MB total, 632 JS chunks, 21 CSS files (unchanged). New `.zst` compressed variants of JS chunks added (704 total). org-plugins mountPath still lacks `linux` key — `fix_ion_dist_linux.nim` patch still required.
+- **All 45 patches pass**, JS syntax validated via `node --check`
+
+---
+
 ## 2026-05-10 (v1.6608.2) — Point release, doc-only updates
 
 - **Version bump:** v1.6608.1 → v1.6608.2
