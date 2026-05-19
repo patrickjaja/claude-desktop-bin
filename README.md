@@ -489,7 +489,8 @@ The package applies several patches to make Claude Desktop work on Linux. Each p
 | ~~`fix_ion_dist_linux.nim`~~ | **Removed** - Anthropic upstreamed Linux support in ion-dist SPA (v1.8089.0) | N/A |
 | `fix_locale_paths.nim` | Redirects locale file paths to Linux install location (also handles `index.pre.js` if present) | Global string replace on `process.resourcesPath` |
 | `fix_marketplace_linux.nim` | Forces host-local mode for plugin operations (no VM); promotes `$HOME`-scoped CLI plugins to user scope so they appear under "Personal Plugins" | `rg -o 'function \w+\(\w+\)\{return\(\w+==null.*mode.*ccd' index.js` |
-| `fix_native_frame.nim` | Native window frames on Linux, preserves Quick Entry transparency | `rg -o 'titleBarStyle.{0,30}' index.js` |
+| `fix_native_frame.nim` | Default: Windows-style integrated titlebar on Linux. Opt-out via `CLAUDE_NATIVE_TITLEBAR=1` or `--native-titlebar` to restore the native GTK frame. Preserves Quick Entry. | `rg -o 'titleBarStyle:process\.platform.{0,80}' index.js` |
+| `fix_native_frame_renderer.nim` | Renderer companion: collapses upstream's main-window `nc-drag` div so it no longer absorbs pointer events over the Anthropic UI buttons. | `rg -o 'className:"nc-drag"' MainWindowPage-*.js` |
 | `fix_office_addin_linux.nim` | Extends Office Addin connected file detection to include Linux (MCP server platform gate removed upstream in v1.8089.0) | `rg -o '.{0,30}louderPenguinEnabled.{0,30}' index.js` |
 | `fix_process_argv_renderer.nim` | Injects `process.argv=[]` in renderer preload to prevent TypeError | `rg -o '.{0,30}\.argv.{0,30}' mainView.js` |
 | `fix_profile_url_routing.nim` | Hooks `shell.openExternal` to write a per-profile auth-marker file before opening SSO URLs, so the system `claude://` handler can route callbacks to the right profile | `rg -o 'shell\.openExternal' index.js` |

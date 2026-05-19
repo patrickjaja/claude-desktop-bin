@@ -16,6 +16,10 @@
 #                            - Skip the systemd --user --scope wrapper (for
 #                              sandboxes without access to the systemd private
 #                              socket; portal app identity may not resolve)
+#   CLAUDE_NATIVE_TITLEBAR=1 - Restore the native GTK titlebar on Linux
+#                              (frame:true + titleBarStyle:"default"). Default
+#                              is the integrated Windows-style titlebar. Also
+#                              via --native-titlebar.
 
 set -euo pipefail
 
@@ -52,6 +56,7 @@ fi
 # pass-through:
 #   --profile=NAME / --profile NAME: sets CLAUDE_PROFILE
 #   --no-systemd-scope:              sets CLAUDE_DISABLE_SYSTEMD_SCOPE=1
+#   --native-titlebar:               sets CLAUDE_NATIVE_TITLEBAR=1
 _filtered_args=()
 while (( $# > 0 )); do
     case "$1" in
@@ -70,6 +75,10 @@ while (( $# > 0 )); do
             ;;
         --no-systemd-scope)
             CLAUDE_DISABLE_SYSTEMD_SCOPE=1
+            shift
+            ;;
+        --native-titlebar)
+            export CLAUDE_NATIVE_TITLEBAR=1
             shift
             ;;
         *)
