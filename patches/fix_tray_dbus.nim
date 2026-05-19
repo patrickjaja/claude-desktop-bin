@@ -6,12 +6,23 @@
 import std/[os, strformat, strutils]
 import regex
 
+proc escapeRe(s: string): string =
+  ## Escape regex metacharacters in a string for use in dynamic patterns
+  result = ""
+  for c in s:
+    case c
+    of '\\', '.', '+', '*', '?', '(', ')', '[', ']', '{', '}', '|', '^', '$':
+      result.add('\\')
+      result.add(c)
+    else:
+      result.add(c)
+
 proc apply*(input: string): string =
   result = input
   var failed = false
 
   # Step 1: Find the tray function name from menuBarEnabled listener
-  let listenerPat = re2"on\(""menuBarEnabled"",\(\)=>\{(\w+)\(\)\}\)"
+  let listenerPat = re2"[\w$]+\.on\(""menuBarEnabled"",\(\)=>\{([\w$]+)\(\)\}\)"
   var trayFunc = ""
   for m in result.findAll(listenerPat):
     trayFunc = result[m.group(0)]
@@ -26,7 +37,7 @@ proc apply*(input: string): string =
   # Step 2: Find tray variable name
   var trayVar = ""
   if trayFunc != "":
-    let varPat = re2("let ([\\w$]+)=null;(?:async )?function " & trayFunc)
+    let varPat = re2("let ([\\w$]+)=null;(?:async )?function " & escapeRe(trayFunc))
     for m in result.findAll(varPat):
       trayVar = result[m.group(0)]
       break
@@ -54,7 +65,8 @@ proc apply*(input: string): string =
   # Step 4: Find first const variable in the function
   var firstConst = ""
   if trayFunc != "":
-    let constPat = re2("async function " & trayFunc & "\\(\\)\\{.+?const (\\w+)=")
+    let constPat =
+      re2("async function " & escapeRe(trayFunc) & "\\(\\)\\{.+?const ([\\w$]+)=")
     for m in result.findAll(constPat):
       firstConst = result[m.group(0)]
       break
@@ -104,8 +116,8 @@ proc apply*(input: string): string =
   # change is pointless and causes ghost icons on XFCE/StatusNotifierWatcher.
   if trayFunc != "":
     let themeCallPat = re2(
-      "(nativeTheme\\.on\\(\"updated\",\\(\\)=>\\{[^}]*?[\\w$]+\\(\\),)" & trayFunc &
-        "\\(\\),"
+      "(nativeTheme\\.on\\(\"updated\",\\(\\)=>\\{[^}]*?[\\w$]+\\(\\),)" &
+        escapeRe(trayFunc) & "\\(\\),"
     )
     var themeCount = 0
     result = result.replace(

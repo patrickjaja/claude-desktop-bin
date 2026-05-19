@@ -1,6 +1,6 @@
-# ion-dist Baseline — Third-Party Inference SPA
+# ion-dist Baseline - Third-Party Inference SPA
 
-**Last verified:** 2026-05-14 against v1.7196.0
+**Last verified:** 2026-05-19 against v1.8089.0
 
 The `ion-dist/` directory is a standalone React SPA bundled inside `locales/ion-dist/`. It powers the **Configure Third-Party Inference** UI (Developer menu). Served by the Electron main process via the `app://` protocol handler.
 
@@ -8,9 +8,9 @@ The `ion-dist/` directory is a standalone React SPA bundled inside `locales/ion-
 
 | Metric | Value |
 |--------|-------|
-| Total size | 100 MB |
-| JS chunks | 632 files in `assets/v1/` |
-| Compressed | 704 `.zst` files (new in v1.7196.0 — Zstandard-compressed variants of JS chunks) |
+| Total size | 86 MB |
+| JS chunks | 652 files in `assets/v1/` |
+| Compressed | 704 `.zst` files (Zstandard-compressed variants of JS chunks, since v1.7196.0) |
 | CSS | 21 files |
 | Fonts | 31 woff2 + 21 ttf + 20 woff |
 | Images | 25 PNG, 18 SVG, 17 GIF |
@@ -25,15 +25,15 @@ The `ion-dist/` directory is a standalone React SPA bundled inside `locales/ion-
 | `index.html` | 4.1 KB | SPA entry, loads `index-*.js` via `<script type="module">` |
 | `assets/v1/index-*.js` | ~6.9 MB | Main bundle (React app, API client, UI components) |
 | `assets/v1/vendor-*.js` | ~1.5 MB | Third-party vendor libs |
-| `assets/v1/c71860c77-*.js` | 14+ files (main: ~239 KB) | 3P config UI, code-split into lazy-loaded chunks — **main chunk patched** (v1.7196.0: `c71860c77-Cy4WEBKv.js`) |
-| `assets/v1/tree-sitter-*.js` | — | Code parsing (tree-sitter WASM bindings) |
+| `assets/v1/c71860c77-*.js` | 14+ files (main: ~239 KB) | 3P config UI, code-split into lazy-loaded chunks - **main chunk patched** (v1.8089.0: `c71860c77-C6hxWuPG.js`) |
+| `assets/v1/tree-sitter-*.js` | - | Code parsing (tree-sitter WASM bindings) |
 
 Filenames include content hashes (e.g., `index-BHrKNf9Q.js`) that change every upstream release.
 
 ## How It's Served
 
 ```
-Main process (v1.7196.0 names — these change every release):
+Main process (v1.8089.0 names - these change every release):
   $Mr(path.join(ljt(), "ion-dist"), rendererConfig)
 
 ljt() → locales/ dir (patched by fix_locale_paths.nim)
@@ -46,11 +46,11 @@ The 3P setup window opens `app://localhost/setup-desktop-3p` in a `BrowserWindow
 
 The SPA receives platform from the main process via `readLocalConfig()` IPC:
 ```js
-// Main process (v1.6608.1: KNn function — name changes every release):
+// Main process (v1.6608.1: KNn function - name changes every release):
 { ok: true, config: ..., source: ..., platform: process.platform, ... }
 ```
 
-Platform enum in the SPA (v1.6608.1: `Y`; previously `U3`, `W` — name changes every release): `Darwin="darwin"`, `Win32="win32"`, `Linux="linux"`.
+Platform enum in the SPA (v1.6608.1: `Y`; previously `U3`, `W` - name changes every release): `Darwin="darwin"`, `Win32="win32"`, `Linux="linux"`.
 
 ## Linux-Specific Issues (Patched)
 
@@ -60,15 +60,15 @@ Platform enum in the SPA (v1.6608.1: `Y`; previously `U3`, `W` — name changes 
 ```js
 mountPath:{mac:"/Library/Application Support/Claude/org-plugins",win:"%ProgramFiles%\\Claude\\org-plugins",caption:"..."}
 ```
-No `linux` key. Display component falls back: `r===X.Win32?t.win:t.mac`.
+No `linux` key. Display component falls back with a platform ternary (variable names change every release - v1.7196.0: `r===W.Win32?t.win:t.mac`; v1.8089.0: `C===V.Win32?Ve.mountPath.win:Ve.mountPath.mac`).
 
 **Patched by `fix_ion_dist_linux.nim`:**
-- Adds `linux:"/etc/claude-desktop/org-plugins"` to mountPath
-- Changes ternary to `r===X.Win32?t.win:r===X.Linux?t.linux:t.mac`
+- Sub-patch A: Adds `linux:"/etc/claude-desktop/org-plugins"` to mountPath
+- Sub-patch B: Changes ternary to `<platVar>===<enumVar>.Win32?<obj>.win:<platVar>===<enumVar>.Linux?<obj>.linux:<obj>.mac` (uses flexible `[\w$]+` wildcards for all variable names)
 
 ### 2. Export Formats
 
-Export enum (`as`): `Mobileconfig`, `Reg`, `Json`, `FirewallTxt`, `ClipboardRedacted`. JSON is already available as a menu option — no patch needed. The binary export ternary (`n===as.Reg?Ne.Reg:Ne.Mobileconfig`) only applies to `.mobileconfig`/`.reg` exports.
+Export enum (`as`): `Mobileconfig`, `Reg`, `Json`, `FirewallTxt`, `ClipboardRedacted`. JSON is already available as a menu option - no patch needed. The binary export ternary (`n===as.Reg?Ne.Reg:Ne.Mobileconfig`) only applies to `.mobileconfig`/`.reg` exports.
 
 ## What's Already Linux-Compatible (No Patch Needed)
 

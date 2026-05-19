@@ -10,6 +10,19 @@
 #   3  mC() async merger overrides
 #   3b coworkKappa GrowthBook flag 123929380
 #   3c coworkArtifacts GrowthBook flag 2940196192
+#   3d chillingSlothPool GrowthBook flag 1992087837
+#   3e markTaskComplete GrowthBook flag 3732274605
+#   3f ENABLE_TOOL_SEARCH GrowthBook flag 1129419822
+#   3g toolResultFormatting GrowthBook flag 2192324205
+#   3h deterministicSorting GrowthBook flag 2800354941
+#   3i pluginEnabledState GrowthBook flag 4274871493
+#   3j claudePreview GrowthBook flag 2976814254
+#   3k canLaunchCodeSession GrowthBook flag 2067027393
+#   3l canSaveSkill GrowthBook flag 3246569822
+#   3m suggestSkillsEnabled GrowthBook flag 245679952
+#   3n sshRemotePassthrough GrowthBook flag 1496676413
+#   3o consolidateMemoryV2 GrowthBook flag 1824824999
+#   3p coworkOnboarding GrowthBook flag 2114777685
 #   4  preferences defaults (quietPenguinEnabled / louderPenguinEnabled)
 #   5  HTTP header platform spoof
 #   5b User-Agent header spoof
@@ -22,16 +35,18 @@
 import std/[os, strformat, strutils]
 import std/nre
 
-const EXPECTED_PATCHES = 14
+const EXPECTED_PATCHES = 25
 
 proc apply*(input: string): string =
   result = input
   var failed = false
   var patchesApplied = 0
 
-  # Patch 1: Remove platform!=="darwin" gate from chillingSlothFeat and quietPenguin
+  # Patch 1: Remove platform gate from quietPenguin (and any other darwin/win32-gated feature functions)
+  # v1.8089+: gate changed from `process.platform!=="darwin"` to compound
+  #   `process.platform!=="darwin"&&process.platform!=="win32"` — match both variants.
   let pattern1 =
-    re"""(function )([\w$]+)(\(\)\{return )process\.platform!=="darwin"\?\{status:"unavailable"\}:(\{status:"supported"\}\})"""
+    re"""(function )([\w$]+)(\(\)\{return )process\.platform!=="darwin"(?:&&process\.platform!=="win32")?\?\{status:"unavailable"\}:(\{status:"supported"\}\})"""
 
   var matches: seq[RegexMatch] = @[]
   var pos = 0
@@ -114,12 +129,13 @@ proc apply*(input: string): string =
   let overrides =
     ",quietPenguin:{status:\"supported\"},louderPenguin:{status:\"supported\"},chillingSlothFeat:{status:\"supported\"},chillingSlothLocal:{status:\"supported\"},chillingSlothPool:{status:\"supported\"},yukonSilver:{status:\"supported\"},yukonSilverGems:{status:\"supported\"},ccdPlugins:{status:\"supported\"},computerUse:{status:\"supported\"},coworkKappa:{status:\"supported\"},coworkArtifacts:{status:\"supported\"},markTaskComplete:{status:\"supported\"}"
 
-  # New format: return{...FUNC(),...props}};
-  let pattern3New = re"(return\{\.\.\.(?:[\w$]+)\(\),[^}]+)(\}\};)"
+  # New format: return{...FUNC(),...props}}; or }},
+  let pattern3New = re"(return\{\.\.\.(?:[\w$]+)\(\),[^}]+)(\}\}[;,])"
   let m3 = result.find(pattern3New)
   if m3.isSome:
     let bounds = m3.get().matchBounds
-    let endTag = "}};"
+    let endChar = $result[bounds.b] # ';' or ','
+    let endTag = "}}" & endChar
     let insertPos = bounds.b + 1 - endTag.len
     result = result[0 ..< insertPos] & overrides & endTag & result[bounds.b + 1 .. ^1]
     echo "  [OK] mC() feature merger: 12 features overridden (1 match)"
@@ -212,6 +228,182 @@ proc apply*(input: string): string =
     inc patchesApplied
   else:
     echo "  [FAIL] markTaskComplete flag 3732274605: 0 matches"
+    failed = true
+
+  # Patch 3f: Enable ENABLE_TOOL_SEARCH for LAM sessions - flag 1129419822
+  let toolSearchPattern = re"""[\w$]+\("1129419822"\)"""
+  var toolSearchApplied = 0
+  result = result.replace(
+    toolSearchPattern,
+    proc(m: RegexMatch): string =
+      inc toolSearchApplied
+      "!0",
+  )
+  if toolSearchApplied >= 1:
+    echo &"  [OK] ENABLE_TOOL_SEARCH flag 1129419822: forced ON ({toolSearchApplied} matches)"
+    inc patchesApplied
+  else:
+    echo "  [FAIL] ENABLE_TOOL_SEARCH flag 1129419822: 0 matches"
+    failed = true
+
+  # Patch 3g: Enable tool use result formatting - flag 2192324205
+  let toolResultFmtPattern = re"""[\w$]+\("2192324205"\)"""
+  var toolResultFmtApplied = 0
+  result = result.replace(
+    toolResultFmtPattern,
+    proc(m: RegexMatch): string =
+      inc toolResultFmtApplied
+      "!0",
+  )
+  if toolResultFmtApplied >= 1:
+    echo &"  [OK] toolResultFormatting flag 2192324205: forced ON ({toolResultFmtApplied} matches)"
+    inc patchesApplied
+  else:
+    echo "  [FAIL] toolResultFormatting flag 2192324205: 0 matches"
+    failed = true
+
+  # Patch 3h: Enable deterministic sorting of plugins/tools/logs - flag 2800354941
+  let detSortPattern = re"""[\w$]+\("2800354941"\)"""
+  var detSortApplied = 0
+  result = result.replace(
+    detSortPattern,
+    proc(m: RegexMatch): string =
+      inc detSortApplied
+      "!0",
+  )
+  if detSortApplied >= 1:
+    echo &"  [OK] deterministicSorting flag 2800354941: forced ON ({detSortApplied} matches)"
+    inc patchesApplied
+  else:
+    echo "  [FAIL] deterministicSorting flag 2800354941: 0 matches"
+    failed = true
+
+  # Patch 3i: Enable plugin enabled state fetching - flag 4274871493
+  let pluginStatePattern = re"""[\w$]+\("4274871493"\)"""
+  var pluginStateApplied = 0
+  result = result.replace(
+    pluginStatePattern,
+    proc(m: RegexMatch): string =
+      inc pluginStateApplied
+      "!0",
+  )
+  if pluginStateApplied >= 1:
+    echo &"  [OK] pluginEnabledState flag 4274871493: forced ON ({pluginStateApplied} matches)"
+    inc patchesApplied
+  else:
+    echo "  [FAIL] pluginEnabledState flag 4274871493: 0 matches"
+    failed = true
+
+  # Patch 3j: Enable Claude Preview dev server manager - flag 2976814254
+  let previewPattern = re"""[\w$]+\("2976814254"\)"""
+  var previewApplied = 0
+  result = result.replace(
+    previewPattern,
+    proc(m: RegexMatch): string =
+      inc previewApplied
+      "!0",
+  )
+  if previewApplied >= 1:
+    echo &"  [OK] claudePreview flag 2976814254: forced ON ({previewApplied} matches)"
+    inc patchesApplied
+  else:
+    echo "  [FAIL] claudePreview flag 2976814254: 0 matches"
+    failed = true
+
+  # Patch 3k: Enable canLaunchCodeSession suggestion tool - flag 2067027393
+  let launchCodePattern = re"""[\w$]+\("2067027393"\)"""
+  var launchCodeApplied = 0
+  result = result.replace(
+    launchCodePattern,
+    proc(m: RegexMatch): string =
+      inc launchCodeApplied
+      "!0",
+  )
+  if launchCodeApplied >= 1:
+    echo &"  [OK] canLaunchCodeSession flag 2067027393: forced ON ({launchCodeApplied} matches)"
+    inc patchesApplied
+  else:
+    echo "  [FAIL] canLaunchCodeSession flag 2067027393: 0 matches"
+    failed = true
+
+  # Patch 3l: Enable canSaveSkill - flag 3246569822
+  let saveSkillPattern = re"""[\w$]+\("3246569822"\)"""
+  var saveSkillApplied = 0
+  result = result.replace(
+    saveSkillPattern,
+    proc(m: RegexMatch): string =
+      inc saveSkillApplied
+      "!0",
+  )
+  if saveSkillApplied >= 1:
+    echo &"  [OK] canSaveSkill flag 3246569822: forced ON ({saveSkillApplied} matches)"
+    inc patchesApplied
+  else:
+    echo "  [FAIL] canSaveSkill flag 3246569822: 0 matches"
+    failed = true
+
+  # Patch 3m: Enable suggestSkillsEnabled - flag 245679952
+  let suggestSkillsPattern = re"""[\w$]+\("245679952"\)"""
+  var suggestSkillsApplied = 0
+  result = result.replace(
+    suggestSkillsPattern,
+    proc(m: RegexMatch): string =
+      inc suggestSkillsApplied
+      "!0",
+  )
+  if suggestSkillsApplied >= 1:
+    echo &"  [OK] suggestSkillsEnabled flag 245679952: forced ON ({suggestSkillsApplied} matches)"
+    inc patchesApplied
+  else:
+    echo "  [FAIL] suggestSkillsEnabled flag 245679952: 0 matches"
+    failed = true
+
+  # Patch 3n: Enable SSH remote MCP/plugin passthrough - flag 1496676413
+  let sshPassthroughPattern = re"""[\w$]+\("1496676413"\)"""
+  var sshPassthroughApplied = 0
+  result = result.replace(
+    sshPassthroughPattern,
+    proc(m: RegexMatch): string =
+      inc sshPassthroughApplied
+      "!0",
+  )
+  if sshPassthroughApplied >= 1:
+    echo &"  [OK] sshRemotePassthrough flag 1496676413: forced ON ({sshPassthroughApplied} matches)"
+    inc patchesApplied
+  else:
+    echo "  [FAIL] sshRemotePassthrough flag 1496676413: 0 matches"
+    failed = true
+
+  # Patch 3o: Enable consolidate-memory skill v2 - flag 1824824999
+  let memorySkillPattern = re"""[\w$]+\("1824824999"\)"""
+  var memorySkillApplied = 0
+  result = result.replace(
+    memorySkillPattern,
+    proc(m: RegexMatch): string =
+      inc memorySkillApplied
+      "!0",
+  )
+  if memorySkillApplied >= 1:
+    echo &"  [OK] consolidateMemoryV2 flag 1824824999: forced ON ({memorySkillApplied} matches)"
+    inc patchesApplied
+  else:
+    echo "  [FAIL] consolidateMemoryV2 flag 1824824999: 0 matches"
+    failed = true
+
+  # Patch 3p: Enable cowork onboarding role picker - flag 2114777685
+  let onboardingPattern = re"""[\w$]+\("2114777685"\)"""
+  var onboardingApplied = 0
+  result = result.replace(
+    onboardingPattern,
+    proc(m: RegexMatch): string =
+      inc onboardingApplied
+      "!0",
+  )
+  if onboardingApplied >= 1:
+    echo &"  [OK] coworkOnboarding flag 2114777685: forced ON ({onboardingApplied} matches)"
+    inc patchesApplied
+  else:
+    echo "  [FAIL] coworkOnboarding flag 2114777685: 0 matches"
     failed = true
 
   # Patch 4: Change preferences defaults for Code features

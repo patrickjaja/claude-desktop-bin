@@ -6,7 +6,7 @@
 import std/[os, strformat, strutils]
 import regex
 
-const EXPECTED_PATCHES = 2
+const EXPECTED_PATCHES = 3
 
 proc replaceFirst(
     content: var string, pattern: Regex2, subFn: proc(m: RegexMatch2, s: string): string
@@ -36,8 +36,8 @@ proc apply*(input: string): string =
   # v1.6608: isEnabled:e=>(pt("3444158716")||!1)&&e.sessionType==="cowork"
   # v1.7196: isEnabled:e=>(pt("3444158716")||!1)&&(e.sessionType==="cowork"||e.sessionType==="ccd"&&pt("2204227020"))
   let alreadyA =
-    "isEnabled:t=>(true)&&(t.sessionType===\"cowork\"||t.sessionType===\"ccd\")" in result or
-    "isEnabled:t=>(true)&&t.sessionType===\"cowork\"" in result
+    "isEnabled:t=>(true)&&(t.sessionType===\"cowork\"||t.sessionType===\"ccd\")" in
+    result or "isEnabled:t=>(true)&&t.sessionType===\"cowork\"" in result
   if alreadyA:
     echo "  [OK] isEnabled: already patched (skipped)"
     patchesApplied += 1
@@ -90,6 +90,32 @@ proc apply*(input: string): string =
       patchesApplied += 1
     else:
       echo "  [FAIL] hasImagine pattern not found"
+
+  # Patch C: Force-enable Visualize/Imagine in CCD sessions - flag 2204227020
+  # Patch A already handles the isEnabled occurrence; this catches remaining standalone uses
+  let ccdVisualizePattern = re2"[\w$]+\(""2204227020""\)"
+  var ccdVisualizeApplied = 0
+  for m in result.findAll(ccdVisualizePattern):
+    inc ccdVisualizeApplied
+  if ccdVisualizeApplied >= 1:
+    var count = 0
+    var resultStr = ""
+    var lastEnd = 0
+    for m in result.findAll(ccdVisualizePattern):
+      let bounds = m.boundaries
+      resultStr &= result[lastEnd ..< bounds.a]
+      resultStr &= "!0"
+      lastEnd = bounds.b + 1
+      inc count
+    resultStr &= result[lastEnd .. ^1]
+    result = resultStr
+    echo &"  [OK] ccdVisualize flag 2204227020: forced ON ({count} matches)"
+    patchesApplied += 1
+  elif "\"2204227020\"" notin result:
+    echo "  [OK] ccdVisualize flag 2204227020: already patched (skipped)"
+    patchesApplied += 1
+  else:
+    echo "  [FAIL] ccdVisualize flag 2204227020: pattern did not match"
 
   if patchesApplied < EXPECTED_PATCHES:
     raise newException(

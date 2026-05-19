@@ -2,7 +2,48 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
-## 2026-05-16 — Fix cowork sandbox refs for v1.7196.1
+## 2026-05-19 (v1.8089.0) - Upstream update, ion-dist upstreamed, 12 new flags, Chrome integration, sandbox dirs
+
+- **Version bump:** v1.7196.0 -> v1.8089.0
+- **4 patches refreshed** for new minified variable names:
+  - `enable_local_agent_mode.nim` - upstream added a compound `&&process.platform!=="win32"` check to the `quietPenguin` inner function (`A5i()`); made regex optional. Async merger terminator changed from `;` to `,` (comma-separated const); updated to match both.
+  - `fix_marketplace_linux.nim` - upstream changed scope normalization from a `push(...);continue` loop to a `return` expression. Added new regex for the return-style pattern, old push-style kept as fallback.
+  - `fix_tray_dbus.nim` - tray function name `i$A` contains `$` (regex metacharacter). Added `escapeRe()` helper; updated all dynamically-constructed regexes to escape `$`. Also updated listener pattern to handle `zf.on("menuBarEnabled",...)` prefix object.
+  - `fix_imagine_linux.nim` - added sub-patch C to force-enable `2204227020` (Visualize in CCD sessions). Total sub-patches: 2 -> 3.
+- **1 patch simplified (upstream change):**
+  - `fix_office_addin_linux.nim` - office-addin MCP server platform gate `(darwin||win32)&&louderPenguinEnabled` was **removed upstream**. Patches A (isEnabled) and B (init block) are no longer needed. Patch C (connected file detection) remains. Reduced from 3/3 to 1/1 expected patches.
+- **1 patch removed (upstreamed by Anthropic):**
+  - `fix_ion_dist_linux.nim` - Anthropic added native Linux support to the ion-dist 3P config SPA: `mountPath` now includes `linux` key, platform ternary handles Linux, file manager label shows "Show in file manager". Patch and build script invocation removed entirely.
+- **1 new patch added:**
+  - `fix_sensitive_dirs_linux.nim` - adds Linux-specific sensitive directories to the sandbox protection array: `.local/share/keyrings` (GNOME/KDE credential storage), `.pki` (NSS certificate database), `.config/autostart` (XDG autostart entries). The upstream array had macOS and Windows entries but no Linux-specific ones.
+- **12 new GrowthBook flags force-enabled** for Linux (in `enable_local_agent_mode.nim` + `fix_imagine_linux.nim`):
+  - High priority: `1129419822` (ENABLE_TOOL_SEARCH auto), `2192324205` (tool use result formatting), `2800354941` (deterministic sorting), `4274871493` (plugin enabled state fetch)
+  - Medium priority: `2204227020` (Visualize in CCD sessions - in `fix_imagine_linux.nim`), `2976814254` (Claude Preview dev server), `2067027393` (canLaunchCodeSession), `3246569822` (canSaveSkill)
+  - Also enabled: `245679952` (suggestSkills default), `1496676413` (SSH remote MCP/plugin), `1824824999` (consolidate-memory v2), `2114777685` (cowork onboarding)
+- **Chrome browser integration improved** (`fix_browser_tools_linux.nim`, 3 new sub-patches):
+  - **Chrome user data dir detection** (`O2A` function) - returned `[]` on Linux, breaking extension detection and file watching. Added paths for Chrome (`~/.config/google-chrome`), Chromium (`~/.config/chromium`), Brave (`~/.config/BraveSoftware/Brave-Browser`), Vivaldi (`~/.config/vivaldi`), Opera (`~/.config/opera`). Edge excluded (no Linux version).
+  - **Chrome extension auto-install** (`vkr` function) - returned "Unsupported platform" error on non-darwin. Added Linux support: writes External Extensions JSON to both `~/.config/google-chrome` and `~/.config/chromium` directories.
+  - **Chrome DevTools opener** (`YOr` function) - had handlers for darwin (`open -a`) and win32 (`start chrome`) but none for Linux. Added `xdg-open "chrome://inspect"` handler.
+- **All other patches applied cleanly** without modification
+- **Function renames (minification changes):**
+  - `pw()`->`eD()` (static registry), `woA`->`UcA` (async merger), `DT()`->`Nb()` (production gate)
+  - `pt()`->`St()` (flag reader), `Cm()`->`AS()` (listener)
+  - `or`->`Lr` (darwin), `fn`->`Io` (win32), `OiA`->`pj` (darwin||win32)
+  - `QoA`->`NcA` (computer-use Set), `saA`->`C5` (supported constant)
+- **GrowthBook flags upstream:** 60 boolean (`St()`), 5 listeners (`AS()`). 7 new flags added, 8 removed.
+  - New upstream: `1129419822`, `1496676413`, `2049450122`, `2192324205`, `245679952`, `2800354941`, `4274871493`
+  - Removed upstream: `982691970`, `1802019210`, `2216480658`, `2860753854`, `3298006781`, `3858743149`, `3885610113`, `4019128077`
+  - New listener: `180602792` (midnightOwl prototype)
+- **Notable upstream changes:**
+  - Visualize (Imagine) MCP server now also enabled for CCD sessions (gated by `2204227020`), not just cowork
+  - Office Addin tools refactored: 5 tools reduced to 2 (`office_addin_run`, `office_addin_task`). Bridge architecture changed from MCP server pattern to listener/dispatcher. Platform gate removed.
+  - New `floatingPenguinEnabled` preference (config-only, not yet a feature flag in static registry)
+- **ion-dist SPA:** 86 MB total (was 100 MB), 652 JS chunks (was 632). **Linux support upstreamed** - org-plugins mountPath now includes `linux` key natively. Patch removed.
+- **Patch count:** 45 (was 45 - 1 removed + 1 added). All pass, JS syntax validated via `node --check`.
+
+---
+
+## 2026-05-16 - Fix cowork sandbox refs for v1.7196.1
 
 - **`fix_cowork_sandbox_refs.nim` sub-patch A updated** for Claude Desktop v1.7196.1 - upstream collapsed the bash tool description from a three-piece string concat into a single literal, breaking the existing regex. Adds a new pattern for the collapsed literal while keeping the old concat pattern as a fallback for v1.6608.x and v1.7196.0. Contributed by [@boommasterxd](https://github.com/boommasterxd) in [#95](https://github.com/patrickjaja/claude-desktop-bin/pull/95). Fixes [#94](https://github.com/patrickjaja/claude-desktop-bin/issues/94), [#93](https://github.com/patrickjaja/claude-desktop-bin/issues/93).
 
