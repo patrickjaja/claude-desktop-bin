@@ -2,6 +2,17 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-05-20 - Add promotional landing page for GitHub Pages
+
+- **New static landing page** (`site/index.html`) replaces the minimal APT setup guide at the gh-pages root
+- Single-file HTML/CSS/JS - no build step, no framework dependencies
+- Dark theme with violet accent, responsive design (mobile/tablet/desktop)
+- **UA-based distro detection:** hero terminal and install tabs auto-select the right commands based on visitor's OS
+- Sections: hero, tabbed quick-install (Arch/Ubuntu/Fedora/Nix/AppImage), 12-card feature grid, distro+arch compatibility matrix, session type table, Cowork Service (native vs KVM), footer with live badges
+- No screenshots included (upstream UI is copyrighted)
+- CI change: `build-and-release.yml` now copies `site/index.html` instead of `packaging/apt/index.html` to gh-pages root
+- **No impact on package repos** - `deb/`, `rpm/`, `badges/`, `install.sh`, `install-rpm.sh`, `gpg-key.asc` paths all untouched
+
 ## 2026-05-20 - Switch APT repo config to DEB822 format
 
 - **APT install script now uses DEB822 `.sources` format** instead of legacy one-line `.list` format ([#101](https://github.com/patrickjaja/claude-desktop-bin/issues/101))

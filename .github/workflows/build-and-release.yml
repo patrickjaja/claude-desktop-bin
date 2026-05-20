@@ -1474,7 +1474,7 @@ jobs:
           mkdir -p "$REPO_DIR"
 
           cp packaging/apt/install.sh "$REPO_DIR/"
-          cp packaging/apt/index.html "$REPO_DIR/"
+          cp site/index.html "$REPO_DIR/"
           cp packaging/rpm/install-rpm.sh "$REPO_DIR/"
           gpg --armor --export "$GPG_KEY_ID" > "$REPO_DIR/gpg-key.asc"
           touch "$REPO_DIR/.nojekyll"
