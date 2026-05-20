@@ -2,10 +2,23 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
-## Unreleased - Integrated titlebar on Linux by default
+## 2026-05-20 - Integrated titlebar on Linux by default
 
-- **Linux now uses the Windows-style integrated titlebar** (`frame:false` + `titleBarOverlay` themed via Anthropic's own background helper, theme-aware) instead of the native GTK frame. Opt out with `CLAUDE_NATIVE_TITLEBAR=1` or the launcher flag `--native-titlebar`. Quick Entry is unaffected.
+- **Linux now uses the Windows-style integrated titlebar** (`frame:false` + `titleBarOverlay` themed via Anthropic's own background helper, theme-aware) instead of the native frame. Opt out with `CLAUDE_NATIVE_TITLEBAR=1` or the launcher flag `--native-titlebar`. Quick Entry is unaffected.
 - New patches: `fix_native_frame.nim` (main process, conditional window options + theme-update gate + opaque overlay color in integrated mode) and `fix_native_frame_renderer.nim` (collapses the upstream `nc-drag` div in `MainWindowPage-*.js` so it no longer absorbs pointer events over the UI buttons).
+
+## 2026-05-20 (v1.8089.1) - Point release, all patches clean
+
+- **Version bump:** v1.8089.0 -> v1.8089.1
+- **All patches applied cleanly** - zero failures, no regex changes needed
+- **New upstream: musl/glibc detection** (`bKi()` function) - Linux improvement: properly detects musl vs glibc runtime for `claude-agent-sdk` binary selection
+- **New upstream: `getRunningLocalSessions` IPC handler** - auto-updater checks for running cowork/dispatch sessions before applying updates
+- **New upstream strings:** OIDC federation env vars (`ANTHROPIC_IDENTITY_TOKEN`, `ANTHROPIC_FEDERATION_RULE_ID`, etc.), device attestation statuses, "claude-mythos-preview" model reference, `CLAUDE_CODE_USE_COWORK_PLUGINS` env var, `ccRemoteControlDefaultEnabled` preference
+- **ion-dist SPA:** code unchanged from v1.8089.0 - only change is removal of 704 `.zst` compressed file variants
+- **sqlite-worker removed** from upstream build
+- **Renderer assets deduplicated** (build tooling cleanup)
+- **Feature flags:** identical to v1.8089.0 - same 25 features, same function names (`eD`, `UcA`, `Nb`, `St`, `AS`), same 60 boolean + 5 listener GrowthBook flags
+- **No new platform gates** blocking Linux
 
 ## 2026-05-19 - Enhanced version-check issue template with Linux compatibility checklist
 
@@ -17,6 +30,18 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 - **New file:** `.github/issue-templates/new-version-body.md` - Markdown template with `{{UPSTREAM}}`, `{{RELEASED}}`, `{{REPO}}`, `{{CC_PROMPT}}` placeholders rendered at workflow runtime
 - **UPDATE-PROMPT-CC-INPUT-MANUAL.md** - converted code blocks to indented style (fence-safe for embedding)
 
+## 2026-05-20 - Make update workflow distro-agnostic
+
+- **Issue template, update-prompt, CC prompt** now show build commands for all supported distros (Arch, Ubuntu/Debian, Fedora/RHEL) instead of hardcoding `./scripts/build-local.sh` (Arch-only)
+- **Stale extraction paths** replaced: `Claude-Setup-x64.exe` / Squirrel nupkg references updated to `Claude.msix` extraction in issue template, update-prompt.md, and themes/README.md
+
+## 2026-05-20 - Restore fix_ion_dist_linux patch (incorrectly removed)
+
+- **`fix_ion_dist_linux.nim` restored** - the v1.8089.0 update incorrectly claimed Anthropic upstreamed Linux support for the ion-dist 3P config SPA. Verification against the **unpatched** MSIX shows: only the file manager label ("Show in file manager") was upstreamed. The `mountPath` object still lacks a `linux` key, and the platform ternary still falls back to the macOS path on Linux. Both sub-patches are still needed.
+- **Regex updated** for v1.8089.0 minified variable names: ternary pattern now uses `[\w$.]+ ` wildcards instead of hardcoded `r`/`t` variable names (v1.8089.0 uses `C===V.Win32?Ve.mountPath.win:Ve.mountPath.mac`).
+
+---
+
 ## 2026-05-19 (v1.8089.0) - Upstream update, ion-dist upstreamed, 12 new flags, Chrome integration, sandbox dirs
 
 - **Version bump:** v1.7196.0 -> v1.8089.0
@@ -27,8 +52,8 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
   - `fix_imagine_linux.nim` - added sub-patch C to force-enable `2204227020` (Visualize in CCD sessions). Total sub-patches: 2 -> 3.
 - **1 patch simplified (upstream change):**
   - `fix_office_addin_linux.nim` - office-addin MCP server platform gate `(darwin||win32)&&louderPenguinEnabled` was **removed upstream**. Patches A (isEnabled) and B (init block) are no longer needed. Patch C (connected file detection) remains. Reduced from 3/3 to 1/1 expected patches.
-- **1 patch removed (upstreamed by Anthropic):**
-  - `fix_ion_dist_linux.nim` - Anthropic added native Linux support to the ion-dist 3P config SPA: `mountPath` now includes `linux` key, platform ternary handles Linux, file manager label shows "Show in file manager". Patch and build script invocation removed entirely.
+- **1 patch incorrectly removed** (restored in 2026-05-20 fix):
+  - `fix_ion_dist_linux.nim` - was removed claiming Anthropic upstreamed Linux support, but only the file manager label was upstreamed. `mountPath` linux key and platform ternary still need patching. See 2026-05-20 entry.
 - **1 new patch added:**
   - `fix_sensitive_dirs_linux.nim` - adds Linux-specific sensitive directories to the sandbox protection array: `.local/share/keyrings` (GNOME/KDE credential storage), `.pki` (NSS certificate database), `.config/autostart` (XDG autostart entries). The upstream array had macOS and Windows entries but no Linux-specific ones.
 - **12 new GrowthBook flags force-enabled** for Linux (in `enable_local_agent_mode.nim` + `fix_imagine_linux.nim`):
@@ -53,8 +78,8 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
   - Visualize (Imagine) MCP server now also enabled for CCD sessions (gated by `2204227020`), not just cowork
   - Office Addin tools refactored: 5 tools reduced to 2 (`office_addin_run`, `office_addin_task`). Bridge architecture changed from MCP server pattern to listener/dispatcher. Platform gate removed.
   - New `floatingPenguinEnabled` preference (config-only, not yet a feature flag in static registry)
-- **ion-dist SPA:** 86 MB total (was 100 MB), 652 JS chunks (was 632). **Linux support upstreamed** - org-plugins mountPath now includes `linux` key natively. Patch removed.
-- **Patch count:** 45 (was 45 - 1 removed + 1 added). All pass, JS syntax validated via `node --check`.
+- **ion-dist SPA:** 86 MB total (was 100 MB), 652 JS chunks (was 632). File manager label upstreamed (shows "Show in file manager" on Linux), but `mountPath` linux key and platform ternary still need patching.
+- **Patch count:** 46 (was 45 - 1 restored + 1 added). All pass, JS syntax validated via `node --check`.
 
 ---
 

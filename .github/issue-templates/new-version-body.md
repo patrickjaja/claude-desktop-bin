@@ -48,18 +48,21 @@ All upstream changes must be validated against these supported targets:
 ## Update Checklist
 
 ### Step 0: Clean Slate
-- [ ] Remove old build artifacts: `rm -rf build/ extract/ Claude-Setup-x64.exe`
+- [ ] Remove old build artifacts: `rm -rf build/ extract/`
 - [ ] Remove leftover dev binaries: `rm -f chrome-native-host.exe cowork-svc.exe smol-bin.vhdx`
 - [ ] Verify clean git state: `git status`
 
 ### Step 1: Build & Fix Patches
-- [ ] Run the build: `./scripts/build-local.sh`
+- [ ] Run the build for your distro:
+  - **Arch Linux:** `./scripts/build-local.sh`
+  - **Ubuntu/Debian:** `SKIP_SMOKE_TEST=1 ./scripts/build-ubuntu-local.sh`
+  - **Fedora/RHEL:** `./scripts/build-fedora-local.sh`
 - [ ] If patches fail, extract new app for analysis (see Quick Reference below)
 - [ ] Fix each failing patch in `patches/*.nim` - use `[\w$]+` for minified variable names
 - [ ] Recompile: `cd patches && make PATCH_NAME && cd ..`
 - [ ] Test individual patch: `patches/PATCH_NAME /tmp/test_index.js`
 - [ ] Verify JS syntax: `node --check /tmp/test_index.js`
-- [ ] Rebuild until all patches pass: `./scripts/build-local.sh`
+- [ ] Rebuild until all patches pass (re-run same build script from above)
 
 ### Step 2: Linux Compatibility Analysis
 
@@ -141,10 +144,10 @@ See [Prompt 4 in update-prompt.md](https://github.com/{{REPO}}/blob/master/updat
 
 ### Extract new app for analysis
 ```bash
+# The build scripts auto-download Claude.msix - but to extract manually:
 mkdir -p /tmp/claude-new
-7z x -o/tmp/claude-new Claude-Setup-x64.exe -y
-7z x -o/tmp/claude-new/nupkg /tmp/claude-new/AnthropicClaude-*.nupkg -y
-asar extract /tmp/claude-new/nupkg/lib/net45/resources/app.asar /tmp/claude-new/app
+7z x -o/tmp/claude-new Claude.msix -y
+asar extract /tmp/claude-new/app/resources/app.asar /tmp/claude-new/app
 # New index.js is at: /tmp/claude-new/app/.vite/build/index.js
 ```
 

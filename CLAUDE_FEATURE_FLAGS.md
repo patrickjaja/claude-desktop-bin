@@ -1,6 +1,6 @@
 # Claude Desktop Feature Flag Architecture
 
-Reference documentation for the feature flag system in Claude Desktop's Electron app. This documents v1.8089.0 internals to aid patch maintenance.
+Reference documentation for the feature flag system in Claude Desktop's Electron app. This documents v1.8089.0/v1.8089.1 internals to aid patch maintenance.
 
 ## Overview
 
@@ -154,7 +154,7 @@ Feature flags can also be affected by organization-level admin settings:
 
 Calls the merger, validates the result against a Zod schema, and sends it to the renderer process via IPC. The renderer uses these flags to conditionally render UI elements (e.g., Chat|Code toggle).
 
-## GrowthBook Flag Catalog (v1.8089.0)
+## GrowthBook Flag Catalog (v1.8089.0/v1.8089.1)
 
 ### Boolean Flags (St())
 

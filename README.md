@@ -430,7 +430,7 @@ Configure Claude Desktop to use your own cloud inference backend instead of Anth
 
 The configuration window lets you manage connection settings, provider credentials, model lists, sandbox/workspace restrictions, MCP servers, telemetry, usage limits, and org-plugin directories - all from a single UI. Configurations can be exported as `.mobileconfig` (macOS MDM), `.reg` (Windows GPO), or plain JSON (Linux `/etc/claude-desktop/enterprise.json`).
 
-**How it works on Linux:** The upstream SPA is fully Linux-compatible since v1.8089.0 - Anthropic upstreamed Linux support (org-plugins mountPath, platform ternary, file manager label). The main process reads enterprise config from `/etc/claude-desktop/enterprise.json` and passes `platform: "linux"` to the frontend.
+**How it works on Linux:** The upstream SPA requires two patches on Linux (`fix_ion_dist_linux.nim`): a `mountPath` entry for the Linux org-plugins directory, and a platform ternary fix. Only the file manager label text was upstreamed in v1.8089.0. The main process reads enterprise config from `/etc/claude-desktop/enterprise.json` and passes `platform: "linux"` to the frontend.
 
 **Enterprise deployment:** Use MDM (macOS), GPO (Windows), or drop a JSON file at `/etc/claude-desktop/enterprise.json` (Linux) to manage fleet-wide configuration. See the [Anthropic 3P configuration docs](https://claude.com/docs/cowork/3p/configuration) for the full key reference and recommended security profiles.
 
@@ -486,7 +486,7 @@ The package applies several patches to make Claude Desktop work on Linux. Each p
 | `fix_dock_bounce.nim` | Suppresses taskbar attention-stealing on KDE/Wayland | Prepended IIFE, no regex |
 | `fix_enterprise_config_linux.nim` | Reads enterprise config from `/etc/claude-desktop/enterprise.json` | `rg -o 'enterprise.json' index.js` |
 | `fix_imagine_linux.nim` | Enables Imagine/Visualize - forces GrowthBook flag for inline SVG/HTML rendering | `rg -o '3444158716' index.js` |
-| ~~`fix_ion_dist_linux.nim`~~ | **Removed** - Anthropic upstreamed Linux support in ion-dist SPA (v1.8089.0) | N/A |
+| `fix_ion_dist_linux.nim` | Adds Linux org-plugins mount path + platform ternary to ion-dist 3P config SPA | `rg -o 'mountPath.{0,80}' ion-dist/assets/v1/*.js` |
 | `fix_locale_paths.nim` | Redirects locale file paths to Linux install location (also handles `index.pre.js` if present) | Global string replace on `process.resourcesPath` |
 | `fix_marketplace_linux.nim` | Forces host-local mode for plugin operations (no VM); promotes `$HOME`-scoped CLI plugins to user scope so they appear under "Personal Plugins" | `rg -o 'function \w+\(\w+\)\{return\(\w+==null.*mode.*ccd' index.js` |
 | `fix_native_frame.nim` | Default: Windows-style integrated titlebar on Linux. Opt-out via `CLAUDE_NATIVE_TITLEBAR=1` or `--native-titlebar` to restore the native GTK frame. Preserves Quick Entry. | `rg -o 'titleBarStyle:process\.platform.{0,80}' index.js` |
