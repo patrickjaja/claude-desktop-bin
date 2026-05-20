@@ -21,10 +21,9 @@ Before any version update, remove stale artifacts so the build downloads fresh:
 
 > **Prepare for a clean Claude Desktop update.**
 >
-> 1. Remove old build artifacts and exe:
+> 1. Remove old build artifacts:
 >    ```bash
 >    rm -rf build/ extract/
->    rm -f Claude-Setup-x64.exe
 >    ```
 > 2. Remove leftover dev binaries from project root:
 >    ```bash
@@ -35,7 +34,7 @@ Before any version update, remove stale artifacts so the build downloads fresh:
 >    git status
 >    ```
 >
-> Then proceed to **Prompt 1** — the build script will auto-download the latest exe.
+> Then proceed to **Prompt 1** - the build script will auto-download the latest msix.
 
 ---
 
@@ -50,17 +49,21 @@ Copy-paste this into Claude Code when a new version is available:
 >    - `CLAUDE_BUILT_IN_MCP.md` — current MCP servers, registration patterns
 >    - `CHANGELOG.md` — recent version history (first entry = current version)
 >
-> 2. Run the build (auto-downloads latest exe):
+> 2. Run the build (auto-downloads latest msix):
 >    ```bash
+>    # Arch Linux:
 >    ./scripts/build-local.sh
+>    # Ubuntu/Debian:
+>    ./scripts/build-ubuntu-local.sh
+>    # Fedora/RHEL:
+>    ./scripts/build-fedora-local.sh
 >    ```
 >
 > 3. If patches fail, extract the app for analysis:
 >    ```bash
 >    mkdir -p /tmp/claude-new
->    7z x -o/tmp/claude-new Claude-Setup-x64.exe -y
->    7z x -o/tmp/claude-new/nupkg /tmp/claude-new/AnthropicClaude-*.nupkg -y
->    asar extract /tmp/claude-new/nupkg/lib/net45/resources/app.asar /tmp/claude-new/app
+>    7z x -o/tmp/claude-new Claude.msix -y
+>    asar extract /tmp/claude-new/app/resources/app.asar /tmp/claude-new/app
 >    ```
 >
 > 4. For each failing patch:
@@ -70,7 +73,7 @@ Copy-paste this into Claude Code when a new version is available:
 >    - Test the individual patch: `patches/PATCH_NAME /tmp/test_index.js`
 >    - Verify syntax: `node --check /tmp/test_index.js`
 >
-> 5. Rebuild: `./scripts/build-local.sh`
+> 5. Rebuild (re-run same build script from step 2)
 >
 > 6. Verify all patches pass and JS syntax is valid:
 >    ```bash
@@ -80,7 +83,10 @@ Copy-paste this into Claude Code when a new version is available:
 >
 > 7. Run the Feature Flag Audit (Prompt 3) to check for new/changed flags
 >
-> 8. Install: `sudo pacman -U build/claude-desktop-bin-*-x86_64.pkg.tar.zst`
+> 8. Install:
+>    - **Arch:** `sudo pacman -U build/claude-desktop-bin-*-x86_64.pkg.tar.zst`
+>    - **Ubuntu/Debian:** `sudo apt install build/claude-desktop-bin_*.deb`
+>    - **Fedora/RHEL:** `sudo dnf install build/claude-desktop-bin-*.rpm`
 >
 > 9. Update documentation (compare what you found vs your version A baseline):
 >    - `CLAUDE_FEATURE_FLAGS.md` — if flags added/removed/renamed

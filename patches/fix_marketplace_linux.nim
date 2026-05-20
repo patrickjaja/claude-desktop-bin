@@ -43,22 +43,41 @@ proc apply*(input: string): string =
     echo "  [SKIP] B already patched"
     inc patchesApplied
   else:
-    let m = result.find(
+    # Try new pattern (v1.8089+): if(X.scope==="user")return this.entryToPluginInfo(A,X,B,C);
+    let mNew = result.find(
+      re"""if\(([\w$]+)\.scope===\"user\"\)return this\.entryToPluginInfo\(([\w$]+),\1,([\w$]+),([\w$]+)\);"""
+    )
+    # Try old pattern: if(X.scope==="user"){Y.push(this.entryToPluginInfo(A,X,B,C));continue}
+    let mOld = result.find(
       re"""if\(([\w$]+)\.scope===\"user\"\)\{([\w$]+)\.push\(this\.entryToPluginInfo\(([\w$]+),\1,([\w$]+),([\w$]+)\)\);continue\}"""
     )
-    if m.isSome:
-      let c = m.get.captures
+    if mNew.isSome:
+      let c = mNew.get.captures
+      let (e, g, n, b) = (c[0], c[1], c[2], c[3])
+      let homedir =
+        e & ".scope===\"project\"&&" & e & ".projectPath&&" &
+        "process.env.HOME&&require(\"path\").normalize(" & e &
+        ".projectPath)===require(\"path\").normalize(process.env.HOME)"
+      result =
+        result[0 ..< mNew.get.matchBounds.a] & "if(" & e & ".scope===\"user\"||" &
+        homedir & ")return this.entryToPluginInfo(" & g & ",{..." & e &
+        ",scope:\"user\"}," & n & "," & b & ");" &
+        result[mNew.get.matchBounds.b + 1 .. ^1]
+      echo "  [OK] B scope normalization (1 match, return-style)"
+      inc patchesApplied
+    elif mOld.isSome:
+      let c = mOld.get.captures
       let (e, s, o, n, i) = (c[0], c[1], c[2], c[3], c[4])
       let homedir =
         e & ".scope===\"project\"&&" & e & ".projectPath&&" &
         "process.env.HOME&&require(\"path\").normalize(" & e &
         ".projectPath)===require(\"path\").normalize(process.env.HOME)"
       result =
-        result[0 ..< m.get.matchBounds.a] & "if(" & e & ".scope===\"user\"||" & homedir &
-        "){" & s & ".push(this.entryToPluginInfo(" & o & ",{..." & e &
+        result[0 ..< mOld.get.matchBounds.a] & "if(" & e & ".scope===\"user\"||" &
+        homedir & "){" & s & ".push(this.entryToPluginInfo(" & o & ",{..." & e &
         ",scope:\"user\"}," & n & "," & i & "));continue}" &
-        result[m.get.matchBounds.b + 1 .. ^1]
-      echo "  [OK] B scope normalization (1 match)"
+        result[mOld.get.matchBounds.b + 1 .. ^1]
+      echo "  [OK] B scope normalization (1 match, push-style)"
       inc patchesApplied
     else:
       echo "  [FAIL] B scope normalization: 0 matches"

@@ -2,7 +2,125 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
-## 2026-05-16 — Fix cowork sandbox refs for v1.7196.1
+## 2026-05-20 (v1.8089.1) - Point release, integrated titlebar, cowork graceful degradation, landing page, DEB822, build improvements
+
+### Upstream (v1.8089.1)
+
+- **Version bump:** v1.8089.0 -> v1.8089.1
+- **All patches applied cleanly** - zero failures, no regex changes needed
+- **New upstream: musl/glibc detection** (`bKi()` function) - Linux improvement: properly detects musl vs glibc runtime for `claude-agent-sdk` binary selection
+- **New upstream: `getRunningLocalSessions` IPC handler** - auto-updater checks for running cowork/dispatch sessions before applying updates
+- **New upstream strings:** OIDC federation env vars (`ANTHROPIC_IDENTITY_TOKEN`, `ANTHROPIC_FEDERATION_RULE_ID`, etc.), device attestation statuses, "claude-mythos-preview" model reference, `CLAUDE_CODE_USE_COWORK_PLUGINS` env var, `ccRemoteControlDefaultEnabled` preference
+- **ion-dist SPA:** code unchanged from v1.8089.0 - only change is removal of 704 `.zst` compressed file variants
+- **sqlite-worker removed** from upstream build
+- **Renderer assets deduplicated** (build tooling cleanup)
+- **Feature flags:** identical to v1.8089.0 - same 25 features, same function names (`eD`, `UcA`, `Nb`, `St`, `AS`), same 60 boolean + 5 listener GrowthBook flags
+- **No new platform gates** blocking Linux
+
+### Integrated titlebar on Linux
+
+- **Linux now uses the Windows-style integrated titlebar** (`frame:false` + `titleBarOverlay` themed via Anthropic's own background helper, theme-aware) instead of the native frame. Opt out with `CLAUDE_NATIVE_TITLEBAR=1` or the launcher flag `--native-titlebar`. Quick Entry is unaffected.
+- New patches: `fix_native_frame.nim` (main process, conditional window options + theme-update gate + opaque overlay color in integrated mode) and `fix_native_frame_renderer.nim` (collapses the upstream `nc-drag` div in `MainWindowPage-*.js` so it no longer absorbs pointer events over the UI buttons).
+- Contributed by [@boommasterxd](https://github.com/boommasterxd) ([#100](https://github.com/patrickjaja/claude-desktop-bin/pull/100)).
+
+### Cowork graceful degradation
+
+- **Cowork preamble** now detects socket availability at startup and logs a helpful message with install link when the cowork service is not running.
+- **Event subscription guard** (Patch H): skip `createConnection` call when the cowork socket is absent, with a lazy 60s retry that auto-connects once the service appears.
+- **Error message URLs** now include full `https://` prefix for clickability.
+
+### Patch fix: restore fix_ion_dist_linux
+
+- **`fix_ion_dist_linux.nim` restored** - the v1.8089.0 update incorrectly claimed Anthropic upstreamed Linux support for the ion-dist 3P config SPA. Verification against the **unpatched** MSIX shows: only the file manager label ("Show in file manager") was upstreamed. The `mountPath` object still lacks a `linux` key, and the platform ternary still falls back to the macOS path on Linux. Both sub-patches are still needed.
+- **Regex updated** for v1.8089.0 minified variable names: ternary pattern now uses `[\w$.]+ ` wildcards instead of hardcoded `r`/`t` variable names (v1.8089.0 uses `C===V.Win32?Ve.mountPath.win:Ve.mountPath.mac`).
+
+### APT repo: DEB822 format
+
+- **APT install script now uses DEB822 `.sources` format** instead of legacy one-line `.list` format ([#101](https://github.com/patrickjaja/claude-desktop-bin/issues/101))
+- `install.sh` creates `/etc/apt/sources.list.d/claude-desktop.sources` with structured `Types`/`URIs`/`Suites`/`Signed-By`/`Architectures` fields
+- **Migration:** re-running `install.sh` automatically removes the old `claude-desktop.list` to prevent duplicate APT entries
+- **Manual setup docs** (`packaging/apt/index.html`) updated to match
+- Compatible with all supported distros (Debian 11+, Ubuntu 22.04+) - DEB822 has been supported since APT 1.1
+
+### Promotional landing page
+
+- **New static landing page** (`site/index.html`) replaces the minimal APT setup guide at the gh-pages root
+- Single-file HTML/CSS/JS - no build step, no framework dependencies
+- Dark theme with violet accent, responsive design (mobile/tablet/desktop)
+- **UA-based distro detection:** hero terminal and install tabs auto-select the right commands based on visitor's OS
+- Sections: hero, tabbed quick-install (Arch/Ubuntu/Fedora/Nix/AppImage), 12-card feature grid, distro+arch compatibility matrix, session type table, Cowork Service (native vs KVM), footer with live badges
+- No screenshots included (upstream UI is copyrighted)
+- CI change: `build-and-release.yml` now copies `site/index.html` instead of `packaging/apt/index.html` to gh-pages root
+- **No impact on package repos** - `deb/`, `rpm/`, `badges/`, `install.sh`, `install-rpm.sh`, `gpg-key.asc` paths all untouched
+
+### Build improvements
+
+- **Smoke tests skipped by default** in all local build scripts (`build-local.sh`, `build-ubuntu-local.sh`, `build-fedora-local.sh`). Pass `--smoke-test` to opt in. CI is unaffected - smoke tests still run there automatically.
+- **Electron zip cached across Arch builds** - `build-local.sh` now uses `SRCDEST` to cache `electron-v*.zip` in `cache/`, avoiding ~120MB re-download on every build.
+- Removed redundant `--no-smoke-test` flag (default is now skip).
+- Updated docs: `CLAUDE.md`, `update-prompt.md`, issue template.
+
+### Update workflow distro-agnostic
+
+- **Issue template, update-prompt, CC prompt** now show build commands for all supported distros (Arch, Ubuntu/Debian, Fedora/RHEL) instead of hardcoding `./scripts/build-local.sh` (Arch-only)
+- **Stale extraction paths** replaced: `Claude-Setup-x64.exe` / Squirrel nupkg references updated to `Claude.msix` extraction in issue template, update-prompt.md, and themes/README.md
+
+---
+
+## 2026-05-19 - Enhanced version-check issue template with Linux compatibility checklist
+
+- **Version-check workflow** now creates comprehensive issues with:
+  - Copy-paste Claude Code update prompt (injected from `UPDATE-PROMPT-CC-INPUT-MANUAL.md`)
+  - Linux compatibility reference tables (5 session types, 7 distros/archs)
+  - Full update checklist with dedicated Linux compatibility analysis step
+  - Collapsible quick reference commands for platform gate diffs, flag audits
+- **New file:** `.github/issue-templates/new-version-body.md` - Markdown template with `{{UPSTREAM}}`, `{{RELEASED}}`, `{{REPO}}`, `{{CC_PROMPT}}` placeholders rendered at workflow runtime
+- **UPDATE-PROMPT-CC-INPUT-MANUAL.md** - converted code blocks to indented style (fence-safe for embedding)
+
+---
+
+## 2026-05-19 (v1.8089.0) - Upstream update, ion-dist upstreamed, 12 new flags, Chrome integration, sandbox dirs
+
+- **Version bump:** v1.7196.0 -> v1.8089.0
+- **4 patches refreshed** for new minified variable names:
+  - `enable_local_agent_mode.nim` - upstream added a compound `&&process.platform!=="win32"` check to the `quietPenguin` inner function (`A5i()`); made regex optional. Async merger terminator changed from `;` to `,` (comma-separated const); updated to match both.
+  - `fix_marketplace_linux.nim` - upstream changed scope normalization from a `push(...);continue` loop to a `return` expression. Added new regex for the return-style pattern, old push-style kept as fallback.
+  - `fix_tray_dbus.nim` - tray function name `i$A` contains `$` (regex metacharacter). Added `escapeRe()` helper; updated all dynamically-constructed regexes to escape `$`. Also updated listener pattern to handle `zf.on("menuBarEnabled",...)` prefix object.
+  - `fix_imagine_linux.nim` - added sub-patch C to force-enable `2204227020` (Visualize in CCD sessions). Total sub-patches: 2 -> 3.
+- **1 patch simplified (upstream change):**
+  - `fix_office_addin_linux.nim` - office-addin MCP server platform gate `(darwin||win32)&&louderPenguinEnabled` was **removed upstream**. Patches A (isEnabled) and B (init block) are no longer needed. Patch C (connected file detection) remains. Reduced from 3/3 to 1/1 expected patches.
+- **1 patch incorrectly removed** (restored in 2026-05-20 fix):
+  - `fix_ion_dist_linux.nim` - was removed claiming Anthropic upstreamed Linux support, but only the file manager label was upstreamed. `mountPath` linux key and platform ternary still need patching. See 2026-05-20 entry.
+- **1 new patch added:**
+  - `fix_sensitive_dirs_linux.nim` - adds Linux-specific sensitive directories to the sandbox protection array: `.local/share/keyrings` (GNOME/KDE credential storage), `.pki` (NSS certificate database), `.config/autostart` (XDG autostart entries). The upstream array had macOS and Windows entries but no Linux-specific ones.
+- **12 new GrowthBook flags force-enabled** for Linux (in `enable_local_agent_mode.nim` + `fix_imagine_linux.nim`):
+  - High priority: `1129419822` (ENABLE_TOOL_SEARCH auto), `2192324205` (tool use result formatting), `2800354941` (deterministic sorting), `4274871493` (plugin enabled state fetch)
+  - Medium priority: `2204227020` (Visualize in CCD sessions - in `fix_imagine_linux.nim`), `2976814254` (Claude Preview dev server), `2067027393` (canLaunchCodeSession), `3246569822` (canSaveSkill)
+  - Also enabled: `245679952` (suggestSkills default), `1496676413` (SSH remote MCP/plugin), `1824824999` (consolidate-memory v2), `2114777685` (cowork onboarding)
+- **Chrome browser integration improved** (`fix_browser_tools_linux.nim`, 3 new sub-patches):
+  - **Chrome user data dir detection** (`O2A` function) - returned `[]` on Linux, breaking extension detection and file watching. Added paths for Chrome (`~/.config/google-chrome`), Chromium (`~/.config/chromium`), Brave (`~/.config/BraveSoftware/Brave-Browser`), Vivaldi (`~/.config/vivaldi`), Opera (`~/.config/opera`). Edge excluded (no Linux version).
+  - **Chrome extension auto-install** (`vkr` function) - returned "Unsupported platform" error on non-darwin. Added Linux support: writes External Extensions JSON to both `~/.config/google-chrome` and `~/.config/chromium` directories.
+  - **Chrome DevTools opener** (`YOr` function) - had handlers for darwin (`open -a`) and win32 (`start chrome`) but none for Linux. Added `xdg-open "chrome://inspect"` handler.
+- **All other patches applied cleanly** without modification
+- **Function renames (minification changes):**
+  - `pw()`->`eD()` (static registry), `woA`->`UcA` (async merger), `DT()`->`Nb()` (production gate)
+  - `pt()`->`St()` (flag reader), `Cm()`->`AS()` (listener)
+  - `or`->`Lr` (darwin), `fn`->`Io` (win32), `OiA`->`pj` (darwin||win32)
+  - `QoA`->`NcA` (computer-use Set), `saA`->`C5` (supported constant)
+- **GrowthBook flags upstream:** 60 boolean (`St()`), 5 listeners (`AS()`). 7 new flags added, 8 removed.
+  - New upstream: `1129419822`, `1496676413`, `2049450122`, `2192324205`, `245679952`, `2800354941`, `4274871493`
+  - Removed upstream: `982691970`, `1802019210`, `2216480658`, `2860753854`, `3298006781`, `3858743149`, `3885610113`, `4019128077`
+  - New listener: `180602792` (midnightOwl prototype)
+- **Notable upstream changes:**
+  - Visualize (Imagine) MCP server now also enabled for CCD sessions (gated by `2204227020`), not just cowork
+  - Office Addin tools refactored: 5 tools reduced to 2 (`office_addin_run`, `office_addin_task`). Bridge architecture changed from MCP server pattern to listener/dispatcher. Platform gate removed.
+  - New `floatingPenguinEnabled` preference (config-only, not yet a feature flag in static registry)
+- **ion-dist SPA:** 86 MB total (was 100 MB), 652 JS chunks (was 632). File manager label upstreamed (shows "Show in file manager" on Linux), but `mountPath` linux key and platform ternary still need patching.
+- **Patch count:** 46 (was 45 - 1 restored + 1 added). All pass, JS syntax validated via `node --check`.
+
+---
+
+## 2026-05-16 - Fix cowork sandbox refs for v1.7196.1
 
 - **`fix_cowork_sandbox_refs.nim` sub-patch A updated** for Claude Desktop v1.7196.1 - upstream collapsed the bash tool description from a three-piece string concat into a single literal, breaking the existing regex. Adds a new pattern for the collapsed literal while keeping the old concat pattern as a fallback for v1.6608.x and v1.7196.0. Contributed by [@boommasterxd](https://github.com/boommasterxd) in [#95](https://github.com/patrickjaja/claude-desktop-bin/pull/95). Fixes [#94](https://github.com/patrickjaja/claude-desktop-bin/issues/94), [#93](https://github.com/patrickjaja/claude-desktop-bin/issues/93).
 

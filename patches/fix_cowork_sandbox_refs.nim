@@ -244,13 +244,21 @@ proc apply*(input: string): string =
   # bash path are the same, so this sentence is wrong (and the "above"
   # reference dangles since Patch F removes the mapping). Suppress in
   # native cowork mode.
+  # The gating var was `M` in earlier releases and `N` in v1.7196.1+;
+  # match with [\w$]+ to ride out future renames.
   block:
-    const anchor =
-      "+(M?\" Skill scripts can be run via bash using the VM path above.\":\"\")+"
-    if content.contains(anchor):
-      const repl =
-        "+((M&&(globalThis.__coworkKvmMode||globalThis.__coworkSandboxMode))?\" Skill scripts can be run via bash using the VM path above.\":\"\")+"
-      content = content.replace(anchor, repl)
+    let patG =
+      re"""\+\(([\w$]+)\?" Skill scripts can be run via bash using the VM path above\."\:""\)\+"""
+    let n = replaceFirstRe(
+      content,
+      patG,
+      proc(m: RegexMatch): string =
+        let gateVar = m.captures[0]
+        "+((" & gateVar &
+          "&&(globalThis.__coworkKvmMode||globalThis.__coworkSandboxMode))?\"" &
+          " Skill scripts can be run via bash using the VM path above.\":\"\")+",
+    )
+    if n == 1:
       echo "  [OK] G skill-scripts VM path: cowork-only"
       inc patchesApplied
     else:

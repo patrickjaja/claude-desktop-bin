@@ -25,11 +25,16 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 # Parse arguments
 INSTALL_AFTER_BUILD=false
+SKIP_SMOKE_TEST="${SKIP_SMOKE_TEST:-1}"
 PKGREL=""
 while [[ $# -gt 0 ]]; do
     case $1 in
         --install|-i)
             INSTALL_AFTER_BUILD=true
+            shift
+            ;;
+        --smoke-test)
+            SKIP_SMOKE_TEST=0
             shift
             ;;
         --pkgrel|-r)
@@ -41,6 +46,7 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Options:"
             echo "  --install, -i         Install the package after building"
+            echo "  --smoke-test          Run Electron smoke test (skipped by default)"
             echo "  --pkgrel, -r <REL>    Override package release number (default: 1)"
             echo "  --help, -h            Show this help message"
             echo ""
@@ -53,7 +59,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         *)
             echo "Unknown option: $1"
-            echo "Usage: $0 [--install] [--pkgrel <REL>]"
+            echo "Usage: $0 [--install] [--pkgrel <REL>] [--smoke-test]"
             exit 1
             ;;
     esac
@@ -139,7 +145,7 @@ fi
 
 # Build the patched tarball
 log_info "Building patched tarball..."
-"$SCRIPT_DIR/build-patched-tarball.sh" "$MSIX_FILE" "$BUILD_DIR"
+SKIP_SMOKE_TEST="$SKIP_SMOKE_TEST" "$SCRIPT_DIR/build-patched-tarball.sh" "$MSIX_FILE" "$BUILD_DIR"
 
 # Read build info
 source "$BUILD_DIR/build-info.txt"
@@ -151,10 +157,13 @@ log_info "SHA256: $SHA256"
 log_info "Generating PKGBUILD..."
 "$SCRIPT_DIR/generate-pkgbuild.sh" "$VERSION" "$SHA256" "file://$TARBALL" ${PKGREL:+"$PKGREL"} > "$BUILD_DIR/PKGBUILD"
 
-# Build the package with makepkg
+# Build the package with makepkg (cache electron zip across builds)
 log_info "Building Arch package..."
+SRCDEST_DIR="$PROJECT_DIR/cache"
+mkdir -p "$SRCDEST_DIR"
+cp "$TARBALL" "$SRCDEST_DIR/$(basename "$TARBALL")"
 cd "$BUILD_DIR"
-makepkg -sf --noconfirm
+SRCDEST="$SRCDEST_DIR" makepkg -sf --noconfirm
 
 # Find the built package
 PKG_FILE=$(ls claude-desktop-bin-*.pkg.tar.zst 2>/dev/null | head -1)

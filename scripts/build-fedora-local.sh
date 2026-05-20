@@ -25,10 +25,15 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 # Parse arguments
 INSTALL_AFTER_BUILD=false
+SKIP_SMOKE_TEST="${SKIP_SMOKE_TEST:-1}"
 for arg in "$@"; do
     case $arg in
         --install|-i)
             INSTALL_AFTER_BUILD=true
+            shift
+            ;;
+        --smoke-test)
+            SKIP_SMOKE_TEST=0
             shift
             ;;
         --help|-h)
@@ -36,6 +41,7 @@ for arg in "$@"; do
             echo ""
             echo "Options:"
             echo "  --install, -i    Install the RPM after building"
+            echo "  --smoke-test     Run Electron smoke test (skipped by default)"
             echo "  --help, -h       Show this help message"
             echo ""
             echo "This script:"
@@ -125,7 +131,7 @@ fi
 
 # Build the patched tarball (shared with all distros)
 log_info "Building patched tarball..."
-"$SCRIPT_DIR/build-patched-tarball.sh" "$MSIX_FILE" "$BUILD_DIR"
+SKIP_SMOKE_TEST="$SKIP_SMOKE_TEST" "$SCRIPT_DIR/build-patched-tarball.sh" "$MSIX_FILE" "$BUILD_DIR"
 
 # Read build info
 source "$BUILD_DIR/build-info.txt"

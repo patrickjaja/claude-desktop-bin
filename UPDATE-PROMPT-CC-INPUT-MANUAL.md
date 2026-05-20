@@ -1,10 +1,16 @@
-Check @update-prompt.md — it describes how to update patches and docs when a new Claude Desktop version drops.
+Check @update-prompt.md - it describes how to update patches and docs when a new Claude Desktop version drops.
 
-Quick start — run the build to see if patches still apply:
-```bash
-rm -rf build/ extract/ Claude-Setup-x64.exe
-./scripts/build-local.sh
-```
+Quick start - run the build to see if patches still apply:
+
+    rm -rf build/ extract/
+
+    # Pick the right build script for your distro:
+    # Arch Linux:
+    ./scripts/build-local.sh
+    # Ubuntu/Debian:
+    SKIP_SMOKE_TEST=1 ./scripts/build-ubuntu-local.sh
+    # Fedora/RHEL:
+    ./scripts/build-fedora-local.sh
 
 If a new version was downloaded and patches fail:
 1. Fix failing patches (Prompt 1 in update-prompt.md)

@@ -160,6 +160,13 @@ for js_file in "$WORK_DIR/app/app.asar.contents/.vite/build/"*.js; do
         SYNTAX_FAILED=true
     fi
 done
+for js_file in "$WORK_DIR/app/app.asar.contents/.vite/renderer/"*"/assets/"*.js; do
+    [ -f "$js_file" ] || continue
+    if ! node --check "$js_file" 2>/dev/null; then
+        log_error "Syntax error in $(basename "$js_file")"
+        SYNTAX_FAILED=true
+    fi
+done
 
 if [ "$SYNTAX_FAILED" = true ]; then
     log_error "JavaScript syntax validation FAILED - patched files have syntax errors"
@@ -279,9 +286,9 @@ if [ -d "$ION_DIST_DIR" ] && [ -x "$ION_DIST_PATCH" ]; then
         exit 1
     fi
 elif [ -d "$ION_DIST_DIR" ]; then
-    log_warn "ion-dist found but patch binary not available — skipping"
+    log_warn "ion-dist found but patch binary not available - skipping"
 else
-    log_warn "ion-dist not found in upstream resources — skipping"
+    log_warn "ion-dist not found in upstream resources - skipping"
 fi
 
 # Copy smol-bin VM image(s) — Desktop's startVM copies these from

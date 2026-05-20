@@ -22,7 +22,7 @@ proc apply*(input: string): string =
   let oldA = "\"VM service not running. The service failed to start.\""
   let newA =
     "(process.platform===\"linux\"" & "?\"Cowork requires claude-cowork-service. " &
-    "Install it from github.com/patrickjaja/claude-cowork-service, " &
+    "Install it from https://github.com/patrickjaja/claude-cowork-service, " &
     "then restart Claude Desktop.\"" &
     ":\"VM service not running. The service failed to start.\")"
 
@@ -38,8 +38,8 @@ proc apply*(input: string): string =
   let newB =
     "throw new Error(process.platform===\"linux\"" & "?\"Cowork service not responding. " &
     "Make sure claude-cowork-service is running " &
-    "(github.com/patrickjaja/claude-cowork-service), " & "then restart Claude Desktop.\"" &
-    ":\"VM service not running.\")"
+    "(https://github.com/patrickjaja/claude-cowork-service), " &
+    "then restart Claude Desktop.\"" & ":\"VM service not running.\")"
 
   if oldB in result:
     result = result.replaceOnce(oldB, newB)

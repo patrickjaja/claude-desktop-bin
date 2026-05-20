@@ -26,9 +26,14 @@ sudo apt install claude-desktop-bin</pre>
 curl -fsSL https://patrickjaja.github.io/claude-desktop-bin/gpg-key.asc \
   | sudo gpg --dearmor -o /etc/apt/keyrings/claude-desktop.gpg
 
-# Add repository
-echo "deb [signed-by=/etc/apt/keyrings/claude-desktop.gpg arch=$(dpkg --print-architecture)] https://patrickjaja.github.io/claude-desktop-bin/deb/ ./" \
-  | sudo tee /etc/apt/sources.list.d/claude-desktop.list
+# Add repository (DEB822 format)
+sudo tee /etc/apt/sources.list.d/claude-desktop.sources &lt;&lt;EOF
+Types: deb
+URIs: https://patrickjaja.github.io/claude-desktop-bin/deb/
+Suites: ./
+Signed-By: /etc/apt/keyrings/claude-desktop.gpg
+Architectures: $(dpkg --print-architecture)
+EOF
 
 # Install
 sudo apt update &amp;&amp; sudo apt install claude-desktop-bin</pre>
