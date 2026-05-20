@@ -16,6 +16,10 @@
 #                            - Skip the systemd --user --scope wrapper (for
 #                              sandboxes without access to the systemd private
 #                              socket; portal app identity may not resolve)
+#   CLAUDE_NATIVE_TITLEBAR=1 - Restore the native titlebar on Linux
+#                              (frame:true + titleBarStyle:"default"). Default
+#                              is the integrated titlebar with overlay. Also
+#                              via --native-titlebar.
 
 set -euo pipefail
 
@@ -52,6 +56,7 @@ fi
 # pass-through:
 #   --profile=NAME / --profile NAME: sets CLAUDE_PROFILE
 #   --no-systemd-scope:              sets CLAUDE_DISABLE_SYSTEMD_SCOPE=1
+#   --native-titlebar:               sets CLAUDE_NATIVE_TITLEBAR=1
 _filtered_args=()
 while (( $# > 0 )); do
     case "$1" in
@@ -70,6 +75,10 @@ while (( $# > 0 )); do
             ;;
         --no-systemd-scope)
             CLAUDE_DISABLE_SYSTEMD_SCOPE=1
+            shift
+            ;;
+        --native-titlebar)
+            export CLAUDE_NATIVE_TITLEBAR=1
             shift
             ;;
         *)
@@ -651,6 +660,11 @@ _diagnose() {
     echo '--- Session ---'
     echo "XDG_SESSION_TYPE = ${XDG_SESSION_TYPE:-(unset)}"
     echo "XDG_CURRENT_DESKTOP = ${XDG_CURRENT_DESKTOP:-(unset)}"
+    if [[ "${CLAUDE_NATIVE_TITLEBAR:-}" == '1' ]]; then
+        echo "Titlebar = native (CLAUDE_NATIVE_TITLEBAR=1)"
+    else
+        echo "Titlebar = integrated (default)"
+    fi
     echo "WAYLAND_DISPLAY = ${WAYLAND_DISPLAY:-(unset)}"
     echo "DISPLAY = ${DISPLAY:-(unset)}"
     echo
@@ -792,6 +806,9 @@ Options:
   --delete-profile=NAME     Remove the entry points for profile NAME. User data
                             (~/.config/Claude-NAME, ~/.claude-NAME) is preserved.
   --list-profiles           List installed profiles.
+  --native-titlebar          Restore the native window frame instead of the
+                            integrated (overlay) titlebar. Same as setting
+                            CLAUDE_NATIVE_TITLEBAR=1.
   --no-systemd-scope        Skip the systemd --user --scope wrapper for this
                             launch. Use in sandboxes (bwrap, distrobox, ...)
                             where the systemd private socket is unreachable.
@@ -802,6 +819,7 @@ Environment variables:
   CLAUDE_PROFILE=NAME       Same effect as --profile=NAME. Inherited by Electron
                             and the Claude Code child process so per-profile
                             sockets and config dirs are picked up automatically.
+  CLAUDE_NATIVE_TITLEBAR=1  Restore the native window frame (same as --native-titlebar).
   CLAUDE_USE_XWAYLAND=1     Force XWayland instead of native Wayland.
   CLAUDE_MENU_BAR=visible   Menu bar mode: auto (default), visible, hidden.
   CLAUDE_DISABLE_GPU=1      Disable GPU compositing (white screen fix).
@@ -965,8 +983,16 @@ fi
 
 ELECTRON_ARGS=()
 
-# Disable CustomTitlebar for better Linux integration
-ELECTRON_ARGS+=('--disable-features=CustomTitlebar')
+# Titlebar mode: integrated (default) vs native (opt-out).
+# In native mode, disable Chromium's CustomTitlebar feature so Electron
+# renders the system frame. In integrated mode, keep it enabled so
+# titleBarOverlay works.
+if [[ "${CLAUDE_NATIVE_TITLEBAR:-}" == '1' ]]; then
+    ELECTRON_ARGS+=('--disable-features=CustomTitlebar')
+    log 'Titlebar: native (CLAUDE_NATIVE_TITLEBAR=1)'
+else
+    log 'Titlebar: integrated (default)'
+fi
 
 # Force ARGB visuals so `transparent:true` popups (Quick Entry) render their
 # outer window transparently on compositors that wouldn't otherwise expose
@@ -985,7 +1011,11 @@ case $platform_mode in
     wayland)
         log 'Using native Wayland backend'
         ELECTRON_ARGS+=('--no-sandbox')
-        ELECTRON_ARGS+=('--enable-features=UseOzonePlatform,WaylandWindowDecorations,GlobalShortcutsPortal')
+        if [[ "${CLAUDE_NATIVE_TITLEBAR:-}" == '1' ]]; then
+            ELECTRON_ARGS+=('--enable-features=UseOzonePlatform,WaylandWindowDecorations,GlobalShortcutsPortal')
+        else
+            ELECTRON_ARGS+=('--enable-features=UseOzonePlatform,GlobalShortcutsPortal')
+        fi
         ELECTRON_ARGS+=('--ozone-platform=wayland')
         ELECTRON_ARGS+=('--enable-wayland-ime')
         ELECTRON_ARGS+=('--wayland-text-input-version=3')
@@ -1024,7 +1054,17 @@ esac
 # ---------------------------------------------------------------------------
 
 export ELECTRON_FORCE_IS_PACKAGED=true
-export ELECTRON_USE_SYSTEM_TITLE_BAR=1
+
+# In native titlebar mode, tell Electron to use the system frame.
+# In integrated mode (default), do NOT set this so titleBarOverlay works.
+if [[ "${CLAUDE_NATIVE_TITLEBAR:-}" == '1' ]]; then
+    export ELECTRON_USE_SYSTEM_TITLE_BAR=1
+fi
+
+# Pass through CLAUDE_NATIVE_TITLEBAR if set (env var, not just --flag)
+if [[ -n "${CLAUDE_NATIVE_TITLEBAR:-}" ]]; then
+    export CLAUDE_NATIVE_TITLEBAR
+fi
 
 # Pass through CLAUDE_MENU_BAR if set (auto/visible/hidden)
 if [[ -n "${CLAUDE_MENU_BAR:-}" ]]; then

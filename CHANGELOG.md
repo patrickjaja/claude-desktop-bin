@@ -2,6 +2,12 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-05-20 - Integrated titlebar on Linux by default
+
+- **Linux now uses the Windows-style integrated titlebar** (`frame:false` + `titleBarOverlay` themed via Anthropic's own background helper, theme-aware) instead of the native frame. Opt out with `CLAUDE_NATIVE_TITLEBAR=1` or the launcher flag `--native-titlebar`. Quick Entry is unaffected.
+- New patches: `fix_native_frame.nim` (main process, conditional window options + theme-update gate + opaque overlay color in integrated mode) and `fix_native_frame_renderer.nim` (collapses the upstream `nc-drag` div in `MainWindowPage-*.js` so it no longer absorbs pointer events over the UI buttons).
+- Contributed by [@boommasterxd](https://github.com/boommasterxd) ([#100](https://github.com/patrickjaja/claude-desktop-bin/pull/100)).
+
 ## 2026-05-20 (v1.8089.1) - Point release, all patches clean
 
 - **Version bump:** v1.8089.0 -> v1.8089.1

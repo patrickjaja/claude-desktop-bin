@@ -1,110 +1,128 @@
 # @patch-target: app.asar.contents/.vite/build/index.js
 # @patch-type: nim
-# Patch Claude Desktop to use native window frames on Linux.
-# Steps: preserve Quick Entry frame, replace frame:!1, titleBarStyle, autoHideMenuBar, icon.
+#
+# Make Claude Desktop use the integrated (Windows-style) titlebar on Linux
+# by default: min/max/close are drawn as an overlay inside the web content
+# and the tab strip / menu / nav buttons share that bar. Upstream's Linux
+# build instead opens a native window because the titleBarOverlay property is
+# gated on a win32-only boolean, and the helper that pushes theme updates is
+# gated the same way.
+#
+# Three patches together do the job:
+#   1. Open the main BrowserWindow with frame:false + a real titleBarOverlay
+#      style object on Linux (plus autoHideMenuBar + icon).
+#   2. Open the setTitleBarOverlay theme-update gate for Linux so the
+#      overlay colors follow Anthropic's `Hb` flag and the OS theme.
+#   3. Replace a transparent placeholder ("#00000000") with Anthropic's
+#      opaque window background in Linux integrated mode. Electron on
+#      Wayland silently substitutes a grey strip for that transparent
+#      value, so without this swap the overlay looks like a grey block.
+#
+# All three behaviors gate on CLAUDE_NATIVE_TITLEBAR: unset (or anything
+# other than "1") = integrated mode; "1" = restore the GTK frame. The
+# launcher's `--native-titlebar` flag sets the env var.
+#
+# Anthropic's bundle is minified and renames identifiers between releases.
+# We capture them (background helper, Electron alias, platform gate, and
+# transparent placeholder) at patch time via [\w$]+ wildcards so the
+# generated code references the current names. We fail loudly if any
+# capture is missing.
+#
+# Quick Entry's BrowserWindow is matched by `transparent:!0,frame:!1` and
+# has no titleBarOverlay -- none of the patterns below touch it.
 
 import std/[os, strformat, strutils]
 import regex
 
+const ICON = "/usr/share/icons/hicolor/256x256/apps/claude-desktop.png"
+const LINUX_NATIVE =
+  "process.platform===\"linux\"&&process.env.CLAUDE_NATIVE_TITLEBAR===\"1\""
+const LINUX_INTEGRATED =
+  "process.platform===\"linux\"&&process.env.CLAUDE_NATIVE_TITLEBAR!==\"1\""
+
+proc capture(s: string, pat: Regex2, name: string): string =
+  ## Capture group 1 of `pat` from `s`, or raise with `name` in the message.
+  var m: RegexMatch2
+  if not s.find(pat, m):
+    raise newException(ValueError, "fix_native_frame: " & name & " not found")
+  s[m.group(0)]
+
 proc apply*(input: string): string =
+  if "CLAUDE_NATIVE_TITLEBAR" in input:
+    echo "  [INFO] already patched"
+    return input
   result = input
 
-  # Step 1: Check if transparent window pattern exists (Quick Entry)
-  let quickEntryPattern = "transparent:!0,frame:!1"
-  let hasQuickEntry = quickEntryPattern in result
-  if hasQuickEntry:
-    echo "  [OK] Quick Entry pattern found (will preserve)"
-  else:
-    echo "  [INFO] Quick Entry pattern not found (may be already patched)"
-
-  # Step 2: Temporarily mark the Quick Entry pattern
-  let marker = "__QUICK_ENTRY_FRAME_PRESERVE__"
-  if hasQuickEntry:
-    result = result.replace(quickEntryPattern, "transparent:!0," & marker)
-
-  # Step 3: Replace frame:!1 (false) with frame:true for main window
-  let framePat = re2"frame\s*:\s*!1"
-  var countFrame = 0
-  result = result.replace(
-    framePat,
-    proc(m: RegexMatch2, s: string): string =
-      inc countFrame
-      "frame:true",
+  # Anthropic identifiers (minified, renamed between releases):
+  #   bgFn      e.g. "G$" -- window background color, called as G$().
+  #   electron  e.g. "cA" -- alias for require("electron"), used for
+  #                          nativeTheme.shouldUseDarkColors.
+  let bgFn = result.capture(
+    re2"""backgroundColor:([\w$]+)\(\),opacity:""", "backgroundColor function"
   )
-  if countFrame > 0:
-    echo &"  [OK] frame:!1 -> frame:true: {countFrame} match(es)"
-  else:
-    echo "  [INFO] No frame:!1 found outside Quick Entry (main window uses native frames by default)"
-
-  # Step 4: Restore Quick Entry frame setting
-  if hasQuickEntry:
-    result = result.replace("transparent:!0," & marker, quickEntryPattern)
-    echo "  [OK] Restored Quick Entry frame:!1 (transparent)"
-
-  # Step 5: Replace titleBarStyle:"hidden" with platform-conditional for main window
-  let mainTitlebarPat = re2"titleBarStyle:""hidden"",(titleBarOverlay:\w+)"
-  var countTitlebar = 0
-  result = result.replace(
-    mainTitlebarPat,
-    proc(m: RegexMatch2, s: string): string =
-      inc countTitlebar
-      let overlay = s[m.group(0)]
-      "titleBarStyle:process.platform===\"linux\"?\"default\":\"hidden\"," & overlay,
+  let electron = result.capture(
+    re2"""([\w$]+)\.nativeTheme\.shouldUseDarkColors""", "electron alias"
   )
-  if countTitlebar > 0:
-    echo &"  [OK] titleBarStyle:\"hidden\" -> platform-conditional: {countTitlebar} match(es)"
-  else:
-    if "titleBarStyle:process.platform===\"linux\"?\"default\":\"hidden\"" in result:
-      echo "  [INFO] titleBarStyle already patched"
-    else:
-      echo "  [FAIL] titleBarStyle:\"hidden\" pattern not found near titleBarOverlay"
-      raise
-        newException(ValueError, "fix_native_frame: titleBarStyle pattern not found")
 
-  # Step 6: Add autoHideMenuBar:true for Linux
-  let autohidePat =
-    re2"(titleBarStyle:process\.platform===""linux""\?""default"":""hidden""),(titleBarOverlay:\w+)"
-  var countAutohide = 0
+  # Patch 1: main BrowserWindow options. We splice five runtime-conditional
+  # options into the existing comma-list right after titleBarOverlay:
+  #   titleBarStyle:    "default" on Linux opt-out, "hidden" otherwise.
+  #   titleBarOverlay:  Anthropic-themed style object on Linux integrated,
+  #                     upstream var (true on win32, false elsewhere) otherwise.
+  #   frame:            false on Linux integrated, true otherwise.
+  #   autoHideMenuBar:  true on Linux (Alt brings the GTK menu bar back).
+  #   icon:             Linux PNG path on Linux, undefined elsewhere.
+  let overlayStyle =
+    "{color:" & bgFn & "(),symbolColor:" & electron &
+    ".nativeTheme.shouldUseDarkColors?\"#fff\":\"#000\",height:36}"
+  var n = 0
   result = result.replace(
-    autohidePat,
+    re2"""titleBarStyle:"hidden",titleBarOverlay:([\w$]+)""",
     proc(m: RegexMatch2, s: string): string =
-      inc countAutohide
-      let titlebar = s[m.group(0)]
-      let overlay = s[m.group(1)]
-      titlebar & ",autoHideMenuBar:process.platform===\"linux\"," & overlay,
+      inc n
+      "titleBarStyle:" & LINUX_NATIVE & "?\"default\":\"hidden\"," & "titleBarOverlay:(" &
+        LINUX_INTEGRATED & ")?" & overlayStyle & ":" & s[m.group(0)] & ",frame:!(" &
+        LINUX_INTEGRATED & ")," & "autoHideMenuBar:process.platform===\"linux\"," &
+        "icon:process.platform===\"linux\"?\"" & ICON & "\":void 0",
   )
-  if countAutohide > 0:
-    echo &"  [OK] autoHideMenuBar added: {countAutohide} match(es)"
-  else:
-    if "autoHideMenuBar:process.platform===\"linux\"" in result:
-      echo "  [INFO] autoHideMenuBar already patched"
-    else:
-      echo "  [FAIL] autoHideMenuBar pattern not found"
-      raise
-        newException(ValueError, "fix_native_frame: autoHideMenuBar pattern not found")
+  if n != 1:
+    raise newException(ValueError, &"main window pattern: {n}/1")
+  echo &"  [OK] main window options: {n}"
 
-  # Step 7: Add window icon for Linux
-  let iconPat =
-    re2"(autoHideMenuBar:process\.platform===""linux""),(titleBarOverlay:\w+)"
-  var countIcon = 0
+  # Patch 2: setTitleBarOverlay theme-update gate. Upstream guards the
+  # forEach-all-windows call with a win32-only boolean (e.g. `Io`). We OR
+  # in Linux integrated mode so the overlay receives theme updates there too.
+  n = 0
   result = result.replace(
-    iconPat,
+    re2"""\b([\w$]+)&&([\w$]+)\.BrowserWindow\.getAllWindows\(\)\.forEach""",
     proc(m: RegexMatch2, s: string): string =
-      inc countIcon
-      let autohide = s[m.group(0)]
-      let overlay = s[m.group(1)]
-      autohide &
-        ",icon:process.platform===\"linux\"?\"/usr/share/icons/hicolor/256x256/apps/claude-desktop.png\":void 0," &
-        overlay,
+      inc n
+      let platformGate = s[m.group(0)]
+      let electronVar = s[m.group(1)]
+      "(" & platformGate & "||(" & LINUX_INTEGRATED & "))&&" & electronVar &
+        ".BrowserWindow.getAllWindows().forEach",
   )
-  if countIcon > 0:
-    echo &"  [OK] window icon added: {countIcon} match(es)"
-  else:
-    if "icon:process.platform===\"linux\"" in result:
-      echo "  [INFO] window icon already patched"
-    else:
-      echo "  [FAIL] window icon pattern not found"
-      raise newException(ValueError, "fix_native_frame: window icon pattern not found")
+  if n != 1:
+    raise newException(ValueError, &"setTitleBarOverlay gate: {n}/1")
+  echo &"  [OK] setTitleBarOverlay gate: {n}"
+
+  # Patch 3: opaque-color swap inside the helper that builds the overlay
+  # style. The non-Hb branch uses a transparent placeholder ("#00000000"),
+  # which Electron on Linux Wayland treats as "use default" and paints as
+  # a grey strip. Swap it for bgFn() in Linux integrated mode so the
+  # overlay matches the window background. Two occurrences: one per theme.
+  n = 0
+  result = result.replace(
+    re2"""(\{color:[\w$]+\?"#[0-9a-fA-F]+":)([\w$]+)(,symbolColor:)""",
+    proc(m: RegexMatch2, s: string): string =
+      inc n
+      let transparentVar = s[m.group(1)]
+      s[m.group(0)] & "(" & LINUX_INTEGRATED & ")?" & bgFn & "():" & transparentVar &
+        s[m.group(2)],
+  )
+  if n != 2:
+    raise newException(ValueError, &"T8 transparent placeholder: {n}/2")
+  echo &"  [OK] T8 transparent -> bgFn() in Linux integrated mode: {n}"
 
 when isMainModule:
   if paramCount() != 1:
@@ -112,14 +130,11 @@ when isMainModule:
     quit(1)
   let file = paramStr(1)
   echo "=== Patch: fix_native_frame ==="
-  echo &"  Target: {file}"
-  if not fileExists(file):
-    echo &"  [FAIL] File not found: {file}"
-    quit(1)
-  let input = readFile(file)
-  let output = apply(input)
-  if output != input:
-    writeFile(file, output)
-    echo "  [PASS] Native frame patched successfully"
+  echo "  Target: " & file
+  let orig = readFile(file)
+  let patched = apply(orig)
+  if patched != orig:
+    writeFile(file, patched)
+    echo "  [PASS] native frame patched"
   else:
-    echo "  [PASS] No changes needed (main window already uses native frames)"
+    echo "  [PASS] no changes needed"
