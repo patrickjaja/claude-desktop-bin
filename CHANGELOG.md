@@ -2,6 +2,19 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-05-20 (v1.8089.1) - Point release, all patches clean
+
+- **Version bump:** v1.8089.0 -> v1.8089.1
+- **All patches applied cleanly** - zero failures, no regex changes needed
+- **New upstream: musl/glibc detection** (`bKi()` function) - Linux improvement: properly detects musl vs glibc runtime for `claude-agent-sdk` binary selection
+- **New upstream: `getRunningLocalSessions` IPC handler** - auto-updater checks for running cowork/dispatch sessions before applying updates
+- **New upstream strings:** OIDC federation env vars (`ANTHROPIC_IDENTITY_TOKEN`, `ANTHROPIC_FEDERATION_RULE_ID`, etc.), device attestation statuses, "claude-mythos-preview" model reference, `CLAUDE_CODE_USE_COWORK_PLUGINS` env var, `ccRemoteControlDefaultEnabled` preference
+- **ion-dist SPA:** code unchanged from v1.8089.0 - only change is removal of 704 `.zst` compressed file variants
+- **sqlite-worker removed** from upstream build
+- **Renderer assets deduplicated** (build tooling cleanup)
+- **Feature flags:** identical to v1.8089.0 - same 25 features, same function names (`eD`, `UcA`, `Nb`, `St`, `AS`), same 60 boolean + 5 listener GrowthBook flags
+- **No new platform gates** blocking Linux
+
 ## 2026-05-19 - Enhanced version-check issue template with Linux compatibility checklist
 
 - **Version-check workflow** now creates comprehensive issues with:

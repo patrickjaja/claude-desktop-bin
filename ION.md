@@ -1,6 +1,6 @@
 # ion-dist Baseline - Third-Party Inference SPA
 
-**Last verified:** 2026-05-19 against v1.8089.0
+**Last verified:** 2026-05-20 against v1.8089.0/v1.8089.1 (code identical; v1.8089.1 removed 704 .zst compressed file variants)
 
 The `ion-dist/` directory is a standalone React SPA bundled inside `locales/ion-dist/`. It powers the **Configure Third-Party Inference** UI (Developer menu). Served by the Electron main process via the `app://` protocol handler.
 
