@@ -688,6 +688,7 @@ The `Created profile` output tells you which path was taken. Sibling files in th
 | `CLAUDE_DEV_TOOLS` | `detach` | Open Chromium DevTools on launch |
 | `CLAUDE_ELECTRON` | path | Override Electron binary path |
 | `CLAUDE_APP_ASAR` | path | Override app.asar path |
+| `CLAUDE_NATIVE_TITLEBAR` | `1` | Restore the native window frame (default: integrated titlebar with overlay, matching Windows/macOS). Equivalent to `--native-titlebar`. See [#100](https://github.com/patrickjaja/claude-desktop-bin/pull/100) |
 | `CLAUDE_DISABLE_SYSTEMD_SCOPE` | `1` | Skip the `systemd-run --user --scope` wrapper. Use in sandboxes (bwrap, distrobox, ...) where the systemd private socket is unreachable. Equivalent to the `--no-systemd-scope` CLI flag. See [#89](https://github.com/patrickjaja/claude-desktop-bin/issues/89) |
 | `ELECTRON_ENABLE_LOGGING` | `1` | Log Electron main process to stderr |
 

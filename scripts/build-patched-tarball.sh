@@ -160,6 +160,13 @@ for js_file in "$WORK_DIR/app/app.asar.contents/.vite/build/"*.js; do
         SYNTAX_FAILED=true
     fi
 done
+for js_file in "$WORK_DIR/app/app.asar.contents/.vite/renderer/"*"/assets/"*.js; do
+    [ -f "$js_file" ] || continue
+    if ! node --check "$js_file" 2>/dev/null; then
+        log_error "Syntax error in $(basename "$js_file")"
+        SYNTAX_FAILED=true
+    fi
+done
 
 if [ "$SYNTAX_FAILED" = true ]; then
     log_error "JavaScript syntax validation FAILED - patched files have syntax errors"
