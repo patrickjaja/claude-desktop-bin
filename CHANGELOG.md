@@ -2,6 +2,12 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-05-20 - Cowork graceful degradation when service is absent
+
+- **Cowork preamble** now detects socket availability at startup and logs a helpful message with install link when the cowork service is not running.
+- **Event subscription guard** (Patch H): skip `createConnection` call when the cowork socket is absent, with a lazy 60s retry that auto-connects once the service appears.
+- **Error message URLs** now include full `https://` prefix for clickability.
+
 ## 2026-05-20 - Skip smoke tests locally by default, cache Electron zip
 
 - **Smoke tests skipped by default** in all local build scripts (`build-local.sh`, `build-ubuntu-local.sh`, `build-fedora-local.sh`). Pass `--smoke-test` to opt in. CI is unaffected - smoke tests still run there automatically.
