@@ -12,6 +12,11 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 - **New file:** `.github/issue-templates/new-version-body.md` - Markdown template with `{{UPSTREAM}}`, `{{RELEASED}}`, `{{REPO}}`, `{{CC_PROMPT}}` placeholders rendered at workflow runtime
 - **UPDATE-PROMPT-CC-INPUT-MANUAL.md** - converted code blocks to indented style (fence-safe for embedding)
 
+## 2026-05-20 - Make update workflow distro-agnostic
+
+- **Issue template, update-prompt, CC prompt** now show build commands for all supported distros (Arch, Ubuntu/Debian, Fedora/RHEL) instead of hardcoding `./scripts/build-local.sh` (Arch-only)
+- **Stale extraction paths** replaced: `Claude-Setup-x64.exe` / Squirrel nupkg references updated to `Claude.msix` extraction in issue template, update-prompt.md, and themes/README.md
+
 ## 2026-05-20 - Restore fix_ion_dist_linux patch (incorrectly removed)
 
 - **`fix_ion_dist_linux.nim` restored** - the v1.8089.0 update incorrectly claimed Anthropic upstreamed Linux support for the ion-dist 3P config SPA. Verification against the **unpatched** MSIX shows: only the file manager label ("Show in file manager") was upstreamed. The `mountPath` object still lacks a `linux` key, and the platform ternary still falls back to the macOS path on Linux. Both sub-patches are still needed.

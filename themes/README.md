@@ -100,11 +100,10 @@ To inspect the actual HTML structure and CSS classes used by each window:
 ### 1. Extract the app bundle
 
 ```bash
-# Place Claude-Setup-x64.exe in the project root, then:
+# Place Claude.msix in the project root, then:
 mkdir -p /tmp/claude-inspect
-7z x -o/tmp/claude-inspect Claude-Setup-x64.exe -y
-7z x -o/tmp/claude-inspect/nupkg /tmp/claude-inspect/AnthropicClaude-*.nupkg -y
-asar extract /tmp/claude-inspect/nupkg/lib/net45/resources/app.asar /tmp/claude-inspect/app
+7z x -o/tmp/claude-inspect Claude.msix -y
+asar extract /tmp/claude-inspect/app/resources/app.asar /tmp/claude-inspect/app
 ```
 
 ### 2. Inspect the HTML files
