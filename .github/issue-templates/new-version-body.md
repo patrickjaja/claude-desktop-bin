@@ -55,7 +55,7 @@ All upstream changes must be validated against these supported targets:
 ### Step 1: Build & Fix Patches
 - [ ] Run the build for your distro:
   - **Arch Linux:** `./scripts/build-local.sh`
-  - **Ubuntu/Debian:** `SKIP_SMOKE_TEST=1 ./scripts/build-ubuntu-local.sh`
+  - **Ubuntu/Debian:** `./scripts/build-ubuntu-local.sh`
   - **Fedora/RHEL:** `./scripts/build-fedora-local.sh`
 - [ ] If patches fail, extract new app for analysis (see Quick Reference below)
 - [ ] Fix each failing patch in `patches/*.nim` - use `[\w$]+` for minified variable names

@@ -25,15 +25,15 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 # Parse arguments
 INSTALL_AFTER_BUILD=false
-SKIP_SMOKE_TEST=0
+SKIP_SMOKE_TEST="${SKIP_SMOKE_TEST:-1}"
 for arg in "$@"; do
     case $arg in
         --install|-i)
             INSTALL_AFTER_BUILD=true
             shift
             ;;
-        --no-smoke-test)
-            SKIP_SMOKE_TEST=1
+        --smoke-test)
+            SKIP_SMOKE_TEST=0
             shift
             ;;
         --help|-h)
@@ -41,7 +41,7 @@ for arg in "$@"; do
             echo ""
             echo "Options:"
             echo "  --install, -i    Install the .deb after building"
-            echo "  --no-smoke-test  Skip the Electron smoke test"
+            echo "  --smoke-test     Run Electron smoke test (skipped by default)"
             echo "  --help, -h       Show this help message"
             echo ""
             echo "This script:"

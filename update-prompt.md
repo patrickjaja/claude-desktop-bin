@@ -54,7 +54,7 @@ Copy-paste this into Claude Code when a new version is available:
 >    # Arch Linux:
 >    ./scripts/build-local.sh
 >    # Ubuntu/Debian:
->    SKIP_SMOKE_TEST=1 ./scripts/build-ubuntu-local.sh
+>    ./scripts/build-ubuntu-local.sh
 >    # Fedora/RHEL:
 >    ./scripts/build-fedora-local.sh
 >    ```

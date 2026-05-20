@@ -79,12 +79,12 @@ Quick start:
 
 ```bash
 # this is how you build it on ubuntu
-SKIP_SMOKE_TEST=1 ./scripts/build-ubuntu-local.sh
+./scripts/build-ubuntu-local.sh
 ```
 
-Flags can be combined (e.g. `--no-smoke-test --install`). Setting
-`SKIP_SMOKE_TEST=1` in the environment also skips the smoke test when
-invoking `scripts/build-patched-tarball.sh` directly.
+All local build scripts skip the Electron smoke test by default. Pass
+`--smoke-test` to opt in, or set `SKIP_SMOKE_TEST=0` in the environment.
+CI runs the smoke test automatically.
 
 See also: [validate_and_fix_claude-setup-x64.md](validate_and_fix_claude-setup-x64.md) for step-by-step patch debugging, and [UPDATE-PROMPT-CC-INPUT-MANUAL.md](UPDATE-PROMPT-CC-INPUT-MANUAL.md) for the one-liner to kick off the process.
 

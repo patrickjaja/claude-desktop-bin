@@ -2,6 +2,13 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-05-20 - Skip smoke tests locally by default, cache Electron zip
+
+- **Smoke tests skipped by default** in all local build scripts (`build-local.sh`, `build-ubuntu-local.sh`, `build-fedora-local.sh`). Pass `--smoke-test` to opt in. CI is unaffected - smoke tests still run there automatically.
+- **Electron zip cached across Arch builds** - `build-local.sh` now uses `SRCDEST` to cache `electron-v*.zip` in `cache/`, avoiding ~120MB re-download on every build.
+- Removed redundant `--no-smoke-test` flag (default is now skip).
+- Updated docs: `CLAUDE.md`, `update-prompt.md`, issue template.
+
 ## 2026-05-20 - Add promotional landing page for GitHub Pages
 
 - **New static landing page** (`site/index.html`) replaces the minimal APT setup guide at the gh-pages root
