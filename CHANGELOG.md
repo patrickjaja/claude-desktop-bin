@@ -12,6 +12,13 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 - **New file:** `.github/issue-templates/new-version-body.md` - Markdown template with `{{UPSTREAM}}`, `{{RELEASED}}`, `{{REPO}}`, `{{CC_PROMPT}}` placeholders rendered at workflow runtime
 - **UPDATE-PROMPT-CC-INPUT-MANUAL.md** - converted code blocks to indented style (fence-safe for embedding)
 
+## 2026-05-20 - Restore fix_ion_dist_linux patch (incorrectly removed)
+
+- **`fix_ion_dist_linux.nim` restored** - the v1.8089.0 update incorrectly claimed Anthropic upstreamed Linux support for the ion-dist 3P config SPA. Verification against the **unpatched** MSIX shows: only the file manager label ("Show in file manager") was upstreamed. The `mountPath` object still lacks a `linux` key, and the platform ternary still falls back to the macOS path on Linux. Both sub-patches are still needed.
+- **Regex updated** for v1.8089.0 minified variable names: ternary pattern now uses `[\w$.]+ ` wildcards instead of hardcoded `r`/`t` variable names (v1.8089.0 uses `C===V.Win32?Ve.mountPath.win:Ve.mountPath.mac`).
+
+---
+
 ## 2026-05-19 (v1.8089.0) - Upstream update, ion-dist upstreamed, 12 new flags, Chrome integration, sandbox dirs
 
 - **Version bump:** v1.7196.0 -> v1.8089.0
@@ -22,8 +29,8 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
   - `fix_imagine_linux.nim` - added sub-patch C to force-enable `2204227020` (Visualize in CCD sessions). Total sub-patches: 2 -> 3.
 - **1 patch simplified (upstream change):**
   - `fix_office_addin_linux.nim` - office-addin MCP server platform gate `(darwin||win32)&&louderPenguinEnabled` was **removed upstream**. Patches A (isEnabled) and B (init block) are no longer needed. Patch C (connected file detection) remains. Reduced from 3/3 to 1/1 expected patches.
-- **1 patch removed (upstreamed by Anthropic):**
-  - `fix_ion_dist_linux.nim` - Anthropic added native Linux support to the ion-dist 3P config SPA: `mountPath` now includes `linux` key, platform ternary handles Linux, file manager label shows "Show in file manager". Patch and build script invocation removed entirely.
+- **1 patch incorrectly removed** (restored in 2026-05-20 fix):
+  - `fix_ion_dist_linux.nim` - was removed claiming Anthropic upstreamed Linux support, but only the file manager label was upstreamed. `mountPath` linux key and platform ternary still need patching. See 2026-05-20 entry.
 - **1 new patch added:**
   - `fix_sensitive_dirs_linux.nim` - adds Linux-specific sensitive directories to the sandbox protection array: `.local/share/keyrings` (GNOME/KDE credential storage), `.pki` (NSS certificate database), `.config/autostart` (XDG autostart entries). The upstream array had macOS and Windows entries but no Linux-specific ones.
 - **12 new GrowthBook flags force-enabled** for Linux (in `enable_local_agent_mode.nim` + `fix_imagine_linux.nim`):
@@ -48,8 +55,8 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
   - Visualize (Imagine) MCP server now also enabled for CCD sessions (gated by `2204227020`), not just cowork
   - Office Addin tools refactored: 5 tools reduced to 2 (`office_addin_run`, `office_addin_task`). Bridge architecture changed from MCP server pattern to listener/dispatcher. Platform gate removed.
   - New `floatingPenguinEnabled` preference (config-only, not yet a feature flag in static registry)
-- **ion-dist SPA:** 86 MB total (was 100 MB), 652 JS chunks (was 632). **Linux support upstreamed** - org-plugins mountPath now includes `linux` key natively. Patch removed.
-- **Patch count:** 45 (was 45 - 1 removed + 1 added). All pass, JS syntax validated via `node --check`.
+- **ion-dist SPA:** 86 MB total (was 100 MB), 652 JS chunks (was 632). File manager label upstreamed (shows "Show in file manager" on Linux), but `mountPath` linux key and platform ternary still need patching.
+- **Patch count:** 46 (was 45 - 1 restored + 1 added). All pass, JS syntax validated via `node --check`.
 
 ---
 

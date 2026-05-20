@@ -268,8 +268,21 @@ find "$WORK_DIR/app/locales" \( -name "*.exe" -o -name "*.dll" -o -name "*.vhdx"
 # Ensure claude-ssh binaries are executable
 chmod +x "$WORK_DIR/app/locales/claude-ssh/claude-ssh-"* 2>/dev/null || true
 
-# ion-dist patches removed in v1.8089.0 - Anthropic upstreamed Linux support
-# (mountPath now includes linux key, platform ternary handles Linux natively)
+# Apply ion-dist patches (the SPA has content-hashed filenames, so the patch
+# finds its target file dynamically by grepping for a unique pattern)
+ION_DIST_DIR="$WORK_DIR/app/locales/ion-dist"
+ION_DIST_PATCH="$PATCHES_DIR/fix_ion_dist_linux"
+if [ -d "$ION_DIST_DIR" ] && [ -x "$ION_DIST_PATCH" ]; then
+    log_info "Applying ion-dist patches..."
+    if ! "$ION_DIST_PATCH" "$ION_DIST_DIR"; then
+        log_error "ion-dist patch failed"
+        exit 1
+    fi
+elif [ -d "$ION_DIST_DIR" ]; then
+    log_warn "ion-dist found but patch binary not available - skipping"
+else
+    log_warn "ion-dist not found in upstream resources - skipping"
+fi
 
 # Copy smol-bin VM image(s) — Desktop's startVM copies these from
 # process.resourcesPath into the per-session bundle dir as
