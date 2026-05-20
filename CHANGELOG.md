@@ -2,45 +2,9 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
-## 2026-05-20 - Cowork graceful degradation when service is absent
+## 2026-05-20 (v1.8089.1) - Point release, integrated titlebar, cowork graceful degradation, landing page, DEB822, build improvements
 
-- **Cowork preamble** now detects socket availability at startup and logs a helpful message with install link when the cowork service is not running.
-- **Event subscription guard** (Patch H): skip `createConnection` call when the cowork socket is absent, with a lazy 60s retry that auto-connects once the service appears.
-- **Error message URLs** now include full `https://` prefix for clickability.
-
-## 2026-05-20 - Skip smoke tests locally by default, cache Electron zip
-
-- **Smoke tests skipped by default** in all local build scripts (`build-local.sh`, `build-ubuntu-local.sh`, `build-fedora-local.sh`). Pass `--smoke-test` to opt in. CI is unaffected - smoke tests still run there automatically.
-- **Electron zip cached across Arch builds** - `build-local.sh` now uses `SRCDEST` to cache `electron-v*.zip` in `cache/`, avoiding ~120MB re-download on every build.
-- Removed redundant `--no-smoke-test` flag (default is now skip).
-- Updated docs: `CLAUDE.md`, `update-prompt.md`, issue template.
-
-## 2026-05-20 - Add promotional landing page for GitHub Pages
-
-- **New static landing page** (`site/index.html`) replaces the minimal APT setup guide at the gh-pages root
-- Single-file HTML/CSS/JS - no build step, no framework dependencies
-- Dark theme with violet accent, responsive design (mobile/tablet/desktop)
-- **UA-based distro detection:** hero terminal and install tabs auto-select the right commands based on visitor's OS
-- Sections: hero, tabbed quick-install (Arch/Ubuntu/Fedora/Nix/AppImage), 12-card feature grid, distro+arch compatibility matrix, session type table, Cowork Service (native vs KVM), footer with live badges
-- No screenshots included (upstream UI is copyrighted)
-- CI change: `build-and-release.yml` now copies `site/index.html` instead of `packaging/apt/index.html` to gh-pages root
-- **No impact on package repos** - `deb/`, `rpm/`, `badges/`, `install.sh`, `install-rpm.sh`, `gpg-key.asc` paths all untouched
-
-## 2026-05-20 - Switch APT repo config to DEB822 format
-
-- **APT install script now uses DEB822 `.sources` format** instead of legacy one-line `.list` format ([#101](https://github.com/patrickjaja/claude-desktop-bin/issues/101))
-- `install.sh` creates `/etc/apt/sources.list.d/claude-desktop.sources` with structured `Types`/`URIs`/`Suites`/`Signed-By`/`Architectures` fields
-- **Migration:** re-running `install.sh` automatically removes the old `claude-desktop.list` to prevent duplicate APT entries
-- **Manual setup docs** (`packaging/apt/index.html`) updated to match
-- Compatible with all supported distros (Debian 11+, Ubuntu 22.04+) - DEB822 has been supported since APT 1.1
-
-## 2026-05-20 - Integrated titlebar on Linux by default
-
-- **Linux now uses the Windows-style integrated titlebar** (`frame:false` + `titleBarOverlay` themed via Anthropic's own background helper, theme-aware) instead of the native frame. Opt out with `CLAUDE_NATIVE_TITLEBAR=1` or the launcher flag `--native-titlebar`. Quick Entry is unaffected.
-- New patches: `fix_native_frame.nim` (main process, conditional window options + theme-update gate + opaque overlay color in integrated mode) and `fix_native_frame_renderer.nim` (collapses the upstream `nc-drag` div in `MainWindowPage-*.js` so it no longer absorbs pointer events over the UI buttons).
-- Contributed by [@boommasterxd](https://github.com/boommasterxd) ([#100](https://github.com/patrickjaja/claude-desktop-bin/pull/100)).
-
-## 2026-05-20 (v1.8089.1) - Point release, all patches clean
+### Upstream (v1.8089.1)
 
 - **Version bump:** v1.8089.0 -> v1.8089.1
 - **All patches applied cleanly** - zero failures, no regex changes needed
@@ -53,6 +17,56 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 - **Feature flags:** identical to v1.8089.0 - same 25 features, same function names (`eD`, `UcA`, `Nb`, `St`, `AS`), same 60 boolean + 5 listener GrowthBook flags
 - **No new platform gates** blocking Linux
 
+### Integrated titlebar on Linux
+
+- **Linux now uses the Windows-style integrated titlebar** (`frame:false` + `titleBarOverlay` themed via Anthropic's own background helper, theme-aware) instead of the native frame. Opt out with `CLAUDE_NATIVE_TITLEBAR=1` or the launcher flag `--native-titlebar`. Quick Entry is unaffected.
+- New patches: `fix_native_frame.nim` (main process, conditional window options + theme-update gate + opaque overlay color in integrated mode) and `fix_native_frame_renderer.nim` (collapses the upstream `nc-drag` div in `MainWindowPage-*.js` so it no longer absorbs pointer events over the UI buttons).
+- Contributed by [@boommasterxd](https://github.com/boommasterxd) ([#100](https://github.com/patrickjaja/claude-desktop-bin/pull/100)).
+
+### Cowork graceful degradation
+
+- **Cowork preamble** now detects socket availability at startup and logs a helpful message with install link when the cowork service is not running.
+- **Event subscription guard** (Patch H): skip `createConnection` call when the cowork socket is absent, with a lazy 60s retry that auto-connects once the service appears.
+- **Error message URLs** now include full `https://` prefix for clickability.
+
+### Patch fix: restore fix_ion_dist_linux
+
+- **`fix_ion_dist_linux.nim` restored** - the v1.8089.0 update incorrectly claimed Anthropic upstreamed Linux support for the ion-dist 3P config SPA. Verification against the **unpatched** MSIX shows: only the file manager label ("Show in file manager") was upstreamed. The `mountPath` object still lacks a `linux` key, and the platform ternary still falls back to the macOS path on Linux. Both sub-patches are still needed.
+- **Regex updated** for v1.8089.0 minified variable names: ternary pattern now uses `[\w$.]+ ` wildcards instead of hardcoded `r`/`t` variable names (v1.8089.0 uses `C===V.Win32?Ve.mountPath.win:Ve.mountPath.mac`).
+
+### APT repo: DEB822 format
+
+- **APT install script now uses DEB822 `.sources` format** instead of legacy one-line `.list` format ([#101](https://github.com/patrickjaja/claude-desktop-bin/issues/101))
+- `install.sh` creates `/etc/apt/sources.list.d/claude-desktop.sources` with structured `Types`/`URIs`/`Suites`/`Signed-By`/`Architectures` fields
+- **Migration:** re-running `install.sh` automatically removes the old `claude-desktop.list` to prevent duplicate APT entries
+- **Manual setup docs** (`packaging/apt/index.html`) updated to match
+- Compatible with all supported distros (Debian 11+, Ubuntu 22.04+) - DEB822 has been supported since APT 1.1
+
+### Promotional landing page
+
+- **New static landing page** (`site/index.html`) replaces the minimal APT setup guide at the gh-pages root
+- Single-file HTML/CSS/JS - no build step, no framework dependencies
+- Dark theme with violet accent, responsive design (mobile/tablet/desktop)
+- **UA-based distro detection:** hero terminal and install tabs auto-select the right commands based on visitor's OS
+- Sections: hero, tabbed quick-install (Arch/Ubuntu/Fedora/Nix/AppImage), 12-card feature grid, distro+arch compatibility matrix, session type table, Cowork Service (native vs KVM), footer with live badges
+- No screenshots included (upstream UI is copyrighted)
+- CI change: `build-and-release.yml` now copies `site/index.html` instead of `packaging/apt/index.html` to gh-pages root
+- **No impact on package repos** - `deb/`, `rpm/`, `badges/`, `install.sh`, `install-rpm.sh`, `gpg-key.asc` paths all untouched
+
+### Build improvements
+
+- **Smoke tests skipped by default** in all local build scripts (`build-local.sh`, `build-ubuntu-local.sh`, `build-fedora-local.sh`). Pass `--smoke-test` to opt in. CI is unaffected - smoke tests still run there automatically.
+- **Electron zip cached across Arch builds** - `build-local.sh` now uses `SRCDEST` to cache `electron-v*.zip` in `cache/`, avoiding ~120MB re-download on every build.
+- Removed redundant `--no-smoke-test` flag (default is now skip).
+- Updated docs: `CLAUDE.md`, `update-prompt.md`, issue template.
+
+### Update workflow distro-agnostic
+
+- **Issue template, update-prompt, CC prompt** now show build commands for all supported distros (Arch, Ubuntu/Debian, Fedora/RHEL) instead of hardcoding `./scripts/build-local.sh` (Arch-only)
+- **Stale extraction paths** replaced: `Claude-Setup-x64.exe` / Squirrel nupkg references updated to `Claude.msix` extraction in issue template, update-prompt.md, and themes/README.md
+
+---
+
 ## 2026-05-19 - Enhanced version-check issue template with Linux compatibility checklist
 
 - **Version-check workflow** now creates comprehensive issues with:
@@ -62,16 +76,6 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
   - Collapsible quick reference commands for platform gate diffs, flag audits
 - **New file:** `.github/issue-templates/new-version-body.md` - Markdown template with `{{UPSTREAM}}`, `{{RELEASED}}`, `{{REPO}}`, `{{CC_PROMPT}}` placeholders rendered at workflow runtime
 - **UPDATE-PROMPT-CC-INPUT-MANUAL.md** - converted code blocks to indented style (fence-safe for embedding)
-
-## 2026-05-20 - Make update workflow distro-agnostic
-
-- **Issue template, update-prompt, CC prompt** now show build commands for all supported distros (Arch, Ubuntu/Debian, Fedora/RHEL) instead of hardcoding `./scripts/build-local.sh` (Arch-only)
-- **Stale extraction paths** replaced: `Claude-Setup-x64.exe` / Squirrel nupkg references updated to `Claude.msix` extraction in issue template, update-prompt.md, and themes/README.md
-
-## 2026-05-20 - Restore fix_ion_dist_linux patch (incorrectly removed)
-
-- **`fix_ion_dist_linux.nim` restored** - the v1.8089.0 update incorrectly claimed Anthropic upstreamed Linux support for the ion-dist 3P config SPA. Verification against the **unpatched** MSIX shows: only the file manager label ("Show in file manager") was upstreamed. The `mountPath` object still lacks a `linux` key, and the platform ternary still falls back to the macOS path on Linux. Both sub-patches are still needed.
-- **Regex updated** for v1.8089.0 minified variable names: ternary pattern now uses `[\w$.]+ ` wildcards instead of hardcoded `r`/`t` variable names (v1.8089.0 uses `C===V.Win32?Ve.mountPath.win:Ve.mountPath.mac`).
 
 ---
 
