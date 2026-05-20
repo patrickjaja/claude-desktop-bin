@@ -4,29 +4,29 @@
 # Make Claude Desktop use the integrated (Windows-style) titlebar on Linux
 # by default: min/max/close are drawn as an overlay inside the web content
 # and the tab strip / menu / nav buttons share that bar. Upstream's Linux
-# build instead opens a native GTK window because `titleBarOverlay:Io` is
-# gated on `Io = process.platform === "win32"`, and the helper that pushes
-# theme updates is gated the same way.
+# build instead opens a native window because the titleBarOverlay property is
+# gated on a win32-only boolean, and the helper that pushes theme updates is
+# gated the same way.
 #
 # Three patches together do the job:
 #   1. Open the main BrowserWindow with frame:false + a real titleBarOverlay
 #      style object on Linux (plus autoHideMenuBar + icon).
 #   2. Open the setTitleBarOverlay theme-update gate for Linux so the
 #      overlay colors follow Anthropic's `Hb` flag and the OS theme.
-#   3. Replace one transparent placeholder (`cve = "#00000000"`) with
-#      Anthropic's opaque window background in Linux integrated mode.
-#      Electron on Wayland silently substitutes a grey strip for that
-#      transparent value, so without this swap the overlay always looks
-#      like a hard-coded grey block.
+#   3. Replace a transparent placeholder ("#00000000") with Anthropic's
+#      opaque window background in Linux integrated mode. Electron on
+#      Wayland silently substitutes a grey strip for that transparent
+#      value, so without this swap the overlay looks like a grey block.
 #
 # All three behaviors gate on CLAUDE_NATIVE_TITLEBAR: unset (or anything
 # other than "1") = integrated mode; "1" = restore the GTK frame. The
 # launcher's `--native-titlebar` flag sets the env var.
 #
 # Anthropic's bundle is minified and renames identifiers between releases.
-# We capture two of them (the background helper and the Electron module
-# alias) at patch time so the generated code references the current names
-# and we fail loudly if either disappears.
+# We capture them (background helper, Electron alias, platform gate, and
+# transparent placeholder) at patch time via [\w$]+ wildcards so the
+# generated code references the current names. We fail loudly if any
+# capture is missing.
 #
 # Quick Entry's BrowserWindow is matched by `transparent:!0,frame:!1` and
 # has no titleBarOverlay -- none of the patterns below touch it.
@@ -72,17 +72,17 @@ proc apply*(input: string): string =
   #   frame:            false on Linux integrated, true otherwise.
   #   autoHideMenuBar:  true on Linux (Alt brings the GTK menu bar back).
   #   icon:             Linux PNG path on Linux, undefined elsewhere.
-  let overlayStyle = "{color:" & bgFn & "(),symbolColor:" & electron &
+  let overlayStyle =
+    "{color:" & bgFn & "(),symbolColor:" & electron &
     ".nativeTheme.shouldUseDarkColors?\"#fff\":\"#000\",height:36}"
   var n = 0
   result = result.replace(
     re2"""titleBarStyle:"hidden",titleBarOverlay:([\w$]+)""",
     proc(m: RegexMatch2, s: string): string =
       inc n
-      "titleBarStyle:" & LINUX_NATIVE & "?\"default\":\"hidden\"," &
-        "titleBarOverlay:(" & LINUX_INTEGRATED & ")?" & overlayStyle & ":" &
-        s[m.group(0)] & ",frame:!(" & LINUX_INTEGRATED & ")," &
-        "autoHideMenuBar:process.platform===\"linux\"," &
+      "titleBarStyle:" & LINUX_NATIVE & "?\"default\":\"hidden\"," & "titleBarOverlay:(" &
+        LINUX_INTEGRATED & ")?" & overlayStyle & ":" & s[m.group(0)] & ",frame:!(" &
+        LINUX_INTEGRATED & ")," & "autoHideMenuBar:process.platform===\"linux\"," &
         "icon:process.platform===\"linux\"?\"" & ICON & "\":void 0",
   )
   if n != 1:
@@ -90,14 +90,16 @@ proc apply*(input: string): string =
   echo &"  [OK] main window options: {n}"
 
   # Patch 2: setTitleBarOverlay theme-update gate. Upstream guards the
-  # forEach-all-windows call with `Io&&` (win32 only). We OR in Linux
-  # integrated mode so the overlay receives theme updates there too.
+  # forEach-all-windows call with a win32-only boolean (e.g. `Io`). We OR
+  # in Linux integrated mode so the overlay receives theme updates there too.
   n = 0
   result = result.replace(
-    re2"""\bIo&&([\w$]+)\.BrowserWindow\.getAllWindows\(\)\.forEach""",
+    re2"""\b([\w$]+)&&([\w$]+)\.BrowserWindow\.getAllWindows\(\)\.forEach""",
     proc(m: RegexMatch2, s: string): string =
       inc n
-      "(Io||(" & LINUX_INTEGRATED & "))&&" & s[m.group(0)] &
+      let platformGate = s[m.group(0)]
+      let electronVar = s[m.group(1)]
+      "(" & platformGate & "||(" & LINUX_INTEGRATED & "))&&" & electronVar &
         ".BrowserWindow.getAllWindows().forEach",
   )
   if n != 1:
@@ -105,21 +107,22 @@ proc apply*(input: string): string =
   echo &"  [OK] setTitleBarOverlay gate: {n}"
 
   # Patch 3: opaque-color swap inside the helper that builds the overlay
-  # style. The non-Hb branch uses `cve = "#00000000"`, which Electron on
-  # Linux Wayland treats as "use default" and paints as a grey strip.
-  # Swap it for `bgFn()` in Linux integrated mode so the overlay actually
-  # matches the window background. Two occurrences: one per theme.
-  let linuxBg = "(" & LINUX_INTEGRATED & ")?" & bgFn & "():cve"
+  # style. The non-Hb branch uses a transparent placeholder ("#00000000"),
+  # which Electron on Linux Wayland treats as "use default" and paints as
+  # a grey strip. Swap it for bgFn() in Linux integrated mode so the
+  # overlay matches the window background. Two occurrences: one per theme.
   n = 0
   result = result.replace(
-    re2"""(\{color:[\w$]+\?"#[0-9a-fA-F]+":)cve(,symbolColor:)""",
+    re2"""(\{color:[\w$]+\?"#[0-9a-fA-F]+":)([\w$]+)(,symbolColor:)""",
     proc(m: RegexMatch2, s: string): string =
       inc n
-      s[m.group(0)] & linuxBg & s[m.group(1)],
+      let transparentVar = s[m.group(1)]
+      s[m.group(0)] & "(" & LINUX_INTEGRATED & ")?" & bgFn & "():" & transparentVar &
+        s[m.group(2)],
   )
   if n != 2:
-    raise newException(ValueError, &"T8 cve references: {n}/2")
-  echo &"  [OK] T8 cve -> bgFn() in Linux integrated mode: {n}"
+    raise newException(ValueError, &"T8 transparent placeholder: {n}/2")
+  echo &"  [OK] T8 transparent -> bgFn() in Linux integrated mode: {n}"
 
 when isMainModule:
   if paramCount() != 1:
