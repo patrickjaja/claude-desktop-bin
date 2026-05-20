@@ -2,6 +2,14 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-05-20 - Switch APT repo config to DEB822 format
+
+- **APT install script now uses DEB822 `.sources` format** instead of legacy one-line `.list` format ([#101](https://github.com/patrickjaja/claude-desktop-bin/issues/101))
+- `install.sh` creates `/etc/apt/sources.list.d/claude-desktop.sources` with structured `Types`/`URIs`/`Suites`/`Signed-By`/`Architectures` fields
+- **Migration:** re-running `install.sh` automatically removes the old `claude-desktop.list` to prevent duplicate APT entries
+- **Manual setup docs** (`packaging/apt/index.html`) updated to match
+- Compatible with all supported distros (Debian 11+, Ubuntu 22.04+) - DEB822 has been supported since APT 1.1
+
 ## 2026-05-20 - Integrated titlebar on Linux by default
 
 - **Linux now uses the Windows-style integrated titlebar** (`frame:false` + `titleBarOverlay` themed via Anthropic's own background helper, theme-aware) instead of the native frame. Opt out with `CLAUDE_NATIVE_TITLEBAR=1` or the launcher flag `--native-titlebar`. Quick Entry is unaffected.

@@ -7,7 +7,8 @@ set -euo pipefail
 
 REPO_URL="https://patrickjaja.github.io/claude-desktop-bin"
 KEYRING_PATH="/etc/apt/keyrings/claude-desktop.gpg"
-SOURCES_PATH="/etc/apt/sources.list.d/claude-desktop.list"
+SOURCES_PATH="/etc/apt/sources.list.d/claude-desktop.sources"
+OLD_LIST="/etc/apt/sources.list.d/claude-desktop.list"
 
 # Check root
 if [ "$(id -u)" -ne 0 ]; then
@@ -30,14 +31,30 @@ case "$(dpkg --print-architecture)" in
   *)      echo "Error: Unsupported architecture: $(dpkg --print-architecture) (supported: amd64, arm64)"; exit 1 ;;
 esac
 
-# Add repository source
+# Remove legacy one-line .list file if present (migrating to DEB822 .sources)
+if [ -f "$OLD_LIST" ]; then
+  rm -f "$OLD_LIST"
+  echo "  Removed legacy $OLD_LIST"
+fi
+
+# Add repository source (DEB822 format)
 cat > "$SOURCES_PATH" <<EOF
-deb [signed-by=$KEYRING_PATH arch=$APT_ARCH] $REPO_URL/deb/ ./
+Types: deb
+URIs: $REPO_URL/deb/
+Suites: ./
+Signed-By: $KEYRING_PATH
+Architectures: $APT_ARCH
 EOF
 echo "  Repository added to $SOURCES_PATH"
 
-# Update package lists
-apt-get update -o Dir::Etc::sourcelist="$SOURCES_PATH" -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0" -qq
+# Update only our repo's package list
+APT_TMPDIR=$(mktemp -d)
+ln -s "$SOURCES_PATH" "$APT_TMPDIR/"
+apt-get update \
+  -o Dir::Etc::sourcelist="/dev/null" \
+  -o Dir::Etc::sourceparts="$APT_TMPDIR" \
+  -o APT::Get::List-Cleanup="0" -qq
+rm -rf "$APT_TMPDIR"
 
 echo ""
 echo "Done! Install Claude Desktop with:"
