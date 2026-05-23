@@ -1,8 +1,8 @@
-# Built-in MCP Servers - Claude Desktop v1.8089.0/v1.8089.1
+# Built-in MCP Servers - Claude Desktop v1.8555.2
 
 Claude Desktop registers internal MCP servers via a two-layer architecture:
 
-1. **Renderer-facing layer (`lrA()`)** - servers accessible from the BrowserView via Electron `MessageChannelMain` ports
+1. **Renderer-facing layer (`LYA()`)** - servers accessible from the BrowserView via Electron `MessageChannelMain` ports
 2. **Backend/session layer** - servers providing tools to CCD/Cowork sessions
 
 A server may appear in both layers (e.g., Chrome, mcp-registry) or only one.
@@ -10,14 +10,14 @@ A server may appear in both layers (e.g., Chrome, mcp-registry) or only one.
 ## Registration System
 
 ```
-lrA(serverName, displayLabel, factoryFn)   // v1.8089.0 (unchanged since v1.7196.0; was BrA() in v1.6608.2, qwA() in v1.5354.0, gpA() in v1.3561.0, DfA() in v1.3109.0, kce() in v1.3036.0)
+LYA(serverName, displayLabel, factoryFn)   // v1.8555.2 (was lrA() in v1.8089.1, unchanged since v1.7196.0 before that; was BrA() in v1.6608.2, qwA() in v1.5354.0, gpA() in v1.3561.0, DfA() in v1.3109.0, kce() in v1.3036.0)
 ```
 
-- Lazy singleton factory per server name; stored in `I_` (registry) + `FSA` (display labels)
+- Lazy singleton factory per server name; stored in `QN` (registry) + `pkA` (display labels)
 - UUID display label sent to renderer for identification
-- `h1()` enumerates registered server names via `Object.keys(I_)`
+- `k4()` enumerates registered server names via `Object.keys(QN)`
 
-## Renderer-Facing Servers (via `lrA()`)
+## Renderer-Facing Servers (via `LYA()`)
 
 ### 1. Claude in Chrome
 
@@ -64,7 +64,7 @@ Communicates with the Chrome browser extension via Unix socket at `/tmp/claude-m
 | Platform | All |
 | Gating | Always enabled |
 
-The `lrA()` registration is a **stub returning no tools**. Actual tools are provided via the backend session layer.
+The `LYA()` registration is a **stub returning no tools**. Actual tools are provided via the backend session layer.
 
 **Tools (via P8t):**
 
@@ -72,27 +72,20 @@ The `lrA()` registration is a **stub returning no tools**. Actual tools are prov
 |------|-------------|
 | `search_mcp_registry` | Search for available connectors by keywords |
 | `suggest_connectors` | Display connector suggestions with Connect buttons |
+| `list_connectors` | Lists installed connectors as interactive card |
 
 ### 3. Office Add-in
 
 | Field | Value |
 |-------|-------|
 | Server name | `"office-addin"` |
-| Platform | All (platform gate removed upstream in v1.8089.0; was macOS/Windows only) |
-| Gating | `louderPenguinEnabled && serverFlag(4116586025)` (platform gate `(macOS \|\| Windows)` removed in v1.8089.0) |
+| Status | **Removed as MCP server in v1.8555.2** - moved to IPC bridge |
 
-Currently **disabled in production** - requires both a preference toggle and a server-side experiment flag.
+No longer registered via `LYA()` and no longer in the backend server array. The `office_addin_run` and `office_addin_task` MCP tools are gone. Functionality has moved to an IPC-only bridge pattern using handlers like `focusOfficeDocument`, `focusBrowserTab`, etc.
 
-Architecture refactored in v1.8089.0: uses listener/dispatcher pattern (`initOfficeAddinBridgeListener`) instead of direct MCP registration. Connected file detection still platform-gated (patched by `fix_office_addin_linux.nim`).
+Previously (v1.8089.0-v1.8089.1): used listener/dispatcher pattern (`initOfficeAddinBridgeListener`) with 2 tools (`office_addin_run`, `office_addin_task`). Before that (pre-v1.8089.0): had 5 tools and was platform-gated to macOS/Windows.
 
-**Tools (2, refactored in v1.8089.0 from 5):**
-
-| Tool | Description |
-|------|-------------|
-| `office_addin_run` | Execute Office.js code in a connected workbook |
-| `office_addin_task` | Run a multi-step Office task (new in v1.8089.0) |
-
-## Backend-Only Servers (not registered via `lrA()`)
+## Backend-Only Servers (not registered via `LYA()`)
 
 These are accessible to CCD/Cowork sessions but not directly from the renderer.
 
@@ -107,6 +100,7 @@ These are accessible to CCD/Cowork sessions but not directly from the renderer.
 |------|-------------|
 | `suggest_plugin_install` | Suggest plugins for the user to install |
 | `search_plugins` | Search available plugins |
+| `list_plugins` | Lists installed plugins as interactive card |
 
 ### 5. Visualize (Imagine)
 
@@ -312,6 +306,7 @@ The `spawn_task` tool requires desktop approval card injection - cannot be auto-
 |------|-------------|
 | `list_skills` | Render the user's slash-menu skills as an interactive widget |
 | `search_skills` | Search available skills |
+| `suggest_skills` | Renders widget of skills the user can add |
 
 ### 19. Framebuffer
 
@@ -366,9 +361,27 @@ Infrastructure for future remote display/VM framebuffer control. Currently disab
 | `search_session_transcripts` | Search across CCD session transcripts |
 | `archive_session` | Archive a CCD session |
 
+### 22. Window Halo
+
+| Field | Value |
+|-------|-------|
+| Server name | `"Window Halo"` |
+| Platform | macOS only - returns error on non-darwin |
+| Gating | `isEnabled:()=>process.platform==="darwin"&&!1` - hardcoded disabled even on macOS |
+| Added in | v1.8555.2 |
+
+Draws a colored glow effect behind the macOS application window to visually indicate when the model has control. Currently **not activatable** - `isEnabled` returns `false` unconditionally (hardcoded `&&!1`).
+
+Backend: `@ant/claude-swift` `.sessionHalo` module.
+
+| Tool | Description |
+|------|-------------|
+| `halo_attach` | Draw colored glow behind macOS app window to indicate model control |
+| `halo_detach` | Remove the halo |
+
 ## Per-Session Dynamic MCP Servers (SDK-type)
 
-Claude Desktop creates 4 additional MCP servers **dynamically per cowork/dispatch session**. These are NOT registered via `lrA()` - they are created inline in the session manager and passed to the Claude Code CLI via `sdkMcpServers` in `--mcp-config`.
+Claude Desktop creates 4 additional MCP servers **dynamically per cowork/dispatch session**. These are NOT registered via `LYA()` - they are created inline in the session manager and passed to the Claude Code CLI via `sdkMcpServers` in `--mcp-config`.
 
 **Communication:** SDK-type servers use `MessagePort` bridges. On Mac/Windows, the VM SDK daemon (`nodeHost.js`) provides this bridge via vsock. On Linux native, `cowork-svc-linux` now **passes `--mcp-config` through unchanged** (since commit `d1dfc3b`). The CLI sends `control_request` messages on stdout, which flow through the event stream to Claude Desktop. Desktop's session manager intercepts them and sends `control_response` back via writeStdin - identical to VM mode on Mac/Windows.
 
@@ -413,6 +426,8 @@ Claude Desktop creates 4 additional MCP servers **dynamically per cowork/dispatc
 | `update_artifact` | - | Update an existing artifact. Same constraints as `create_artifact`. Conditional on GrowthBook flag `2940196192` (**new in v1.1348.0**) |
 | `save_skill` | - | Save a reusable skill to the user's account. Conditional on `canSaveSkill` (**new in v1.1348.0**) |
 | `propose_skills` | - | Propose skills for the user to save |
+| `list_artifacts` | - | List existing artifacts (used before `update_artifact`). **New in v1.8555.2** |
+| `read_widget_context` | - | Read context from a rendered widget. **New in v1.8555.2** |
 
 **Note:** `present_files`, `allow_cowork_file_delete`, `launch_code_session`, `create_artifact`, and `update_artifact` are added to `disallowedTools` for bridge/dispatch-child sessions. On Linux native, `cowork-svc-linux` removes `present_files` from `disallowedTools` as a workaround for file sharing.
 
@@ -476,9 +491,9 @@ Linux native (current, since cowork-svc commit d1dfc3b):
 
 ### Dynamic Per-Artifact MCP Servers (`cowork-artifact-<id>`)
 
-When a Cowork session creates artifacts, Claude Desktop registers **dynamic** MCP servers named `cowork-artifact-<uuid>` for each artifact. These are NOT statically registered via `lrA()` - they are created inline per artifact. The `cowork-artifact` string also serves as an Electron custom protocol scheme (`cowork-artifact:`) for rendering artifact content in the UI.
+When a Cowork session creates artifacts, Claude Desktop registers **dynamic** MCP servers named `cowork-artifact-<uuid>` for each artifact. These are NOT statically registered via `LYA()` - they are created inline per artifact. The `cowork-artifact` string also serves as an Electron custom protocol scheme (`cowork-artifact:`) for rendering artifact content in the UI.
 
-**Not a static server** - no tools to document. Not registered via `lrA()`. Calls route via `callRemoteTool("cowork-artifact-<id>", ...)`.
+**Not a static server** - no tools to document. Not registered via `LYA()`. Calls route via `callRemoteTool("cowork-artifact-<id>", ...)`.
 
 ### Anthropic API Built-in Tool: `web_search`
 
@@ -609,7 +624,7 @@ Uses `createDarwinExecutor()` -> `@ant/claude-swift` native module for screen ca
 ## Linux Notes
 
 - **Claude in Chrome**: Works on Linux via `fix_browser_tools_linux.py` - redirects native host binary to Claude Code's `~/.claude/chrome/chrome-native-host` and installs NativeMessagingHosts manifests for 6 Linux browsers (Chrome, Chromium, Brave, Edge, Vivaldi, Opera). Requires Claude Code CLI and the [Claude in Chrome](https://chromewebstore.google.com/detail/claude-code/fcoeoabgfenejglbffodgkkbkcdhcgfn) extension.
-- **Office Add-in**: Platform-gated to macOS/Windows. Patched to enable on Linux via `fix_office_addin_linux.nim`.
+- **Office Add-in**: Removed as MCP server in v1.8555.2 - moved to IPC bridge. Previously platform-gated to macOS/Windows; patched to enable on Linux via `fix_office_addin_linux.nim`.
 - **Terminal (`read_terminal`)**: CCD sessions only - `isEnabled` checks `sessionType==="ccd"` (hardcoded, not patchable without changing session semantics). NOT available in Cowork sessions. In Cowork, the model uses `mcp__workspace__bash` instead which runs directly on the host. Platform gate `pj` patched by `fix_dispatch_linux.nim`. node-pty rebuilt by build script.
 - **Computer Use**: Works on Linux via `fix_computer_use_linux.nim` - uses xdotool/scrot + Electron built-in APIs (clipboard, screen, desktopCapturer) instead of `@ant/claude-swift`. Available in Cowork and Code sessions.
 - **Visualize (Imagine)**: Enabled on Linux via `fix_imagine_linux.nim` - forces GrowthBook flag `3444158716`. No platform gate. Renders SVG/HTML inline in cowork sessions.
@@ -634,6 +649,7 @@ When active, Operon provided 14 "brain tools" (multi-agent delegation, skills, d
 
 | Version | Changes |
 |---------|---------|
+| v1.8555.2 | Registration function renamed `lrA()`->`LYA()`. Registry `I_`->`QN`, labels `FSA`->`pkA`, enumerator `h1()`->`k4()`. Backend server array `Xxi`->`Osr` (10->11 entries). **New MCP server: `Window Halo`** (macOS only, hardcoded disabled; `halo_attach`, `halo_detach` tools via `@ant/claude-swift`). **Office-addin removed as MCP server** - no longer registered via `LYA()`, tools `office_addin_run`/`office_addin_task` gone, functionality moved to IPC bridge (`focusOfficeDocument`, `focusBrowserTab`, etc.). **New tools on existing servers:** `list_connectors` (mcp-registry), `list_plugins` (plugins), `suggest_skills` (skills), `list_artifacts` and `read_widget_context` (cowork). |
 | v1.8089.0 | Registration function `lrA()` unchanged. Platform gate renamed `OiA`->`pj` (`Lr\|\|Io`). Computer-use Set `BoA`->`NcA`. **No new MCP servers**, no removed servers. Visualize now also enabled for CCD sessions (flag `2204227020`). **Office-addin platform gate removed upstream** - tools refactored from 5 to 2 (`office_addin_run`, `office_addin_task`); architecture changed to listener/dispatcher. Variable renames: terminal `Egi`->`gCr`, Claude Preview `lNe`->`ToA`, skills `k1r`->`I6e`, scheduled-tasks `qBe`->`iJA`. All patches compatible. |
 | v1.7196.0 | Registration function reverted `BrA()`->`lrA()`. Labels `xSA`->`FSA`. Registry storage `I_` unchanged. Enumerator `pq()`->`h1()`. Computer-use Set `QoA`->`BoA`. Platform gate combo `OiA` unchanged (`or\|\|fn`). **No new MCP servers**, no removed servers, no new tools. All patches compatible (3 refreshed by @boommasterxd). |
 | v1.6608.2 | Registration function renamed `BrA()` (was `lrA()`). Registry storage `MG`->`I_`, labels `VqA`->`xSA`, enumerator `Y7()`->`pq()`. **No new MCP servers** - Framebuffer, ccd_directory, ccd_session_mgmt already present in v1.6608.0; now documented as standalone entries (#19-#21). All patches compatible. |
