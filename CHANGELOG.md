@@ -2,6 +2,12 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-05-23 - Fix Computer Use settings toggle ignored on Linux (#102)
+
+### Bug Fix
+
+- **Computer Use toggle now works on Linux** - The Settings -> Features -> Computer Use toggle previously had no effect because Patch 12 in `fix_computer_use_linux.nim` unconditionally bypassed the `chicagoEnabled` preference check. The patch now reads the user's preference (defaulting to enabled when unset), so users who see the toggle via GrowthBook rollout can actually disable Computer Use.
+
 ## 2026-05-23 (v1.8555.2) - All patches clean, new upstream features, voice onboarding audio
 
 ### Upstream (v1.8555.2)
