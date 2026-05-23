@@ -606,10 +606,8 @@ proc apply*(input: string): string =
         let whole = content[bounds.a .. bounds.b]
         let headerLen = m.captures[0].len
         let prefsReader = m.captures[1]
-        m.captures[0] &
-          "if(process.platform===\"linux\")return(" & prefsReader &
-          "(\"chicagoEnabled\")??!0);" &
-          whole[headerLen ..^ 1],
+        m.captures[0] & "if(process.platform===\"linux\")return(" & prefsReader &
+          "(\"chicagoEnabled\")??!0);" & whole[headerLen ..^ 1],
     )
     if n >= 1:
       echo &"  [OK] rj chicagoEnabled: respect pref, default true ({n} match)"
