@@ -2,6 +2,49 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-05-23 (v1.8555.2) - All patches clean, new upstream features, Computer Use toggle fix
+
+### Upstream (v1.8555.2)
+
+- **Version bump:** v1.8089.1 -> v1.8555.2
+- **All patches applied cleanly** - zero failures, no regex changes needed. Flexible `[\w$]+` patterns absorbed all minified variable renames.
+- **3 new feature flags** (27 total, was 25):
+  - `tearOffHalo` - macOS 13+ only, visual halo overlay behind controlled windows (uses `@ant/claude-swift`)
+  - `grandPrixRequest` - macOS only, device pairing service request availability
+  - `bootstrapConfig` - dev-gated (PM() production gate), bootstrap config access
+- **New MCP server: "Window Halo"** - macOS-only, hardcoded disabled. Tools: `halo_attach`, `halo_detach` for visual window highlighting
+- **Office add-in no longer an MCP server** - functionality moved to IPC-only bridge pattern (`focusOfficeDocument`, `focusBrowserTab`, etc.)
+- **New MCP tools** in existing servers:
+  - `mcp-registry`: `list_connectors` (lists installed connectors)
+  - `plugins`: `list_plugins` (lists installed plugins)
+  - `skills`: `suggest_skills` (renders addable skills widget)
+  - `cowork`: `list_artifacts`, `read_widget_context` (artifact listing and widget context reading)
+- **Operon fully removed** - zero references remain; startup cleanup paths still delete old caches
+- **New GrowthBook flags:**
+  - Boolean `434204418` (MCP connection non-blocking mode)
+  - Listeners `4150329283` (cloud sync drive detection), `2358734848` (hardware buddy)
+  - Removed: `658929541`, `2815031518` (setModel buffer checks)
+- **New CLAUDE_CODE env vars:** `CLAUDE_CODE_ENABLE_XAA`, `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS`, `CLAUDE_CODE_DISABLE_AGENTS_FLEET`, `CLAUDE_CODE_DISABLE_AGENT_VIEW`, `CLAUDE_CODE_ENABLE_FINE_GRAINED_TOOL_STREAMING`, `CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING`, `CLAUDE_CODE_SUBAGENT_MODEL`, `CLAUDE_CODE_RATE_LIMIT_TIER`, `CLAUDE_CODE_CERT_STORE`, `CLAUDE_CODE_CLIENT_CERT`, `CLAUDE_CODE_CLIENT_KEY`, `CLAUDE_SESSION_INGRESS_TOKEN_FILE`, and more
+- **New ANTHROPIC env vars:** `ANTHROPIC_FOUNDRY_API_KEY`, `ANTHROPIC_FOUNDRY_BASE_URL`, `ANTHROPIC_FOUNDRY_RESOURCE`, `ANTHROPIC_SERVICE_ACCOUNT_ID`
+- **ion-dist SPA:** 13 new config keys including Bedrock SSO support (`inferenceBedrockSsoStartUrl`, `inferenceBedrockSsoRoleName`, `inferenceBedrockSsoRegion`, `inferenceBedrockSsoAccountId`), credential helpers (`inferenceCredentialKind`, `inferenceCustomHeaders`), gateway auth (`inferenceGatewayOidc`, `inferenceGatewayApiKey`), Foundry (`inferenceFoundryApiKey`), and org banners (`banner.enabled`, `banner.text`)
+- **ion-dist bundle:** 667 JS files (was 652), 22 CSS (was 21), 87 MB total (was 86 MB). ZST compressed variants remain removed
+- **Voice onboarding audio:** full set of voice onboarding MP3s bundled in ion-dist (`airy`, `buttery`, `glassy`, `mellow`, `round` voices with intro/final/recommendations/pre-voice/pre-recommendations tracks, plus selection samples and SFX)
+- **New value/object flag reader split:** `Lh()` for simple values, `Pr()` for structured object reads (was unified in `OQ()`)
+- **Session config changes:** removed `artifactMcpConcurrencyLimit` and `artifactSampleConcurrencyLimit` keys; scheduled tasks gained `scheduledTaskOfflineGateEnabled`
+- **Feature flags:** function names renamed - `Np()` (static, was `eD()`), `SIA` (async, was `UcA`), `PM()` (gate, was `Nb()`), `wt()` (reader, was `St()`), `Bm()` (listener, was `AS()`)
+- **No new platform gates** blocking Linux
+- **Electron:** v42.0.0 (check package.json - renderer reports 41.6.1 in extracted bundle but build uses 42.0.0)
+
+### Computer Use toggle fix (#102)
+
+- **Computer Use toggle now works on Linux** - Patch 12 in `fix_computer_use_linux.nim` previously unconditionally bypassed the `chicagoEnabled` preference check. Now reads the user's preference (defaulting to enabled when unset), so users who see the toggle via GrowthBook rollout can actually disable Computer Use.
+
+### No other patch changes needed
+
+All 47+ Nim patches applied without modification. The flexible regex patterns (`[\w$]+` for minified identifiers) absorbed all upstream variable renames automatically.
+
+---
+
 ## 2026-05-20 (v1.8089.1) - Point release, integrated titlebar, cowork graceful degradation, landing page, DEB822, build improvements
 
 ### Upstream (v1.8089.1)

@@ -594,10 +594,10 @@ proc apply*(input: string): string =
     else:
       echo "  [FAIL] isEnabled pattern: 0 matches (computer-use may not work in cowork/CCD)"
 
-  # ── Patch 12: force rj() → true on Linux ───────────────────────────────
+  # ── Patch 12: bypass GrowthBook gate but respect chicagoEnabled pref ────
   block:
     let pat =
-      re"""(function [\w$]+\(\)\{)return [\w$]+\.has\(process\.platform\)\?[\w$]+\(\)&&[\w$]+\("chicagoEnabled"\):!1\}"""
+      re"""(function [\w$]+\(\)\{)return [\w$]+\.has\(process\.platform\)\?[\w$]+\(\)&&([\w$]+)\("chicagoEnabled"\):!1\}"""
     let n = replaceFirst(
       content,
       pat,
@@ -605,11 +605,12 @@ proc apply*(input: string): string =
         let bounds = m.matchBounds
         let whole = content[bounds.a .. bounds.b]
         let headerLen = m.captures[0].len
-        m.captures[0] & "if(process.platform===\"linux\")return!0;" &
-          whole[headerLen ..^ 1],
+        let prefsReader = m.captures[1]
+        m.captures[0] & "if(process.platform===\"linux\")return(" & prefsReader &
+          "(\"chicagoEnabled\")??!0);" & whole[headerLen ..^ 1],
     )
     if n >= 1:
-      echo &"  [OK] rj chicagoEnabled bypass: force true on Linux ({n} match)"
+      echo &"  [OK] rj chicagoEnabled: respect pref, default true ({n} match)"
       inc changes, n
       inc patchesApplied
     else:

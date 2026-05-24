@@ -1,109 +1,120 @@
 # Claude Desktop Feature Flag Architecture
 
-Reference documentation for the feature flag system in Claude Desktop's Electron app. This documents v1.8089.0/v1.8089.1 internals to aid patch maintenance.
+Reference documentation for the feature flag system in Claude Desktop's Electron app. This documents v1.8555.2 internals to aid patch maintenance.
 
 ## Overview
 
-25 feature flags are controlled by a 3-layer system:
+27 feature flags are controlled by a 3-layer system:
 
-1. **`eD()` (static)** - Calls individual feature functions, builds base object (23 features)
-2. **`UcA` (async merger)** - Spreads `eD()`, adds `louderPenguin` + `coworkKappa` + `coworkArtifacts` + `markTaskComplete` as async overrides (4 total)
+1. **`Np()` (static)** - Calls individual feature functions, builds base object (26 features)
+2. **`SIA` (async merger)** - Spreads `Np()`, adds `louderPenguin` + `coworkKappa` + `coworkArtifacts` + `markTaskComplete` as async overrides (4 total)
 3. **IPC handler** - Calls merger, validates against schema, sends to renderer
 
-`St()` flag reader, `AS()` listener, `OQ()` multi-key reader. `wr()` single-value reader removed in v1.7196.0 - `pr()` now handles all value/object flag reads with nested property access (function name TBD for v1.8089.0, pattern unchanged).
+`wt()` flag reader, `Bm()` listener, `Pr()` multi-key reader. New `Lh()` single-value reader (reads `.value` directly from `CQ` storage). `Pr()` handles structured object flags with key+schema, splitting from the former unified `Pr()` approach used in earlier versions.
 
 Feature name strings (`chillingSlothFeat`, `louderPenguin`, etc.) are runtime IPC identifiers, **not minified** - they are stable pattern anchors.
 
-## All 25 Features
+## All 27 Features
 
 | # | Feature | Function | Gate | Purpose |
 |---|---------|----------|------|---------|
-| 1 | `nativeQuickEntry` | `K6i()` | `platform !== "darwin"` + macOS >= 13 | Native Quick Entry (macOS only) |
-| 2 | `quickEntryDictation` | `q6i()` | `platform !== "darwin"` + macOS >= 14.0 + mic | Quick Entry dictation |
-| 3 | `customQuickEntryDictationShortcut` | direct value `C5` | None | Custom dictation shortcut value |
-| 4 | `plushRaccoon` | `Nb(() => C5)` | **Nb() production gate** | Custom dictation shortcut (dev-gated) |
-| 5 | `quietPenguin` | `Nb(A5i)` | **Nb()** + inner `A5i()` returns supported on darwin | Code-related feature (dev-gated) |
-| 6 | `louderPenguin` | `await i5i()` in UcA only | **async override** in UcA; platform gate (darwin/win32) + GrowthBook `4116586025` | **Code tab** |
-| 7 | `chillingSlothFeat` | `j6i()` | darwin\|\|win32 variable check | Local Agent Mode / Cowork |
-| 8 | `chillingSlothEnterprise` | `V6i()` | Org config check | Enterprise disable for Claude Code |
-| 9 | `chillingSlothLocal` | `$6i()` | **None** (always supported) | Local sessions |
+| 1 | `nativeQuickEntry` | `f7i()` | `platform !== "darwin"` + macOS >= 13 | Native Quick Entry (macOS only) |
+| 2 | `quickEntryDictation` | `p7i()` | `platform !== "darwin"` + macOS >= 14.0 + mic | Quick Entry dictation |
+| 3 | `customQuickEntryDictationShortcut` | direct value `gK` | None | Custom dictation shortcut value |
+| 4 | `plushRaccoon` | `PM(() => gK)` | **PM() production gate** | Custom dictation shortcut (dev-gated) |
+| 5 | `quietPenguin` | `PM(M7i)` | **PM()** + inner `M7i()` returns supported on darwin | Code-related feature (dev-gated) |
+| 6 | `louderPenguin` | `await T7i()` in SIA only | **async override** in SIA; platform gate (darwin/win32) + GrowthBook `4116586025` | **Code tab** |
+| 7 | `chillingSlothFeat` | `m7i()` | darwin\|\|win32 variable check (`P3`) | Local Agent Mode / Cowork |
+| 8 | `chillingSlothEnterprise` | `w7i()` | Org config check | Enterprise disable for Claude Code |
+| 9 | `chillingSlothLocal` | `D7i()` | **None** (always supported) | Local sessions |
 | 10 | `chillingSlothPool` | GrowthBook `1992087837` | GrowthBook flag gate | **Concurrent session pooling** (**new in v1.4758.0**) |
-| 11 | `yukonSilver` | `_qA()` | Platform/arch gate + org config (has native Linux support!) | Secure VM |
-| 12 | `yukonSilverGems` | `YDe()` | Depends on `yukonSilver` (`_qA()`) | VM extensions |
-| 13 | `yukonSilverGemsCache` | `YDe()` | Depends on `yukonSilver` (`_qA()`) | VM extensions cache |
-| 14 | `wakeScheduler` | `Nb(s5i)` | **Nb() gate** + `platform !== "darwin"` + macOS >= 13.0 | macOS Login Items / wake scheduling |
-| 15 | `desktopTopBar` | `t5i()` | **None** (always supported) | Desktop top bar |
-| 16 | `ccdPlugins` | `C5` (constant) | **None** (always supported) | CCD Plugins UI (Add plugins, Browse plugins) |
-| 17 | `computerUse` | `r5i()` | Set-based check on `process.platform` | Computer use feature flag (**patched for Linux** via Set modification) |
-| 18 | `coworkKappa` | static: `a5i()` (unavailable) + async in UcA | Depends on yukonSilver + GrowthBook `123929380` | Memory consolidation - `consolidate-memory` skill |
-| 19 | `coworkArtifacts` | static: `g5i()` (unavailable) + async in UcA | Depends on yukonSilver + GrowthBook `2940196192` | **Cowork artifacts** - artifact rendering in cowork sessions |
-| 20 | `markTaskComplete` | static: `c5i()` (unavailable) + async in UcA | Depends on yukonSilver + GrowthBook `3732274605` | **Task completion** - mark tasks as done |
-| 21 | `framebufferPreview` | `n5i()` | **Nb() production gate** + GrowthBook `1928275548` | VNC framebuffer preview (dev-gated) |
-| 22 | `iosSimulator` | `Nb(xDe)` | **Nb() production gate** + macOS-only | iOS Simulator integration (dev-gated + macOS-only) |
-| 23 | `androidEmulator` | `Nb(xDe)` | **Nb() production gate** + macOS-only | Android Emulator integration (dev-gated + macOS-only; inner function `xDe` unchanged) |
-| 24 | `grandPrix` | `o5i()` | darwin-only, checks connected device pairs | Device pairing (macOS-only) |
-| 25 | *(async-only: `louderPenguin`, `coworkKappa`, `coworkArtifacts`, `markTaskComplete`)* | See rows 6, 18-20 | async overrides in UcA | See respective rows |
+| 11 | `yukonSilver` | `TVA()` | Platform/arch gate + org config (has native Linux support!) | Secure VM |
+| 12 | `yukonSilverGems` | `rSe()` | Depends on `yukonSilver` (`TVA()`) | VM extensions |
+| 13 | `yukonSilverGemsCache` | `rSe()` | Depends on `yukonSilver` (`TVA()`) | VM extensions cache |
+| 14 | `wakeScheduler` | `PM(F7i)` | **PM() gate** + `platform !== "darwin"` + macOS >= 13.0 | macOS Login Items / wake scheduling |
+| 15 | `desktopTopBar` | `k7i()` | **None** (always supported) | Desktop top bar |
+| 16 | `ccdPlugins` | `gK` (constant) | **None** (always supported) | CCD Plugins UI (Add plugins, Browse plugins) |
+| 17 | `computerUse` | `v7i()` | Set-based check on `process.platform` | Computer use feature flag (**patched for Linux** via Set modification) |
+| 18 | `coworkKappa` | static: `O7i()` (unavailable) + async in SIA | Depends on yukonSilver + GrowthBook `123929380` | Memory consolidation - `consolidate-memory` skill |
+| 19 | `coworkArtifacts` | static: `x7i()` (unavailable) + async in SIA | Depends on yukonSilver + GrowthBook `2940196192` | **Cowork artifacts** - artifact rendering in cowork sessions |
+| 20 | `markTaskComplete` | static: `Y7i()` (unavailable) + async in SIA | Depends on yukonSilver + GrowthBook `3732274605` | **Task completion** - mark tasks as done |
+| 21 | `framebufferPreview` | `b7i()` | **PM() production gate** + GrowthBook `1928275548` | VNC framebuffer preview (dev-gated) |
+| 22 | `iosSimulator` | `PM(iSe)` | **PM() production gate** + macOS-only | iOS Simulator integration (dev-gated + macOS-only) |
+| 23 | `androidEmulator` | `PM(iSe)` | **PM() production gate** + macOS-only | Android Emulator integration (dev-gated + macOS-only; inner function `iSe` unchanged) |
+| 24 | `grandPrix` | `L7i()` | darwin-only, checks connected device pairs + `mxi()` gate | Device pairing (macOS-only) |
+| 25 | `tearOffHalo` | `G7i()` | macOS >= 13 only | Tear-off halo overlay behind controlled windows (uses `@ant/claude-swift`) |
+| 26 | `grandPrixRequest` | `U7i()` | `Gxi()` - darwin only + service requests | GrandPrix service request availability |
+| 27 | `bootstrapConfig` | `PM(()=>gK)` | **PM() production gate** | Bootstrap config access (dev-gated) |
+| - | *(async-only: `louderPenguin`, `coworkKappa`, `coworkArtifacts`, `markTaskComplete`)* | See rows 6, 18-20 | async overrides in SIA | See respective rows |
 
-## The Nb() Production Gate (was DT() in v1.7196.0, MW() in v1.6608.0)
+## The PM() Production Gate (was Nb() in v1.8089.1, DT() in v1.7196.0, MW() in v1.6608.0)
 
 ```javascript
-function Nb(e){return gA.app.isPackaged?{status:"unavailable"}:e()}
+function PM(e){return gA.app.isPackaged?{status:"unavailable"}:e()}
 ```
 
-In production builds (`app.isPackaged === true`), Nb() returns `{status:"unavailable"}` **without calling** the wrapped function. Only in development builds does it call `e()`.
+In production builds (`app.isPackaged === true`), PM() returns `{status:"unavailable"}` **without calling** the wrapped function. Only in development builds does it call `e()`.
 
-**Features gated by Nb():** `plushRaccoon`, `quietPenguin`, `wakeScheduler`, `framebufferPreview`, `iosSimulator`, `androidEmulator`
+**Features gated by PM():** `plushRaccoon`, `quietPenguin`, `wakeScheduler`, `framebufferPreview`, `iosSimulator`, `androidEmulator`, `bootstrapConfig`
 
-Note: `louderPenguin` is no longer in eD() at all. It exists only in UcA as `await i5i()`, which has its own platform gate (darwin/win32 only) + server feature flag check via GrowthBook `4116586025`. `operon` has been completely removed in v1.6608.0. `coworkKappa`, `coworkArtifacts`, and `markTaskComplete` are async-only: static returns unavailable, async checks yukonSilver + respective GrowthBook flags. `chillingSlothPool` is GrowthBook-gated directly in the static registry.
+Note: `louderPenguin` is no longer in Np() at all. It exists only in SIA as `await T7i()`, which has its own platform gate (darwin/win32 only) + server feature flag check via GrowthBook `4116586025`. `operon` has been completely removed in v1.6608.0. `coworkKappa`, `coworkArtifacts`, and `markTaskComplete` are async-only: static returns unavailable, async checks yukonSilver + respective GrowthBook flags. `chillingSlothPool` is GrowthBook-gated directly in the static registry.
 
-This is why patching the inner functions alone is insufficient - Nb() never calls them in packaged builds.
+This is why patching the inner functions alone is insufficient - PM() never calls them in packaged builds.
 
 ## The Three Layers
 
-### Layer 1: eD() - Static Registry
+### Layer 1: Np() - Static Registry
 
 ```javascript
-function eD(){
+function Np(){
   return{
     nativeQuickEntry:...,
     quickEntryDictation:...,
     customQuickEntryDictationShortcut:...,
-    plushRaccoon:Nb(()=>...),
-    quietPenguin:Nb(...),
-    chillingSlothFeat:...,             // darwin||win32 variable check
+    plushRaccoon:PM(()=>...),
+    quietPenguin:PM(...),
+    chillingSlothFeat:...,             // darwin||win32 variable check (P3)
     chillingSlothEnterprise:...,
     chillingSlothLocal:...,
     chillingSlothPool:...,             // GrowthBook 1992087837 gate
     yukonSilver:...,
     yukonSilverGems:...,
     yukonSilverGemsCache:...,
-    wakeScheduler:Nb(...),
+    wakeScheduler:PM(...),
     desktopTopBar:...,
     ccdPlugins:...,                    // constant {status:"supported"}
     computerUse:...,                   // Set-based gate, "linux" added by patch
     coworkKappa:...,                   // always unavailable (async-only)
     coworkArtifacts:...,               // always unavailable (async-only)
     markTaskComplete:...,              // always unavailable (async-only)
-    framebufferPreview:Nb(...),        // dev-gated + GrowthBook 1928275548
-    iosSimulator:Nb(...),              // dev-gated + macOS-only
-    androidEmulator:Nb(...),           // dev-gated + macOS-only
-    grandPrix:...,                     // macOS-only, checks device pairs via o5i()
+    framebufferPreview:PM(...),        // dev-gated + GrowthBook 1928275548
+    iosSimulator:PM(...),              // dev-gated + macOS-only
+    androidEmulator:PM(...),           // dev-gated + macOS-only
+    grandPrix:...,                     // macOS-only, checks device pairs via L7i()
+    tearOffHalo:...,                   // macOS >= 13 only
+    grandPrixRequest:...,              // darwin only + service requests
+    bootstrapConfig:PM(()=>...),       // dev-gated
   }
 }
 ```
 
-Returns 23 features synchronously. Features wrapped by `Nb()` are always `{status:"unavailable"}` in packaged builds.
+Returns 26 features synchronously. Features wrapped by `PM()` are always `{status:"unavailable"}` in packaged builds.
 
-### Layer 2: UcA - Async Merger (was woA in v1.7196.0, DoA in v1.6608.2)
+### Layer 2: SIA - Async Merger (was UcA in v1.8089.1, woA in v1.7196.0, DoA in v1.6608.2)
 
 ```javascript
-const UcA=async()=>{
-  const[e,A,t,i]=await Promise.all([i5i(),syA(()=>St("123929380")),syA(()=>St("2940196192")),syA(()=>St("3732274605"))]);
-  return{...eD(),louderPenguin:e,coworkKappa:A,coworkArtifacts:t,markTaskComplete:i}
+const SIA=async()=>{
+  const[e,A,t,i]=await Promise.all([
+    T7i(),                       // louderPenguin
+    ZyA(()=>wt("123929380")),    // coworkKappa
+    ZyA(()=>wt("2940196192")),   // coworkArtifacts
+    ZyA(()=>wt("3732274605"))    // markTaskComplete
+  ]);
+  return{...Np(),louderPenguin:e,coworkKappa:A,coworkArtifacts:t,markTaskComplete:i}
 };
 ```
 
-Uses `Promise.all` to parallelize louderPenguin (`i5i()`), coworkKappa (`syA()+St("123929380")`), coworkArtifacts (`syA()+St("2940196192")`), and markTaskComplete (`syA()+St("3732274605")`) async checks. Spreads `eD()` then adds the four as async overrides. `i5i()` checks platform (darwin/win32) then checks server feature flag `4116586025`. The `syA()` helper checks yukonSilver first, waits 5 seconds, then checks the respective GrowthBook flag. **`operon` was removed in v1.6608.0** - no longer has a static entry or async override.
+Uses `Promise.all` to parallelize louderPenguin (`T7i()`), coworkKappa (`ZyA()+wt("123929380")`), coworkArtifacts (`ZyA()+wt("2940196192")`), and markTaskComplete (`ZyA()+wt("3732274605")`) async checks. Spreads `Np()` then adds the four as async overrides. `T7i()` checks platform (darwin/win32) then checks server feature flag `4116586025`. The `ZyA()` helper checks yukonSilver first, waits 5 seconds, then checks the respective GrowthBook flag. **`operon` was removed in v1.6608.0** - no longer has a static entry or async override.
 
 **v1.1.3770 → v1.1.3918 changes:**
 - `chillingSlothEnterprise` moved from async-only (mC) to static (Fd)
@@ -141,7 +152,7 @@ Uses `Promise.all` to parallelize louderPenguin (`i5i()`), coworkKappa (`syA()+S
 - Two Linux guards removed upstream: `isStartupOnLoginEnabled()` and auto-updater (both gracefully degrade)
 - New Quick Entry position-save/restore system (`T7t()`) — patched to always use cursor display
 
-**Because spread applies earlier properties first, later properties win.** This is how our Linux patch works - we append overrides after the last async property so they take precedence over gate-blocked values from `...eD()`.
+**Because spread applies earlier properties first, later properties win.** This is how our Linux patch works - we append overrides after the last async property so they take precedence over gate-blocked values from `...Np()`.
 
 ### Org-Level Settings
 
@@ -154,9 +165,9 @@ Feature flags can also be affected by organization-level admin settings:
 
 Calls the merger, validates the result against a Zod schema, and sends it to the renderer process via IPC. The renderer uses these flags to conditionally render UI elements (e.g., Chat|Code toggle).
 
-## GrowthBook Flag Catalog (v1.8089.0/v1.8089.1)
+## GrowthBook Flag Catalog (v1.8555.2)
 
-### Boolean Flags (St())
+### Boolean Flags (wt())
 
 | Flag ID | Purpose | Patched? |
 |---------|---------|----------|
@@ -208,7 +219,7 @@ Calls the merger, validates the result against a Zod schema, and sends it to the
 | `2192324205` | Tool use result formatting/filtering | No |
 | `2800354941` | Deterministic sorting of plugins/tools/logs | No |
 
-#### Flags Now in Force-ON Defaults Map (k_i) in v1.8089.0
+#### Flags Now in Force-ON Defaults Map (uNi) in v1.8555.2
 
 | Flag ID | Purpose | Notes |
 |---------|---------|-------|
@@ -230,29 +241,61 @@ Calls the merger, validates the result against a Zod schema, and sends it to the
 
 | Flag ID | Was | Notes |
 |---------|-----|-------|
-| `982691970` | Cowork plugin host ops gate | Completely removed from `St()` calls |
-| `1802019210` | Cowork plugin upload migration | Completely removed from `St()` calls |
-| `2216480658` | VM outputs directory mounting | Completely removed from `St()` calls |
-| `2860753854` | System prompt override | Completely removed from `St()` calls |
-| `3298006781` | MSIX updater gate | Completely removed from `St()` calls |
-| `3858743149` | `maxThinkingTokens` config | Completely removed from `St()` calls |
-| `3885610113` | Model name [1m] suffix | Completely removed from `St()` calls |
-| `4019128077` | Cowork CU `alwaysLoad` | Completely removed from `St()` calls |
+| `982691970` | Cowork plugin host ops gate | Completely removed from `wt()` calls |
+| `1802019210` | Cowork plugin upload migration | Completely removed from `wt()` calls |
+| `2216480658` | VM outputs directory mounting | Completely removed from `wt()` calls |
+| `2860753854` | System prompt override | Completely removed from `wt()` calls |
+| `3298006781` | MSIX updater gate | Completely removed from `wt()` calls |
+| `3858743149` | `maxThinkingTokens` config | Completely removed from `wt()` calls |
+| `3885610113` | Model name [1m] suffix | Completely removed from `wt()` calls |
+| `4019128077` | Cowork CU `alwaysLoad` | Completely removed from `wt()` calls |
 
 #### Access Pattern Changes in v1.8089.0
 
 | Flag ID | Change | Notes |
 |---------|--------|-------|
-| `2307090146` | Plugin OAuth storage gate | Still in force-ON defaults map (`k_i`) but no longer in `St()` direct calls |
-| `2345515473` | Sessions-bridge account-change | Still in `AS()` listener calls |
-| `3558849738` | Dispatch/Spaces | Stored as `_ht` constant, read via `St(_ht)` (still exists) |
-| `3572572142` | Sessions-bridge init | Still in `AS()` listener calls |
+| `2307090146` | Plugin OAuth storage gate | Still in force-ON defaults map (`uNi`) but no longer in `wt()` direct calls |
+| `2345515473` | Sessions-bridge account-change | Still in `Bm()` listener calls |
+| `3558849738` | Dispatch/Spaces | Stored as `mpt` constant, read via `wt(mpt)` (still exists) |
+| `3572572142` | Sessions-bridge init | Still in `Bm()` listener calls |
 
 #### Notable Feature Changes in v1.8089.0
 
 - `2204227020` now also gates Visualize (Imagine) MCP server for CCD sessions (was cowork-only before)
 - New `floatingPenguinEnabled` preference (not yet a feature flag in registry - config-only)
 - New `midnightOwl` prototype (dev toggle + GrowthBook flag `180602792`)
+
+#### New Boolean Flags in v1.8555.2
+
+| Flag ID | Purpose | Patched? |
+|---------|---------|----------|
+| `434204418` | MCP non-blocking connection | No |
+
+#### New Listener Flags in v1.8555.2
+
+| Flag ID | Purpose |
+|---------|---------|
+| `4150329283` | Cloud sync drive |
+| `2358734848` | Hardware buddy |
+
+#### Flags Now in Force-ON Defaults Map (uNi) in v1.8555.2
+
+| Flag ID | Purpose | Notes |
+|---------|---------|-------|
+| `2940196192` | coworkArtifacts | Added to force-ON defaults map |
+
+#### Removed in v1.8555.2
+
+| Flag ID | Was | Notes |
+|---------|-----|-------|
+| `658929541` | Lock mid-session model changes (LAM setModel buffer) | Completely removed from `wt()` calls |
+| `2815031518` | CCD lock mid-session model change (LocalSessionManager) | Completely removed from `wt()` calls |
+
+#### Removed Value Flags in v1.8555.2
+
+| Flag ID | Was | Notes |
+|---------|-----|-------|
+| `2921038508` | Cowork memory guide prompt text | Completely removed |
 
 #### New in v1.1.9134
 
@@ -358,7 +401,7 @@ Calls the merger, validates the result against a Zod schema, and sends it to the
 
 #### New Server-Side GrowthBook Flags in v1.6608.2
 
-21 new server-side GrowthBook flag IDs observed. These are **not** feature flags in the static registry (`eD()` in v1.8089.0, was `pw()` in v1.6608.2); they are server-side toggles read via `St()` (was `pt()`) at runtime. All function names unchanged from v1.6608.1.
+21 new server-side GrowthBook flag IDs observed. These are **not** feature flags in the static registry (`Np()` in v1.8555.2, was `eD()` in v1.8089.0, `pw()` in v1.6608.2); they are server-side toggles read via `wt()` (was `St()` in v1.8089.0, `pt()` in v1.6608.2) at runtime. All function names unchanged from v1.6608.1.
 
 | Flag ID | Purpose | Patched? |
 |---------|---------|----------|
@@ -481,9 +524,9 @@ These dispatch-era flags were removed from GrowthBook boolean calls (code may st
 | `2199295617` | AutoArchiveEngine | Removed |
 | `2860753854` | System prompt override (boolean call) | Removed from boolean calls (still exists as value flag) |
 
-### Object/Value Flags (OQ())
+### Object/Value Flags (Pr())
 
-`wr()` reads single-value flags; `OQ()` reads multi-key object/value flags.
+`Lh()` reads single-value flags (reads `.value` directly from `CQ` storage); `Pr()` reads structured object flags with key+schema.
 
 | Flag ID | Type | Purpose |
 |---------|------|---------|
@@ -503,7 +546,7 @@ These dispatch-era flags were removed from GrowthBook boolean calls (code may st
 | `3858743149` | fs() | maxThinkingTokens config (default 4000, min 1024) (**new in v1.2773.0**) |
 | `4066504968` | fs() | Setup-cowork skill config (skillDescription, skillPrompt) (**new in v1.1348.0**) |
 
-### Listener Flags (AS())
+### Listener Flags (Bm())
 
 | Flag ID | Purpose |
 |---------|---------|
@@ -512,26 +555,26 @@ These dispatch-era flags were removed from GrowthBook boolean calls (code may st
 | `2345515473` | Sessions-bridge account-change reevaluation |
 | `2940196192` | Artifacts changed listener - triggers re-emit on flag toggle |
 | `3572572142` | Sessions-bridge on/off toggle |
-| `gHt` (`3558849738`) | Dispatch/Spaces feature - used via variable reference |
+| `mpt` (`3558849738`) | Dispatch/Spaces feature - used via variable reference |
 
 ## What We Patch on Linux
 
 ### enable_local_agent_mode.nim
 
-**Patch 1 - Individual functions:** Remove `process.platform!=="darwin"` gate from the quietPenguin inner function. Note: chillingSlothFeat uses a darwin||win32 variable check — only 1 match now instead of 2, handled gracefully by the `elif len(matches) == 1` branch. Also inject Linux early-return in yukonSilver (`jyA()` in v1.4758.0) to bypass its platform gate (though upstream now has native Linux support too — our patch is defensive).
+**Patch 1 - Individual functions:** Remove `process.platform!=="darwin"` gate from the quietPenguin inner function. Note: chillingSlothFeat uses a darwin||win32 variable check (`P3`) - only 1 match now instead of 2, handled gracefully by the `elif len(matches) == 1` branch. Also inject Linux early-return in yukonSilver (`TVA()` in v1.8555.2) to bypass its platform gate (though upstream now has native Linux support too - our patch is defensive).
 
-**Patch 3 - UcA merger override:** Append to the `UcA` return object:
+**Patch 3 - SIA merger override:** Append to the `SIA` return object:
 ```javascript
 ,quietPenguin:{status:"supported"},louderPenguin:{status:"supported"},chillingSlothFeat:{status:"supported"},chillingSlothLocal:{status:"supported"},chillingSlothPool:{status:"supported"},yukonSilver:{status:"supported"},yukonSilverGems:{status:"supported"},ccdPlugins:{status:"supported"},computerUse:{status:"supported"},coworkKappa:{status:"supported"},coworkArtifacts:{status:"supported"},markTaskComplete:{status:"supported"}
 ```
 
-This bypasses the Nb() gate by overriding at the merger level (12 total overrides). The spread order ensures our values win:
+This bypasses the PM() gate by overriding at the merger level (12 total overrides). The spread order ensures our values win:
 ```
-...eD()           -> quietPenguin: {status:"unavailable"}  (from Nb)
+...Np()           -> quietPenguin: {status:"unavailable"}  (from PM)
 ...our overrides  -> quietPenguin: {status:"supported"}    (wins)
 ```
 
-Note: `chillingSlothLocal` and `ccdPlugins` overrides are defensive - both are already `{status:"supported"}`, but the overrides protect against future gating. `yukonSilverGemsCache` is NOT overridden but inherits support from the `_qA()` (yukonSilver) function patch in Patch 1b. `coworkKappa` is overridden to `{status:"supported"}` AND its GrowthBook flag `123929380` is forced ON (Patch 3b). `coworkArtifacts` is overridden AND its GrowthBook flag `2940196192` is forced ON (Patch 3c). `chillingSlothPool` is overridden AND its GrowthBook flag `1992087837` is forced ON (Patch 3d). `markTaskComplete` is overridden AND its GrowthBook flag `3732274605` is forced ON (Patch 3e).
+Note: `chillingSlothLocal` and `ccdPlugins` overrides are defensive - both are already `{status:"supported"}`, but the overrides protect against future gating. `yukonSilverGemsCache` is NOT overridden but inherits support from the `TVA()` (yukonSilver) function patch in Patch 1b. `coworkKappa` is overridden to `{status:"supported"}` AND its GrowthBook flag `123929380` is forced ON (Patch 3b). `coworkArtifacts` is overridden AND its GrowthBook flag `2940196192` is forced ON (Patch 3c). `chillingSlothPool` is overridden AND its GrowthBook flag `1992087837` is forced ON (Patch 3d). `markTaskComplete` is overridden AND its GrowthBook flag `3732274605` is forced ON (Patch 3e).
 
 ### Cowork on Linux (experimental)
 
@@ -540,7 +583,7 @@ As of v1.1.2685, Cowork uses a decoupled architecture with a TypeScript VM clien
 - **`fix_cowork_linux.nim`** patches the VM client loader to include Linux (not just `win32`)
 - The Named Pipe path is replaced with a Unix domain socket on Linux
 - **`claude-cowork-service`** (separate Go daemon at `/home/patrickjaja/development/claude-cowork-service`) provides native execution backend — 18 RPC methods, process spawning, path remapping
-- `chillingSlothFeat`, `chillingSlothLocal`, `yukonSilver`, `yukonSilverGems`, and `ccdPlugins` are all overridden to `{status:"supported"}` in the UcA merger
+- `chillingSlothFeat`, `chillingSlothLocal`, `yukonSilver`, `yukonSilverGems`, and `ccdPlugins` are all overridden to `{status:"supported"}` in the SIA merger
 
 Without the daemon running, Cowork will show connection errors naturally in the UI.
 
@@ -681,12 +724,15 @@ Defined in `ODt` array alongside `AskUserQuestion` and `ExitPlanMode`. UI comman
 | `quickEntryDictation` | Requires macOS Swift code |
 | `plushRaccoon` | Dictation shortcut, macOS-only |
 | `wakeScheduler` | Requires macOS Login Items API + macOS >= 13.0 |
-| `framebufferPreview` | Dev-only (Nb() gate) |
+| `framebufferPreview` | Dev-only (PM() gate) |
 | `iosSimulator` | Dev-only + macOS-only |
 | `androidEmulator` | Dev-only + macOS-only |
 | `grandPrix` | macOS-only, requires connected device pairs |
-| ~~`coworkArtifacts`~~ | **Enabled on Linux** — flag `2940196192` forced ON + merger override in `enable_local_agent_mode.nim` (**new in v1.3883.0**) |
-| ~~`coworkKappa`~~ | **Enabled on Linux** — flag `123929380` forced ON + merger override in `enable_local_agent_mode.nim` |
+| `tearOffHalo` | macOS >= 13 only, uses `@ant/claude-swift` |
+| `grandPrixRequest` | macOS-only, requires GrandPrix service |
+| `bootstrapConfig` | Dev-only (PM() gate) |
+| ~~`coworkArtifacts`~~ | **Enabled on Linux** - flag `2940196192` forced ON + merger override in `enable_local_agent_mode.nim` (**new in v1.3883.0**) |
+| ~~`coworkKappa`~~ | **Enabled on Linux** - flag `123929380` forced ON + merger override in `enable_local_agent_mode.nim` |
 
 ### Known Issues (v1.3883.0)
 
@@ -715,8 +761,8 @@ Feature name strings are stable across versions because they're IPC identifiers 
 
 ### When updating for new versions
 
-1. Check if `UcA` structure changed (new features added, order changed)
-2. Check if Nb()-wrapped features changed
+1. Check if `SIA` structure changed (new features added, order changed)
+2. Check if PM()-wrapped features changed
 3. Verify feature name strings haven't been renamed (unlikely - they're IPC contracts)
 4. Test with `./scripts/validate-patches.sh`
 
@@ -755,3 +801,4 @@ Feature name strings are stable across versions because they're IPC identifiers 
 | v1.6608.2 | `pw()` | `DoA` | `pt()` | **No feature flag changes** — same 27 features, same function names (`pw`, `DoA`, `mT`, `ft`, `Cm`, `wr`, `OQ`); 21 new server-side GrowthBook flags observed (see "New Server-Side GrowthBook Flags in v1.6608.2"); MCP registration renames: `lrA()`→`BrA()` (already in v1.6608.1), `MG`→`I_`, `VqA`→`xSA`, `Y7()`→`pq()`; all 43 patches compatible |
 | v1.7196.0 | `pw()` | `woA` | `pt()` | **No new/removed features** - same 27 features (23 static + 4 async overrides); `wr()` single-value reader removed (`pr()` now handles value reads); async merger reverted `DoA`->`woA`, MCP registration reverted `BrA()`->`lrA()`, display labels `xSA`->`FSA`; computer-use Set `QoA`->`BoA`; platform vars unchanged (`or`/`fn`/`OiA`); `pw()`, `pt()`, `Cm()`, `OQ()`, `DT()`, `Gu` all unchanged; no new GrowthBook flags; imagine `isEnabled` may gain `ccd` session type (flag `2204227020`) in future builds; `pt()` may gain pre-return telemetry call in future builds; 3 patches refreshed by @boommasterxd with forward-looking fallbacks; all 45 patches compatible |
 | v1.8089.0 | `eD()` | `UcA` | `St()` | **No new/removed features** - same 25 features (23 static + 4 async overrides, 2 features removed vs v1.7196.0 total count adjustment); major renames: `pw()`->`eD()`, `woA`->`UcA`, `DT()`->`Nb()`, `pt()`->`St()`, `Cm()`->`AS()`; platform vars `or`->`Lr` (darwin), `fn`->`Io` (win32), `OiA`->`pj` (darwin\|\|win32); supported constant `saA`->`C5`; computer-use Set `QoA`->`NcA`; GrowthBook storage `Gu`->`nQ`; 6 new boolean GrowthBook flags (`245679952`, `1129419822`, `1496676413`, `2049450122`, `2192324205`, `2800354941`); 1 new non-boolean flag (`4274871493`); 1 new listener flag (`180602792` midnightOwl); 8 removed flags (`982691970`, `1802019210`, `2216480658`, `2860753854`, `3298006781`, `3858743149`, `3885610113`, `4019128077`); `2204227020` now gates Visualize for CCD sessions; new `floatingPenguinEnabled` pref; `3246569822` added to force-ON defaults (`k_i`); all 45 patches compatible |
+| v1.8555.2 | `Np()` | `SIA` | `PM()` | **3 new features:** `tearOffHalo` (macOS >= 13 halo overlay), `grandPrixRequest` (darwin service requests), `bootstrapConfig` (dev-gated) - 27 total (26 static + louderPenguin async-only); major renames: `eD()`->`Np()`, `UcA`->`SIA`, `Nb()`->`PM()`, `St()`->`wt()`, `AS()`->`Bm()`, `OQ()`->`Pr()`; new `Lh()` single-value reader (reads `.value` from `CQ` storage); platform vars `Lr`->`Or` (darwin), `Io`->`mo` (win32), `pj`->`P3` (darwin\|\|win32); supported constant `C5`->`gK`; computer-use Set `NcA`->`hIA`, checker `fIA()`; GrowthBook storage `nQ`->`CQ`; force-ON defaults `k_i`->`uNi`; dispatch constant `_ht`->`mpt`; async merger helper `syA`->`ZyA`; 1 new boolean flag (`434204418` MCP non-blocking connection); 2 new listener flags (`4150329283` cloud sync drive, `2358734848` hardware buddy); 2 removed boolean flags (`658929541`, `2815031518` setModel buffer checks); 1 removed value flag (`2921038508` cowork memory guide prompt); `2940196192` added to force-ON defaults map |

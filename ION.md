@@ -1,6 +1,6 @@
 # ion-dist Baseline - Third-Party Inference SPA
 
-**Last verified:** 2026-05-20 against v1.8089.0/v1.8089.1 (code identical; v1.8089.1 removed 704 .zst compressed file variants)
+**Last verified:** 2026-05-23 against v1.8555.2
 
 The `ion-dist/` directory is a standalone React SPA bundled inside `locales/ion-dist/`. It powers the **Configure Third-Party Inference** UI (Developer menu). Served by the Electron main process via the `app://` protocol handler.
 
@@ -8,10 +8,9 @@ The `ion-dist/` directory is a standalone React SPA bundled inside `locales/ion-
 
 | Metric | Value |
 |--------|-------|
-| Total size | 86 MB |
-| JS chunks | 652 files in `assets/v1/` |
-| Compressed | 704 `.zst` files (Zstandard-compressed variants of JS chunks, since v1.7196.0) |
-| CSS | 21 files |
+| Total size | 87 MB |
+| JS chunks | 667 files in `assets/v1/` |
+| CSS | 22 files |
 | Fonts | 31 woff2 + 21 ttf + 20 woff |
 | Images | 25 PNG, 18 SVG, 17 GIF |
 | Audio | 25 MP3, 1 WebM, 1 MOV |
@@ -25,10 +24,10 @@ The `ion-dist/` directory is a standalone React SPA bundled inside `locales/ion-
 | `index.html` | 4.1 KB | SPA entry, loads `index-*.js` via `<script type="module">` |
 | `assets/v1/index-*.js` | ~6.9 MB | Main bundle (React app, API client, UI components) |
 | `assets/v1/vendor-*.js` | ~1.5 MB | Third-party vendor libs |
-| `assets/v1/c71860c77-*.js` | 14+ files (main: ~239 KB) | 3P config UI, code-split into lazy-loaded chunks - **main chunk patched** (v1.8089.0: `c71860c77-C6hxWuPG.js`) |
+| `assets/v1/c71860c77-*.js` | 16 files (main: ~269 KB) | 3P config UI, code-split into lazy-loaded chunks - **main chunk patched** (v1.8555.2: `c71860c77-CgRWbV12.js`) |
 | `assets/v1/tree-sitter-*.js` | - | Code parsing (tree-sitter WASM bindings) |
 
-Filenames include content hashes (e.g., `index-BHrKNf9Q.js`) that change every upstream release.
+Filenames include content hashes (e.g., `index-DuIwZ1hn.js`) that change every upstream release.
 
 ## How It's Served
 
@@ -60,7 +59,7 @@ Platform enum in the SPA (v1.6608.1: `Y`; previously `U3`, `W` - name changes ev
 ```js
 mountPath:{mac:"/Library/Application Support/Claude/org-plugins",win:"%ProgramFiles%\\Claude\\org-plugins",caption:"..."}
 ```
-No `linux` key. Display component falls back with a platform ternary (variable names change every release - v1.7196.0: `r===W.Win32?t.win:t.mac`; v1.8089.0: `C===V.Win32?Ve.mountPath.win:Ve.mountPath.mac`).
+No `linux` key. Display component falls back with a platform ternary (variable names change every release - v1.7196.0: `r===W.Win32?t.win:t.mac`; v1.8089.0: `C===V.Win32?Ve.mountPath.win:Ve.mountPath.mac`; v1.8555.2: `C===W.Win32?Ye.mountPath.win:Ye.mountPath.mac`).
 
 **Patched by `fix_ion_dist_linux.nim`:**
 - Sub-patch A: Adds `linux:"/etc/claude-desktop/org-plugins"` to mountPath
@@ -118,7 +117,7 @@ The 3P config supports these key categories (defined in the SPA's Zod schema):
 
 - **Connection:** `inferenceProvider`, `deploymentOrganizationUuid`, `disableDeploymentModeChooser`
 - **Provider credentials:** Vertex (`inferenceVertex*`), Bedrock (`inferenceBedrock*`), Foundry (`inferenceFoundry*`), Gateway (`inferenceGateway*`)
-- **Credential helper:** `inferenceCredentialHelper`, `inferenceCredentialHelperTtlSec`
+- **Credential helper:** `inferenceCredentialHelper`, `inferenceCredentialHelperTtlSec`, `inferenceCredentialHelperTimeoutSec`, `inferenceCredentialKind`, `inferenceCustomHeaders`
 - **Models:** `inferenceModels` (supports `1m` context variant)
 - **Sandbox:** `disabledBuiltinTools`, `allowedWorkspaceFolders`, `coworkEgressAllowedHosts`, `isClaudeCodeForDesktopEnabled`
 - **Connectors:** `managedMcpServers`, `isLocalDevMcpEnabled`, `isDesktopExtensionEnabled`, `isDesktopExtensionDirectoryEnabled`, `isDesktopExtensionSignatureRequired`
@@ -129,8 +128,11 @@ The 3P config supports these key categories (defined in the SPA's Zod schema):
 - **Usage limits:** `inferenceMaxTokensPerWindow`, `inferenceTokenWindowHours`
 - **Bootstrap:** `bootstrapEnabled`, `bootstrapUrl`, `bootstrapOidc`
 - **Auth/Org:** `forceLoginOrgUUID`
-- **Bedrock (new sub-keys):** `inferenceBedrockAwsDir`, `inferenceBedrockBearerToken`, `inferenceBedrockServiceTier` (enum: `"flex"` | `"priority"`)
+- **Bedrock (new sub-keys):** `inferenceBedrockAwsDir`, `inferenceBedrockBearerToken`, `inferenceBedrockServiceTier` (enum: `"flex"` | `"priority"`), `inferenceBedrockSsoStartUrl`, `inferenceBedrockSsoRoleName`, `inferenceBedrockSsoRegion`, `inferenceBedrockSsoAccountId`, `inferenceBedrockBaseUrl`
 - **Vertex (new sub-keys):** `inferenceVertexBaseUrl`, `inferenceVertexCredentialsFile`, `inferenceVertexOAuthClientId`, `inferenceVertexOAuthClientSecret`, `inferenceVertexOAuthScopes`
-- **Gateway (new enum):** `inferenceGatewayAuthScheme` now supports `"sso"` (in addition to `"auto"`, `"x-api-key"`, `"bearer"`)
+- **Gateway (new enum):** `inferenceGatewayAuthScheme` now supports `"sso"` (in addition to `"auto"`, `"x-api-key"`, `"bearer"`); `inferenceGatewayOidc`, `inferenceGatewayApiKey`
+- **Foundry:** `inferenceFoundryApiKey`
 - **OTLP (new sub-key):** `otlpResourceAttributes`
 - **Cowork/Sandbox (new keys):** `requireCoworkFullVmSandbox`, `secureVmFeaturesEnabled`
+- **Org banners (new in v1.8555.2):** `banner` object with `enabled` (boolean) and `text` (string) sub-keys
+- **Bootstrap auth (new in v1.8555.2):** `triggerBootstrapAuth` IPC bridge method for bootstrap OIDC auth flow
