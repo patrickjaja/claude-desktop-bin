@@ -2,6 +2,38 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-05-26 (v1.9255.0) - Tray DBus patch rebased, 2 new feature flags
+
+### Upstream (v1.9255.0)
+
+- **Version bump:** v1.8555.2 -> v1.9255.0
+- **2 new feature flags** (29 total static, was 27):
+  - `chatIn3p` - dev-gated (PM() production gate), third-party chat
+  - `chatCodeExecution` - `qWe(Vi())` 3p config presence check
+- **Feature flags:** function names renamed - `Gp()` (static, was `Np()`), `pEA` (async, was `SIA`). Async merger still spreads `Gp()` + 4 overrides (`louderPenguin`/`coworkKappa`/`coworkArtifacts`/`markTaskComplete`) gated by `Ct("4116586025")`/`Ct("123929380")`/`Ct("2940196192")`/`Ct("3732274605")` - same shape as v1.8555.2, same `enable_local_agent_mode.nim` override list still correct
+- **ion-dist SPA:** still 87 MB. JS chunks 667 -> 677, `c71860c77-*` main chunks 16 -> 20 (more code-splitting), CSS 22 -> 21. Patched chunk renamed `c71860c77-CgRWbV12.js` -> `c71860c77-DFJHDHrp.js`. `mountPath` still lacks `linux` key, both sub-patches still apply
+- **No new MCP servers** - registry unchanged from v1.8555.2
+- **No new native module requires** - dependency surface unchanged
+- **New Cowork debug surfaces:** `cowork-host-loop-log` (new debug-report log source for host-loop agent process API retries/errors), `coworkUserFilesPath` (persistent Cowork user-files path resolution via `resolveCoworkUserFilesPath`)
+- **No new platform gates** blocking Linux. `tearOffHalo` (introduced in v1.8555.2) remains the only macOS-only Cowork feature with no Linux equivalent - not portable without compositor-specific overlay-window APIs
+- **GrowthBook flag deltas not re-verified** - the v1.8555.2 MSIX was deleted before the comparison was performed, so the diff baseline was an older bundle. No verified add/remove list for this release
+
+### Patch fix: fix_tray_dbus.nim
+
+- Upstream merged tray + menu variables into a single `let OE=null,Ak=null;` declaration with `function ECA()` between the declaration and `function _5A()`. The old regex `let ([\w$]+)=null;(?:async )?function _5A` no longer matched.
+- Rebased: the tray variable is now extracted from the `X&&(X.destroy(),X=null)` pattern inside the `_5A()` body itself. Robust against merged declarations and intervening functions.
+
+### No other patch changes needed
+
+All other 46 patches applied without modification. Flexible `[\w$]+` patterns absorbed all minified variable renames automatically.
+
+### Build
+
+- Validation: 47/48 patches PASS via `scripts/validate-patches.sh`. The single FAIL is `fix_ion_dist_linux.nim` (type `nim-dir`) - the validator does not yet implement directory-target validation; the patch itself was tested manually against the extracted `ion-dist/` and applied successfully.
+- End-to-end: `scripts/apply_patches.py` applied all 47 patches against staged `app.asar.contents/`, `node --check` on patched `index.js` + `mainView.js` passed.
+
+---
+
 ## 2026-05-23 (v1.8555.2) - All patches clean, new upstream features, Computer Use toggle fix
 
 ### Upstream (v1.8555.2)

@@ -35,12 +35,23 @@ proc apply*(input: string): string =
     echo &"  [OK] menuBarEnabled listener: found tray function '{trayFunc}'"
 
   # Step 2: Find tray variable name
+  # Extract from the destroy/null reset inside the trayFunc body. This is
+  # robust against neighboring variables being merged into the same `let`
+  # declaration (e.g. `let OE=null,Ak=null;function ECA(){}function _5A(){}`).
   var trayVar = ""
   if trayFunc != "":
-    let varPat = re2("let ([\\w$]+)=null;(?:async )?function " & escapeRe(trayFunc))
-    for m in result.findAll(varPat):
-      trayVar = result[m.group(0)]
-      break
+    let funcStart = result.find("function " & trayFunc & "(){")
+    if funcStart >= 0:
+      let snippetEnd = min(funcStart + 2000, result.len)
+      let body = result[funcStart ..< snippetEnd]
+      let destroyPat = re2"([\w$]+)&&\(([\w$]+)\.destroy\(\),([\w$]+)=null\)"
+      for m in body.findAll(destroyPat):
+        let v1 = body[m.group(0)]
+        let v2 = body[m.group(1)]
+        let v3 = body[m.group(2)]
+        if v1 == v2 and v2 == v3:
+          trayVar = v1
+          break
 
     if trayVar == "":
       echo "  [FAIL] tray variable: 0 matches, expected >= 1"
