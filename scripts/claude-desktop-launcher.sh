@@ -468,6 +468,146 @@ _refresh_profile_binary_if_stale() {
     return 0
 }
 
+# ---------------------------------------------------------------------------
+# AppImage desktop integration (protocol handler + app menu entry)
+# ---------------------------------------------------------------------------
+_APPIMAGE_DESKTOP_FILE="$HOME/.local/share/applications/${APP_ID}.desktop"
+_APPIMAGE_ICON_DIR="$HOME/.local/share/icons/hicolor/256x256/apps"
+
+_appimage_integrate() {
+    local appimage_path="${CLAUDE_APPIMAGE_PATH:-}"
+    local quiet="${1:-}"
+
+    if [[ -z "$appimage_path" ]]; then
+        if [[ "$quiet" != "quiet" ]]; then
+            echo >&2 "claude-desktop: not running as AppImage (CLAUDE_APPIMAGE_PATH unset)."
+            echo >&2 "  This command is only needed for AppImage installs."
+        fi
+        return 1
+    fi
+
+    if [[ ! -f "$appimage_path" ]]; then
+        log "AppImage integrate: path does not exist: $appimage_path"
+        if [[ "$quiet" != "quiet" ]]; then
+            echo >&2 "claude-desktop: AppImage not found at $appimage_path"
+        fi
+        return 1
+    fi
+
+    if [[ -f "/usr/share/applications/${APP_ID}.desktop" ]]; then
+        log "AppImage integrate: system .desktop exists - skipping"
+        if [[ "$quiet" != "quiet" ]]; then
+            echo "System package already provides ${APP_ID}.desktop - AppImage integration skipped."
+            echo "(The system package's protocol handler takes priority.)"
+        fi
+        return 0
+    fi
+
+    local desired_exec="Exec=${appimage_path} %u"
+
+    if [[ -f "$_APPIMAGE_DESKTOP_FILE" ]]; then
+        local current_exec
+        current_exec=$(grep '^Exec=' "$_APPIMAGE_DESKTOP_FILE" 2>/dev/null | head -1)
+        if [[ "$current_exec" == "$desired_exec" ]]; then
+            log "AppImage integrate: .desktop up to date ($appimage_path)"
+            if [[ "$quiet" != "quiet" ]]; then
+                echo "Desktop integration already up to date."
+                echo "  File: $_APPIMAGE_DESKTOP_FILE"
+                echo "  Exec: $appimage_path %u"
+            fi
+            return 0
+        fi
+        log "AppImage integrate: updating .desktop (path changed)"
+    fi
+
+    mkdir -p "$(dirname "$_APPIMAGE_DESKTOP_FILE")"
+
+    cat > "$_APPIMAGE_DESKTOP_FILE" <<DESKTOP_EOF
+[Desktop Entry]
+Name=Claude
+Comment=Claude AI Desktop Application
+${desired_exec}
+Icon=claude-desktop
+Type=Application
+Terminal=false
+Categories=Office;Utility;Chat;
+MimeType=x-scheme-handler/claude;
+StartupWMClass=claude
+DESKTOP_EOF
+
+    local appimage_icon=""
+    local here="${CLAUDE_ELECTRON%/*}"
+    if [[ -n "$here" ]]; then
+        local appdir="${here}/../../.."
+        if [[ -f "$appdir/claude-desktop.png" ]]; then
+            appimage_icon="$appdir/claude-desktop.png"
+        elif [[ -f "$appdir/usr/share/icons/hicolor/256x256/apps/claude-desktop.png" ]]; then
+            appimage_icon="$appdir/usr/share/icons/hicolor/256x256/apps/claude-desktop.png"
+        fi
+    fi
+    if [[ -n "$appimage_icon" && -f "$appimage_icon" ]]; then
+        mkdir -p "$_APPIMAGE_ICON_DIR"
+        cp "$appimage_icon" "$_APPIMAGE_ICON_DIR/claude-desktop.png" 2>/dev/null || true
+    fi
+
+    if command -v update-desktop-database &>/dev/null; then
+        update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
+    fi
+
+    if command -v xdg-mime &>/dev/null; then
+        xdg-mime default "${APP_ID}.desktop" x-scheme-handler/claude 2>/dev/null || true
+    fi
+
+    log "AppImage integrate: registered ${_APPIMAGE_DESKTOP_FILE} -> ${appimage_path}"
+    if [[ "$quiet" != "quiet" ]]; then
+        echo "Desktop integration installed."
+        echo "  File: $_APPIMAGE_DESKTOP_FILE"
+        echo "  Exec: $appimage_path %u"
+        echo "  Protocol: claude:// -> Claude Desktop (AppImage)"
+        echo
+        echo "The claude:// protocol handler is now active."
+        echo "To remove: claude-desktop --unintegrate"
+    fi
+    return 0
+}
+
+_appimage_unintegrate() {
+    local removed=0
+
+    if [[ -f "$_APPIMAGE_DESKTOP_FILE" ]]; then
+        local exec_line
+        exec_line=$(grep '^Exec=' "$_APPIMAGE_DESKTOP_FILE" 2>/dev/null | head -1)
+        if [[ "$exec_line" == *".AppImage"* ]]; then
+            rm -f "$_APPIMAGE_DESKTOP_FILE"
+            echo "Removed: $_APPIMAGE_DESKTOP_FILE"
+            removed=$((removed + 1))
+        else
+            echo >&2 "claude-desktop: $_APPIMAGE_DESKTOP_FILE does not point to an AppImage - not removing."
+            echo >&2 "  Current Exec=: $exec_line"
+            return 1
+        fi
+    fi
+
+    local icon_file="$_APPIMAGE_ICON_DIR/claude-desktop.png"
+    if [[ -f "$icon_file" ]]; then
+        rm -f "$icon_file"
+        echo "Removed: $icon_file"
+        removed=$((removed + 1))
+    fi
+
+    if (( removed == 0 )); then
+        echo "No AppImage integration found to remove."
+        return 0
+    fi
+
+    if command -v update-desktop-database &>/dev/null; then
+        update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
+    fi
+
+    echo "Desktop integration removed."
+    return 0
+}
+
 _create_profile() {
     local name="$1"
     if [[ -z "$name" || "$name" == "default" ]]; then
@@ -697,7 +837,30 @@ _diagnose() {
     if [[ -f $desktop_file ]]; then
         echo ".desktop file: $desktop_file (found)"
     else
-        echo ".desktop file: $desktop_file (MISSING — portal identity will fail)"
+        echo ".desktop file: $desktop_file (MISSING - portal identity will fail)"
+    fi
+    if [[ -n "${CLAUDE_APPIMAGE_PATH:-}" ]]; then
+        echo "CLAUDE_APPIMAGE_PATH = $CLAUDE_APPIMAGE_PATH"
+        if [[ -f "$_APPIMAGE_DESKTOP_FILE" ]]; then
+            local _ai_exec
+            _ai_exec=$(grep '^Exec=' "$_APPIMAGE_DESKTOP_FILE" 2>/dev/null | head -1)
+            echo "AppImage .desktop: $_APPIMAGE_DESKTOP_FILE (found)"
+            echo "  Exec = $_ai_exec"
+            if [[ "$_ai_exec" == *"$CLAUDE_APPIMAGE_PATH"* ]]; then
+                echo "  Status: UP TO DATE"
+            else
+                echo "  Status: STALE (path mismatch)"
+            fi
+        else
+            echo "AppImage .desktop: $_APPIMAGE_DESKTOP_FILE (MISSING - run --integrate)"
+        fi
+        if command -v xdg-mime &>/dev/null; then
+            local _handler
+            _handler=$(xdg-mime query default x-scheme-handler/claude 2>/dev/null || echo '(not set)')
+            echo "claude:// handler = $_handler"
+        fi
+    else
+        echo "CLAUDE_APPIMAGE_PATH = (unset - not an AppImage)"
     fi
     echo "APP_ASAR = $APP_ASAR"
     echo
@@ -774,6 +937,13 @@ if [[ -n "$profile_suffix" ]]; then
     fi
 fi
 
+# ---------------------------------------------------------------------------
+# AppImage auto-integration (protocol handler + menu entry)
+# ---------------------------------------------------------------------------
+if [[ -n "${CLAUDE_APPIMAGE_PATH:-}" ]]; then
+    _appimage_integrate quiet || true
+fi
+
 case "${1:-}" in
     --help|-h)
         cat <<'HELP'
@@ -806,6 +976,12 @@ Options:
   --delete-profile=NAME     Remove the entry points for profile NAME. User data
                             (~/.config/Claude-NAME, ~/.claude-NAME) is preserved.
   --list-profiles           List installed profiles.
+  --integrate               Register the claude:// protocol handler and add an
+                            application menu entry (AppImage only). Happens
+                            automatically on every launch; use this to force
+                            registration or verify the current state.
+  --unintegrate             Remove the AppImage protocol handler registration
+                            and menu entry. Does not affect system packages.
   --native-titlebar          Restore the native window frame instead of the
                             integrated (overlay) titlebar. Same as setting
                             CLAUDE_NATIVE_TITLEBAR=1.
@@ -830,6 +1006,9 @@ Environment variables:
                             Skip the systemd --user --scope wrapper (for
                             sandboxes without access to the systemd private
                             socket; portal app identity may not resolve).
+  CLAUDE_APPIMAGE_PATH=PATH Set by AppRun when running as AppImage. Used for
+                            protocol handler registration. Do not set manually
+                            unless running from --appimage-extract.
 
 All other arguments are passed through to Electron.
 HELP
@@ -866,6 +1045,14 @@ HELP
     --list-profiles)
         _list_profiles
         exit 0
+        ;;
+    --integrate)
+        _appimage_integrate
+        exit $?
+        ;;
+    --unintegrate)
+        _appimage_unintegrate
+        exit $?
         ;;
     --toggle|--toggle-quick-entry)
         # Fast Quick Entry toggle via Unix domain socket (~5-25 ms).
@@ -1003,6 +1190,10 @@ ELECTRON_ARGS+=('--enable-transparent-visuals')
 case $platform_mode in
     x11)
         log 'X11 session detected'
+        if [[ -n "${CLAUDE_APPIMAGE_PATH:-}" ]]; then
+            log 'AppImage X11: adding --no-sandbox (FUSE cannot carry SUID)'
+            ELECTRON_ARGS+=('--no-sandbox')
+        fi
         ;;
     xwayland)
         log 'Using X11 backend via XWayland (CLAUDE_USE_XWAYLAND=1)'

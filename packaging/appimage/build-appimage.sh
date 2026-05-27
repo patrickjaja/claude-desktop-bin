@@ -136,6 +136,10 @@ export LD_LIBRARY_PATH="${HERE}/usr/lib/claude-desktop:${LD_LIBRARY_PATH}"
 export CLAUDE_ELECTRON="${HERE}/usr/lib/claude-desktop/claude"
 export CLAUDE_APP_ASAR="${HERE}/usr/lib/claude-desktop/resources/app.asar"
 
+# Pass the stable AppImage path so the launcher can register
+# the claude:// protocol handler with the correct Exec= path.
+export CLAUDE_APPIMAGE_PATH="${APPIMAGE:-}"
+
 # Support --appimage-update flag for self-updating
 if [ "$1" = "--appimage-update" ]; then
     if [ -z "$APPIMAGE" ]; then
