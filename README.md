@@ -211,6 +211,11 @@ claude-desktop.override {
 > ```
 
 ### AppImage (Any Distro)
+
+Works on standard and **immutable/atomic distros** - Bazzite, Fedora Silverblue/Kinoite, SteamOS, Universal Blue, NixOS (without the Nix package), and any other glibc-based Linux. Also works on **NVIDIA Jetson** (aarch64 AppImage).
+
+The `claude://` protocol handler (needed for OAuth sign-in) is **automatically registered** on first launch. If you move or rename the AppImage, the registration updates on the next launch.
+
 ```bash
 # Download from GitHub Releases
 wget https://github.com/patrickjaja/claude-desktop-bin/releases/latest/download/Claude_Desktop-1.9255.2-x86_64.AppImage
@@ -220,13 +225,15 @@ chmod +x Claude_Desktop-*-x86_64.AppImage
 
 > **Computer Use:** Install optional dependencies using your distro's package manager - see the [Computer Use packages table](#optional-dependencies). On Sway, Hyprland, or GNOME Wayland, `ydotool` v1.0+ is required - see [ydotool setup](#ydotool-setup-wayland).
 
-> **Update:** AppImage supports delta updates via [appimageupdatetool](https://github.com/AppImageCommunity/AppImageUpdate). Only changed blocks are downloaded.
+> **Update:** AppImage supports delta updates via [appimagetool](https://github.com/AppImageCommunity/AppImageUpdate). Only changed blocks are downloaded.
 > ```bash
 > appimageupdatetool Claude_Desktop-*-x86_64.AppImage
 > # Or from within the AppImage:
 > ./Claude_Desktop-*-x86_64.AppImage --appimage-update
 > ```
 > Compatible with [AppImageLauncher](https://github.com/TheAssassin/AppImageLauncher) and [Gear Lever](https://github.com/mijorus/gearlever) for automatic update notifications.
+
+> **Manual control:** Use `--integrate` to force re-register the protocol handler, or `--unintegrate` to remove it. Use `--diagnose` to check registration status.
 
 ### From Source
 ```bash
