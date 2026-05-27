@@ -2,16 +2,18 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
-## 2026-05-26 (v1.9255.0) - Tray DBus patch rebased, 2 new feature flags
+## 2026-05-27 (v1.9255.2) - Tray DBus patch rebased, 2 new feature flags
 
-### Upstream (v1.9255.0)
+### Upstream (v1.9255.0 -> v1.9255.2)
 
-- **Version bump:** v1.8555.2 -> v1.9255.0
+v1.9255.2 is a webpack re-minify only point release on top of v1.9255.0 (4.2 MB diff, fresh identifiers everywhere). All findings below were collected against v1.9255.0 and re-verified against v1.9255.2 - the flexible `[\w$]+` patterns in every patch absorbed the v1.9255.0 -> v1.9255.2 renames automatically (e.g. `fix_tray_dbus.nim` tracked tray function `_5A` -> `R6A` and tray variable `OE` -> `xE` without any code change).
+
+- **Version bump:** v1.8555.2 -> v1.9255.2 (v1.9255.0 was skipped at release time)
 - **2 new feature flags** (29 total static, was 27):
   - `chatIn3p` - dev-gated (PM() production gate), third-party chat
   - `chatCodeExecution` - `qWe(Vi())` 3p config presence check
 - **Feature flags:** function names renamed - `Gp()` (static, was `Np()`), `pEA` (async, was `SIA`). Async merger still spreads `Gp()` + 4 overrides (`louderPenguin`/`coworkKappa`/`coworkArtifacts`/`markTaskComplete`) gated by `Ct("4116586025")`/`Ct("123929380")`/`Ct("2940196192")`/`Ct("3732274605")` - same shape as v1.8555.2, same `enable_local_agent_mode.nim` override list still correct
-- **ion-dist SPA:** still 87 MB. JS chunks 667 -> 677, `c71860c77-*` main chunks 16 -> 20 (more code-splitting), CSS 22 -> 21. Patched chunk renamed `c71860c77-CgRWbV12.js` -> `c71860c77-DFJHDHrp.js`. `mountPath` still lacks `linux` key, both sub-patches still apply
+- **ion-dist SPA:** still 87 MB. JS chunks 667 -> 677, `c71860c77-*` main chunks 16 -> 20 (more code-splitting), CSS 22 -> 21. Patched chunk renamed `c71860c77-CgRWbV12.js` -> `c71860c77-DFJHDHrp.js` (same filename in v1.9255.0 and v1.9255.2). `mountPath` still lacks `linux` key, both sub-patches still apply
 - **No new MCP servers** - registry unchanged from v1.8555.2
 - **No new native module requires** - dependency surface unchanged
 - **New Cowork debug surfaces:** `cowork-host-loop-log` (new debug-report log source for host-loop agent process API retries/errors), `coworkUserFilesPath` (persistent Cowork user-files path resolution via `resolveCoworkUserFilesPath`)

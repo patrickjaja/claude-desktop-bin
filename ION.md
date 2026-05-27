@@ -1,6 +1,6 @@
 # ion-dist Baseline - Third-Party Inference SPA
 
-**Last verified:** 2026-05-26 against v1.9255.0
+**Last verified:** 2026-05-27 against v1.9255.2
 
 The `ion-dist/` directory is a standalone React SPA bundled inside `locales/ion-dist/`. It powers the **Configure Third-Party Inference** UI (Developer menu). Served by the Electron main process via the `app://` protocol handler.
 
@@ -24,7 +24,7 @@ The `ion-dist/` directory is a standalone React SPA bundled inside `locales/ion-
 | `index.html` | 4.1 KB | SPA entry, loads `index-*.js` via `<script type="module">` |
 | `assets/v1/index-*.js` | ~6.9 MB | Main bundle (React app, API client, UI components) |
 | `assets/v1/vendor-*.js` | ~1.5 MB | Third-party vendor libs |
-| `assets/v1/c71860c77-*.js` | 20 files (main: ~269 KB) | 3P config UI, code-split into lazy-loaded chunks - **main chunk patched** (v1.9255.0: `c71860c77-DFJHDHrp.js`) |
+| `assets/v1/c71860c77-*.js` | 20 files (main: ~269 KB) | 3P config UI, code-split into lazy-loaded chunks - **main chunk patched** (v1.9255.2: `c71860c77-DFJHDHrp.js`) |
 | `assets/v1/tree-sitter-*.js` | - | Code parsing (tree-sitter WASM bindings) |
 
 Filenames include content hashes (e.g., `index-DuIwZ1hn.js`) that change every upstream release.
