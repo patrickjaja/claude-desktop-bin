@@ -219,10 +219,9 @@ fi
 UPDATE_INFO="gh-releases-zsync|patrickjaja|claude-desktop-bin|latest|Claude_Desktop-*-${APPIMAGE_ARCH}.AppImage.zsync"
 log_info "Embedding update info: $UPDATE_INFO"
 
-if command -v zsyncmake &> /dev/null; then
-    log_info "zsyncmake found — .zsync delta file will be generated"
-else
-    log_warn "zsyncmake not found — .zsync file will NOT be generated (install zsync package)"
+if ! command -v zsyncmake &> /dev/null; then
+    log_error "zsyncmake not found (install zsync package). Required for AppImage delta updates."
+    exit 1
 fi
 
 "$APPIMAGETOOL" $RUNTIME_FLAG -u "$UPDATE_INFO" "$APPDIR" "$APPIMAGE_PATH"
@@ -235,11 +234,15 @@ echo "  Version:  $VERSION"
 echo "  Path:     $APPIMAGE_PATH"
 echo "  SHA256:   $SHA256"
 
-# Report zsync file if generated
+# Verify .zsync was generated (required for --appimage-update)
 ZSYNC_PATH="${APPIMAGE_PATH}.zsync"
 if [ -f "$ZSYNC_PATH" ]; then
     ZSYNC_SHA256=$(sha256sum "$ZSYNC_PATH" | cut -d' ' -f1)
     log_info "Zsync file: $ZSYNC_PATH (SHA256: $ZSYNC_SHA256)"
+else
+    log_error ".zsync file was not generated at $ZSYNC_PATH"
+    log_error "appimagetool may have failed to call zsyncmake. Check appimagetool output above."
+    exit 1
 fi
 
 # Write build info
