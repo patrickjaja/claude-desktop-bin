@@ -234,13 +234,20 @@ echo "  Version:  $VERSION"
 echo "  Path:     $APPIMAGE_PATH"
 echo "  SHA256:   $SHA256"
 
-# Verify .zsync was generated (required for --appimage-update)
+# Verify .zsync was generated (required for --appimage-update).
+# appimagetool writes the .zsync next to the output AppImage in some versions,
+# but in others it writes to cwd. Search both locations.
 ZSYNC_PATH="${APPIMAGE_PATH}.zsync"
+ZSYNC_BASENAME="$(basename "$ZSYNC_PATH")"
+if [ ! -f "$ZSYNC_PATH" ] && [ -f "$ZSYNC_BASENAME" ]; then
+    log_info "Moving .zsync from cwd to output dir"
+    mv "$ZSYNC_BASENAME" "$ZSYNC_PATH"
+fi
 if [ -f "$ZSYNC_PATH" ]; then
     ZSYNC_SHA256=$(sha256sum "$ZSYNC_PATH" | cut -d' ' -f1)
     log_info "Zsync file: $ZSYNC_PATH (SHA256: $ZSYNC_SHA256)"
 else
-    log_error ".zsync file was not generated at $ZSYNC_PATH"
+    log_error ".zsync file was not generated (checked $ZSYNC_PATH and ./$ZSYNC_BASENAME)"
     log_error "appimagetool may have failed to call zsyncmake. Check appimagetool output above."
     exit 1
 fi
