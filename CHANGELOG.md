@@ -20,7 +20,7 @@ v1.9255.2 is a webpack re-minify only point release on top of v1.9255.0 (4.2 MB 
 - **No new platform gates** blocking Linux. `tearOffHalo` (introduced in v1.8555.2) remains the only macOS-only Cowork feature with no Linux equivalent - not portable without compositor-specific overlay-window APIs
 - **GrowthBook flag deltas not re-verified** - the v1.8555.2 MSIX was deleted before the comparison was performed, so the diff baseline was an older bundle. No verified add/remove list for this release
 
-### Patch fix: fix_tray_dbus.nim
+### Patch fix: fix_tray_dbus.nim (#109 by @boommasterxd)
 
 - Upstream merged tray + menu variables into a single `let OE=null,Ak=null;` declaration with `function ECA()` between the declaration and `function _5A()`. The old regex `let ([\w$]+)=null;(?:async )?function _5A` no longer matched.
 - Rebased: the tray variable is now extracted from the `X&&(X.destroy(),X=null)` pattern inside the `_5A()` body itself. Robust against merged declarations and intervening functions.
