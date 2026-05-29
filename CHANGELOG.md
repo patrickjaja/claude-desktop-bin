@@ -2,6 +2,33 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-05-28 (v1.9659.1) - All patches clean, no new platform gates, no Linux patch needed
+
+### Upstream (v1.9659.1)
+
+- **Version bump:** v1.9255.2 -> v1.9659.1 (~400 builds)
+- **All 47 patches applied cleanly** - zero failures, no regex changes needed. The flexible `[\w$]+` patterns absorbed every minified variable rename automatically. No new and no changed Linux patch required.
+- **2 new feature flags** (30 static, was 28; +`louderPenguin` async-only = 31 total):
+  - `surfaceTogglesPreview` - dev-gated via `PM()` production gate, always `unavailable` in production
+  - `chatTab` - 3p-bootstrap-gated (`aze()` = `desktopBootFeatures.chatIn3p.status==="supported"` && `chatTabEnabled===true`), only active in third-party whitelabel builds; does not replace the Code tab (`louderPenguin`) or Chat
+- **No feature flags removed.** All 28 static features from v1.9255.2 are still present.
+- **Feature flags - function renames** (webpack re-minify only): static registry `Yp()` (was `Gp()`), async merger `slA` (was `mEA`/`pEA`), GrowthBook bool reader `Bt` (was `Ct`), async helper `x0A` (was `A0A`), `PM()`-gate wrapper `lm` (was `wD`), supported constant `Ww` (was `_M`)
+- **No GrowthBook flag changes** - 71 boolean flag IDs identical to v1.9255.2 (clean diff, verified against freshly extracted old bundle). One new numeric remote-config value `1629866860` (claude_code session limit, read via `ad()` - not a boolean toggle, not flag-relevant)
+- **`enable_local_agent_mode.nim` unchanged** - the 12-flag override list stays correct (the 2 new features are dev-/3p-gated and don't block the Linux Cowork/Code/Agent-Mode paths we force-enable). Validated 25/25 sub-patches, all overridden flags still in the Zod `.partial()` schema, `node --check` OK
+- **15 new IPC handlers** (all platform-neutral, no Linux implementation needed): `ClaudeAiImport_*` (OAuth import of claude.ai data: `startAuth`/`runImport`/`getAuthState`/`clearAuth`/`isAvailable`/`reopenAuthTab` + `onAuthStateChange`/`onAuthUserCode` events), `Custom3pSetup_*` (`signInWithAnthropicApi`/`applyAnthropicApiShortcut`), `ClaudeCode_setEnableWorkflows`, `CoworkArtifacts_setArtifactLastModifiedSession`, `Launch_loadFramePreview`, `LocalAgentModeSessions_grantRemoteSessionFolder`, `LocalSessions_getSessionMediaStreamUrl`
+- **MCP:** registration function renamed `HHA()` (was `KPA()`), mcp-registry const `mlA` (was `OEA`). **Server roster and tool sets unchanged.** New static `yL` server-UUID map that feeds `server_uuid` into the existing internal-tool telemetry. Three reserved/inactive labels in the map: `ios_simulator` and `android_emulator` (new, no server implementation yet - precursors for future MCP servers), plus `echo`
+- **ion-dist SPA:** config chunk `c71860c77-BOyfE2Py.js` (was `c71860c77-DFJHDHrp.js`), 88 MB total (was 87 MB), file counts unchanged (682 JS, 21 CSS, 899 total). `mountPath` is still mac/win only (no `linux` key) - `fix_ion_dist_linux.nim` is still required; both sub-patterns matched ([PASS]). No new platform gates, plugin/config keys unchanged
+- **New OS detection** (`ZEA()`): returns `macos`/`windows`/`wsl`/`linux` with proper `/proc/version` WSL sniffing; feeds Claude Code managed-settings path resolution (Linux/WSL falls through to `/etc/claude-code` via the default branch). Linux-clean, no patch needed (`fix_enterprise_config_linux.nim` already covers the consumer paths)
+- **macOS/Windows-only upstream features** (Linux-irrelevant, no patch needed): tear-off halo overlay, Cowork VM virtualization (`@ant/claude-swift` entitlement, `secureVmFeaturesEnabled`), device simulator panel, native QuickEntry dictation. New win32-only gates are child-process kill (Linux takes the `SIGTERM` else-branch) and WSL settings inheritance
+- **No cowork protocol changes** - `control_request`/`control_response` event-stream proxy unchanged, claude-cowork-service not affected
+- **Electron** v41.6.1 and **node-pty** 1.1.0-beta34 - unchanged from v1.9255.2
+
+### No patch changes needed
+
+All 47 Nim patches (44 on `index.js`, 1 on `mainView.js`, 1 on `MainWindowPage-*.js`, 1 ion-dist `nim-dir`) applied without modification, plus the `claude-native.js` replace patch. The flexible regex patterns (`[\w$]+` for minified identifiers) absorbed all upstream variable renames automatically. JS syntax valid (`node --check`) on all targets.
+
+---
+
 ## 2026-05-27 (v1.9255.2)
 
 - **Version bump:** v1.8555.2 -> v1.9255.2
