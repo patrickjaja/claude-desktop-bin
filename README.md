@@ -297,10 +297,10 @@ Computer Use needs `ydotool` **v1.0+** and the `ydotoold` daemon for mouse/keybo
 **Arch Linux / Fedora** - ydotool v1.x ships in the repos:
 ```bash
 # Arch
-sudo pacman -S ydotool && sudo systemctl enable --now ydotool
+sudo pacman -S ydotool && systemctl --user enable --now ydotool
 
 # Fedora
-sudo dnf install ydotool && sudo systemctl enable --now ydotool
+sudo dnf install ydotool && systemctl --user enable --now ydotool
 ```
 
 **Ubuntu / Debian** - the repo ships v0.1.8 which is **incompatible**. Run the setup script to build and configure v1.0.4:
