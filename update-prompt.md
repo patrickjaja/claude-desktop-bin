@@ -45,8 +45,8 @@ Copy-paste this into Claude Code when a new version is available:
 > **New Claude Desktop version is available.** Please build and fix patches:
 >
 > 1. Read the current reference docs (this is your version A baseline):
->    - `CLAUDE_FEATURE_FLAGS.md` — current feature flags, function names, GrowthBook IDs
->    - `CLAUDE_BUILT_IN_MCP.md` — current MCP servers, registration patterns
+>    - `baseline/CLAUDE_FEATURE_FLAGS.md` — current feature flags, function names, GrowthBook IDs
+>    - `baseline/CLAUDE_BUILT_IN_MCP.md` — current MCP servers, registration patterns
 >    - `CHANGELOG.md` — recent version history (first entry = current version)
 >
 > 2. Run the build (auto-downloads latest msix):
@@ -89,11 +89,11 @@ Copy-paste this into Claude Code when a new version is available:
 >    - **Fedora/RHEL:** `sudo dnf install build/claude-desktop-bin-*.rpm`
 >
 > 9. Update documentation (compare what you found vs your version A baseline):
->    - `CLAUDE_FEATURE_FLAGS.md` — if flags added/removed/renamed
->    - `CLAUDE_BUILT_IN_MCP.md` — if MCP servers changed (check `registerInternalMcpServer` calls)
+>    - `baseline/CLAUDE_FEATURE_FLAGS.md` — if flags added/removed/renamed
+>    - `baseline/CLAUDE_BUILT_IN_MCP.md` — if MCP servers changed (check `registerInternalMcpServer` calls)
 >    - `CHANGELOG.md` — add new version entry
 >    - `README.md` patch table — if patches added/removed/changed
->    - `ION.md` — if ion-dist bundle stats, patterns, or config keys changed
+>    - `baseline/ION.md` — if ion-dist bundle stats, patterns, or config keys changed
 >
 > 10. Commit the changes
 
@@ -106,8 +106,8 @@ Copy-paste this into Claude Code to analyze what changed between two versions:
 > **Compare Claude Desktop JS bundles between old and new version.**
 >
 > 1. Read the reference docs first (version A baseline):
->    - `CLAUDE_FEATURE_FLAGS.md` — know what flags exist before diffing
->    - `CLAUDE_BUILT_IN_MCP.md` — know what MCP servers exist before diffing
+>    - `baseline/CLAUDE_FEATURE_FLAGS.md` — know what flags exist before diffing
+>    - `baseline/CLAUDE_BUILT_IN_MCP.md` — know what MCP servers exist before diffing
 >
 > 2. Both JS versions should be extracted:
 >    - Old: `/tmp/claude-old/app/.vite/build/index.js`
@@ -156,8 +156,8 @@ Copy-paste this into Claude Code to analyze what changed between two versions:
 > - **Removed** — feature or code path removed, clean up patches/docs if affected
 >
 > After analysis, update docs to reflect the new version:
-> - `CLAUDE_FEATURE_FLAGS.md` — new/removed flags, renamed functions, updated version history table
-> - `CLAUDE_BUILT_IN_MCP.md` — new/removed MCP servers, renamed registration functions
+> - `baseline/CLAUDE_FEATURE_FLAGS.md` — new/removed flags, renamed functions, updated version history table
+> - `baseline/CLAUDE_BUILT_IN_MCP.md` — new/removed MCP servers, renamed registration functions
 > - `CHANGELOG.md` — add entry summarizing what changed, what was patched, what's new upstream
 
 ---
@@ -168,7 +168,7 @@ Run this on EVERY version update to catch new/changed feature flags:
 
 > **Audit feature flags for the new Claude Desktop version.**
 >
-> 1. Read `CLAUDE_FEATURE_FLAGS.md` first — this is your version A baseline. Note the current:
+> 1. Read `baseline/CLAUDE_FEATURE_FLAGS.md` first — this is your version A baseline. Note the current:
 >    - Feature count and names
 >    - Static registry function name
 >    - Async merger function name
@@ -185,7 +185,7 @@ Run this on EVERY version update to catch new/changed feature flags:
 >
 > 3. Extract all feature names from the static registry
 >
-> 4. Compare against your baseline (`CLAUDE_FEATURE_FLAGS.md`) — flag any:
+> 4. Compare against your baseline (`baseline/CLAUDE_FEATURE_FLAGS.md`) — flag any:
 >    - **New features** not in the doc
 >    - **Removed features** missing from the new registry
 >    - **Renamed functions** (static registry, async merger, gate functions)
@@ -207,7 +207,7 @@ Run this on EVERY version update to catch new/changed feature flags:
 >    rg -o '.{0,20}ccdPlugins.*z\.\w+' /tmp/claude-new/app/.vite/build/index.js | head -3
 >    ```
 >
-> 8. Update `CLAUDE_FEATURE_FLAGS.md`:
+> 8. Update `baseline/CLAUDE_FEATURE_FLAGS.md`:
 >    - Add/remove features from the catalog
 >    - Update all function names to match the new version
 >    - Update GrowthBook flag IDs (new/removed)
@@ -225,7 +225,7 @@ Run this on EVERY version update to check the bundled Third-Party Inference UI:
 
 > **Audit the ion-dist SPA for the new Claude Desktop version.**
 >
-> 1. Read `ION.md` first — this is your baseline for bundle stats, key files, and patched patterns.
+> 1. Read `baseline/ION.md` first — this is your baseline for bundle stats, key files, and patched patterns.
 >
 > 2. Check if ion-dist exists in the new upstream resources:
 >    ```bash
@@ -240,7 +240,7 @@ Run this on EVERY version update to check the bundled Third-Party Inference UI:
 >    ```
 >    Note the new filename — it changes every release due to content hashing.
 >
-> 4. Compare bundle stats against `ION.md` baseline:
+> 4. Compare bundle stats against `baseline/ION.md` baseline:
 >    ```bash
 >    du -sh "$ION"
 >    find "$ION" -name "*.js" | wc -l
@@ -266,7 +266,7 @@ Run this on EVERY version update to check the bundled Third-Party Inference UI:
 >    rg -c 'claudeAppBindings' "$ION/assets/v1/index-"*.js
 >    ```
 >
-> 8. Update `ION.md` baseline if anything changed (file count, total size, key filenames, new config keys, new platform gates).
+> 8. Update `baseline/ION.md` baseline if anything changed (file count, total size, key filenames, new config keys, new platform gates).
 >
 > 9. Update `fix_ion_dist_linux.nim` if patterns changed (new chunk filename pattern, mountPath restructured, ternary moved).
 >
@@ -283,7 +283,7 @@ Run this to answer *"is there anything new we could make Linux-compatible?"* wit
 
 > **Re-audit Claude Desktop platform gates for new Linux-compatibility opportunities.**
 >
-> 1. Read `PLATFORM_GATE_BASELINE.md` first — this is your baseline. It classifies every
+> 1. Read `baseline/PLATFORM_GATE_BASELINE.md` first — this is your baseline. It classifies every
 >    macOS/Windows-only gate as PATCHED / NATIVE / STUB / PORTABLE. You only care about
 >    gates that DON'T map to an existing row.
 >
@@ -313,7 +313,7 @@ Run this to answer *"is there anything new we could make Linux-compatible?"* wit
 >    (don't trust a subagent's summary — past audits hallucinated removed features and fake UUIDs).
 >    Quote the verbatim snippet. Confirm there's a real feature behind the gate (not a STUB).
 >
-> 6. Update `PLATFORM_GATE_BASELINE.md`:
+> 6. Update `baseline/PLATFORM_GATE_BASELINE.md`:
 >    - Refresh `Last audited` version + the conditional counts
 >    - Add new NATIVE/STUB rows with stable anchors + evidence
 >    - Add any PORTABLE finding with the gate snippet + proposed patch (or confirm "Currently: NONE")
@@ -359,10 +359,10 @@ Minified names change every release. The pattern is always the same — just the
 | Feature flag removed | Prompt 3 — flag missing from registry | Remove from override, update docs |
 | New IPC handler | Prompt 2 step 5 — `handle("...")` diff | May need Linux implementation |
 | Structural JS refactor | Multiple patches fail + new code shape | Rewrite affected patches to match new structure |
-| New MCP server | Search for `registerInternalMcpServer` | Update `CLAUDE_BUILT_IN_MCP.md` |
+| New MCP server | Search for `registerInternalMcpServer` | Update `baseline/CLAUDE_BUILT_IN_MCP.md` |
 | Cowork protocol change | Diff spawn/event/RPC patterns | Update `claude-cowork-service` too |
-| ion-dist SPA restructured | Prompt 4 — bundle stats + pattern check | Update `fix_ion_dist_linux.nim`, update `ION.md` baseline |
-| New darwin/win32-only gate (Linux opportunity?) | Prompt 5 — platform conditional count swing + gate diff | Classify vs `PLATFORM_GATE_BASELINE.md`; if PORTABLE, write a patch; update the baseline |
+| ion-dist SPA restructured | Prompt 4 — bundle stats + pattern check | Update `fix_ion_dist_linux.nim`, update `baseline/ION.md` baseline |
+| New darwin/win32-only gate (Linux opportunity?) | Prompt 5 — platform conditional count swing + gate diff | Classify vs `baseline/PLATFORM_GATE_BASELINE.md`; if PORTABLE, write a patch; update the baseline |
 
 ---
 
