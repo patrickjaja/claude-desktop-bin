@@ -35,7 +35,7 @@
 let
   # Updated automatically by CI (build-and-release.yml) on each release.
   version = "1.9659.2";
-  hash = "sha256-tBHH70GeNawI6FE2whhQjRP1RM8ep0+o+zN+iAkOQag="; # TODO: update hash after CI builds release tarball
+  hash = "sha256-pnOWs1EjY68hfwo8pse/Oy5f5luxLSKfeJHkbFYDRgg="; # TODO: update hash after CI builds release tarball
 in
 stdenvNoCC.mkDerivation {
   pname = "claude-desktop-bin";
