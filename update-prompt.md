@@ -277,6 +277,53 @@ Run this on EVERY version update to check the bundled Third-Party Inference UI:
 
 ---
 
+## Prompt 5: Platform Gate Re-Audit (Linux opportunities)
+
+Run this to answer *"is there anything new we could make Linux-compatible?"* without re-investigating settled ground:
+
+> **Re-audit Claude Desktop platform gates for new Linux-compatibility opportunities.**
+>
+> 1. Read `PLATFORM_GATE_BASELINE.md` first — this is your baseline. It classifies every
+>    macOS/Windows-only gate as PATCHED / NATIVE / STUB / PORTABLE. You only care about
+>    gates that DON'T map to an existing row.
+>
+> 2. Compare the platform-conditional counts against the baseline (large swing = investigate):
+>    ```bash
+>    NEW=/tmp/claude-new/app/.vite/build/index.js
+>    echo "darwin: $(rg -o 'platform==="darwin"' "$NEW" | wc -l)"   # baseline v1.9659.2: 60
+>    echo "win32:  $(rg -o 'platform==="win32"'  "$NEW" | wc -l)"   # baseline v1.9659.2: 111
+>    echo "linux:  $(rg -o 'platform==="linux"'  "$NEW" | wc -l)"   # baseline v1.9659.2: 5
+>    ```
+>
+> 3. List the darwin/win32-only gates and the "not-mac-not-win → unavailable" gates:
+>    ```bash
+>    rg -o '.{0,60}process\.platform==="darwin".{0,80}' "$NEW" | sort -u
+>    rg -o '.{0,60}process\.platform==="win32".{0,80}'  "$NEW" | sort -u
+>    rg -o '.{0,80}!=="darwin".{0,40}!=="win32".{0,80}' "$NEW" | sort -u
+>    rg -o '.{0,80}status:"unavailable".{0,40}' "$NEW" | sort -u
+>    ```
+>
+> 4. For each gate, classify against the baseline table:
+>    - **PATCHED** → maps to a `patches/*.nim` area → skip
+>    - **NATIVE** → genuine Apple/Win API (`@ant/claude-swift`, Login Items, IOKit, XPC, BLE pairing) → skip
+>    - **STUB** → hardcoded `!1`, prod-gate (`Em()`-style wrapper), or dev-prototype, disabled on ALL platforms → skip (nothing to enable)
+>    - **PORTABLE** → mac/win-only, no real native dep, not patched → **this is the only actionable class**
+>
+> 5. **Verify before reporting.** For any PORTABLE candidate, trace the exact gate code yourself
+>    (don't trust a subagent's summary — past audits hallucinated removed features and fake UUIDs).
+>    Quote the verbatim snippet. Confirm there's a real feature behind the gate (not a STUB).
+>
+> 6. Update `PLATFORM_GATE_BASELINE.md`:
+>    - Refresh `Last audited` version + the conditional counts
+>    - Add new NATIVE/STUB rows with stable anchors + evidence
+>    - Add any PORTABLE finding with the gate snippet + proposed patch (or confirm "Currently: NONE")
+>
+> **Why:** Without a baseline, every audit re-scans 150+ platform conditionals from scratch and
+> risks re-flagging settled ground (already-patched features) or unshipped stubs (disabled on all
+> OSes, not a Linux issue). The baseline turns a multi-agent fan-out into a quick diff.
+
+---
+
 ## Cross-Project Dependencies
 
 This project depends on [claude-cowork-service](../claude-cowork-service/). When a new Claude Desktop version drops:
@@ -315,6 +362,7 @@ Minified names change every release. The pattern is always the same — just the
 | New MCP server | Search for `registerInternalMcpServer` | Update `CLAUDE_BUILT_IN_MCP.md` |
 | Cowork protocol change | Diff spawn/event/RPC patterns | Update `claude-cowork-service` too |
 | ion-dist SPA restructured | Prompt 4 — bundle stats + pattern check | Update `fix_ion_dist_linux.nim`, update `ION.md` baseline |
+| New darwin/win32-only gate (Linux opportunity?) | Prompt 5 — platform conditional count swing + gate diff | Classify vs `PLATFORM_GATE_BASELINE.md`; if PORTABLE, write a patch; update the baseline |
 
 ---
 
