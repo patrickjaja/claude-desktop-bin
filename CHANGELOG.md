@@ -2,6 +2,20 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-06-01 (v1.9659.2) - Point release on v1.9659.1, all patches clean
+
+### Upstream (v1.9659.2)
+
+- **Version bump:** v1.9659.1 -> v1.9659.2 (webpack re-minify point release - fresh identifiers, no behavioral change vs v1.9659.1)
+- **All 47 patches applied without modification** - zero regex changes needed. Flexible `[\w$]+` patterns absorbed every minified variable rename, including `fix_tray_dbus.nim` (this release: tray fn `G9A`, tray var `PE`). JS syntax valid (`node --check`) on all targets.
+- **Same 31 feature flags** as v1.9659.1 (30 static + `louderPenguin` async-only): `chatTab`, `surfaceTogglesPreview` still the 2 newest, no features added or removed.
+- **Function renames vs v1.9659.1** (re-minify only): static registry `Yp()`->`xp()`, async merger `slA`->`olA`, production gate `lm`->`Em()` (`function Em(e){return aA.app.isPackaged?{status:"unavailable"}:e()}`, electron var `aA`), `louderPenguin` async helper -> `wrr()`. GrowthBook bool reader `Bt()` and computer-use Set `XEA` (`new Set(["darwin","win32"])`, checker `AlA()`) unchanged from v1.9659.1.
+- **ion-dist (3P config SPA):** unchanged from v1.9659.1 - config chunk still `c71860c77-BOyfE2Py.js` (21 sub-chunks, main `index-C_tZnXTW.js`), 88 MB, `mountPath` still mac/win-only (no `linux` key), `fix_ion_dist_linux.nim` still required and both sub-patterns matched.
+- **Built-in MCP servers:** roster unchanged from v1.9659.1. Server-UUID map present (renderer var `mL`); `ios_simulator`/`android_emulator`/`echo` still reserved/inactive labels (no server implementation).
+- **No GrowthBook flag changes** vs v1.9659.1. Note: upstream no longer serves prior-version MSIX metadata, so the flag-ID delta was re-confirmed against the v1.9659.1 doc baseline rather than a fresh binary diff.
+
+---
+
 ## 2026-05-28 (v1.9659.1) - All patches clean, no new platform gates, no Linux patch needed
 
 ### Upstream (v1.9659.1)
