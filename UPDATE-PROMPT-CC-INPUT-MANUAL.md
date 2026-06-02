@@ -17,6 +17,7 @@ If a new version was downloaded and patches fail:
 2. Diff old vs new JS bundles for new platform gates (Prompt 2)
 3. Audit feature flags for new/changed flags (Prompt 3)
 4. Audit ion-dist SPA for new platform gates (Prompt 4 in update-prompt.md)
-5. Check if claude-cowork-service also needs updating (cross-dependency)
-6. Update docs (CHANGELOG.md, CLAUDE_FEATURE_FLAGS.md, CLAUDE_BUILT_IN_MCP.md, ION.md, README.md patch table)
-7. Commit and push
+5. Re-audit platform gates for new Linux-compat opportunities (Prompt 5 in update-prompt.md)
+6. Check if claude-cowork-service also needs updating (cross-dependency)
+7. Update docs (CHANGELOG.md, baseline/CLAUDE_FEATURE_FLAGS.md, baseline/CLAUDE_BUILT_IN_MCP.md, baseline/ION.md, baseline/PLATFORM_GATE_BASELINE.md, README.md patch table)
+8. Commit and push

@@ -104,22 +104,22 @@ Remaining non-platform analysis (see [Prompt 2 in update-prompt.md](https://gith
 
 See [Prompt 3 in update-prompt.md](https://github.com/{{REPO}}/blob/master/update-prompt.md#prompt-3-feature-flag-audit):
 
-- [ ] Read `CLAUDE_FEATURE_FLAGS.md` baseline
+- [ ] Read `baseline/CLAUDE_FEATURE_FLAGS.md` baseline
 - [ ] Find new static registry function name (changes every release)
 - [ ] Compare flag sets: new flags, removed flags, renamed functions
 - [ ] Check if `enable_local_agent_mode.nim` needs new flags in its override list
 - [ ] Verify Zod schema includes all overridden flags
-- [ ] Update `CLAUDE_FEATURE_FLAGS.md`
+- [ ] Update `baseline/CLAUDE_FEATURE_FLAGS.md`
 
 ### Step 5: ion-dist SPA Audit
 
 See [Prompt 4 in update-prompt.md](https://github.com/{{REPO}}/blob/master/update-prompt.md#prompt-4-ion-dist-3p-config-spa-audit):
 
 - [ ] Check if ion-dist exists in new upstream resources
-- [ ] Compare bundle stats against `ION.md` baseline (file count, total size)
+- [ ] Compare bundle stats against `baseline/ION.md` baseline (file count, total size)
 - [ ] Check if patched patterns still exist (mountPath, platform ternary)
 - [ ] Check for new platform-gated code (mac/win-only without linux)
-- [ ] Update `ION.md` and `fix_ion_dist_linux.nim` if anything changed
+- [ ] Update `baseline/ION.md` and `fix_ion_dist_linux.nim` if anything changed
 
 ### Step 6: Cross-Project Dependencies
 - [ ] Check if [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service) needs updating
@@ -128,9 +128,9 @@ See [Prompt 4 in update-prompt.md](https://github.com/{{REPO}}/blob/master/updat
 
 ### Step 7: Update Documentation
 - [ ] `CHANGELOG.md` - add new version entry
-- [ ] `CLAUDE_FEATURE_FLAGS.md` - if flags added/removed/renamed
-- [ ] `CLAUDE_BUILT_IN_MCP.md` - if MCP servers changed
-- [ ] `ION.md` - if ion-dist bundle stats or patterns changed
+- [ ] `baseline/CLAUDE_FEATURE_FLAGS.md` - if flags added/removed/renamed
+- [ ] `baseline/CLAUDE_BUILT_IN_MCP.md` - if MCP servers changed
+- [ ] `baseline/ION.md` - if ion-dist bundle stats or patterns changed
 - [ ] `README.md` patch table - if patches added/removed/changed
 
 ### Step 8: Commit, Push & Release

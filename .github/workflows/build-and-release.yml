@@ -1309,9 +1309,9 @@ jobs:
           cp artifacts/appimage-x86_64/Claude_Desktop-*-x86_64.AppImage release-files/
           cp artifacts/appimage-aarch64/Claude_Desktop-*-aarch64.AppImage release-files/
 
-          # Zsync files (for AppImage delta updates)
-          cp artifacts/appimage-x86_64/Claude_Desktop-*-x86_64.AppImage.zsync release-files/ 2>/dev/null || true
-          cp artifacts/appimage-aarch64/Claude_Desktop-*-aarch64.AppImage.zsync release-files/ 2>/dev/null || true
+          # Zsync files (for AppImage delta updates -- required for --appimage-update)
+          cp artifacts/appimage-x86_64/Claude_Desktop-*-x86_64.AppImage.zsync release-files/
+          cp artifacts/appimage-aarch64/Claude_Desktop-*-aarch64.AppImage.zsync release-files/
 
           # DEBs
           cp artifacts/deb-amd64/claude-desktop-bin_*_amd64.deb release-files/

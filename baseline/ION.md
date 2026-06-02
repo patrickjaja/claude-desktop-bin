@@ -1,6 +1,6 @@
 # ion-dist Baseline - Third-Party Inference SPA
 
-**Last verified:** 2026-05-23 against v1.8555.2
+**Last verified:** 2026-06-01 against v1.9659.2 (point release on v1.9659.1; ion-dist bundle byte-identical)
 
 The `ion-dist/` directory is a standalone React SPA bundled inside `locales/ion-dist/`. It powers the **Configure Third-Party Inference** UI (Developer menu). Served by the Electron main process via the `app://` protocol handler.
 
@@ -8,9 +8,9 @@ The `ion-dist/` directory is a standalone React SPA bundled inside `locales/ion-
 
 | Metric | Value |
 |--------|-------|
-| Total size | 87 MB |
-| JS chunks | 667 files in `assets/v1/` |
-| CSS | 22 files |
+| Total size | 88 MB |
+| JS chunks | 677 files in `assets/v1/` (682 JS total, 899 files total) |
+| CSS | 21 files |
 | Fonts | 31 woff2 + 21 ttf + 20 woff |
 | Images | 25 PNG, 18 SVG, 17 GIF |
 | Audio | 25 MP3, 1 WebM, 1 MOV |
@@ -24,7 +24,7 @@ The `ion-dist/` directory is a standalone React SPA bundled inside `locales/ion-
 | `index.html` | 4.1 KB | SPA entry, loads `index-*.js` via `<script type="module">` |
 | `assets/v1/index-*.js` | ~6.9 MB | Main bundle (React app, API client, UI components) |
 | `assets/v1/vendor-*.js` | ~1.5 MB | Third-party vendor libs |
-| `assets/v1/c71860c77-*.js` | 16 files (main: ~269 KB) | 3P config UI, code-split into lazy-loaded chunks - **main chunk patched** (v1.8555.2: `c71860c77-CgRWbV12.js`) |
+| `assets/v1/c71860c77-*.js` | 21 files (main: ~280 KB) | 3P config UI, code-split into lazy-loaded chunks - **main chunk patched** (v1.9659.1/v1.9659.2: `c71860c77-BOyfE2Py.js`; v1.9255.2: `c71860c77-DFJHDHrp.js`) |
 | `assets/v1/tree-sitter-*.js` | - | Code parsing (tree-sitter WASM bindings) |
 
 Filenames include content hashes (e.g., `index-DuIwZ1hn.js`) that change every upstream release.
@@ -59,7 +59,7 @@ Platform enum in the SPA (v1.6608.1: `Y`; previously `U3`, `W` - name changes ev
 ```js
 mountPath:{mac:"/Library/Application Support/Claude/org-plugins",win:"%ProgramFiles%\\Claude\\org-plugins",caption:"..."}
 ```
-No `linux` key. Display component falls back with a platform ternary (variable names change every release - v1.7196.0: `r===W.Win32?t.win:t.mac`; v1.8089.0: `C===V.Win32?Ve.mountPath.win:Ve.mountPath.mac`; v1.8555.2: `C===W.Win32?Ye.mountPath.win:Ye.mountPath.mac`).
+No `linux` key. Display component falls back with a platform ternary (variable names change every release - v1.7196.0: `r===W.Win32?t.win:t.mac`; v1.8089.0: `C===V.Win32?Ve.mountPath.win:Ve.mountPath.mac`; v1.8555.2: `C===W.Win32?Ye.mountPath.win:Ye.mountPath.mac`; v1.9659.1: `z===q.Win32?ft.mountPath.win:ft.mountPath.mac`).
 
 **Patched by `fix_ion_dist_linux.nim`:**
 - Sub-patch A: Adds `linux:"/etc/claude-desktop/org-plugins"` to mountPath
