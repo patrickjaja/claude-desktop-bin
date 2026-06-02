@@ -2,6 +2,22 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-06-02 (v1.9659.4) - Point release on v1.9659.2, all patches clean
+
+### Upstream (v1.9659.4)
+
+- **Version bump:** v1.9659.2 -> v1.9659.4 (webpack re-minify point release - fresh identifiers, no behavioral change vs v1.9659.2). v1.9659.3 was not observed on the public download channel (the version API only serves `latest`).
+- **All 47 patches applied without modification** - zero regex changes needed. The flexible `[\w$]+` patterns absorbed every minified variable rename, including `fix_tray_dbus.nim` (this release: tray fn `Jfi`, tray var `RQ`, menu var `mm`). JS syntax valid (`node --check`) on the patched bundle, RPM built successfully on Fedora.
+- **Same 31 feature flags** as v1.9659.2 (30 static + `louderPenguin` async-only): exact same 30 static feature names, `chatTab`/`surfaceTogglesPreview` still the 2 newest, no features added or removed.
+- **Function renames vs v1.9659.2** (re-minify only): static registry `xp()`->`Yp()`, async merger `olA`->`IlA` (still `{...Yp(),louderPenguin:e,coworkKappa:A,coworkArtifacts:t,markTaskComplete:i}` via `Promise.all([Frr(),V0A(()=>Bt("123929380")),V0A(()=>Bt("2940196192")),V0A(()=>Bt("3732274605"))])`), dev-gate wrapper `Em()`->`um()` (`function um(e){return aA.app.isPackaged?{status:"unavailable"}:e()}`, electron var `aA` unchanged), `louderPenguin` async helper `wrr()`->`Frr()`, cowork async helper `V0A` (`Frr()` keeps the `darwin||win32` gate). GrowthBook bool reader `Bt()` unchanged. Computer-use Set `XEA`->`rlA` (`new Set(["darwin","win32"])`, checked via `rlA.has(process.platform)`).
+- **71 GrowthBook flag IDs** unchanged vs v1.9659.2. Note: upstream no longer serves prior-version MSIX metadata, so the flag-ID set was re-confirmed against the fresh v1.9659.4 binary and matches the documented count.
+- **ion-dist (3P config SPA):** byte-identical to v1.9659.2 - config chunk still `c71860c77-BOyfE2Py.js`, main `index-C_tZnXTW.js`, 88 MB (682 JS / 21 CSS / 899 files), `mountPath` still mac/win-only (no `linux` key), `fix_ion_dist_linux.nim` still required and both sub-patterns matched (`[PASS]`).
+- **Platform gates:** darwin 60->64, win32 111->112, linux 5 (unchanged). The feature registry is byte-identical (same 30 static feature names), so there is **no new feature-flag-borne gate**, and the listed darwin/win32 gates still map to NATIVE / STUB / PATCHED in `baseline/PLATFORM_GATE_BASELINE.md`. **No new PORTABLE (Linux-actionable) gate.** The exact cause of the +4/+1 literal `process.platform===` count delta (spanning the .2 -> .4 jump) can't be pinned to a specific mechanism without an old-binary diff, since upstream no longer serves prior-version MSIX.
+- **Built-in MCP servers:** all MCP Linux patches (office, browser-tools, imagine, marketplace, buddy-BLE) applied cleanly, so the code structures they target still exist. The full server roster was **not separately re-enumerated** this release (the internal-registration anchor changed shape and a quick grep returns tool names, not server names); a deep MCP re-audit was deferred as low-risk for a re-minify point release.
+- **`enable_local_agent_mode.nim`** 12-flag override list unchanged - the build applied it without modification.
+
+### No patch changes needed
+
 ## 2026-06-01 (v1.9659.2) - Point release on v1.9659.1, all patches clean
 
 ### Upstream (v1.9659.2)

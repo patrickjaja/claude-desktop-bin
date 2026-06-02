@@ -1,6 +1,6 @@
 # Platform Gate Baseline
 
-**Last audited:** 2026-06-01 against **v1.9659.2**
+**Last audited:** 2026-06-02 against **v1.9659.4**
 
 This is the **re-audit baseline** for the question *"is there anything we could make Linux-compatible that we don't already?"* It records every macOS/Windows-only gate found in the bundle and **why it is or isn't patched**, so future audits skip ground that's already been settled.
 
@@ -12,9 +12,9 @@ Treat it like `ION.md` and `CLAUDE_FEATURE_FLAGS.md`: minified names change ever
 NEW=/tmp/claude-new/app/.vite/build/index.js   # extracted main bundle
 
 # 1. Count platform conditionals — large swing vs the baseline below = investigate
-echo "darwin: $(rg -o 'platform==="darwin"' "$NEW" | wc -l)"   # baseline v1.9659.2: 60
-echo "win32:  $(rg -o 'platform==="win32"'  "$NEW" | wc -l)"   # baseline v1.9659.2: 111
-echo "linux:  $(rg -o 'platform==="linux"'  "$NEW" | wc -l)"   # baseline v1.9659.2: 5
+echo "darwin: $(rg -o 'platform==="darwin"' "$NEW" | wc -l)"   # baseline v1.9659.4: 64
+echo "win32:  $(rg -o 'platform==="win32"'  "$NEW" | wc -l)"   # baseline v1.9659.4: 112
+echo "linux:  $(rg -o 'platform==="linux"'  "$NEW" | wc -l)"   # baseline v1.9659.4: 5
 
 # 2. List darwin/win32-only gates (the audit surface)
 rg -o '.{0,60}process\.platform==="darwin".{0,80}' "$NEW" | sort -u
@@ -61,13 +61,13 @@ Force-enabling these gets you a hardcoded error or an empty/unimplemented featur
 | `ios_simulator` / `android_emulator` MCP servers | `"ios_simulator"`, `"android_emulator"` | Reserved labels in the server-UUID map with **no server implementation** (precursors for future MCP servers) | Present only as UUID-map labels; no tool list / handler |
 | `echo` MCP server | `"echo"` | Label in UUID map, no observable tool/handler — debug/test placeholder | Map entry only |
 | `midnightOwl` | `midnightOwl prototype`, `isMidnightOwlEnabled` | Dev-prototype toggle; registration immediately calls `.setEnabled(!1)` | `Qh("180602792",e=>{_r&&_r.midnightOwl.setEnabled(!1)})` — sublabel literally *"Enables midnightOwl prototype"* |
-| dev-gated features (`plushRaccoon`, `quietPenguin`, `bootstrapConfig`, etc.) | see `CLAUDE_FEATURE_FLAGS.md` | Wrapped by the production gate (`Em()` in v1.9659.2, was `PM()`/`lm()`) — `{status:"unavailable"}` in **all** packaged builds | `function Em(e){return aA.app.isPackaged?{status:"unavailable"}:e()}` |
+| dev-gated features (`plushRaccoon`, `quietPenguin`, `bootstrapConfig`, etc.) | see `CLAUDE_FEATURE_FLAGS.md` | Wrapped by the production gate (`um()` in v1.9659.4, was `Em()`/`lm()`/`PM()`): `{status:"unavailable"}` in **all** packaged builds | `function um(e){return aA.app.isPackaged?{status:"unavailable"}:e()}` |
 
 ## PORTABLE — actionable opportunities
 
 **Currently: NONE.**
 
-As of v1.9659.2, every darwin/win32-only gate maps to PATCHED, NATIVE, or STUB. There is no feature that is (a) gated to mac/win only, (b) free of a real native dependency, and (c) not already patched. If a future release adds one, it goes here with the exact gate snippet and a proposed patch.
+As of v1.9659.4, every darwin/win32-only gate maps to PATCHED, NATIVE, or STUB. There is no feature that is (a) gated to mac/win only, (b) free of a real native dependency, and (c) not already patched. If a future release adds one, it goes here with the exact gate snippet and a proposed patch. (Note on the darwin 60->64 / win32 111->112 count swing vs v1.9659.2: the feature registry is byte-identical, same 30 static names, so no new feature-flag-borne gate, and the gate list still maps to the NATIVE/STUB/PATCHED rows above. Without a prior-version binary diff the exact reason the literal `process.platform===` count rose can't be pinned down, but it is not a new actionable gate.)
 
 ## PATCHED — already Linux-compatible (47 patches)
 
