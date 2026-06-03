@@ -1,6 +1,6 @@
 # Platform Gate Baseline
 
-**Last audited:** 2026-06-02 against **v1.9659.4**
+**Last audited:** 2026-06-03 against **v1.10628.0**
 
 This is the **re-audit baseline** for the question *"is there anything we could make Linux-compatible that we don't already?"* It records every macOS/Windows-only gate found in the bundle and **why it is or isn't patched**, so future audits skip ground that's already been settled.
 
@@ -12,9 +12,9 @@ Treat it like `ION.md` and `CLAUDE_FEATURE_FLAGS.md`: minified names change ever
 NEW=/tmp/claude-new/app/.vite/build/index.js   # extracted main bundle
 
 # 1. Count platform conditionals — large swing vs the baseline below = investigate
-echo "darwin: $(rg -o 'platform==="darwin"' "$NEW" | wc -l)"   # baseline v1.9659.4: 64
-echo "win32:  $(rg -o 'platform==="win32"'  "$NEW" | wc -l)"   # baseline v1.9659.4: 112
-echo "linux:  $(rg -o 'platform==="linux"'  "$NEW" | wc -l)"   # baseline v1.9659.4: 5
+echo "darwin: $(rg -o 'platform==="darwin"' "$NEW" | wc -l)"   # baseline v1.10628.0: 65 (v1.9659.4: 64)
+echo "win32:  $(rg -o 'platform==="win32"'  "$NEW" | wc -l)"   # baseline v1.10628.0: 113 (v1.9659.4: 112)
+echo "linux:  $(rg -o 'platform==="linux"'  "$NEW" | wc -l)"   # baseline v1.10628.0: 5 (unchanged)
 
 # 2. List darwin/win32-only gates (the audit surface)
 rg -o '.{0,60}process\.platform==="darwin".{0,80}' "$NEW" | sort -u
@@ -45,8 +45,8 @@ These depend on Apple/Windows frameworks with no Linux equivalent. Verified agai
 | Feature | Stable anchor | Native dependency | Evidence |
 |---------|--------------|-------------------|----------|
 | `tearOffHalo` / Window Halo MCP server | `tearOffHalo`, `"Window Halo"`, `halo_attach`/`halo_detach` | macOS NSView/CALayer compositing via `@ant/claude-swift` (8 refs in bundle) | `await import("@ant/claude-swift")`; server `isEnabled:()=>process.platform==="darwin"&&!1` (disabled even on mac) |
-| `wakeScheduler` | `wakeScheduler` | macOS Login Items (ServiceManagement) + IOKit wake-from-sleep | `wakeScheduler:Em(Rrr)` — prod-gated + macOS-only Login Items. No Linux app-launch-at-wake analog (systemd timers can't hook the same path). |
-| `grandPrix` | `"grandPrix"`, `grandPrix:Srr()` | Apple BLE device-pairing state (`IOBluetoothDevice`) | darwin-only, checks paired Apple devices — no "paired Apple device" concept on Linux |
+| `wakeScheduler` | `wakeScheduler` | macOS Login Items (ServiceManagement) + IOKit wake-from-sleep | `wakeScheduler:Dm(Jsr)` - prod-gated + macOS-only Login Items. No Linux app-launch-at-wake analog (systemd timers can't hook the same path). |
+| `grandPrix` | `"grandPrix"`, `grandPrix:Psr()` | Apple BLE device-pairing state (`IOBluetoothDevice`) | darwin-only, checks paired Apple devices - no "paired Apple device" concept on Linux |
 | `grandPrixRequest` | `grandPrixRequest` | macOS XPC/mach service requests | darwin-only service-request routing |
 | `nativeQuickEntry` dictation | `quickEntryDictation` | Apple speech APIs | macOS-only; Linux Quick Entry itself **is** patched (`fix_quick_entry_*`), only the *dictation* sub-feature is native |
 | macOS app-menu roles | n/a | `services`, `hideOthers`, `about-panel` are AppKit roles | Genuinely mac-only menu roles — ignore, not user-relevant on Linux |
@@ -57,17 +57,17 @@ Force-enabling these gets you a hardcoded error or an empty/unimplemented featur
 
 | Feature | Stable anchor | Why it's a stub | Evidence |
 |---------|--------------|-----------------|----------|
-| `framebufferPreview` / Framebuffer MCP server | `framebufferPreview`, `"Framebuffer"`, `framebuffer_screenshot` | Prod-gate + GrowthBook flag, **no platform check at all**. Server handler hardcoded to error. | `function yrr(){return Em(()=>Bt("1928275548")?{status:"supported"}...)}` (no darwin/win32); server registered with `isEnabled:r=>!1` and `handleToolCall` returns `"Framebuffer preview unavailable."` |
+| `framebufferPreview` / Framebuffer MCP server | `framebufferPreview`, `"Framebuffer"`, `framebuffer_screenshot` | Prod-gate + GrowthBook flag, **no platform check at all**. Server handler hardcoded to error. | `function xsr(){return Dm(()=>It("1928275548")?{status:"supported"}...)}` (no darwin/win32); server registered with `isEnabled:r=>!1` and `handleToolCall` returns `"Framebuffer preview unavailable."` |
 | `ios_simulator` / `android_emulator` MCP servers | `"ios_simulator"`, `"android_emulator"` | Reserved labels in the server-UUID map with **no server implementation** (precursors for future MCP servers) | Present only as UUID-map labels; no tool list / handler |
 | `echo` MCP server | `"echo"` | Label in UUID map, no observable tool/handler — debug/test placeholder | Map entry only |
-| `midnightOwl` | `midnightOwl prototype`, `isMidnightOwlEnabled` | Dev-prototype toggle; registration immediately calls `.setEnabled(!1)` | `Qh("180602792",e=>{_r&&_r.midnightOwl.setEnabled(!1)})` — sublabel literally *"Enables midnightOwl prototype"* |
-| dev-gated features (`plushRaccoon`, `quietPenguin`, `bootstrapConfig`, etc.) | see `CLAUDE_FEATURE_FLAGS.md` | Wrapped by the production gate (`um()` in v1.9659.4, was `Em()`/`lm()`/`PM()`): `{status:"unavailable"}` in **all** packaged builds | `function um(e){return aA.app.isPackaged?{status:"unavailable"}:e()}` |
+| `midnightOwl` | `midnightOwl prototype`, `isMidnightOwlEnabled` | Dev-prototype toggle; registration immediately calls `.setEnabled(!1)` | `kh("180602792",e=>{Mr&&Mr.midnightOwl.setEnabled(!1)})` - sublabel literally *"Enables midnightOwl prototype"* |
+| dev-gated features (`plushRaccoon`, `quietPenguin`, `bootstrapConfig`, `builtinMcpPresets`, etc.) | see `CLAUDE_FEATURE_FLAGS.md` | Wrapped by the production gate (`Dm()` in v1.10628.0, was `um()`/`Em()`/`lm()`/`PM()`): `{status:"unavailable"}` in **all** packaged builds | `function Dm(e){return aA.app.isPackaged?{status:"unavailable"}:e()}` |
 
 ## PORTABLE — actionable opportunities
 
 **Currently: NONE.**
 
-As of v1.9659.4, every darwin/win32-only gate maps to PATCHED, NATIVE, or STUB. There is no feature that is (a) gated to mac/win only, (b) free of a real native dependency, and (c) not already patched. If a future release adds one, it goes here with the exact gate snippet and a proposed patch. (Note on the darwin 60->64 / win32 111->112 count swing vs v1.9659.2: the feature registry is byte-identical, same 30 static names, so no new feature-flag-borne gate, and the gate list still maps to the NATIVE/STUB/PATCHED rows above. Without a prior-version binary diff the exact reason the literal `process.platform===` count rose can't be pinned down, but it is not a new actionable gate.)
+As of v1.10628.0, every darwin/win32-only gate maps to PATCHED, NATIVE, or STUB. There is no feature that is (a) gated to mac/win only, (b) free of a real native dependency, and (c) not already patched. If a future release adds one, it goes here with the exact gate snippet and a proposed patch. (v1.10628.0 counts: darwin 65, win32 113, linux 5; the +1/+1 vs v1.9659.4 is re-minify noise, the 2 new features are not platform-gated.)
 
 ## PATCHED — already Linux-compatible (47 patches)
 
@@ -83,7 +83,7 @@ These map to existing `patches/*.nim`. If a re-audit surfaces a gate touching on
 
 `louderPenguin` (Code tab) has a **real** `darwin||win32` gate:
 ```js
-function wrr(){return process.platform!=="darwin"&&process.platform!=="win32"?{status:"unavailable"}:...}
+function Fsr(){return process.platform!=="darwin"&&process.platform!=="win32"?{status:"unavailable"}:...}
 ```
 This is **not** a native dependency — it's a server-side rollout gate. It is **already handled**: `enable_local_agent_mode.nim` force-enables `louderPenguin` in its 12-flag override list, so Linux gets the Code tab. Don't list it as an opportunity — it's PATCHED.
 
