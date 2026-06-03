@@ -1,6 +1,6 @@
 # ion-dist Baseline - Third-Party Inference SPA
 
-**Last verified:** 2026-06-01 against v1.9659.2 (point release on v1.9659.1; ion-dist bundle byte-identical)
+**Last verified:** 2026-06-03 against v1.10628.0 (major bump from v1.9659.4; minor ion-dist growth, no structural refactor: 90 MB / 691 JS / 909 files, config chunk `c71860c77-CDhE5jkR.js`, `mountPath` still mac/win-only so `fix_ion_dist_linux.nim` still required and both sub-patterns matched). Prior: v1.9659.4 = 88 MB / 682 JS / 899 files.
 
 The `ion-dist/` directory is a standalone React SPA bundled inside `locales/ion-dist/`. It powers the **Configure Third-Party Inference** UI (Developer menu). Served by the Electron main process via the `app://` protocol handler.
 
@@ -8,8 +8,8 @@ The `ion-dist/` directory is a standalone React SPA bundled inside `locales/ion-
 
 | Metric | Value |
 |--------|-------|
-| Total size | 88 MB |
-| JS chunks | 677 files in `assets/v1/` (682 JS total, 899 files total) |
+| Total size | 90 MB (v1.10628.0; was 88 MB in v1.9659.4) |
+| JS chunks | 691 JS total, 909 files total (v1.10628.0; was 682 JS / 899 files in v1.9659.4) |
 | CSS | 21 files |
 | Fonts | 31 woff2 + 21 ttf + 20 woff |
 | Images | 25 PNG, 18 SVG, 17 GIF |
@@ -24,7 +24,7 @@ The `ion-dist/` directory is a standalone React SPA bundled inside `locales/ion-
 | `index.html` | 4.1 KB | SPA entry, loads `index-*.js` via `<script type="module">` |
 | `assets/v1/index-*.js` | ~6.9 MB | Main bundle (React app, API client, UI components) |
 | `assets/v1/vendor-*.js` | ~1.5 MB | Third-party vendor libs |
-| `assets/v1/c71860c77-*.js` | 21 files (main: ~280 KB) | 3P config UI, code-split into lazy-loaded chunks - **main chunk patched** (v1.9659.1/v1.9659.2: `c71860c77-BOyfE2Py.js`; v1.9255.2: `c71860c77-DFJHDHrp.js`) |
+| `assets/v1/c71860c77-*.js` | 21 files (main: ~280 KB) | 3P config UI, code-split into lazy-loaded chunks - **main chunk patched** (v1.10628.0: `c71860c77-CDhE5jkR.js`; v1.9659.1/v1.9659.2/v1.9659.4: `c71860c77-BOyfE2Py.js`; v1.9255.2: `c71860c77-DFJHDHrp.js`) |
 | `assets/v1/tree-sitter-*.js` | - | Code parsing (tree-sitter WASM bindings) |
 
 Filenames include content hashes (e.g., `index-DuIwZ1hn.js`) that change every upstream release.
