@@ -1,6 +1,6 @@
 # Platform Gate Baseline
 
-**Last audited:** 2026-06-03 against **v1.10628.0**
+**Last audited:** 2026-06-04 against **v1.10628.2** (re-minify point release on v1.10628.0; counts unchanged)
 
 This is the **re-audit baseline** for the question *"is there anything we could make Linux-compatible that we don't already?"* It records every macOS/Windows-only gate found in the bundle and **why it is or isn't patched**, so future audits skip ground that's already been settled.
 
@@ -31,7 +31,7 @@ Then for each gate, classify it against the table below. **Only a gate that does
 
 | Class | Meaning | Action |
 |-------|---------|--------|
-| **PATCHED** | Already made Linux-compatible by one of the 47 patches | None — already done |
+| **PATCHED** | Already made Linux-compatible by one of the 48 patches | None - already done |
 | **NATIVE** | Genuine macOS/Windows native-API dependency with no Linux analog | None — not portable |
 | **STUB** | Disabled on **all** platforms (hardcoded `!1`, prod-gate, or dev-prototype) — not a Linux exclusion | None — nothing behind it to enable |
 | **PORTABLE** | Gated to mac/win only, no real native dependency, works on Linux if widened | **Patch candidate** |
@@ -67,9 +67,9 @@ Force-enabling these gets you a hardcoded error or an empty/unimplemented featur
 
 **Currently: NONE.**
 
-As of v1.10628.0, every darwin/win32-only gate maps to PATCHED, NATIVE, or STUB. There is no feature that is (a) gated to mac/win only, (b) free of a real native dependency, and (c) not already patched. If a future release adds one, it goes here with the exact gate snippet and a proposed patch. (v1.10628.0 counts: darwin 65, win32 113, linux 5; the +1/+1 vs v1.9659.4 is re-minify noise, the 2 new features are not platform-gated.)
+As of v1.10628.2, every darwin/win32-only gate maps to PATCHED, NATIVE, or STUB. There is no feature that is (a) gated to mac/win only, (b) free of a real native dependency, and (c) not already patched. If a future release adds one, it goes here with the exact gate snippet and a proposed patch. (v1.10628.2 counts: darwin 65, win32 113, linux 5 - **exactly identical to v1.10628.0**, zero swing; the re-minify point release added no platform gates. v1.10628.0 was darwin 65 / win32 113 / linux 5, the +1/+1 vs v1.9659.4 being re-minify noise.)
 
-## PATCHED — already Linux-compatible (47 patches)
+## PATCHED - already Linux-compatible (48 patches)
 
 These map to existing `patches/*.nim`. If a re-audit surfaces a gate touching one of these areas, it's already handled — don't re-flag it. (See the README patch table for the authoritative list.)
 
