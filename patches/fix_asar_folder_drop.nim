@@ -40,7 +40,14 @@ proc apply*(input: string): string =
     raise newException(ValueError, "fix_asar_folder_drop: noe() pattern not found")
 
   # Patch B: Second-instance argv parser guard (uses \2 backreference)
-  let patArgv = re"(for\(const )([\w$]+)( of [\w$]+\.slice\(1\)\))(if\()(![\w$]+\(\2\))"
+  #
+  # v1.9659.4: for(const X of Y.slice(1))if(!Z(X)){...
+  # v1.11187.4: the .slice(1).filter(...) was hoisted into a local var, so the
+  #   loop is now `for(const X of <var>)if(!Z(X)){if(NiA(X)){hp(X,...,"skill file")`.
+  # Anchor on the trailing `"skill file"` arg to keep the match unique (there is
+  # exactly one such loop in the bundle).
+  let patArgv =
+    re"(for\(const )([\w$]+)( of [\w$]+\))(if\()(![\w$]+\(\2\))(\)\{if\([\w$]+\(\2\)\)\{[\w$]+\(\2,[\w$]+,""skill file""\))"
 
   let mB = result.find(patArgv)
   if mB.isSome:
@@ -48,10 +55,10 @@ proc apply*(input: string): string =
     let varName = m.captures[1]
     let replacement =
       m.captures[0] & varName & m.captures[2] & m.captures[3] & "!/\\.asar/.test(" &
-      varName & ")&&" & m.captures[4]
+      varName & ")&&" & m.captures[4] & m.captures[5]
     result =
       result[0 ..< m.matchBounds.a] & replacement & result[m.matchBounds.b + 1 .. ^1]
-    echo "  [OK] Second-instance argv parser (KXn): 1 match(es)"
+    echo "  [OK] Second-instance argv parser: 1 match(es)"
     patchesApplied += 1
   else:
     echo "  [FAIL] Second-instance argv parser: 0 matches"

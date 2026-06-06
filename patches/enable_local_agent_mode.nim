@@ -4,7 +4,10 @@
 # Enable Code and Cowork features on Linux.
 #
 # Multi-part patch:
-#   1  darwin-gated functions (chillingSlothFeat + quietPenguin)
+#   1  darwin/win32-gated feature functions (count varies per version: quietPenguin
+#      always; chillingSlothFeat too in <=v1.10628.2, but in v1.11187.4 it moved to a
+#      non-platform gate `oW`, leaving only quietPenguin here. Patch 3's merger
+#      force-overrides all of them regardless, so this is belt-and-suspenders.)
 #   1b yukonSilver (NH) Linux early return
 #   2  chillingSlothLocal (no-op -- inherently supported on Linux)
 #   3  mC() async merger overrides
@@ -42,9 +45,12 @@ proc apply*(input: string): string =
   var failed = false
   var patchesApplied = 0
 
-  # Patch 1: Remove platform gate from quietPenguin (and any other darwin/win32-gated feature functions)
+  # Patch 1: Remove platform gate from every darwin/win32-gated feature function.
   # v1.8089+: gate changed from `process.platform!=="darwin"` to compound
   #   `process.platform!=="darwin"&&process.platform!=="win32"` — match both variants.
+  # The number of matching functions varies per upstream release (2 through
+  # v1.10628.2, 1 in v1.11187.4 after chillingSlothFeat moved to the `oW` gate),
+  # so accept >=1 (see the matches.len branches below).
   let pattern1 =
     re"""(function )([\w$]+)(\(\)\{return )process\.platform!=="darwin"(?:&&process\.platform!=="win32")?\?\{status:"unavailable"\}:(\{status:"supported"\}\})"""
 
@@ -64,7 +70,7 @@ proc apply*(input: string): string =
       let replacement = m.captures[0] & m.captures[1] & m.captures[2] & m.captures[3]
       let bounds = m.matchBounds
       result = result[0 ..< bounds.a] & replacement & result[bounds.b + 1 .. ^1]
-    echo &"  [OK] chillingSlothFeat ({matches[0].captures[1]}) + quietPenguin ({matches[1].captures[1]}): both patched"
+    echo &"  [OK] darwin/win32-gated functions ({matches[0].captures[1]} + {matches[1].captures[1]}): both patched"
     inc patchesApplied
   elif matches.len == 1:
     let m = matches[0]

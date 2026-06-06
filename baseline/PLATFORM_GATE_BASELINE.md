@@ -1,6 +1,6 @@
 # Platform Gate Baseline
 
-**Last audited:** 2026-06-04 against **v1.10628.2** (re-minify point release on v1.10628.0; counts unchanged)
+**Last audited:** 2026-06-06 against **v1.11187.4** (version bump from v1.10628.2; counts darwin 65->72 / win32 113->122 / linux 5; all new gates are NATIVE or config-gated, **no new PORTABLE gate**)
 
 This is the **re-audit baseline** for the question *"is there anything we could make Linux-compatible that we don't already?"* It records every macOS/Windows-only gate found in the bundle and **why it is or isn't patched**, so future audits skip ground that's already been settled.
 
@@ -12,9 +12,9 @@ Treat it like `ION.md` and `CLAUDE_FEATURE_FLAGS.md`: minified names change ever
 NEW=/tmp/claude-new/app/.vite/build/index.js   # extracted main bundle
 
 # 1. Count platform conditionals — large swing vs the baseline below = investigate
-echo "darwin: $(rg -o 'platform==="darwin"' "$NEW" | wc -l)"   # baseline v1.10628.0: 65 (v1.9659.4: 64)
-echo "win32:  $(rg -o 'platform==="win32"'  "$NEW" | wc -l)"   # baseline v1.10628.0: 113 (v1.9659.4: 112)
-echo "linux:  $(rg -o 'platform==="linux"'  "$NEW" | wc -l)"   # baseline v1.10628.0: 5 (unchanged)
+echo "darwin: $(rg -o 'platform==="darwin"' "$NEW" | wc -l)"   # baseline v1.11187.4: 72 (v1.10628.0: 65, v1.9659.4: 64)
+echo "win32:  $(rg -o 'platform==="win32"'  "$NEW" | wc -l)"   # baseline v1.11187.4: 122 (v1.10628.0: 113, v1.9659.4: 112)
+echo "linux:  $(rg -o 'platform==="linux"'  "$NEW" | wc -l)"   # baseline v1.11187.4: 5 (unchanged)
 
 # 2. List darwin/win32-only gates (the audit surface)
 rg -o '.{0,60}process\.platform==="darwin".{0,80}' "$NEW" | sort -u

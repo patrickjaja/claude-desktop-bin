@@ -1,8 +1,10 @@
-# Built-in MCP Servers - Claude Desktop v1.8555.2
+# Built-in MCP Servers - Claude Desktop v1.11187.4
+
+> **Roster verified unchanged through v1.11187.4** (2026-06-06). No servers added/removed since v1.8555.2. Only the minified registration names shifted (see below). Server-name strings and the tool tables remain accurate.
 
 Claude Desktop registers internal MCP servers via a two-layer architecture:
 
-1. **Renderer-facing layer (`LYA()`)** - servers accessible from the BrowserView via Electron `MessageChannelMain` ports
+1. **Renderer-facing layer (`uqA()` in v1.11187.4, was `LYA()` in v1.8555.2)** - servers accessible from the BrowserView via Electron `MessageChannelMain` ports
 2. **Backend/session layer** - servers providing tools to CCD/Cowork sessions
 
 A server may appear in both layers (e.g., Chrome, mcp-registry) or only one.
@@ -10,12 +12,13 @@ A server may appear in both layers (e.g., Chrome, mcp-registry) or only one.
 ## Registration System
 
 ```
-LYA(serverName, displayLabel, factoryFn)   // v1.8555.2 (was lrA() in v1.8089.1, unchanged since v1.7196.0 before that; was BrA() in v1.6608.2, qwA() in v1.5354.0, gpA() in v1.3561.0, DfA() in v1.3109.0, kce() in v1.3036.0)
+uqA(serverName, displayLabel, factoryFn)   // v1.11187.4 (was LYA() in v1.8555.2, jHA() in v1.9659.4, lrA() in v1.8089.1, unchanged since v1.7196.0 before that; was BrA() in v1.6608.2, qwA() in v1.5354.0, gpA() in v1.3561.0, DfA() in v1.3109.0, kce() in v1.3036.0)
 ```
 
-- Lazy singleton factory per server name; stored in `QN` (registry) + `pkA` (display labels)
+- Lazy singleton factory per server name; stored in `sT` (registry, v1.11187.4; was `QN`) + `cUA` (display labels, v1.11187.4; was `pkA`)
 - UUID display label sent to renderer for identification
-- `k4()` enumerates registered server names via `Object.keys(QN)`
+- `b3()` (v1.11187.4; was `k4()`) enumerates registered server names via `Object.keys(sT)`
+- Signature unchanged: `(serverName, displayLabel, factoryFn)`
 
 ## Renderer-Facing Servers (via `LYA()`)
 
