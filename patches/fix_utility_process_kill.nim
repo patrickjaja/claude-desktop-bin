@@ -14,10 +14,15 @@ import regex
 
 proc apply*(input: string): string =
   # Pattern: The setTimeout callback that tries to kill the UtilityProcess
-  # after 5 seconds. Matches:
+  # after 5 seconds. Matches (v1.9659.4):
   #   const a=(s=this.process)==null?void 0:s.kill();te.info(`Killing utiltiy proccess again
+  # and (v1.11187.4, an intervening `r&&this.noteKillOnce(),` was inserted):
+  #   const r=(n=this.process)==null?void 0:n.kill();r&&this.noteKillOnce(),D.info(`Killing utiltiy proccess again
+  #
+  # Group 3 tolerates any short run of statements between .kill() and the
+  # `.info(\`Killing utiltiy proccess again` log call (e.g. noteKillOnce()).
   let pattern =
-    re2"""(const \w+=\(\w+=this\.process\)==null\?void 0:\w+)(\.kill\(\))(;[\w$]+\.info\(`Killing utiltiy proccess again)"""
+    re2"""(const \w+=\(\w+=this\.process\)==null\?void 0:\w+)(\.kill\(\))(;[^`]{0,80}\.info\(`Killing utiltiy proccess again)"""
   var count = 0
   result = input.replace(
     pattern,

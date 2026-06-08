@@ -2,6 +2,39 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-06-06 (v1.11187.4) - Version bump, 2 patches fixed for refactored upstream code
+
+### Upstream (v1.11187.4)
+
+- **Version bump:** v1.10628.2 -> v1.11187.4 (~560 builds). Full re-minify - every minified identifier shifted. Two patches needed regex updates because upstream restructured the code (not just renamed variables); the other 46 patches absorbed the renames via their `[\w$]+` wildcards.
+
+### Patches fixed (2)
+
+- **`fix_utility_process_kill.nim`** - upstream inserted a `r&&this.noteKillOnce(),` statement between `.kill()` and the `\`Killing utiltiy proccess again\`` log call. Old regex required `.kill();[\w$]+.info(\`Killing...` immediately adjacent. New regex tolerates a short run of intervening statements: group 3 is now `;[^\`]{0,80}\.info(\`Killing utiltiy proccess again`. Patched result: `n.kill("SIGKILL");r&&this.noteKillOnce(),D.info(...)`.
+- **`fix_asar_folder_drop.nim`** (Patch B, second-instance argv parser) - the `.slice(1).filter(...)` was hoisted into a local var, so the loop changed from `for(const X of Y.slice(1))if(!Z(X))` to `for(const X of <var>)if(!Z(X))`. Rewrote the regex to drop the hardcoded `.slice(1)` and anchor on the trailing `"skill file"` arg for uniqueness (exactly one such loop in the bundle). Patch A (noe file-drop filter) was unaffected. Patched result: `for(const n of r)if(!/\.asar/.test(n)&&!VXr(n)){...`.
+
+### No other patch changes needed
+
+- **All 48 patches apply** - package built as `claude-desktop-bin-1.11187.4-1-x86_64.pkg.tar.zst`; `node --check` passed on the patched JS.
+
+### Semantic verification (not just regex-match)
+
+Traced the **raw unpatched** upstream code around every changed site and the 14 highest-stakes structural patches to confirm intent still holds after the re-minify (a matching regex alone doesn't prove the surrounding logic is unchanged):
+
+- **`fix_utility_process_kill`** - the function has two `.kill()` calls (first SIGTERM via `const i=this.process.kill()`, 5s fallback via `const r=(n=this.process)==null?void 0:n.kill()`). Confirmed our regex matches **only the fallback** (distinct syntactic form), so the first kill stays graceful SIGTERM and only the timeout escalates to SIGKILL. The new `noteKillOnce()` is logging-only and is preserved. Semantics intact.
+- **`fix_asar_folder_drop`** - upstream refactored `jXr()` and **added a new pre-filter** `A.slice(1).filter(n=>n.startsWith("-")||resolve(n)!==appPath)`. Verified this does NOT make our guard redundant: upstream only drops the single arg whose resolved path exactly equals `getAppPath()`, whereas our `!/\.asar/.test(n)` rejects any `.asar` path (covers symlinked/non-canonical paths and the case where `getAppPath()` returns the unpacked `app` dir). Our guard sits in the loop condition before the `existsSync(n)->e.push(n)->wQA(e)` dispatch, so a `.asar` arg never reaches the file-drop handler. Still correct defense-in-depth.
+- **14 highest-stakes patches verified SOLID** against raw upstream: `enable_local_agent_mode` (25 sub-patches; merger override `{...Dw(),louderPenguin:A,...}` is authoritative), `fix_dispatch_linux`, `fix_cowork_linux` (10 sub-patches), `fix_computer_use_linux`, `fix_tray_dbus`, `fix_quick_entry_position`, `fix_native_frame`(+renderer), `fix_window_bounds`, `fix_locale_paths`, `fix_marketplace_linux`, `fix_startup_settings`, `fix_updater_state_linux`, `fix_vm_session_handlers`, `fix_sensitive_dirs_linux`. Every anchor lands in a semantically correct location.
+- **Stale comment fixed:** `enable_local_agent_mode` Patch 1 comment claimed it ungates `chillingSlothFeat + quietPenguin`; in v1.11187.4 `chillingSlothFeat` moved to the non-platform `oW` gate, so only `quietPenguin` (`WEr`) matches here now. Behavior unchanged (Patch 1 already accepts `>=1` matches and Patch 3's merger force-overrides every feature regardless) - updated the comments + the 2-match log label to be version-agnostic.
+- **Noted, not changed:** `fix_locale_paths` still does a global replace of all `process.resourcesPath` sites - a long-standing over-broad approach (not a v1.11187.4 regression); the affected non-locale paths are win32/darwin-gated and not exercised on Linux.
+
+### Audit findings
+
+- **Feature flags:** no `enable_local_agent_mode.nim` override changes needed (all 25 sub-patches still match; merger return `{...Dw(),louderPenguin:A,coworkKappa:e,coworkArtifacts:t,markTaskComplete:i}` intact). **1 new static feature** `coworkArtifactPopout:_d` (always supported, no platform gate, no override needed); `bootstrapConfig` changed from `MS()`-gated to bare `_d`. Function renames: registry `Aw()`->`Dw()`, async merger `LCA`->`SBA`, dev-gate `Dm()`->`MS()` (2nd gate `xEr()` for `builtinMcpPresets`), GrowthBook bool reader `It()`->`lt()`, supported constant `Xd`->`_d`, electron var `aA`->`sA`, `louderPenguin` async helper `Fsr()`->`XEr()` (still `darwin||win32` gate, now also reads flag `4116586025`), cowork helper `pRA()`->`mNA()`. **GrowthBook delta** (vs v1.9659.4 baseline, the only local prior bundle): 5 added (`124685897` template-subst, `1323782925` APe qualifier, `1609612026` marketplace install, `2720310975` side-chat tools, `790863764` device_bash), 1 removed (`3638165567`).
+- **Built-in MCP:** **no servers added/removed** - identical roster (imagine/visualize/marketplace/skills/radar/echo/Framebuffer/Window Halo, etc.). Registration fn renamed `jHA`->`uqA` (registry obj `sT`, label map `cUA`, enumerator `b3()`). node-pty **1.1.0-beta34** unchanged.
+- **Cowork protocol:** **unchanged** - `control_request` 14, `control_response` 46, `sessions-bridge` 3, `environments/bridge` 1, `work/poll` 1, all identical to baseline; 20 `CoworkArtifacts_$_*` IPC handlers byte-for-byte identical (the +8 raw `CoworkArtifacts` occurrences are new log strings, not protocol). **`claude-cowork-service` is NOT affected by this release.**
+- **ion-dist (3P config SPA):** still required, applies cleanly. **92 MB / 706 JS / 950 files / 23 CSS** (up from 90 MB / 691 JS / 909 files / 21 CSS - modest growth, no structural refactor). Config chunk `c71860c77-CV0D52ti.js` -> **`c71860c77-CyMvMS7K.js`** (content-hash bump). `mountPath` **still mac/win-only** (no `linux` key, not upstreamed); platform ternary vars this release `K`/`C`/`pt`. Both sub-patterns matched; verified the compiled patch applies (exit 0, 2/2).
+- **Platform gates:** darwin **65->72** (+7), win32 **113->122** (+9), linux **5** (unchanged). All new gates classify as NATIVE (path NFC normalization, updater channel msix/squirrel, dock bounce, Mission Control, TouchID, codesign verify, plist/registry reads, endpoint-security SIGKILL classification, dev-only `chrome://inspect` launcher) or STUB/config-gated (chat features gated by config flag, not `process.platform`). **No new PORTABLE (Linux-actionable) gate.** The `louderPenguin` Code-tab gate became async (`XEr()` + flag `4116586025`) but remains PATCHED via the existing override.
+
 ## 2026-06-04 (v1.10628.2) - Re-minify point release, all patches clean
 
 ### Upstream (v1.10628.2)
