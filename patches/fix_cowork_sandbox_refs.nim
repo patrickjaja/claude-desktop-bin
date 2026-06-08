@@ -216,22 +216,59 @@ proc apply*(input: string): string =
   # have shifted across releases (v1.6608: ${Ae}${EA}${W} / ${dA},${nA};
   # v1.7196.1: ${uA}${W}${IA} / ${nA},${lA}). Match each with [\w$]+
   # so renames don't break the patch.
+  #
+  # v1.10628.0 spliced a `<gate>.length?` "folders not mounted" conditional
+  # *between* the mapping line and the "So a file…" example, breaking the
+  # single template literal into three concatenated pieces:
+  #   `HEAD`+(qA.length?`FOLDERS`:"")+`TAIL`
+  # (closing the enclosing literal, concatenating the conditional, then
+  # reopening). The old single-literal regex no longer matches, and we can
+  # no longer wrap m.match verbatim — it now contains backticks and +(…)+
+  # that would corrupt the enclosing template literal. So capture the three
+  # pieces and rebuild them as a self-contained expression inside the gate.
+  #
   # In native mode bash and the file tools share the same filesystem;
   # the path-mapping block (and the "translate" instruction) is wrong
   # and has actually misled the model in practice. Replace with a
   # single line clarifying that no translation is needed.
   block:
-    let patF =
-      re"""Paths in bash differ from what file tools \(Read/Write/Edit\) see:\n\$\{[\w$]+\}\$\{[\w$]+\}\$\{[\w$]+\}\n\nSo a file you Read at \$\{[\w$]+\}/foo\.txt is reached in bash at \$\{[\w$]+\}/foo\.txt — use the mapping above to translate\."""
+    const nativeF =
+      "\"Bash and the file tools (Read/Write/Edit) see the same filesystem" &
+      " \\u2014 no path translation needed; use absolute paths directly.\""
+    # New three-piece structure (v1.10628.0+). Captures:
+    #   [0] head  — "Paths in bash…see:\n${a}${b}${c}\n\n" (template text)
+    #   [1] gate  — minified var name guarding the folders conditional
+    #   [2] folds — the "Folders annotated…" body (may span newlines)
+    #   [3] tail  — "So a file you Read at ${x}…translate." (template text)
+    let patFNew =
+      re"""(Paths in bash differ from what file tools \(Read/Write/Edit\) see:\n\$\{[\w$]+\}\$\{[\w$]+\}\$\{[\w$]+\}\n\n)`\+\(([\w$]+)\.length\?`([\s\S]*?)`:""\)\+`(So a file you Read at \$\{[\w$]+\}/foo\.txt is reached in bash at \$\{[\w$]+\}/foo\.txt — use the mapping above to translate\.)"""
+    # Pre-v1.10628.0 contiguous structure (no folders conditional).
+    let patFOld =
+      re"""(Paths in bash differ from what file tools \(Read/Write/Edit\) see:\n\$\{[\w$]+\}\$\{[\w$]+\}\$\{[\w$]+\}\n\nSo a file you Read at \$\{[\w$]+\}/foo\.txt is reached in bash at \$\{[\w$]+\}/foo\.txt — use the mapping above to translate\.)"""
     var hitsF = 0
     content = content.replace(
-      patF,
+      patFNew,
       proc(m: RegexMatch): string =
         inc hitsF
-        "${(globalThis.__coworkKvmMode||globalThis.__coworkSandboxMode)?`" &
-          m.match &
-          "`:\"Bash and the file tools (Read/Write/Edit) see the same filesystem \\u2014 no path translation needed; use absolute paths directly.\"}",
+        let head = m.captures[0]
+        let gate = m.captures[1]
+        let folds = m.captures[2]
+        let tail = m.captures[3]
+        # Rebuild upstream's exact expression (HEAD + folders-conditional +
+        # TAIL) for kvm/sandbox; collapse to the same-fs note for native.
+        "${(globalThis.__coworkKvmMode||globalThis.__coworkSandboxMode)?(`" &
+          head & "`+(" & gate & ".length?`" & folds & "`:\"\")+`" & tail &
+          "`):" & nativeF & "}",
     )
+    if hitsF == 0:
+      # Fallback: old single-literal structure — wrap the match verbatim.
+      content = content.replace(
+        patFOld,
+        proc(m: RegexMatch): string =
+          inc hitsF
+          "${(globalThis.__coworkKvmMode||globalThis.__coworkSandboxMode)?`" &
+            m.captures[0] & "`:" & nativeF & "}",
+      )
     if hitsF == 1:
       echo "  [OK] F shell-access path mapping: native gets same-fs note"
       inc patchesApplied
