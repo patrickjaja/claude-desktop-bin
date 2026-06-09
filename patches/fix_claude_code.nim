@@ -64,14 +64,17 @@ proc apply*(input: string): string =
 
   # Patch 3: getStatus() - Return Ready if system binary exists on Linux
   # Uses backreference \1 and \2
+  # Captures the full getLocalBinaryPath condition (which upstream now ORs
+  # with getHostPreseedInPlacePath()) so the rebuilt original path stays intact.
   let statusPattern =
-    re"""async getStatus\(\)\{if\(await this\.getLocalBinaryPath\(\)\)return ([\w$]+)\.Ready;const (\w+)=this\.getHostTarget\(\);if\(this\.preparingPromise\)return \1\.Updating;if\(await this\.binaryExistsForTarget\(\2,this\.requiredVersion\)\)"""
+    re"""async getStatus\(\)\{if\((await this\.getLocalBinaryPath\(\)(?:\|\|await this\.getHostPreseedInPlacePath\(\))?)\)return ([\w$]+)\.Ready;const (\w+)=this\.getHostTarget\(\);if\(this\.preparingPromise\)return \2\.Updating;if\(await this\.binaryExistsForTarget\(\3,this\.requiredVersion\)\)"""
 
   let m3 = result.find(statusPattern)
   if m3.isSome:
     let m = m3.get
-    let enumName = m.captures[0]
-    let varName = m.captures[1]
+    let statusCond = m.captures[0]
+    let enumName = m.captures[1]
+    let varName = m.captures[2]
     let replacement =
       "async getStatus(){if(process.platform===\"linux\"){try{const fs=require(\"fs\");" &
       "for(const p of[\"/usr/bin/claude\",(process.env.HOME||\"\")+\"/.local/bin/claude\",\"/usr/local/bin/claude\"])" &
@@ -79,7 +82,7 @@ proc apply*(input: string): string =
       "try{require(\"child_process\").execSync(\"which claude\",{encoding:\"utf-8\"});return " &
       enumName & ".Ready}catch(e2){}" & "return " & enumName &
       ".NotInstalled}catch(err){return " & enumName & ".NotInstalled}}" &
-      "if(await this.getLocalBinaryPath())return " & enumName & ".Ready;const " & varName &
+      "if(" & statusCond & ")return " & enumName & ".Ready;const " & varName &
       "=this.getHostTarget();if(this.preparingPromise)return " & enumName &
       ".Updating;if(await this.binaryExistsForTarget(" & varName &
       ",this.requiredVersion))"
