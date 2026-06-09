@@ -2,6 +2,31 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-06-09 (v1.11847.5) - Version bump, 1 patch fixed for refactored upstream code
+
+### Upstream (v1.11847.5)
+
+- **Version bump:** v1.11187.4 -> v1.11847.5 (~660 builds). Full re-minify - every minified identifier shifted. One patch needed a regex update because upstream restructured the code (not just renamed variables); the other 47 patches absorbed the renames via their `[\w$]+` wildcards.
+
+### Patches fixed (1)
+
+- **`fix_claude_code.nim`** (Patch 3, `getStatus()`) - upstream added a second check to the first if-condition: `if(await this.getLocalBinaryPath())` became `if(await this.getLocalBinaryPath()||await this.getHostPreseedInPlacePath())`. The old regex required the bare `getLocalBinaryPath()` call immediately followed by `)return`. New regex captures the whole condition and tolerates an optional run of `||await this.<fn>()` clauses, then re-emits the original condition verbatim in the patched code so the `getHostPreseedInPlacePath()` check is preserved. Patches 1 and 2 (`getHostPlatform`, `getBinaryPathIfReady`) were unaffected.
+
+### No other patch changes needed
+
+- **All 48 patches apply** - package built as `claude-desktop-bin-1.11847.5-1-x86_64.pkg.tar.zst`; `node --check` passed on the patched JS.
+
+### Audits (re-validated against the new bundle)
+
+- **Feature flags:** 3 new static features (`coworkRemoteSessionSpaces`, `coworkBranchSession`, `epitaxyMcpApps`); async merger now 5-way; 8 new GrowthBook flag IDs, 1 removed. `enable_local_agent_mode.nim` needs no changes (`epitaxyMcpApps` intentionally left server-gated - experimental). Function renames: registry `Dw()`->`Rw()`, merger `SBA`->`PBA`, dev-gate `MS()`->`OS()`.
+- **Built-in MCP servers:** roster unchanged (22 servers + 4 per-session SDK). Registration fn `uqA()`->`KqA()`, registry `sT`->`CT`, labels `cUA`->`TUA`, enumerator `b3()`->`J3()`.
+- **Platform gates:** darwin 72->73 (re-minify noise, both NATIVE - macOS Handoff `setUserActivity` + memory-pressure governor which falls back to `setInterval` polling on Linux), win32/linux unchanged. **No new PORTABLE (Linux-compat) opportunity.**
+- **ion-dist SPA:** modest growth (92->93 MB, 706->715 JS chunks); config chunk `c71860c77-CyMvMS7K.js`->`c71860c77-BBQ3iytl.js`. Both `fix_ion_dist_linux.nim` sub-patterns still match (`mountPath` still mac/win-only); no patch change needed.
+
+### Docs updated
+
+- `baseline/CLAUDE_FEATURE_FLAGS.md`, `baseline/CLAUDE_BUILT_IN_MCP.md`, `baseline/ION.md`, `baseline/PLATFORM_GATE_BASELINE.md` - new version-history rows + refreshed stats/counts/minified names.
+
 ## 2026-06-06 (v1.11187.4) - Version bump, 2 patches fixed for refactored upstream code
 
 ### Upstream (v1.11187.4)

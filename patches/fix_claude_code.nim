@@ -63,23 +63,27 @@ proc apply*(input: string): string =
     failed = true
 
   # Patch 3: getStatus() - Return Ready if system binary exists on Linux
-  # Uses backreference \1 and \2
+  # Uses backreference \1 and \3
+  # Note: upstream may add extra checks to the first if-condition
+  # (e.g. `||await this.getHostPreseedInPlacePath()`), so capture the whole
+  # condition body between `if(` and `)return X.Ready`.
   let statusPattern =
-    re"""async getStatus\(\)\{if\(await this\.getLocalBinaryPath\(\)\)return ([\w$]+)\.Ready;const (\w+)=this\.getHostTarget\(\);if\(this\.preparingPromise\)return \1\.Updating;if\(await this\.binaryExistsForTarget\(\2,this\.requiredVersion\)\)"""
+    re"""async getStatus\(\)\{if\((await this\.getLocalBinaryPath\(\)(?:\|\|await this\.\w+\(\))*)\)return ([\w$]+)\.Ready;const (\w+)=this\.getHostTarget\(\);if\(this\.preparingPromise\)return \2\.Updating;if\(await this\.binaryExistsForTarget\(\3,this\.requiredVersion\)\)"""
 
   let m3 = result.find(statusPattern)
   if m3.isSome:
     let m = m3.get
-    let enumName = m.captures[0]
-    let varName = m.captures[1]
+    let origCond = m.captures[0]
+    let enumName = m.captures[1]
+    let varName = m.captures[2]
     let replacement =
       "async getStatus(){if(process.platform===\"linux\"){try{const fs=require(\"fs\");" &
       "for(const p of[\"/usr/bin/claude\",(process.env.HOME||\"\")+\"/.local/bin/claude\",\"/usr/local/bin/claude\"])" &
       "if(fs.existsSync(p))return " & enumName & ".Ready;" &
       "try{require(\"child_process\").execSync(\"which claude\",{encoding:\"utf-8\"});return " &
       enumName & ".Ready}catch(e2){}" & "return " & enumName &
-      ".NotInstalled}catch(err){return " & enumName & ".NotInstalled}}" &
-      "if(await this.getLocalBinaryPath())return " & enumName & ".Ready;const " & varName &
+      ".NotInstalled}catch(err){return " & enumName & ".NotInstalled}}" & "if(" &
+      origCond & ")return " & enumName & ".Ready;const " & varName &
       "=this.getHostTarget();if(this.preparingPromise)return " & enumName &
       ".Updating;if(await this.binaryExistsForTarget(" & varName &
       ",this.requiredVersion))"

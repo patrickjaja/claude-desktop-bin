@@ -1,10 +1,10 @@
-# Built-in MCP Servers - Claude Desktop v1.11187.4
+# Built-in MCP Servers - Claude Desktop v1.11847.5
 
-> **Roster verified unchanged through v1.11187.4** (2026-06-06). No servers added/removed since v1.8555.2. Only the minified registration names shifted (see below). Server-name strings and the tool tables remain accurate.
+> **Roster verified unchanged through v1.11847.5** (2026-06-09). No servers added/removed since v1.8555.2. Only the minified registration names shifted (see below). Server-name strings and the tool tables remain accurate.
 
 Claude Desktop registers internal MCP servers via a two-layer architecture:
 
-1. **Renderer-facing layer (`uqA()` in v1.11187.4, was `LYA()` in v1.8555.2)** - servers accessible from the BrowserView via Electron `MessageChannelMain` ports
+1. **Renderer-facing layer (`KqA()` in v1.11847.5, was `uqA()` in v1.11187.4, `LYA()` in v1.8555.2)** - servers accessible from the BrowserView via Electron `MessageChannelMain` ports
 2. **Backend/session layer** - servers providing tools to CCD/Cowork sessions
 
 A server may appear in both layers (e.g., Chrome, mcp-registry) or only one.
@@ -12,12 +12,12 @@ A server may appear in both layers (e.g., Chrome, mcp-registry) or only one.
 ## Registration System
 
 ```
-uqA(serverName, displayLabel, factoryFn)   // v1.11187.4 (was LYA() in v1.8555.2, jHA() in v1.9659.4, lrA() in v1.8089.1, unchanged since v1.7196.0 before that; was BrA() in v1.6608.2, qwA() in v1.5354.0, gpA() in v1.3561.0, DfA() in v1.3109.0, kce() in v1.3036.0)
+KqA(serverName, displayLabel, factoryFn)   // v1.11847.5 (was uqA() in v1.11187.4, LYA() in v1.8555.2, jHA() in v1.9659.4, lrA() in v1.8089.1, unchanged since v1.7196.0 before that; was BrA() in v1.6608.2, qwA() in v1.5354.0, gpA() in v1.3561.0, DfA() in v1.3109.0, kce() in v1.3036.0)
 ```
 
-- Lazy singleton factory per server name; stored in `sT` (registry, v1.11187.4; was `QN`) + `cUA` (display labels, v1.11187.4; was `pkA`)
+- Lazy singleton factory per server name; stored in `CT` (registry, v1.11847.5; was `sT` in v1.11187.4, `QN` before) + `TUA` (display labels, v1.11847.5; was `cUA` in v1.11187.4, `pkA` before)
 - UUID display label sent to renderer for identification
-- `b3()` (v1.11187.4; was `k4()`) enumerates registered server names via `Object.keys(sT)`
+- `J3()` (v1.11847.5; was `b3()` in v1.11187.4, `k4()` before) enumerates registered server names via `Object.keys(CT)`
 - Signature unchanged: `(serverName, displayLabel, factoryFn)`
 
 ## Renderer-Facing Servers (via `LYA()`)
@@ -652,6 +652,8 @@ When active, Operon provided 14 "brain tools" (multi-agent delegation, skills, d
 
 | Version | Changes |
 |---------|---------|
+| v1.11847.5 | Registration function renamed `uqA()`->`KqA()` (verified via `registerInternalMcpServer:KqA`, `function KqA(A,e,t){return CT[A]=t,TUA[A]=e,...}`). Registry `sT`->`CT`, display-label map `cUA`->`TUA`, enumerator `b3()`->`J3()`. **No new or removed MCP servers or tools**; roster identical to v1.8555.2 (22 servers + 4 per-session SDK + dynamic per-artifact). `yL` server-UUID map unchanged (21 entries incl. reserved `ios_simulator`/`android_emulator`/`echo`/`office`). `office-addin` remains an IPC bridge only (not an MCP server). All 48 patches compatible without code changes. |
+| v1.11187.4 | Registration function renamed `LYA()`/`uqA()` chain; registry `QN`->`sT`, labels `pkA`->`cUA`, enumerator `k4()`->`b3()`. No new or removed MCP servers or tools. |
 | v1.9659.1 | Registration function renamed `KPA()`->`HHA()` (verified via `registerInternalMcpServer:HHA`). mcp-registry const `OEA`->`mlA`. **Server roster and tool sets unchanged**: no new or removed servers, no new or removed built-in tools (apparent count bumps per server are all the extra `yL`-map occurrence, +1 each, not new registrations). **New static `yL` server-UUID map** mapping server names to fixed UUIDs, feeding a new `server_uuid` field into the existing internal-tool telemetry (`server_type:"internal"`, `tool_name`, `is_error`, `duration_ms`); in v1.9255.2 these UUIDs were scattered single constants. Three reserved/inactive labels in `yL` with no server implementation yet: `ios_simulator` and `android_emulator` (both new, precursors for future iOS-simulator / Android-emulator MCP servers), plus `echo`. `office` stays in the map but remains an IPC bridge (not an MCP server) since v1.8555.2. Cowork protocol (`control_request`/`control_response` event-stream proxy) unchanged: claude-cowork-service not affected. All 47 patches compatible without code changes. |
 | v1.9255.2 | Registration function renamed `LYA()`->`KPA()` (not documented at the time; reconstructed during the v1.9659.1 audit). Webpack re-minify point release on top of v1.9255.0; no new or removed MCP servers or tools vs v1.8555.2. |
 | v1.8555.2 | Registration function renamed `lrA()`->`LYA()`. Registry `I_`->`QN`, labels `FSA`->`pkA`, enumerator `h1()`->`k4()`. Backend server array `Xxi`->`Osr` (10->11 entries). **New MCP server: `Window Halo`** (macOS only, hardcoded disabled; `halo_attach`, `halo_detach` tools via `@ant/claude-swift`). **Office-addin removed as MCP server** - no longer registered via `LYA()`, tools `office_addin_run`/`office_addin_task` gone, functionality moved to IPC bridge (`focusOfficeDocument`, `focusBrowserTab`, etc.). **New tools on existing servers:** `list_connectors` (mcp-registry), `list_plugins` (plugins), `suggest_skills` (skills), `list_artifacts` and `read_widget_context` (cowork). |
