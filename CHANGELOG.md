@@ -2,6 +2,51 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-06-09 (v1.11847.5) - Version bump, 1 patch fixed; 3 new features, 4 new server flags
+
+### Upstream (v1.11847.5)
+
+- **Version bump:** v1.11187.4 -> v1.11847.5 (~660 builds). Full re-minify - every minified identifier shifted. One patch needed a regex update because upstream restructured the code (not just renamed variables); the other 44 patches absorbed the renames via their `[\w$]+` wildcards. **All 45 patches apply**; package built as `claude-desktop-bin-1.11847.5-1.x86_64.rpm`, `node --check` passed on the patched JS.
+
+### Patch fixed (1)
+
+- **`fix_claude_code.nim`** (Patch 3, `getStatus()`) - upstream added a second disjunct to the first condition: `if(await this.getLocalBinaryPath())` became `if(await this.getLocalBinaryPath()||await this.getHostPreseedInPlacePath())`. The old regex anchored on `getLocalBinaryPath()\)return` and no longer matched. New regex captures an optional run of extra `||await this.<fn>()` disjuncts as group 1 (`((?:\|\|await this\.[\w$]+\(\))*)`) and re-emits it verbatim in the non-Linux fallback path, so the upstream preseed check is preserved for darwin/win32 while the Linux branch still short-circuits to the system binary. Patched result: `async getStatus(){if(process.platform==="linux"){...}if(await this.getLocalBinaryPath()||await this.getHostPreseedInPlacePath())return RS.Ready;...`.
+
+### Feature flags (Prompt 3)
+
+- **Function renames** (full re-minify): static registry `Dw()`->`Rw()`, async merger `SBA`->`PBA`, dev-gate `MS()`->`OS()` (electron var `sA`->`oA`; 2nd dev-gate for `builtinMcpPresets` `xEr()`->`xur()`), supported constant `_d`->`Bu`, `louderPenguin` async helper `XEr()`->`Xur()`, cowork async helper `mNA()`->`JNA()`. GrowthBook bool reader `lt()` unchanged.
+- **3 new static features** (34 -> 37 total = 36 static + `louderPenguin` async-only):
+  - `coworkRemoteSessionSpaces:Bu` - always `{status:"supported"}`, no platform gate, no override needed (works on Linux as-is).
+  - `coworkBranchSession:Bu` - always `{status:"supported"}`, no platform gate, no override needed.
+  - `epitaxyMcpApps` - static `{status:"unavailable"}` **plus** a 5th async override in the merger. Gated by new helper `zQt()` = `await e4A(5e3)` (5s delay) + `await ctt()` prerequisite + GrowthBook flag `3516166472`. Server-gated, **not** platform-gated (same shape as `coworkKappa`/`coworkArtifacts`/`markTaskComplete`).
+- **Merger shape changed** to 5 async overrides: `PBA=async()=>{const[A,e,t,i,r]=await Promise.all([Xur(),JNA(()=>lt("123929380")),JNA(()=>lt("2940196192")),JNA(()=>lt("3732274605")),zQt(()=>lt("3516166472"))]);return{...Rw(),louderPenguin:A,coworkKappa:e,coworkArtifacts:t,markTaskComplete:i,epitaxyMcpApps:r}}`. All 3 new keys are present in the Zod `.partial()` validation schema, so the merger output validates.
+- **`enable_local_agent_mode.nim` unchanged** - 12-flag override list (`quietPenguin`, `louderPenguin`, `chillingSlothFeat`, `chillingSlothLocal`, `chillingSlothPool`, `yukonSilver`, `yukonSilverGems`, `ccdPlugins`, `computerUse`, `coworkKappa`, `coworkArtifacts`, `markTaskComplete`) all still match; 25/25 sub-patches applied. **Verified semantically (not just regex):** extracted the patched `app.asar` and confirmed the injected override block lands **after** all 5 upstream async properties (`...,markTaskComplete:i,epitaxyMcpApps:r,` then our 12 `{status:"supported"}` overrides), so later-property-wins means the Code tab + Cowork still win on Linux.
+- **`epitaxyMcpApps` deliberately NOT force-enabled.** It's gated exactly like the cowork features we *do* force on, but it's brand new, server-flag-gated (`3516166472` + `ctt()` prereq), and carries no platform gate - it is unavailable on **all** OSes until the server flips the flag, at which point Linux gets it through the normal async path. Force-enabling an unknown server-gated flag risks the same class of regression as `1143815894`/hostLoopMode (which breaks skills/plugins if forced). A Linux user loses nothing relative to mac/win today, so conservative-leave-out is the correct call.
+
+### New GrowthBook server flags (4, all `No` patched)
+
+| Flag ID | Purpose |
+|---------|---------|
+| `3516166472` | `epitaxyMcpApps` async gate - MCP apps inside epitaxy (SSH remote) sessions |
+| `1997559319` | `onUserDialog` broker - enables `supportedDialogKinds:["refusal_fallback_prompt"]` permission-dialog path |
+| `2724639973` | Session governor `evictionEnabled` - memory-pressure-based session eviction |
+| `3807767338` | `seedPolicyLimitsIntoSession` / `refreshPolicyLimitsPersist` - org policy-limit persistence |
+
+(A precise boolean-flag delta against the prior version isn't reliable: the only local prior bundle is the **patched** v1.11187.4 install, and our patches rewrite several `lt()` calls. The 4 flags above are confirmed new - absent from both the patched-old bundle and `baseline/CLAUDE_FEATURE_FLAGS.md`.)
+
+### Platform gates (Prompt 5)
+
+- Counts: darwin **72 -> 73**, win32 **122** (unchanged), linux **5** (unchanged). The +1 darwin is re-minify noise - every "new" darwin-context line traces to an existing NATIVE gate (Mission Control, dock bounce, NFC normalize, keychain `security verify-cert`, NSUserActivity handoff, `endpoint_security` exit code 137) or an already-PATCHED area (`getHostPlatform`, browser-tools Chrome launch). **No new PORTABLE gate.** The 3 new features are 2x always-supported + 1x server-gated, none platform-gated.
+
+### ion-dist SPA (Prompt 4)
+
+- Bundle: 92 MB / 706 JS / 950 files / 23 CSS -> **93 MB / 715 JS / 961 files / 23 CSS**. Modest growth, no structural refactor.
+- Config chunk content-hash bump `c71860c77-CyMvMS7K.js` -> `c71860c77-BBQ3iytl.js`. `mountPath` still mac/win-only (no `linux` key) so `fix_ion_dist_linux.nim` still required; both sub-patterns matched (2/2). Note: the `caption` key was dropped from the `mountPath` object (`{mac,win}` now, was `{mac,win,caption}`) - does **not** affect the patch, which anchors on the `win:` value. Platform-ternary vars this release `V`/`E`/`yt` (were `K`/`C`/`pt`).
+
+### MCP servers (Prompt 6)
+
+- **Internal MCP roster unchanged** - same set (office, browser, imagine, visualize, skills, radar, echo, Framebuffer, Window Halo, read_terminal, cowork-resources), no new built-in server. `office` still present, `fix_office_addin_linux` applied. `claude-cowork-service` is not checked out locally this session; the Electron-side cowork patches (`fix_cowork_linux` 10/10 + the other `fix_cowork_*`) all apply cleanly, indicating no breaking cowork-protocol change visible from the Desktop side.
+
 ## 2026-06-06 (v1.11187.4) - Version bump, 2 patches fixed for refactored upstream code
 
 ### Upstream (v1.11187.4)
