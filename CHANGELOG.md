@@ -4,6 +4,8 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 
 ## 2026-06-09 (v1.11847.5) - Version bump, 1 patch fixed for refactored upstream code
 
+> **Credit:** boommasterxd (Yannick Schäfer) independently produced the same update in parallel ([#130](https://github.com/patrickjaja/claude-desktop-bin/pull/130)), reaching identical findings (same `fix_claude_code` getStatus fix, same feature-flag/platform-gate/ion-dist results) and additionally verifying the RPM build on Fedora. The `mountPath` `caption`-key-drop note in `baseline/ION.md` is from his audit.
+
 ### Upstream (v1.11847.5)
 
 - **Version bump:** v1.11187.4 -> v1.11847.5 (~660 builds). Full re-minify - every minified identifier shifted. One patch needed a regex update because upstream restructured the code (not just renamed variables); the other 47 patches absorbed the renames via their `[\w$]+` wildcards.

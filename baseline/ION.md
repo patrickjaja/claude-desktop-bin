@@ -1,6 +1,6 @@
 # ion-dist Baseline - Third-Party Inference SPA
 
-**Last verified:** 2026-06-09 against v1.11847.5 (version bump from v1.11187.4; **modest growth, no structural refactor** - 93 MB / 715 JS / 961 files / 23 CSS, up from 92 MB / 706 JS / 950 files / 23 CSS; config chunk content-hash bump `c71860c77-CyMvMS7K.js` -> `c71860c77-BBQ3iytl.js`, `mountPath` still mac/win-only (no `linux` key) so `fix_ion_dist_linux.nim` still required and both sub-patterns matched; platform-ternary vars this release `V`/`E`/`yt`). Prior: v1.11187.4 = 92 MB / 706 JS / 950 files / 23 CSS (platform-ternary vars `K`/`C`/`pt`); v1.10628.2 = 90 MB / 691 JS / 909 files / 21 CSS (re-minify of v1.10628.0; major bump from v1.9659.4 = 88 MB / 682 JS / 899 files).
+**Last verified:** 2026-06-09 against v1.11847.5 (version bump from v1.11187.4; **modest growth, no structural refactor** - 93 MB / 715 JS / 961 files / 23 CSS, up from 92 MB / 706 JS / 950 files / 23 CSS; config chunk content-hash bump `c71860c77-CyMvMS7K.js` -> `c71860c77-BBQ3iytl.js`, `mountPath` still mac/win-only (no `linux` key) so `fix_ion_dist_linux.nim` still required and both sub-patterns matched; the `caption` key was dropped from `mountPath` (`{mac,win}` now, was `{mac,win,caption}`) - no patch impact since sub-patch A anchors on the `win:` value; platform-ternary vars this release `V`/`E`/`yt`). Prior: v1.11187.4 = 92 MB / 706 JS / 950 files / 23 CSS (platform-ternary vars `K`/`C`/`pt`); v1.10628.2 = 90 MB / 691 JS / 909 files / 21 CSS (re-minify of v1.10628.0; major bump from v1.9659.4 = 88 MB / 682 JS / 899 files).
 
 The `ion-dist/` directory is a standalone React SPA bundled inside `locales/ion-dist/`. It powers the **Configure Third-Party Inference** UI (Developer menu). Served by the Electron main process via the `app://` protocol handler.
 
@@ -59,7 +59,7 @@ Platform enum in the SPA (v1.6608.1: `Y`; previously `U3`, `W` - name changes ev
 ```js
 mountPath:{mac:"/Library/Application Support/Claude/org-plugins",win:"%ProgramFiles%\\Claude\\org-plugins",caption:"..."}
 ```
-No `linux` key. Display component falls back with a platform ternary (variable names change every release - v1.7196.0: `r===W.Win32?t.win:t.mac`; v1.8089.0: `C===V.Win32?Ve.mountPath.win:Ve.mountPath.mac`; v1.8555.2: `C===W.Win32?Ye.mountPath.win:Ye.mountPath.mac`; v1.9659.1: `z===q.Win32?ft.mountPath.win:ft.mountPath.mac`; v1.11187.4: `K===C.Win32?pt.mountPath.win:pt.mountPath.mac`; v1.11847.5: `V===E.Win32?yt.mountPath.win:yt.mountPath.mac`).
+No `linux` key. As of v1.11847.5 the `mountPath` object is `{mac,win}` (the `caption` key was dropped; was `{mac,win,caption}`); sub-patch A still anchors on the `win:` value so it is unaffected. Display component falls back with a platform ternary (variable names change every release - v1.7196.0: `r===W.Win32?t.win:t.mac`; v1.8089.0: `C===V.Win32?Ve.mountPath.win:Ve.mountPath.mac`; v1.8555.2: `C===W.Win32?Ye.mountPath.win:Ye.mountPath.mac`; v1.9659.1: `z===q.Win32?ft.mountPath.win:ft.mountPath.mac`; v1.11187.4: `K===C.Win32?pt.mountPath.win:pt.mountPath.mac`; v1.11847.5: `V===E.Win32?yt.mountPath.win:yt.mountPath.mac`).
 
 **Patched by `fix_ion_dist_linux.nim`:**
 - Sub-patch A: Adds `linux:"/etc/claude-desktop/org-plugins"` to mountPath
