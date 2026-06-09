@@ -265,6 +265,17 @@ Calls the merger, validates the result against a Zod schema, and sends it to the
 - New `floatingPenguinEnabled` preference (not yet a feature flag in registry - config-only)
 - New `midnightOwl` prototype (dev toggle + GrowthBook flag `180602792`)
 
+#### New Boolean Flags in v1.11847.5
+
+| Flag ID | Purpose | Patched? |
+|---------|---------|----------|
+| `3516166472` | `epitaxyMcpApps` async gate - MCP apps inside epitaxy (SSH remote) sessions; merger helper `zQt()` = `await e4A(5e3)` (5s delay) + `await ctt()` prereq + this flag | No |
+| `1997559319` | `onUserDialog` broker - enables `supportedDialogKinds:["refusal_fallback_prompt"]` permission-dialog path | No |
+| `2724639973` | Session governor `evictionEnabled` - memory-pressure-based session eviction | No |
+| `3807767338` | `seedPolicyLimitsIntoSession` / `refreshPolicyLimitsPersist` - org policy-limit persistence | No |
+
+**New static features in v1.11847.5** (see version history row): `coworkRemoteSessionSpaces` (always supported), `coworkBranchSession` (always supported), `epitaxyMcpApps` (static unavailable + async override via `3516166472`). None platform-gated; `enable_local_agent_mode.nim` override list unchanged. (Precise add/remove flag delta is not fully reliable - the only local prior bundle is patched - so this table lists the 4 flags verified genuinely new this release rather than a raw set diff.)
+
 #### New Boolean Flags in v1.8555.2
 
 | Flag ID | Purpose | Patched? |
