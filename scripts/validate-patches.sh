@@ -91,7 +91,14 @@ for patch_file in "$PATCHES_DIR"/*.nim "$PATCHES_DIR"/*.js; do
         continue
     fi
 
-    if [ -z "$actual_target" ] || [ ! -f "$actual_target" ]; then
+    if [ "$patch_type" = "nim-dir" ]; then
+        if [ -z "$actual_target" ] || [ ! -d "$actual_target" ]; then
+            echo "  Status: FAIL (target directory not found)"
+            FAILED=$((FAILED + 1))
+            echo ""
+            continue
+        fi
+    elif [ -z "$actual_target" ] || [ ! -f "$actual_target" ]; then
         echo "  Status: FAIL (target file not found)"
         FAILED=$((FAILED + 1))
         echo ""
@@ -125,6 +132,31 @@ for patch_file in "$PATCHES_DIR"/*.nim "$PATCHES_DIR"/*.js; do
         fi
 
         rm -f "$tmp_file"
+    elif [ "$patch_type" = "nim-dir" ]; then
+        # nim-dir patches take a directory argument and locate their
+        # content-hashed target file inside it (e.g. ion-dist SPA bundles)
+        nim_bin="$PATCHES_DIR/${filename%.nim}"
+        if [ ! -x "$nim_bin" ]; then
+            echo "  Status: FAIL (compiled binary not found: $nim_bin)"
+            FAILED=$((FAILED + 1))
+            echo ""
+            continue
+        fi
+
+        tmp_dir=$(mktemp -d)
+        cp -r "$actual_target"/. "$tmp_dir"/
+
+        output=$("$nim_bin" "$tmp_dir" 2>&1) && result=0 || result=$?
+        echo "$output" | sed 's/^/  /'
+        if [ $result -eq 0 ]; then
+            echo "  Status: PASS"
+            PASSED=$((PASSED + 1))
+        else
+            echo "  Status: FAIL"
+            FAILED=$((FAILED + 1))
+        fi
+
+        rm -rf "$tmp_dir"
     else
         echo "  Status: SKIP (unknown type: $patch_type)"
         SKIPPED=$((SKIPPED + 1))

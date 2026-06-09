@@ -481,6 +481,7 @@ The package applies several patches to make Claude Desktop work on Linux. Each p
 | `fix_browser_tools_linux.nim` | Enables Chrome browser tools - redirects native host to Claude Code's wrapper | `rg -o '"Helpers".{0,50}' index.js` |
 | `fix_buddy_ble_linux.nim` | Enables Hardware Buddy (Nibblet BLE device) - forces feature flag, uses Web Bluetooth via BlueZ | `rg -o '2358734848.{0,50}' index.js` |
 | `fix_claude_code.nim` | Detects system-installed Claude Code binary | `rg -o 'async getStatus\(\)\{.{0,200}' index.js` |
+| `fix_cli_governor_memavailable.nim` | Computes CliGovernor memory pressure from `MemAvailable`/`MemTotal` (`/proc/meminfo`) instead of Electron's `free` (= Linux `MemFree`, which excludes reclaimable page cache) - stops false `[CliGovernor] memory pressure` warnings on healthy systems; falls back to the upstream metric if the `/proc` read fails ([#128](https://github.com/patrickjaja/claude-desktop-bin/issues/128)) | `rg -o 'getFreeMemoryRatio.{0,160}' index.js` |
 | `fix_computer_use_linux.nim` | Enables Computer Use - removes platform gates, injects Linux executor (portal+PipeWire/grim/GNOME D-Bus/spectacle/scrot, xdotool/ydotool) | `rg -o 'process.platform.*darwin.*t7r' index.js` |
 | `fix_computer_use_tcc.nim` | Stubs macOS TCC permission handlers to prevent error logs | Prepended IIFE, UUID extraction |
 | `fix_cowork_error_message.nim` | Replaces Windows VM errors with Linux-friendly guidance | String literal match |
@@ -511,6 +512,7 @@ The package applies several patches to make Claude Desktop work on Linux. Each p
 | `fix_quick_entry_ready_wayland.nim` | Adds 100ms timeout to Quick Entry ready-to-show wait (Wayland hang fix; `ready-to-show` never fires for frameless transparent windows) | `rg -o 'ready-to-show.{0,50}' index.js` |
 | `fix_quick_entry_wayland_blur_guard.nim` | Guards Quick Entry blur-to-dismiss against spurious Wayland blur events | `rg -o '.{0,30}blur.{0,30}null.{0,30}' index.js` |
 | ~~`fix_read_terminal_linux.py`~~ | **Removed in v1.2.234** - upstream now natively supports Linux | N/A |
+| `fix_renderer_gone_suppressed_log.nim` | Logs main-webview renderer deaths that upstream silently swallows (expected kills, `killed`/`clean-exit` reasons - a kernel OOM SIGKILL maps to `killed`, so OOM-killed renderers left no trace in main.log) ([#128](https://github.com/patrickjaja/claude-desktop-bin/issues/128)) | `rg -o 'render process gone \(suppressed\).{0,60}' index.js` |
 | `fix_sensitive_dirs_linux.nim` | Adds Linux entries (`.local/share/keyrings`, `.pki`, `.config/autostart`) to the sandbox sensitive-directories block list | `rg -o '\.gnupg.{0,80}' index.js` |
 | `fix_startup_settings.nim` | XDG autostart management for "Start at login" toggle; per-profile autostart files for named profiles | `rg -o 'isStartupOnLoginEnabled.{0,50}' index.js` |
 | `fix_tray_dbus.nim` | Prevents DBus race conditions with mutex and cleanup delay | `rg -o 'menuBarEnabled.*function' index.js` |

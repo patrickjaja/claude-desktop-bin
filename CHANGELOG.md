@@ -2,6 +2,30 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-06-10 (v1.11847.5-2) - 2 new patches: Linux memory-pressure metric + suppressed renderer-death logging (#128)
+
+### Issue
+
+- [#128](https://github.com/patrickjaja/claude-desktop-bin/issues/128): `[CliGovernor] memory pressure (critical)` log spam on Linux plus silent renderer "eviction" forcing a claude.ai re-login. Root cause of the spam: Electron's `process.getSystemMemoryInfo().free` is `MemFree` on Linux, which excludes reclaimable page cache. A healthy 32 GB box measured MemFree/MemTotal = 5.3% while MemAvailable/MemTotal = 61.8%, so the governor (warning <5%, critical <2%, 10s poll, `M$r=.05`/`N$r=.02` in v1.11847.5) fires constantly on perfectly healthy systems. The pressure events only log + send telemetry - they never touch the renderer. Separately, the main webview's `render-process-gone` handler early-returns with no log when the reason is `killed`/`clean-exit` or an expected kill is pending - a kernel OOM SIGKILL maps to `killed`, so the renderer death that precedes the re-login was invisible in main.log (the reporter's "no render-process-gone events" proved nothing).
+
+### New patches (2)
+
+- **`fix_cli_governor_memavailable.nim`** - rewrites `getFreeMemoryRatio` to read `MemAvailable`/`MemTotal` from `/proc/meminfo` (clamped with `Math.min(1, ...)`), re-emitting the captured upstream expression verbatim as the fallback if the `/proc` read throws. `require("fs")` is cached by Node's module loader, so the 10s poll costs one ~1.5 KB procfs read. Idempotency marker: `/proc/meminfo` within 200 chars of `getFreeMemoryRatio:`. macOS is unaffected (native pressure events bypass the polling path). Upstream's own MCP timeout diagnostics already compensate with `free + fileBacked` elsewhere - the governor just never got the fix.
+- **`fix_renderer_gone_suppressed_log.nim`** - inserts `D.info("Main webview render process gone (suppressed): %o",{reason,exitCode,expectedKills})` inside the early-return branch of the main-webview `render-process-gone` handler, before the counter decrement (`expectedKills > 0` = app-initiated kill via the unresponsive handler; `0` with reason `killed` = external kill, e.g. kernel OOM). All identifiers captured via `[\w$]+` groups; the trailing `"Main webview render process gone: %o"` literal pins the one correct site out of 8 `render-process-gone` registrations. Pure observability - suppression behavior (no reload) unchanged.
+
+### Tooling
+
+- **`scripts/validate-patches.sh`** - added a `nim-dir` branch (copy directory to a temp dir, run the binary on it) and a directory-aware existence check. Previously `fix_ion_dist_linux.nim` always failed standalone validation with "target file not found" because the script `-f`-tested its directory target; suite is now 51/51.
+
+### Not addressed (still open in #128)
+
+- `preferencesChanged` MaxListeners warning - upstream claude.ai web-app bug (the shipped preload's `onPreferencesChanged` correctly returns an unsubscribe closure; the remote web app re-subscribes without cleanup). Trivial magnitude (~KBs per page session); masking it would hide real regressions.
+- The re-login mechanism itself - the claude.ai view runs on persistent `session.defaultSession` and the recovery path is a plain `webContents.reload()`, so the web session should survive; needs incident-time evidence from the reporter (asks posted on the issue).
+
+### Verification
+
+- Patch count 48 -> 50; both new patches idempotent (second run exits 0 via marker detection); `node --check` passes on the patched JS; `./scripts/validate-patches.sh` 51/51 green; pure-JS text patches, identical on x86_64 and aarch64.
+
 ## 2026-06-09 (v1.11847.5) - Version bump, 1 patch fixed for refactored upstream code
 
 > **Credit:** boommasterxd (Yannick Schäfer) independently produced the same update in parallel ([#130](https://github.com/patrickjaja/claude-desktop-bin/pull/130)), reaching identical findings (same `fix_claude_code` getStatus fix, same feature-flag/platform-gate/ion-dist results) and additionally verifying the RPM build on Fedora. The `mountPath` `caption`-key-drop note in `baseline/ION.md` is from his audit.
