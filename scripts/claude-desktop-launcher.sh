@@ -902,8 +902,12 @@ _diagnose() {
     echo
     echo '--- Recent launcher log (last 10 lines) ---'
     local logf="${XDG_CACHE_HOME:-$HOME/.cache}/claude-desktop/launcher.log"
-    if [[ -f $logf ]]; then
-        tail -10 "$logf"
+    if [[ -f $logf || -f $logf.old ]]; then
+        # Read across the rotated backup so the last 10 lines survive a
+        # rotation that just happened at startup. cat exits non-zero when one
+        # of the files is missing (no .old before the first rotation) - under
+        # set -euo pipefail that would abort --diagnose, hence the || true.
+        cat "$logf.old" "$logf" 2>/dev/null | tail -10 || true
     else
         echo '(no launcher.log yet)'
     fi
