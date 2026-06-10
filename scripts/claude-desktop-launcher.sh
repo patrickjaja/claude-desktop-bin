@@ -1109,6 +1109,21 @@ LOG_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/claude-desktop"
 mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/launcher.log"
 
+# Rotate launcher.log if it grows too large. log() only ever appends (one or
+# more lines per launch), so without a cap the file grows unboundedly over
+# weeks of use. We keep a single rotated backup (launcher.log.old). This block
+# runs on every startup and must never abort the launcher itself, so every
+# step is guarded: a missing file or an odd stat must not stop Claude from
+# opening. See issue #132 (the unbounded-growth half; the O(n^2) awk hang it
+# also describes belongs to a different project and does not exist here).
+_LOG_MAX_BYTES=$((2 * 1024 * 1024))  # 2 MiB
+if [[ -f $LOG_FILE ]]; then
+    _log_size=$(stat -c %s "$LOG_FILE" 2>/dev/null || echo 0)
+    if [[ $_log_size =~ ^[0-9]+$ ]] && (( _log_size > _LOG_MAX_BYTES )); then
+        mv -f "$LOG_FILE" "$LOG_FILE.old" 2>/dev/null || true
+    fi
+fi
+
 log() { echo "$(date '+%Y-%m-%d %H:%M:%S') $1" >> "$LOG_FILE"; }
 
 # ---------------------------------------------------------------------------

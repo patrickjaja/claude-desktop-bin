@@ -2,6 +2,16 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-06-10 - Launcher log rotation (#132)
+
+### Issue
+
+- [#132](https://github.com/patrickjaja/claude-desktop-bin/issues/132): Reported that `_previous_launch_hit_gpu_fatal` hangs the launcher on large log files via an O(n^2) awk scan of the whole `launcher.log` on every startup. **Investigation result:** that function, `setup_logging`, `build_electron_args` and the `~/.cache/claude-desktop-debian/` cache path do not exist anywhere in this repo - they belong to the separate `aaddrick/claude-desktop-debian` project. This launcher writes to `~/.cache/claude-desktop/launcher.log` and only ever reads it via `tail -10` for `--diagnostics`, so the reported O(n^2) hang cannot occur here. The one applicable half of the report - unbounded log growth - did apply: `log()` appended without any size cap.
+
+### Fix
+
+- **`scripts/claude-desktop-launcher.sh`** - rotate `launcher.log` to `launcher.log.old` once it exceeds 2 MiB, checked once per startup before `log()` is defined. Every step is guarded (`stat` failure -> `0`, numeric regex guard, `mv` failure ignored) so the rotation can never itself prevent Claude from launching.
+
 ## 2026-06-10 (v1.11847.5-2) - 2 new patches: Linux memory-pressure metric + suppressed renderer-death logging (#128)
 
 ### Issue
