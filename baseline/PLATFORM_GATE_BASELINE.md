@@ -1,6 +1,6 @@
 # Platform Gate Baseline
 
-**Last audited:** 2026-06-09 against **v1.11847.5** (version bump from v1.11187.4; counts darwin 72->73 / win32 122 (unchanged) / linux 5 (unchanged); +1 darwin is re-minify noise (macOS Handoff `setUserActivity` + memory-pressure governor, both NATIVE - the governor falls back to `setInterval` polling on Linux so it is not a Linux exclusion), **no new PORTABLE gate**)
+**Last audited:** 2026-06-11 against **v1.12603.0** (version bump from v1.11847.5; counts darwin 73->79 / win32 122->141 / linux 5->9; the entire swing is a **second vendored copy of the Claude Code CLI/SDK helper code** (the +1.5MB bundle growth) - duplicated NFC-normalize / os-name / WSL-detect / signal-list / which / cross-spawn / isexe helpers, verified by stable-string counts (`claude-code-user` 1->2, all other anchors like `openssh-ssh-agent`, `screenshotFiltering:"native"`, `Native host sync`, `Open Claude`, `office365-mcp.mjs` unchanged). Zero new Electron-side platform gates. New capability key `artifactsPane` is GrowthBook-flag-gated only (`2115990222`, no platform check - works on Linux when the flag rolls out); `builtinMcpPresets` lost its prod gate and is now unconditionally `{status:"supported"}`. **No new PORTABLE gate**)
 
 This is the **re-audit baseline** for the question *"is there anything we could make Linux-compatible that we don't already?"* It records every macOS/Windows-only gate found in the bundle and **why it is or isn't patched**, so future audits skip ground that's already been settled.
 
@@ -12,9 +12,9 @@ Treat it like `ION.md` and `CLAUDE_FEATURE_FLAGS.md`: minified names change ever
 NEW=/tmp/claude-new/app/.vite/build/index.js   # extracted main bundle
 
 # 1. Count platform conditionals — large swing vs the baseline below = investigate
-echo "darwin: $(rg -o 'platform==="darwin"' "$NEW" | wc -l)"   # baseline v1.11847.5: 73 (v1.11187.4: 72, v1.10628.0: 65, v1.9659.4: 64)
-echo "win32:  $(rg -o 'platform==="win32"'  "$NEW" | wc -l)"   # baseline v1.11847.5: 122 (unchanged from v1.11187.4; v1.10628.0: 113, v1.9659.4: 112)
-echo "linux:  $(rg -o 'platform==="linux"'  "$NEW" | wc -l)"   # baseline v1.11847.5: 5 (unchanged)
+echo "darwin: $(rg -o 'platform==="darwin"' "$NEW" | wc -l)"   # baseline v1.12603.0: 79 (v1.11847.5: 73, v1.11187.4: 72, v1.10628.0: 65; v1.12603's +6 is a duplicated vendored-CLI copy, not new gates)
+echo "win32:  $(rg -o 'platform==="win32"'  "$NEW" | wc -l)"   # baseline v1.12603.0: 141 (v1.11847.5: 122; +19 = second vendored CLI copy: which/cross-spawn/isexe/supports-color duplicates)
+echo "linux:  $(rg -o 'platform==="linux"'  "$NEW" | wc -l)"   # baseline v1.12603.0: 9 (v1.11847.5: 5; +4 = duplicated WSL-detect + signal-list helpers)
 
 # 2. List darwin/win32-only gates (the audit surface)
 rg -o '.{0,60}process\.platform==="darwin".{0,80}' "$NEW" | sort -u
@@ -58,16 +58,19 @@ Force-enabling these gets you a hardcoded error or an empty/unimplemented featur
 | Feature | Stable anchor | Why it's a stub | Evidence |
 |---------|--------------|-----------------|----------|
 | `framebufferPreview` / Framebuffer MCP server | `framebufferPreview`, `"Framebuffer"`, `framebuffer_screenshot` | Prod-gate + GrowthBook flag, **no platform check at all**. Server handler hardcoded to error. | `function xsr(){return Dm(()=>It("1928275548")?{status:"supported"}...)}` (no darwin/win32); server registered with `isEnabled:r=>!1` and `handleToolCall` returns `"Framebuffer preview unavailable."` |
-| `ios_simulator` / `android_emulator` MCP servers | `"ios_simulator"`, `"android_emulator"` | Reserved labels in the server-UUID map with **no server implementation** (precursors for future MCP servers) | Present only as UUID-map labels; no tool list / handler |
+| `ios_simulator` / `android_emulator` MCP servers | `"ios_simulator"`, `"android_emulator"` | Reserved labels in the server-UUID map with **no server implementation** (precursors for future MCP servers) | Present only as UUID-map labels; no tool list / handler. Since at least v1.11847.5 they also appear as prod-gated capability keys (`iosSimulator:vR(eje)` in v1.12603.0 - `vR` is the `app.isPackaged?{status:"unavailable"}` prod gate) |
+| `artifactsPane` | `artifactsPane`, GrowthBook `2115990222` | New capability key in v1.12603.0. GrowthBook-flag-gated only - **no platform check, no prod gate** - so it is available on Linux whenever the flag rolls out. Not a Linux exclusion; nothing to patch. | `function DPt(){return dt("2115990222")?{status:"supported"}:{status:"unavailable"}}` feeding `function sD(){return{artifactsPane:DPt(),...` (v1.12603.0 names; absent from v1.11847.5) |
 | `echo` MCP server | `"echo"` | Label in UUID map, no observable tool/handler — debug/test placeholder | Map entry only |
 | `midnightOwl` | `midnightOwl prototype`, `isMidnightOwlEnabled` | Dev-prototype toggle; registration immediately calls `.setEnabled(!1)` | `kh("180602792",e=>{Mr&&Mr.midnightOwl.setEnabled(!1)})` - sublabel literally *"Enables midnightOwl prototype"* |
-| dev-gated features (`plushRaccoon`, `quietPenguin`, `bootstrapConfig`, `builtinMcpPresets`, etc.) | see `CLAUDE_FEATURE_FLAGS.md` | Wrapped by the production gate (`Dm()` in v1.10628.0, was `um()`/`Em()`/`lm()`/`PM()`): `{status:"unavailable"}` in **all** packaged builds | `function Dm(e){return aA.app.isPackaged?{status:"unavailable"}:e()}` |
+| dev-gated features (`plushRaccoon`, `quietPenguin`, `chatIn3p`, `surfaceTogglesPreview`, etc.) | see `CLAUDE_FEATURE_FLAGS.md` | Wrapped by the production gate (`vR()` in v1.12603.0, was `Dm()`/`OS()`/`um()`/`Em()`/`lm()`/`PM()`): `{status:"unavailable"}` in **all** packaged builds | `function vR(A){return cA.app.isPackaged?{status:"unavailable"}:A()}` (v1.12603.0). Note: `builtinMcpPresets` was prod-gated through v1.11847.5 (`builtinMcpPresets:xur(()=>Bu)`) but is unconditionally `{status:"supported"}` (`builtinMcpPresets:aB`) as of v1.12603.0 - upstreamed to all platforms incl. Linux, nothing to patch |
 
 ## PORTABLE — actionable opportunities
 
 **Currently: NONE.**
 
-As of v1.10628.2, every darwin/win32-only gate maps to PATCHED, NATIVE, or STUB. There is no feature that is (a) gated to mac/win only, (b) free of a real native dependency, and (c) not already patched. If a future release adds one, it goes here with the exact gate snippet and a proposed patch. (v1.10628.2 counts: darwin 65, win32 113, linux 5 - **exactly identical to v1.10628.0**, zero swing; the re-minify point release added no platform gates. v1.10628.0 was darwin 65 / win32 113 / linux 5, the +1/+1 vs v1.9659.4 being re-minify noise.)
+As of v1.12603.0, every darwin/win32-only gate maps to PATCHED, NATIVE, or STUB. There is no feature that is (a) gated to mac/win only, (b) free of a real native dependency, and (c) not already patched. If a future release adds one, it goes here with the exact gate snippet and a proposed patch.
+
+(v1.12603.0 counts: darwin 79 / win32 141 / linux 9 / `!=="linux"` 6. The +6/+19/+4/+2 swing vs v1.11847.5 looks alarming but is entirely a **second vendored copy of Claude Code CLI/SDK helper code** - the +1.5MB bundle growth. Every new-side diff line is either a minified-name rename of an old gate or an exact duplicate of a vendored helper: NFC-normalize `A.normalize("NFC")` x2 more, os-name/WSL-detect x2, Linux signal-list x2, which/cross-spawn/isexe/supports-color x2, `claude-code-user` 1->2. Verified by stable-string counts: `openssh-ssh-agent`, `filter.lfs.required`, `screenshotFiltering:"native"`, `Native host sync`, `Open Claude`, `Install kind:`, `office365-mcp.mjs`, `smol-bin` vhdx, `louderPenguin` (10 refs) all unchanged old vs new. The capability map gained exactly one key, `artifactsPane` - flag-gated, no platform check, see STUB table. Earlier history: v1.11847.5 was darwin 73 / win32 122 / linux 5; v1.10628.2 was darwin 65 / win32 113 / linux 5, identical to v1.10628.0.)
 
 ## PATCHED - already Linux-compatible (48 patches)
 
@@ -81,9 +84,9 @@ These map to existing `patches/*.nim`. If a re-audit surfaces a gate touching on
 
 ## Note: `louderPenguin` (the Code tab)
 
-`louderPenguin` (Code tab) has a **real** `darwin||win32` gate:
+`louderPenguin` (Code tab) has a **real** `darwin||win32` gate (v1.12603.0 shape - now async and additionally GrowthBook-gated by `4116586025`, same semantics since at least v1.11847.5):
 ```js
-function Fsr(){return process.platform!=="darwin"&&process.platform!=="win32"?{status:"unavailable"}:...}
+async function fqr(){return process.platform!=="darwin"&&process.platform!=="win32"?{status:"unavailable"}:(await kk(),dt("4116586025")?{status:"supported"}:{status:"unavailable"})}
 ```
 This is **not** a native dependency — it's a server-side rollout gate. It is **already handled**: `enable_local_agent_mode.nim` force-enables `louderPenguin` in its 12-flag override list, so Linux gets the Code tab. Don't list it as an opportunity — it's PATCHED.
 

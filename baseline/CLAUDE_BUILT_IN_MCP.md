@@ -1,10 +1,10 @@
-# Built-in MCP Servers - Claude Desktop v1.11847.5
+# Built-in MCP Servers - Claude Desktop v1.12603.0
 
-> **Roster verified unchanged through v1.11847.5** (2026-06-09). No servers added/removed since v1.8555.2. Only the minified registration names shifted (see below). Server-name strings and the tool tables remain accurate.
+> **Internal-server roster verified unchanged through v1.12603.0** (2026-06-11). No internal servers added/removed since v1.8555.2. Only the minified registration names shifted (see below). Server-name strings and the tool tables remain accurate. **One functional change in v1.12603.0:** the bundled 3P **Microsoft 365** MCP server (`office365-mcp`) now actually ships inside `app.asar` - in v1.11847.5 the loader code existed but the bundle was missing ("not included in this build"). See the dedicated section below.
 
 Claude Desktop registers internal MCP servers via a two-layer architecture:
 
-1. **Renderer-facing layer (`KqA()` in v1.11847.5, was `uqA()` in v1.11187.4, `LYA()` in v1.8555.2)** - servers accessible from the BrowserView via Electron `MessageChannelMain` ports
+1. **Renderer-facing layer (`iAe()` in v1.12603.0, was `KqA()` in v1.11847.5, `uqA()` in v1.11187.4, `LYA()` in v1.8555.2)** - servers accessible from the BrowserView via Electron `MessageChannelMain` ports
 2. **Backend/session layer** - servers providing tools to CCD/Cowork sessions
 
 A server may appear in both layers (e.g., Chrome, mcp-registry) or only one.
@@ -12,12 +12,12 @@ A server may appear in both layers (e.g., Chrome, mcp-registry) or only one.
 ## Registration System
 
 ```
-KqA(serverName, displayLabel, factoryFn)   // v1.11847.5 (was uqA() in v1.11187.4, LYA() in v1.8555.2, jHA() in v1.9659.4, lrA() in v1.8089.1, unchanged since v1.7196.0 before that; was BrA() in v1.6608.2, qwA() in v1.5354.0, gpA() in v1.3561.0, DfA() in v1.3109.0, kce() in v1.3036.0)
+iAe(serverName, displayLabel, factoryFn)   // v1.12603.0 (was KqA() in v1.11847.5, uqA() in v1.11187.4, LYA() in v1.8555.2, jHA() in v1.9659.4, lrA() in v1.8089.1, unchanged since v1.7196.0 before that; was BrA() in v1.6608.2, qwA() in v1.5354.0, gpA() in v1.3561.0, DfA() in v1.3109.0, kce() in v1.3036.0)
 ```
 
-- Lazy singleton factory per server name; stored in `CT` (registry, v1.11847.5; was `sT` in v1.11187.4, `QN` before) + `TUA` (display labels, v1.11847.5; was `cUA` in v1.11187.4, `pkA` before)
+- Lazy singleton factory per server name; stored in `YL` (registry, v1.12603.0; was `CT` in v1.11847.5, `sT` in v1.11187.4, `QN` before) + `jVA` (display labels, v1.12603.0; was `TUA` in v1.11847.5, `cUA` in v1.11187.4, `pkA` before)
 - UUID display label sent to renderer for identification
-- `J3()` (v1.11847.5; was `b3()` in v1.11187.4, `k4()` before) enumerates registered server names via `Object.keys(CT)`
+- `s9()` (v1.12603.0; was `J3()` in v1.11847.5, `b3()` in v1.11187.4, `k4()` before) enumerates registered server names via `Object.keys(YL)`
 - Signature unchanged: `(serverName, displayLabel, factoryFn)`
 
 ## Renderer-Facing Servers (via `LYA()`)
@@ -498,6 +498,22 @@ When a Cowork session creates artifacts, Claude Desktop registers **dynamic** MC
 
 **Not a static server** - no tools to document. Not registered via `LYA()`. Calls route via `callRemoteTool("cowork-artifact-<id>", ...)`.
 
+### Bundled 3P "builtin" MCP Server: Microsoft 365 (`office365-mcp`)
+
+| Field | Value |
+|-------|-------|
+| Connector server id | `"microsoft365"` (connector directory entry `{name:"Microsoft 365",kind:"builtin",item:{name:"Microsoft 365",server:"microsoft365"}}`) |
+| MCP server name (inside bundle) | `mcp-ms-graph` |
+| Bundle location | `app.asar` -> `resources/office365-mcp/office365-mcp.mjs` (6.5 MB) + `pdfExtractorProcess.mjs` + `pdf.worker.mjs`. Resolved via `app.getAppPath()/resources/office365-mcp/office365-mcp.mjs` |
+| Shipped since | **v1.12603.0** - the loader code existed in v1.11847.5 but the bundle was absent (`"the bundled Microsoft 365 server is not included in this build"`) |
+| Transport | Spawned child process (stdio), spawn timeout 30s (60s on win32), per-server stderr log via `getBuiltinMcpServerLogger("office365-builtin")` |
+| Auth | MSAL delegated OAuth. Cache at `<userData>/builtin-mcp-auth/<server>/...`; encrypted `msal-cache.enc` via Electron `safeStorage` when available; legacy plaintext `~/.mcp-office365/msal-cache.json` is wiped |
+| Cloud environments | `["global","us-gov-high","us-gov-dod"]` with per-environment `authority`/`graph` hosts (v1.12603.0; v1.11847.5 had a flat `login.microsoftonline.com/.us` -> graph host map) |
+| Write scopes | On public (packaged) builds, write scopes `["Mail.Send","Mail.ReadWrite","Calendars.ReadWrite"]` are withheld; granted scopes passed to the child via `MCP_GRANTED_DELEGATED_SCOPES` env (new in v1.12603.0) |
+| Platform | All - no platform gate. Works on Linux unpatched (verify `safeStorage` falls back cleanly without a keyring) |
+
+This is NOT an internal MCP server (not registered via `iAe()`), but a 3P connector of `kind:"builtin"` whose MCP server binary is bundled with the app instead of being remote. Tool inventory (from the bundle, Microsoft Graph): Outlook mail/drafts/calendar (`outlook_email_search`, `outlook_send_mail`, `outlook_create_event`, ...), OneDrive (`onedrive_drive`, `onedrive_file`), SharePoint (`sharepoint_search`, `sharepoint_site`, `sharepoint_site_page`, `sharepoint_folder_search`), Teams chat (`chat_message_search`, `chat_message`), plus PDF text extraction via a dedicated worker process.
+
 ### Anthropic API Built-in Tool: `web_search`
 
 | Field | Value |
@@ -652,6 +668,7 @@ When active, Operon provided 14 "brain tools" (multi-agent delegation, skills, d
 
 | Version | Changes |
 |---------|---------|
+| v1.12603.0 | Registration function renamed `KqA()`->`iAe()` (verified via `registerInternalMcpServer:iAe`, `function iAe(A,e,t){return YL[A]=t,jVA[A]=e,...}`). Registry `CT`->`YL`, display-label map `TUA`->`jVA`, enumerator `J3()`->`s9()`. **No new or removed internal MCP servers or tools** - backend server-name array still 10 entries, server-UUID map byte-identical to v1.11847.5. **Microsoft 365 bundled server now ships**: `resources/office365-mcp/` (office365-mcp.mjs 6.5 MB + pdf extractor) added inside app.asar; loader existed in v1.11847.5 but bundle was missing. New M365 auth behavior: encrypted `msal-cache.enc` via safeStorage, GovCloud environments (`us-gov-high`, `us-gov-dod`), write scopes withheld on public builds (`MCP_GRANTED_DELEGATED_SCOPES`). New tool on the remote-device (DO bridge, codename "shrimp") tool set: `device_request_folder_access` gated by new flag `2745857735` (existing `device_list_dir`/`device_stage_files`/`device_commit_files`/`device_bash` unchanged). Chrome server instructions now recommend preloading `browser_batch`. Bundle embeds a **second copy of @anthropic-ai/claude-agent-sdk** (0.3.167 alongside 0.3.170) - explains most of the +1.4 MB index.js growth. All 50 patches compatible. |
 | v1.11847.5 | Registration function renamed `uqA()`->`KqA()` (verified via `registerInternalMcpServer:KqA`, `function KqA(A,e,t){return CT[A]=t,TUA[A]=e,...}`). Registry `sT`->`CT`, display-label map `cUA`->`TUA`, enumerator `b3()`->`J3()`. **No new or removed MCP servers or tools**; roster identical to v1.8555.2 (22 servers + 4 per-session SDK + dynamic per-artifact). `yL` server-UUID map unchanged (21 entries incl. reserved `ios_simulator`/`android_emulator`/`echo`/`office`). `office-addin` remains an IPC bridge only (not an MCP server). All 48 patches compatible without code changes. |
 | v1.11187.4 | Registration function renamed `LYA()`/`uqA()` chain; registry `QN`->`sT`, labels `pkA`->`cUA`, enumerator `k4()`->`b3()`. No new or removed MCP servers or tools. |
 | v1.9659.1 | Registration function renamed `KPA()`->`HHA()` (verified via `registerInternalMcpServer:HHA`). mcp-registry const `OEA`->`mlA`. **Server roster and tool sets unchanged**: no new or removed servers, no new or removed built-in tools (apparent count bumps per server are all the extra `yL`-map occurrence, +1 each, not new registrations). **New static `yL` server-UUID map** mapping server names to fixed UUIDs, feeding a new `server_uuid` field into the existing internal-tool telemetry (`server_type:"internal"`, `tool_name`, `is_error`, `duration_ms`); in v1.9255.2 these UUIDs were scattered single constants. Three reserved/inactive labels in `yL` with no server implementation yet: `ios_simulator` and `android_emulator` (both new, precursors for future iOS-simulator / Android-emulator MCP servers), plus `echo`. `office` stays in the map but remains an IPC bridge (not an MCP server) since v1.8555.2. Cowork protocol (`control_request`/`control_response` event-stream proxy) unchanged: claude-cowork-service not affected. All 47 patches compatible without code changes. |

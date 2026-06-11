@@ -333,6 +333,12 @@ This project depends on [claude-cowork-service](../claude-cowork-service/). When
 
 ---
 
+## Duplicated Agent SDK (since v1.12603.0)
+
+Since v1.12603.0 the main bundle embeds **two** copies of `@anthropic-ai/claude-agent-sdk` (e.g. 0.3.170 + 0.3.167; check with `rg -o 'CLAUDE_AGENT_SDK_VERSION="[0-9.]+"' index.js | sort | uniq -c`). Any patch whose pattern matches SDK-internal code now has TWO match sites - a patch asserting "exactly 1 match" against SDK code will fail, and a single-replace will silently patch only one copy. When writing patches against SDK-internal patterns, decide explicitly whether to patch all copies (`replace` with a counter) and verify the match count.
+
+---
+
 ## Common Variable Renames
 
 Minified names change every release. The pattern is always the same — just the identifier changes. Key categories:

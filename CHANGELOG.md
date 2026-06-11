@@ -2,6 +2,27 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-06-11 (v1.12603.0) - Version bump, all 50 patches apply unchanged
+
+### Upstream (v1.12603.0)
+
+- **Version bump:** v1.11847.5 -> v1.12603.0 (~760 builds). Full re-minify - every minified identifier shifted - but zero structural changes hit our patch targets: **all 50 patches applied without modification** (their `[\w$]+` wildcards absorbed the renames). Package built as `claude-desktop-bin-1.12603.0-1-x86_64.pkg.tar.zst`; `node --check` passed on the patched JS (38 `[claude-cu]` markers present).
+- **Bundle grew 13.6 -> 15.0 MB (+11%):** the entire growth is a **second vendored copy of `@anthropic-ai/claude-agent-sdk`** (0.3.167 embedded alongside 0.3.170), bringing a ~290-entry `CLAUDE_CODE_*`/`DISABLE_*` env-flag registry module. **Patch-maintenance hazard:** any future patch matching SDK-internal code now has TWO match sites - "exactly 1 match" assertions against SDK code will fail or silently patch only one copy (note added to update-prompt.md).
+- **Microsoft 365 MCP server now ships:** `resources/office365-mcp/` (office365-mcp.mjs 6.5 MB + pdfExtractorProcess.mjs + pdf.worker.mjs) is new inside app.asar - the loader existed in v1.11847.5 but the bundle was missing ("not included in this build"). Graph-based Outlook/OneDrive/SharePoint/Teams tools, MSAL auth with encrypted `msal-cache.enc` via `safeStorage`, GovCloud environments, write scopes withheld on public builds (`MCP_GRANTED_DELEGATED_SCOPES`). **No platform gate - works on Linux**; resolved via `app.getAppPath()`, preserved by our repackaging (verified present in the built asar). Worth a runtime smoke test (`safeStorage` without a keyring).
+- **New upstream features:** `artifactsPane` feature (new GrowthBook flag `2115990222`, no platform gate - new `claudePagePreview.js` preload embedding claude.ai pages in the preview pane); `device_request_folder_access` remote-device tool with "Always allow this folder on this device" prompts (flag `2745857735`); `oauthScope` passthrough into CLI session env (flag `884132720`); VM optional mounts (value flag `3932491586`, force-OFF upstream). Two new IPC handlers: `ClaudeCode.getPeriodUsage` (CLI usage probe) and `Launch.exportPreview`. Removed: cowork git-init no longer creates an empty initial commit.
+
+### Audits (re-validated against the new bundle)
+
+- **Feature flags:** registry now 37 static + `louderPenguin` async-only = 38 (added `artifactsPane`, removed none). `artifactsPane` is now the FIRST registry key - future `nativeQuickEntry`-anchored searches must re-anchor. `builtinMcpPresets` lost its dev-gate wrapper (now unconditionally supported - upstreamed to all platforms incl. Linux). 4 GrowthBook flags added, 0 removed; new `LC(id,default)` value-with-default reader. Renames: registry `Rw()`->`sD()`, merger `PBA`->`fSA`, prod gate `OS()`->`vR()`, flag reader `lt()`->`dt()`. **`enable_local_agent_mode.nim` needs no changes** - none of the new flags is darwin/win32-gated.
+- **Built-in MCP servers:** internal roster unchanged; registration fn `KqA()`->`iAe()`, registry `CT`->`YL`, labels `TUA`->`jVA`, enumerator `J3()`->`s9()`; server-UUID map byte-identical. New doc section for the bundled Microsoft 365 server.
+- **Platform gates:** darwin 73->79 / win32 122->141 / linux 5->9 - the entire swing is the duplicated vendored CLI/SDK helper code (which/cross-spawn/isexe/WSL-detect/signal-list duplicates), verified via stable-string counts. Zero new Electron-side platform gates. **No new PORTABLE (Linux-compat) opportunity.**
+- **ion-dist SPA:** modest growth (93->94 MB, 715->730 JS, 23->25 CSS); config chunk `c71860c77-BBQ3iytl.js`->`c71860c77-C2vlLTGm.js`; both `fix_ion_dist_linux.nim` sub-patterns still match (`mountPath` still mac/win-only); ternary vars `V`/`E`/`xt`. New Vertex config key `inferenceVertexOAuthLoginHint`. NFC path normalization now darwin-gated upstream (was unconditional - Linux-friendly, no patch impact).
+- **claude-cowork-service cross-check:** wire protocol unchanged except Desktop's `spawn` now optionally reads a `failedMounts` array from the response (absent-tolerant - the Go daemon keeps working as-is). Optional follow-ups for that repo: implement `failedMounts` (mount-failure telemetry/UI demotion) and document the pre-existing `pruneSessionCaches` RPC (VMDiskJanitor calls it in both versions; unknown-method null-passthrough covers it).
+
+### Docs updated
+
+- `baseline/CLAUDE_FEATURE_FLAGS.md`, `baseline/CLAUDE_BUILT_IN_MCP.md`, `baseline/ION.md`, `baseline/PLATFORM_GATE_BASELINE.md` - all refreshed to v1.12603.0. `update-prompt.md` - added duplicated-SDK match-site warning. README patch table unchanged (no patch changes).
+
 ## 2026-06-10 (v1.11847.5-2) - 2 new patches: Linux memory-pressure metric + suppressed renderer-death logging (#128) + launcher log rotation (#132)
 
 ### Issue

@@ -1,6 +1,6 @@
 # ion-dist Baseline - Third-Party Inference SPA
 
-**Last verified:** 2026-06-09 against v1.11847.5 (version bump from v1.11187.4; **modest growth, no structural refactor** - 93 MB / 715 JS / 961 files / 23 CSS, up from 92 MB / 706 JS / 950 files / 23 CSS; config chunk content-hash bump `c71860c77-CyMvMS7K.js` -> `c71860c77-BBQ3iytl.js`, `mountPath` still mac/win-only (no `linux` key) so `fix_ion_dist_linux.nim` still required and both sub-patterns matched; the `caption` key was dropped from `mountPath` (`{mac,win}` now, was `{mac,win,caption}`) - no patch impact since sub-patch A anchors on the `win:` value; platform-ternary vars this release `V`/`E`/`yt`). Prior: v1.11187.4 = 92 MB / 706 JS / 950 files / 23 CSS (platform-ternary vars `K`/`C`/`pt`); v1.10628.2 = 90 MB / 691 JS / 909 files / 21 CSS (re-minify of v1.10628.0; major bump from v1.9659.4 = 88 MB / 682 JS / 899 files).
+**Last verified:** 2026-06-11 against v1.12603.0 (version bump from v1.11847.5; **modest growth, no structural refactor** - 94 MB / 730 JS / 979 files / 25 CSS, up from 93 MB / 715 JS / 961 files / 23 CSS; config chunk content-hash bump `c71860c77-BBQ3iytl.js` -> `c71860c77-C2vlLTGm.js` (~313 KB, was ~280 KB; chunk family now 19 files, was 18), `mountPath` still mac/win-only (no `linux` key) so `fix_ion_dist_linux.nim` still required and both sub-patterns matched; platform-ternary vars this release `V`/`E`/`xt` (only the object var changed, `yt` -> `xt`); darwin-gated file count unchanged at 11; one new Zod config key `inferenceVertexOAuthLoginHint` (Vertex interactive OAuth login hint); the c30db9bec chunk now darwin-gates NFC path normalization (`"darwin"===process.platform?e.normalize("NFC"):e`) that was previously unconditional - Linux-friendly, no patch needed). Prior: v1.11847.5 = 93 MB / 715 JS / 961 files / 23 CSS (platform-ternary vars `V`/`E`/`yt`; `caption` key dropped from `mountPath`); v1.11187.4 = 92 MB / 706 JS / 950 files / 23 CSS (platform-ternary vars `K`/`C`/`pt`); v1.10628.2 = 90 MB / 691 JS / 909 files / 21 CSS (re-minify of v1.10628.0; major bump from v1.9659.4 = 88 MB / 682 JS / 899 files).
 
 The `ion-dist/` directory is a standalone React SPA bundled inside `locales/ion-dist/`. It powers the **Configure Third-Party Inference** UI (Developer menu). Served by the Electron main process via the `app://` protocol handler.
 
@@ -8,11 +8,11 @@ The `ion-dist/` directory is a standalone React SPA bundled inside `locales/ion-
 
 | Metric | Value |
 |--------|-------|
-| Total size | 93 MB (v1.11847.5; was 92 MB in v1.11187.4, 90 MB in v1.10628.0, 88 MB in v1.9659.4) |
-| JS chunks | 715 JS total, 961 files total (v1.11847.5; was 706 JS / 950 files in v1.11187.4, 691 JS / 909 files in v1.10628.0, 682 JS / 899 files in v1.9659.4) |
-| CSS | 23 files (v1.11847.5; was 21 before v1.11187.4) |
+| Total size | 94 MB (v1.12603.0; was 93 MB in v1.11847.5, 92 MB in v1.11187.4, 90 MB in v1.10628.0, 88 MB in v1.9659.4) |
+| JS chunks | 730 JS total, 979 files total (v1.12603.0; was 715 JS / 961 files in v1.11847.5, 706 JS / 950 files in v1.11187.4, 691 JS / 909 files in v1.10628.0) |
+| CSS | 25 files (v1.12603.0; was 23 in v1.11847.5, 21 before v1.11187.4) |
 | Fonts | 31 woff2 + 21 ttf + 20 woff |
-| Images | 37 PNG, 19 SVG, 17 GIF (v1.11847.5; was 25 PNG / 18 SVG in v1.11187.4) |
+| Images | 38 PNG, 19 SVG, 17 GIF (v1.12603.0; was 37 PNG / 19 SVG / 17 GIF in v1.11847.5) |
 | Audio | 25 MP3, 1 WebM, 1 MOV |
 | WASM | 1 file |
 | i18n | 11 languages (de, en, es, es-419, fr, hi, id, it, ja, ko, pt-BR) + `.overrides.json` sidecars + `statsig/` variants |
@@ -24,7 +24,7 @@ The `ion-dist/` directory is a standalone React SPA bundled inside `locales/ion-
 | `index.html` | 4.1 KB | SPA entry, loads `index-*.js` via `<script type="module">` |
 | `assets/v1/index-*.js` | ~6.9 MB | Main bundle (React app, API client, UI components) |
 | `assets/v1/vendor-*.js` | ~1.5 MB | Third-party vendor libs |
-| `assets/v1/c71860c77-*.js` | 18 files (main: ~280 KB) | 3P config UI, code-split into lazy-loaded chunks - **main chunk patched** (v1.11847.5: `c71860c77-BBQ3iytl.js`; v1.11187.4: `c71860c77-CyMvMS7K.js`; v1.10628.2: `c71860c77-CV0D52ti.js`; v1.10628.0: `c71860c77-CDhE5jkR.js`; v1.9659.1/v1.9659.2/v1.9659.4: `c71860c77-BOyfE2Py.js`; v1.9255.2: `c71860c77-DFJHDHrp.js`) |
+| `assets/v1/c71860c77-*.js` | 19 files (main: ~313 KB) | 3P config UI, code-split into lazy-loaded chunks - **main chunk patched** (v1.12603.0: `c71860c77-C2vlLTGm.js`; v1.11847.5: `c71860c77-BBQ3iytl.js`; v1.11187.4: `c71860c77-CyMvMS7K.js`; v1.10628.2: `c71860c77-CV0D52ti.js`; v1.10628.0: `c71860c77-CDhE5jkR.js`; v1.9659.1/v1.9659.2/v1.9659.4: `c71860c77-BOyfE2Py.js`; v1.9255.2: `c71860c77-DFJHDHrp.js`) |
 | `assets/v1/tree-sitter-*.js` | - | Code parsing (tree-sitter WASM bindings) |
 
 Filenames include content hashes (e.g., `index-DuIwZ1hn.js`) that change every upstream release.
@@ -59,7 +59,7 @@ Platform enum in the SPA (v1.6608.1: `Y`; previously `U3`, `W` - name changes ev
 ```js
 mountPath:{mac:"/Library/Application Support/Claude/org-plugins",win:"%ProgramFiles%\\Claude\\org-plugins",caption:"..."}
 ```
-No `linux` key. As of v1.11847.5 the `mountPath` object is `{mac,win}` (the `caption` key was dropped; was `{mac,win,caption}`); sub-patch A still anchors on the `win:` value so it is unaffected. Display component falls back with a platform ternary (variable names change every release - v1.7196.0: `r===W.Win32?t.win:t.mac`; v1.8089.0: `C===V.Win32?Ve.mountPath.win:Ve.mountPath.mac`; v1.8555.2: `C===W.Win32?Ye.mountPath.win:Ye.mountPath.mac`; v1.9659.1: `z===q.Win32?ft.mountPath.win:ft.mountPath.mac`; v1.11187.4: `K===C.Win32?pt.mountPath.win:pt.mountPath.mac`; v1.11847.5: `V===E.Win32?yt.mountPath.win:yt.mountPath.mac`).
+No `linux` key. Since v1.11847.5 the `mountPath` object is `{mac,win}` (the `caption` key was dropped; was `{mac,win,caption}`); sub-patch A still anchors on the `win:` value so it is unaffected. Display component falls back with a platform ternary (variable names change every release - v1.7196.0: `r===W.Win32?t.win:t.mac`; v1.8089.0: `C===V.Win32?Ve.mountPath.win:Ve.mountPath.mac`; v1.8555.2: `C===W.Win32?Ye.mountPath.win:Ye.mountPath.mac`; v1.9659.1: `z===q.Win32?ft.mountPath.win:ft.mountPath.mac`; v1.11187.4: `K===C.Win32?pt.mountPath.win:pt.mountPath.mac`; v1.11847.5: `V===E.Win32?yt.mountPath.win:yt.mountPath.mac`; v1.12603.0: `V===E.Win32?xt.mountPath.win:xt.mountPath.mac`).
 
 **Patched by `fix_ion_dist_linux.nim`:**
 - Sub-patch A: Adds `linux:"/etc/claude-desktop/org-plugins"` to mountPath
@@ -129,7 +129,7 @@ The 3P config supports these key categories (defined in the SPA's Zod schema):
 - **Bootstrap:** `bootstrapEnabled`, `bootstrapUrl`, `bootstrapOidc`
 - **Auth/Org:** `forceLoginOrgUUID`
 - **Bedrock (new sub-keys):** `inferenceBedrockAwsDir`, `inferenceBedrockBearerToken`, `inferenceBedrockServiceTier` (enum: `"flex"` | `"priority"`), `inferenceBedrockSsoStartUrl`, `inferenceBedrockSsoRoleName`, `inferenceBedrockSsoRegion`, `inferenceBedrockSsoAccountId`, `inferenceBedrockBaseUrl`
-- **Vertex (new sub-keys):** `inferenceVertexBaseUrl`, `inferenceVertexCredentialsFile`, `inferenceVertexOAuthClientId`, `inferenceVertexOAuthClientSecret`, `inferenceVertexOAuthScopes`
+- **Vertex (new sub-keys):** `inferenceVertexBaseUrl`, `inferenceVertexCredentialsFile`, `inferenceVertexOAuthClientId`, `inferenceVertexOAuthClientSecret`, `inferenceVertexOAuthScopes`, `inferenceVertexOAuthLoginHint` (new in v1.12603.0; interactive OAuth login hint, shown only when `inferenceVertexWorkforceAudience` is unset)
 - **Gateway (new enum):** `inferenceGatewayAuthScheme` now supports `"sso"` (in addition to `"auto"`, `"x-api-key"`, `"bearer"`); `inferenceGatewayOidc`, `inferenceGatewayApiKey`
 - **Foundry:** `inferenceFoundryApiKey`
 - **OTLP (new sub-key):** `otlpResourceAttributes`
