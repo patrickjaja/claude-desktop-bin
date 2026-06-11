@@ -2,6 +2,23 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-06-12 (v1.12603.1) - Point release, all 50 patches apply unchanged
+
+### Upstream (v1.12603.1)
+
+- **Point release on v1.12603.0** (+446 bytes, full re-minify of essentially the same code). All 50 patches applied without modification.
+- **Static registry renamed:** `sD()` -> `aD()`. All other function names unchanged (`fSA` merger, `vR()` dev-gate, `dt()` flag reader). `[\w$]+` wildcards in patches absorbed the rename.
+- **New GrowthBook flag `1703762832`:** gates `onModelRefusalFallback` retry behavior in `AgentModeSessionManager` - when ON, a refusal with `direction:"retry"` triggers a fallback. No platform gate; Linux unaffected.
+- **ion-dist config chunk renamed:** `c71860c77-C2vlLTGm.js` -> `c71860c77-upcFhKtF.js` (~307 KB, was ~313 KB). Both `fix_ion_dist_linux.nim` sub-patterns (mountPath mac/win keys, platform ternary) still match. No structural change; file count 730 JS / 978 total (unchanged).
+- **Platform gates:** darwin 79 / win32 141 / linux 9 - all identical to v1.12603.0. Zero new gates, zero new PORTABLE opportunities.
+- `enable_local_agent_mode.nim` 12-flag override list unchanged; no new darwin/win32-gated features.
+
+### Docs updated
+
+- `baseline/CLAUDE_FEATURE_FLAGS.md` - added v1.12603.1 version history row + new flag `1703762832` catalog entry.
+- `baseline/ION.md` - updated last-verified version, config chunk filename, file count.
+- `baseline/PLATFORM_GATE_BASELINE.md` - bumped last-audited version and baseline counts.
+
 ## 2026-06-11 (v1.12603.0) - Version bump, all 50 patches apply unchanged
 
 ### Upstream (v1.12603.0)

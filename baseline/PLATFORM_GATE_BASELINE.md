@@ -1,6 +1,6 @@
 # Platform Gate Baseline
 
-**Last audited:** 2026-06-11 against **v1.12603.0** (version bump from v1.11847.5; counts darwin 73->79 / win32 122->141 / linux 5->9; the entire swing is a **second vendored copy of the Claude Code CLI/SDK helper code** (the +1.5MB bundle growth) - duplicated NFC-normalize / os-name / WSL-detect / signal-list / which / cross-spawn / isexe helpers, verified by stable-string counts (`claude-code-user` 1->2, all other anchors like `openssh-ssh-agent`, `screenshotFiltering:"native"`, `Native host sync`, `Open Claude`, `office365-mcp.mjs` unchanged). Zero new Electron-side platform gates. New capability key `artifactsPane` is GrowthBook-flag-gated only (`2115990222`, no platform check - works on Linux when the flag rolls out); `builtinMcpPresets` lost its prod gate and is now unconditionally `{status:"supported"}`. **No new PORTABLE gate**)
+**Last audited:** 2026-06-12 against **v1.12603.1** (point release on v1.12603.0; counts **unchanged**: darwin 79 / win32 141 / linux 9; bundle grew by only 446 bytes; zero new platform gates. **No new PORTABLE gate**. Prior: v1.12603.0 darwin 73->79 / win32 122->141 / linux 5->9; entire swing was second vendored copy of Claude Code CLI/SDK helper code)
 
 This is the **re-audit baseline** for the question *"is there anything we could make Linux-compatible that we don't already?"* It records every macOS/Windows-only gate found in the bundle and **why it is or isn't patched**, so future audits skip ground that's already been settled.
 
@@ -12,9 +12,9 @@ Treat it like `ION.md` and `CLAUDE_FEATURE_FLAGS.md`: minified names change ever
 NEW=/tmp/claude-new/app/.vite/build/index.js   # extracted main bundle
 
 # 1. Count platform conditionals — large swing vs the baseline below = investigate
-echo "darwin: $(rg -o 'platform==="darwin"' "$NEW" | wc -l)"   # baseline v1.12603.0: 79 (v1.11847.5: 73, v1.11187.4: 72, v1.10628.0: 65; v1.12603's +6 is a duplicated vendored-CLI copy, not new gates)
-echo "win32:  $(rg -o 'platform==="win32"'  "$NEW" | wc -l)"   # baseline v1.12603.0: 141 (v1.11847.5: 122; +19 = second vendored CLI copy: which/cross-spawn/isexe/supports-color duplicates)
-echo "linux:  $(rg -o 'platform==="linux"'  "$NEW" | wc -l)"   # baseline v1.12603.0: 9 (v1.11847.5: 5; +4 = duplicated WSL-detect + signal-list helpers)
+echo "darwin: $(rg -o 'platform==="darwin"' "$NEW" | wc -l)"   # baseline v1.12603.1: 79 (v1.12603.0: 79, v1.11847.5: 73, v1.11187.4: 72, v1.10628.0: 65; v1.12603's +6 is a duplicated vendored-CLI copy, not new gates)
+echo "win32:  $(rg -o 'platform==="win32"'  "$NEW" | wc -l)"   # baseline v1.12603.1: 141 (v1.12603.0: 141, v1.11847.5: 122; +19 = second vendored CLI copy: which/cross-spawn/isexe/supports-color duplicates)
+echo "linux:  $(rg -o 'platform==="linux"'  "$NEW" | wc -l)"   # baseline v1.12603.1: 9 (v1.12603.0: 9, v1.11847.5: 5; +4 = duplicated WSL-detect + signal-list helpers)
 
 # 2. List darwin/win32-only gates (the audit surface)
 rg -o '.{0,60}process\.platform==="darwin".{0,80}' "$NEW" | sort -u
