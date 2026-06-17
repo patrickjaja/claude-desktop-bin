@@ -2,7 +2,14 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
-## 2026-06-17 (v1.13576.0) - Major version bump: 7 patches fixed, 1 removed, 1 added (50 total), all apply
+## 2026-06-17 (v1.13576.0 / v1.13576.1) - Major version bump: 7 patches fixed, 1 removed, 1 added (50 total), all apply
+
+### Upstream (v1.13576.1) - build bump, no patch work
+
+- **Version bump v1.13576.0 -> v1.13576.1 (patch-level rebuild of the same major build 13576).** Upstream `.latest` reports `1.13576.1` (hash `772d01ffc175c3795a49154acdecf043d634b5d1`). Bundle re-minified but functionally identical: unpatched `index.js` 15.12 MB, vendored `@anthropic-ai/claude-agent-sdk` copies unchanged at **0.3.174 / 0.3.177** (still two copies). Unpatched platform-conditional counts: darwin 77, win32 137, linux 10 - consistent with v1.13576.0.
+- **All 50 patches apply unchanged; 51/51 validate** (`validate-patches.sh`), `node --check` passes on both `index.js` and `index.pre.js`. No regex updates needed.
+- **Documented fragile anchors re-verified, all match v1.13576.0:** enterprise wrapper `function Mei(){const A=Rei();...}` (readPlistValue refs still 1), Cowork `yukonSilver:Zce()`, tray-icon `switch(...){case"ico":...}` (build-time const renamed `G1r`->`GJr`, absorbed by the flexible pattern), feature-flag fn present.
+- **No baseline-doc changes:** feature flags, built-in MCP servers (1 `registerInternalMcpServer`), ion-dist patterns, and platform gates all unchanged. `.electron-version` stays 42.0.0 (shasums verified OK). Package built as `claude-desktop-bin-1.13576.1-1-x86_64.pkg.tar.zst`.
 
 ### Upstream (v1.13576.0)
 
