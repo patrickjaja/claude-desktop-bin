@@ -94,8 +94,9 @@ Copy-paste this into Claude Code when a new version is available:
 >    - `CHANGELOG.md` — add new version entry
 >    - `README.md` patch table — if patches added/removed/changed
 >    - `baseline/ION.md` — if ion-dist bundle stats, patterns, or config keys changed
+>    - **`.upstream-version` — bump to the new version (required).** This is what closes the auto-created "new version detected" issue and greens the README badge. `version-check.yml` compares upstream `.latest` against this file; until they match, the issue is recreated every 2h. Bump it even for a trivial build bump with no public release.
 >
-> 10. Commit the changes
+> 10. Commit the changes (including the `.upstream-version` bump)
 
 ---
 

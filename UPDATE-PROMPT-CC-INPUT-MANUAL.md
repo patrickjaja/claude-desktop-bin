@@ -20,4 +20,5 @@ If a new version was downloaded and patches fail:
 5. Re-audit platform gates for new Linux-compat opportunities (Prompt 5 in update-prompt.md)
 6. Check if claude-cowork-service also needs updating (cross-dependency)
 7. Update docs (CHANGELOG.md, baseline/CLAUDE_FEATURE_FLAGS.md, baseline/CLAUDE_BUILT_IN_MCP.md, baseline/ION.md, baseline/PLATFORM_GATE_BASELINE.md, README.md patch table)
-8. Commit and push
+8. Bump .upstream-version to the new version (required - this is what closes the "new version detected" issue and greens the README badge)
+9. Commit and push

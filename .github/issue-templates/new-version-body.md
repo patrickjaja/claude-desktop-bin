@@ -131,10 +131,12 @@ See [Prompt 4 in update-prompt.md](https://github.com/{{REPO}}/blob/master/updat
 - [ ] `baseline/CLAUDE_FEATURE_FLAGS.md` - if flags added/removed/renamed
 - [ ] `baseline/CLAUDE_BUILT_IN_MCP.md` - if MCP servers changed
 - [ ] `baseline/ION.md` - if ion-dist bundle stats or patterns changed
+- [ ] `baseline/PLATFORM_GATE_BASELINE.md` - if platform gate counts/classifications changed
 - [ ] `README.md` patch table - if patches added/removed/changed
+- [ ] **`.upstream-version` - bump to `{{UPSTREAM}}` (required).** This is what closes this issue and greens the README badge. `version-check.yml` compares upstream `.latest` against this file; until it matches, the issue is recreated every 2h.
 
 ### Step 8: Commit, Push & Release
-- [ ] Commit all changes
+- [ ] Commit all changes (including the `.upstream-version` bump)
 - [ ] Push to branch, open PR
 - [ ] Trigger build workflow after merge
 
