@@ -154,6 +154,27 @@ sudo dnf install ./claude-desktop-bin-*.x86_64.rpm
 ```
 </details>
 
+### Verifying the repository signing key
+
+The APT and DNF repositories are GPG-signed. The install scripts import the key
+from GitHub Pages over HTTPS. If you want to verify the key out-of-band before
+trusting it, compare its fingerprint against the value published here (this
+README lives in the git repo, a separate channel from the Pages-hosted key):
+
+```
+Key:         Claude Desktop Linux <claude-desktop-linux@users.noreply.github.com>
+Type:        RSA 4096
+Fingerprint: 825A 7D15 D78B ABE4 5646  D5DF 3824 09F5 9790 8867
+```
+
+Check the downloaded key before/after install:
+
+```bash
+curl -fsSL https://patrickjaja.github.io/claude-desktop-bin/gpg-key.asc \
+  | gpg --show-keys --with-fingerprint
+# The printed fingerprint must match the value above.
+```
+
 ### NixOS / Nix
 ```bash
 # Try without installing
@@ -473,12 +494,13 @@ The package applies several patches to make Claude Desktop work on Linux. Each p
 | `add_feature_custom_themes.nim` | CSS theme injection - 6 built-in themes (sweet, nord, catppuccin-*) | Prepended IIFE, no regex |
 | `claude-native.js` | Linux stubs for `@anthropic/claude-native` (Windows-only module) | Static file, no regex |
 | `enable_local_agent_mode.nim` | Removes platform gates for Code/Cowork features, spoofs UA | `rg -o 'function \w+\(\)\{return process\.platform.*status' index.js` |
-| `fix_0_node_host.nim` | Fixes MCP node host and shell worker paths for Linux | `rg -o 'nodeHostPath.{0,50}' index.js` |
+| `fix_0_node_host.nim` | Fixes 4 sidecar runtime paths (MCP nodeHost, directMcpHost, shell-path-worker, transcript-search-worker) that join `process.resourcesPath+"app.asar"`; without this `fix_locale_paths` corrupts them into `resources/locales/app.asar/...` (remote MCP fails with ERR_MODULE_NOT_FOUND, issue #140) | `rg -o 'process\.resourcesPath,"app.asar"' index.js` |
 | `fix_app_quit.nim` | Uses `app.exit(0)` to prevent hang on exit | `rg -o '.{0,50}app\.quit.{0,50}' index.js` |
 | `fix_asar_folder_drop.nim` | Prevents app.asar from being misdetected as a folder drop on launch ([#24](https://github.com/patrickjaja/claude-desktop-bin/issues/24)) | `rg -o 'filter.*\.asar' index.js` |
 | `fix_asar_workspace_cwd.nim` | Redirects app.asar workspace paths to home directory ([#24](https://github.com/patrickjaja/claude-desktop-bin/issues/24)) | `rg -o '__cdb_sanitizeCwd' index.js` |
 | `fix_browse_files_linux.nim` | Enables `openDirectory` in file dialog (upstream macOS-only) | `rg -o 'openDirectory.{0,60}' index.js` |
 | `fix_browser_tools_linux.nim` | Enables Chrome browser tools - redirects native host to Claude Code's wrapper | `rg -o '"Helpers".{0,50}' index.js` |
+| `fix_builtin_mcp_browser_env.nim` | Forwards DISPLAY/Wayland/XDG/DBUS/BROWSER env to built-in MCP servers so OAuth (e.g. the M365 connector) can open a browser on Linux ([#139](https://github.com/patrickjaja/claude-desktop-bin/issues/139)) | `rg -o '"HOME","LOGNAME","PATH","SHELL","TERM","USER".{0,40}' index.js` |
 | `fix_buddy_ble_linux.nim` | Enables Hardware Buddy (Nibblet BLE device) - forces feature flag, uses Web Bluetooth via BlueZ | `rg -o '2358734848.{0,50}' index.js` |
 | `fix_claude_code.nim` | Detects system-installed Claude Code binary | `rg -o 'async getStatus\(\)\{.{0,200}' index.js` |
 | `fix_cli_governor_memavailable.nim` | Computes CliGovernor memory pressure from `MemAvailable`/`MemTotal` (`/proc/meminfo`) instead of Electron's `free` (= Linux `MemFree`, which excludes reclaimable page cache) - stops false `[CliGovernor] memory pressure` warnings on healthy systems; falls back to the upstream metric if the `/proc` read fails ([#128](https://github.com/patrickjaja/claude-desktop-bin/issues/128)) | `rg -o 'getFreeMemoryRatio.{0,160}' index.js` |
@@ -657,6 +679,14 @@ If routing misbehaves, the escape hatch is to launch the URL explicitly:
 
 ```bash
 claude-desktop --profile=NAME 'claude://<callback-url>'
+```
+
+#### Opening shared-artifact links
+
+When you share a live Cowork artifact, the **Share** dialog gives you a `claude://cowork/shared-artifact?uuid=...` link. Clicking it as a real hyperlink opens Claude Desktop. Pasting it into a browser's address bar will *not* work - the omnibox treats unknown schemes as a search query (an intentional browser security gate). To open a copied link, run it through `xdg-open` instead:
+
+```bash
+xdg-open 'claude://cowork/shared-artifact?uuid=019ed5e5-0b48-70c0-acf7-0de07c244c97'
 ```
 
 ### Limitations

@@ -10,10 +10,6 @@ on:
       - '.gitignore'
   workflow_dispatch:  # Manual trigger for releases (version-check.yml notifies of new versions)
     inputs:
-      download_url:
-        description: 'Manual download URL (optional - bypasses auto-detection if Cloudflare blocks)'
-        required: false
-        type: string
       force_rebuild:
         description: 'Force rebuild & release even if upstream version unchanged (bumps pkgrel for patch/feature updates)'
         required: false
@@ -80,40 +76,27 @@ jobs:
 
       - name: Download Claude msix and capture URL
         id: download
-        env:
-          MANUAL_URL: ${{ github.event.inputs.download_url }}
         run: |
-          if [ -n "$MANUAL_URL" ]; then
-            echo "Using manually provided download URL"
-            echo "Download URL: ${MANUAL_URL}"
+          echo "Querying Claude Desktop version API..."
+          LATEST_JSON=$(wget -q -O - "https://downloads.claude.ai/releases/win32/x64/.latest")
 
-            wget -q -O Claude.msix \
-              -U "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
-              "${MANUAL_URL}"
-
-            echo "url=${MANUAL_URL}" >> $GITHUB_OUTPUT
-          else
-            echo "Querying Claude Desktop version API..."
-            LATEST_JSON=$(wget -q -O - "https://downloads.claude.ai/releases/win32/x64/.latest")
-
-            if [ -z "$LATEST_JSON" ]; then
-              echo "Error: Failed to query version API"
-              exit 1
-            fi
-
-            LATEST_VERSION=$(echo "$LATEST_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['version'])")
-            LATEST_HASH=$(echo "$LATEST_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['hash'])")
-            DOWNLOAD_URL="https://downloads.claude.ai/releases/win32/x64/${LATEST_VERSION}/Claude-${LATEST_HASH}.msix"
-
-            echo "Latest version: ${LATEST_VERSION}"
-            echo "Download URL: ${DOWNLOAD_URL}"
-
-            wget -q -O Claude.msix \
-              -U "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
-              "$DOWNLOAD_URL"
-
-            echo "url=${DOWNLOAD_URL}" >> $GITHUB_OUTPUT
+          if [ -z "$LATEST_JSON" ]; then
+            echo "Error: Failed to query version API"
+            exit 1
           fi
+
+          LATEST_VERSION=$(echo "$LATEST_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['version'])")
+          LATEST_HASH=$(echo "$LATEST_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['hash'])")
+          DOWNLOAD_URL="https://downloads.claude.ai/releases/win32/x64/${LATEST_VERSION}/Claude-${LATEST_HASH}.msix"
+
+          echo "Latest version: ${LATEST_VERSION}"
+          echo "Download URL: ${DOWNLOAD_URL}"
+
+          wget -q -O Claude.msix \
+            -U "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
+            "$DOWNLOAD_URL"
+
+          echo "url=${DOWNLOAD_URL}" >> $GITHUB_OUTPUT
 
       - name: Extract version
         id: version
@@ -317,6 +300,15 @@ jobs:
         run: |
           echo "=== Checking Nim patch syntax (compile check) ==="
           bash scripts/compile-nim-patches.sh
+
+      - name: Verify .electron-shasums matches pinned Electron version
+        run: |
+          echo "=== Verifying committed Electron digests ==="
+          # Fails the build if .electron-shasums drifted from .electron-version.
+          # A stale/wrong digest would otherwise break every Electron-verifying
+          # build (deb/rpm/appimage/AUR). Refresh with:
+          #   ./scripts/update-electron-shasums.sh
+          bash scripts/update-electron-shasums.sh --check
 
   # ================================================================
   # Job 2: Build the patched tarball (the main bottleneck)
@@ -1197,6 +1189,10 @@ jobs:
           else
             echo "Using cached $ELECTRON_ZIP"
           fi
+          # Verify the (possibly cached) zip against the pinned digest so a
+          # poisoned cache can't slip a bad Electron into the makepkg test.
+          source scripts/verify-electron.sh
+          verify_electron_zip "/tmp/electron-cache/$ELECTRON_ZIP" x64
 
       - name: Test makepkg (cross-device build dir)
         env:
@@ -1211,10 +1207,15 @@ jobs:
           # Extract electron version from PKGBUILD to keep the electron source intact
           ELECTRON_VER=$(grep '^_electron_ver=' PKGBUILD | cut -d= -f2)
 
+          # Preserve the real Electron x64 digest emitted by generate-pkgbuild.sh
+          # (second entry of sha256sums_x86_64) so the test actually verifies the
+          # shipped digest instead of 'SKIP'. makepkg will fail if it's wrong.
+          ELECTRON_SHA=$(grep '^sha256sums_x86_64=' PKGBUILD | sed -E "s/.*'[^']*' '([^']*)'.*/\1/")
+
           # Override tarball source with local file; keep electron zip URL
           ELECTRON_SRC="electron-v${ELECTRON_VER}-linux-x64.zip::https://github.com/electron/electron/releases/download/v${ELECTRON_VER}/electron-v${ELECTRON_VER}-linux-x64.zip"
           sed -i "s|^source_x86_64=.*|source_x86_64=(\"${TARBALL}\" \"${ELECTRON_SRC}\")|" PKGBUILD
-          sed -i "s|^sha256sums_x86_64=.*|sha256sums_x86_64=('${TARBALL_SHA}' 'SKIP')|" PKGBUILD
+          sed -i "s|^sha256sums_x86_64=.*|sha256sums_x86_64=('${TARBALL_SHA}' '${ELECTRON_SHA}')|" PKGBUILD
 
           # Neutralize aarch64 sources — test runs on x86_64 only; prevents namcap
           # from trying to fetch the not-yet-published aarch64 URLs

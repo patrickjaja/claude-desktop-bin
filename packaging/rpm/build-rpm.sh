@@ -12,6 +12,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Resolve Electron version (pinned in .electron-version, overridable via env)
 source "$SCRIPT_DIR/../../scripts/resolve-electron-version.sh"
+# Electron zip SHA-256 verification helper (defines verify_electron_zip)
+source "$SCRIPT_DIR/../../scripts/verify-electron.sh"
 
 # Colors
 RED='\033[0;31m'
@@ -86,6 +88,7 @@ log_info "Copied tarball to SOURCES/"
 log_info "Downloading Electron v${ELECTRON_VERSION} for ${ELECTRON_ARCH}..."
 wget -q -O "$RPM_BUILD/SOURCES/electron.zip" \
     "https://github.com/electron/electron/releases/download/v${ELECTRON_VERSION}/electron-v${ELECTRON_VERSION}-linux-${ELECTRON_ARCH}.zip"
+verify_electron_zip "$RPM_BUILD/SOURCES/electron.zip" "$ELECTRON_ARCH"
 
 # Copy spec file
 cp "$SCRIPT_DIR/claude-desktop-bin.spec" "$RPM_BUILD/SPECS/"

@@ -12,6 +12,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Resolve Electron version (pinned in .electron-version, overridable via env)
 source "$SCRIPT_DIR/../../scripts/resolve-electron-version.sh"
+# Electron zip SHA-256 verification helper (defines verify_electron_zip)
+source "$SCRIPT_DIR/../../scripts/verify-electron.sh"
 
 # Colors
 RED='\033[0;31m'
@@ -88,6 +90,7 @@ log_info "Downloading Electron v${ELECTRON_VERSION} for ${ELECTRON_ARCH}..."
 ELECTRON_ZIP="$WORK_DIR/electron.zip"
 wget -q -O "$ELECTRON_ZIP" \
     "https://github.com/electron/electron/releases/download/v${ELECTRON_VERSION}/electron-v${ELECTRON_VERSION}-linux-${ELECTRON_ARCH}.zip"
+verify_electron_zip "$ELECTRON_ZIP" "$ELECTRON_ARCH"
 
 # Create directory structure
 log_info "Creating package structure..."

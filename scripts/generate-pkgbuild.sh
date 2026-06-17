@@ -51,6 +51,22 @@ if [ ! -f "$TEMPLATE_FILE" ]; then
     exit 1
 fi
 
+# Resolve the pinned Electron zip digests so makepkg verifies them natively
+# (instead of the old 'SKIP'). Source of truth: .electron-shasums, kept in sync
+# with .electron-version by scripts/update-electron-shasums.sh.
+SHASUMS_FILE="$PROJECT_DIR/.electron-shasums"
+if [ ! -f "$SHASUMS_FILE" ]; then
+    echo "Error: .electron-shasums not found. Run scripts/update-electron-shasums.sh" >&2
+    exit 1
+fi
+ELECTRON_SHA256_X64="$(awk -v n="electron-v${ELECTRON_VERSION}-linux-x64.zip" '$2 == n {print $1}' "$SHASUMS_FILE")"
+ELECTRON_SHA256_ARM64="$(awk -v n="electron-v${ELECTRON_VERSION}-linux-arm64.zip" '$2 == n {print $1}' "$SHASUMS_FILE")"
+if [ -z "$ELECTRON_SHA256_X64" ] || [ -z "$ELECTRON_SHA256_ARM64" ]; then
+    echo "Error: missing Electron digest(s) for v${ELECTRON_VERSION} in $SHASUMS_FILE" >&2
+    echo "  Run scripts/update-electron-shasums.sh after bumping .electron-version" >&2
+    exit 1
+fi
+
 # Generate PKGBUILD by substituting placeholders
 sed \
     -e "s/{{VERSION}}/$VERSION/g" \
@@ -60,6 +76,8 @@ sed \
     -e "s/{{SHA256SUM_AARCH64}}/$SHA256SUM_AARCH64/g" \
     -e "s|{{DOWNLOAD_URL_AARCH64}}|$DOWNLOAD_URL_AARCH64|g" \
     -e "s/{{ELECTRON_VERSION}}/$ELECTRON_VERSION/g" \
+    -e "s/{{ELECTRON_SHA256_X64}}/$ELECTRON_SHA256_X64/g" \
+    -e "s/{{ELECTRON_SHA256_ARM64}}/$ELECTRON_SHA256_ARM64/g" \
     -e "s/{{MAINTAINER_NAME}}/$MAINTAINER_NAME/g" \
     -e "s/{{MAINTAINER_EMAIL}}/$MAINTAINER_EMAIL/g" \
     "$TEMPLATE_FILE"

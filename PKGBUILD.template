@@ -32,9 +32,9 @@ provides=('claude-desktop')
 conflicts=('claude-desktop')
 _electron_ver={{ELECTRON_VERSION}}
 source_x86_64=("claude-desktop-${pkgver}-${pkgrel}-linux.tar.gz::{{DOWNLOAD_URL}}" "electron-v${_electron_ver}-linux-x64.zip::https://github.com/electron/electron/releases/download/v${_electron_ver}/electron-v${_electron_ver}-linux-x64.zip")
-sha256sums_x86_64=('{{SHA256SUM}}' 'SKIP')
+sha256sums_x86_64=('{{SHA256SUM}}' '{{ELECTRON_SHA256_X64}}')
 source_aarch64=("claude-desktop-${pkgver}-${pkgrel}-linux-aarch64.tar.gz::{{DOWNLOAD_URL_AARCH64}}" "electron-v${_electron_ver}-linux-arm64.zip::https://github.com/electron/electron/releases/download/v${_electron_ver}/electron-v${_electron_ver}-linux-arm64.zip")
-sha256sums_aarch64=('{{SHA256SUM_AARCH64}}' 'SKIP')
+sha256sums_aarch64=('{{SHA256SUM_AARCH64}}' '{{ELECTRON_SHA256_ARM64}}')
 options=('!strip')
 
 package() {

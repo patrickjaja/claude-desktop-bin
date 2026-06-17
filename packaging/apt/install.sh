@@ -18,9 +18,19 @@ fi
 
 echo "Setting up Claude Desktop APT repository..."
 
-# Download and install GPG key
+# Download and install GPG key.
+# Download to a temp file and validate it parses as a GPG key BEFORE writing to
+# the system keyring, so a truncated/corrupt download can't leave a broken key
+# in /etc/apt/keyrings.
 mkdir -p /etc/apt/keyrings
-curl -fsSL "$REPO_URL/gpg-key.asc" | gpg --dearmor -o "$KEYRING_PATH"
+KEY_TMP="$(mktemp)"
+trap 'rm -f "$KEY_TMP"' EXIT
+curl -fsSL "$REPO_URL/gpg-key.asc" -o "$KEY_TMP"
+if ! gpg --show-keys --with-fingerprint "$KEY_TMP" >/dev/null 2>&1; then
+  echo "Error: downloaded GPG key failed to parse (corrupt or incomplete download)." >&2
+  exit 1
+fi
+gpg --dearmor -o "$KEYRING_PATH" < "$KEY_TMP"
 chmod 644 "$KEYRING_PATH"
 echo "  GPG key installed to $KEYRING_PATH"
 

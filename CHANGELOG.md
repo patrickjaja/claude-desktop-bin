@@ -2,7 +2,7 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
-## 2026-06-17 (v1.13576.0) - Major version bump: 7 patches fixed, 1 removed (49 total), all apply
+## 2026-06-17 (v1.13576.0) - Major version bump: 7 patches fixed, 1 removed, 1 added (50 total), all apply
 
 ### Upstream (v1.13576.0)
 
@@ -36,9 +36,14 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 - **Platform gates:** darwin 79 -> 77 / win32 141 -> 137 / linux 9 -> 10. The net drop is the upstreamed gates above (dispatch label/telemetry, office-addin, setTitleBarOverlay) collapsing explicit `process.platform` checks. **No new PORTABLE (Linux-compat) opportunity.**
 - **ion-dist SPA:** 94 -> 95 MB, 730 JS (unchanged), config chunk `c71860c77-upcFhKtF.js` -> `c71860c77-DXc_sfB9.js`; both `fix_ion_dist_linux.nim` sub-patterns still match (`mountPath` still mac/win-only, platform ternary `_===M.Win32?...win:...mac`). New 3P config keys: Vertex `inferenceVertexProjectId`/`inferenceVertexRegion`/`inferenceVertexWorkforceOidc`/`inferenceVertexWorkforceUserProject`, Gateway `inferenceGatewayBaseUrl`/`inferenceGatewayHeaders`.
 
+### New patch (1)
+
+- **`fix_builtin_mcp_browser_env` - built-in MCP connectors couldn't open a browser for OAuth on Linux ([#139](https://github.com/patrickjaja/claude-desktop-bin/issues/139)).** The Microsoft 365 connector's local sign-in failed with `local_auth_browser_open_failed` / `spawnErrorCode: exit_3` and no browser appeared. Root cause: the built-in MCP host is forked via `utilityProcess.fork` with a **filtered env allowlist** (`vre()`), which on Linux forwards only `["HOME","LOGNAME","PATH","SHELL","TERM","USER"]` - stripping `DISPLAY`, `WAYLAND_DISPLAY`, `XDG_CURRENT_DESKTOP`, `DBUS_SESSION_BUS_ADDRESS`, `BROWSER`, `XDG_DATA_DIRS`, etc. The bundled `office365-mcp.mjs` opens the auth URL with `spawn("xdg-open",[url])` and passes no `env`, so it inherits the stripped environment; `xdg-open`'s `has_display()` is then false, it skips the `x-scheme-handler/https` default-browser resolution, falls through to the text-only browser list, finds none, and exits 3 (`exit_failure_operation_impossible`). The patch widens the Linux allowlist to forward the standard freedesktop / X11 / Wayland session vars, so `xdg-open` inside the MCP process launches the user's default browser exactly as it does from a terminal. Distro- and session-agnostic (only standard env vars; `vre()` forwards each only when set). The win32 branch of the allowlist is untouched. `vre()` is the base env for all stdio MCP server forks (the built-in host plus user-configured stdio servers via `jMt`/`StdioClientTransport`), so the wider session env reaches every one of them - strictly more correct, since it only adds standard vars a terminal-launched process already has. The other `utilityProcess.fork` sites (which pass `{...process.env}`) are unaffected.
+
 ### Runtime fix
 
 - **`getSystemInfo` crash on Linux:** v1.13576.0 dropped the `win32`-only guard around the `getWindowsElevationType()` call in `getSystemInfo` (and the `desktop_windows_elevation_detected` telemetry), so it's now invoked on every platform. Our Linux `@ant/claude-native` stub lacked the method -> `TypeError: i.getWindowsElevationType is not a function`, spamming on every Settings/feedback system-info request. Added `getWindowsElevationType: () => "default"` to the stub (`patches/claude-native.js`) - `"default"` is the non-elevated state, matching both call sites' `?? null` / `?? "default"` fallbacks (`can_elevate_to_admin` -> `false` on Linux). Other native methods that lost guards this release (`cuGetOwnBundleId`, `getActiveWindowHandle`) are still safe (darwin-only path / wrapped in try-catch).
+- **Remote MCP servers fail with `ERR_MODULE_NOT_FOUND` (issue #140):** connecting a direct/remote MCP server (e.g. atlassian via enterprise.json) crashed the `custom3p-mcp host` utility process immediately - it tried to load `directMcpHost.js` from `resources/locales/app.asar/.vite/build/mcp-runtime/directMcpHost.js`, which does not exist. Root cause: two sidecar loaders build their path as `join(process.resourcesPath,"app.asar",...)`, and `fix_locale_paths` blanket-rewrites every `process.resourcesPath` to `dirname(getAppPath())+"/locales"` - injecting a spurious `locales/` segment before `app.asar`. `fix_0_node_host` already collapsed the same `isPackaged` ternary for nodeHost.js and shellPathWorker.js to `app.getAppPath()`; extended it to also cover the directMcpHost loader (`ohi()`) and the generic worker loader (`l7i()`, used for transcript-search-worker, which had the same latent bug). All four sub-patches now use `[\w$]+` wildcards, capture-group backreferences, and idempotency markers (`fix_0_node_host` is now fully re-run-safe). On Linux the package is always "packaged" and `getAppPath()` already resolves to the real app.asar, so the packaged and non-packaged branches are equivalent.
 
 ### Build tooling
 
@@ -46,7 +51,14 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 
 ### Docs updated
 
-- `CHANGELOG.md` (this entry), `baseline/CLAUDE_FEATURE_FLAGS.md`, `baseline/CLAUDE_BUILT_IN_MCP.md`, `baseline/ION.md`, `baseline/PLATFORM_GATE_BASELINE.md` refreshed to v1.13576.0. `README.md` patch table - removed `fix_office_addin_linux` row, count 50 -> 49.
+- `CHANGELOG.md` (this entry), `baseline/CLAUDE_FEATURE_FLAGS.md`, `baseline/CLAUDE_BUILT_IN_MCP.md`, `baseline/ION.md`, `baseline/PLATFORM_GATE_BASELINE.md` refreshed to v1.13576.0. `README.md` patch table - removed `fix_office_addin_linux` row, added `fix_builtin_mcp_browser_env` row, count 50 (50 -> 49 -> 50).
+
+### Security (community audit #137)
+
+- **Electron zip now SHA-256 verified everywhere (was `SKIP`).** Added `.electron-shasums` (per-arch official digests from Electron's `SHASUMS256.txt`, pinned to `.electron-version`), a `scripts/update-electron-shasums.sh` generator/`--check`er, and a sourceable `scripts/verify-electron.sh` (`verify_electron_zip`). Wired into `build-deb.sh`, `build-rpm.sh`, `build-appimage.sh`, the `test-pkgbuild` cache step, and the PKGBUILD (`PKGBUILD.template` + `generate-pkgbuild.sh` now emit real digests so makepkg verifies natively). `lint-scripts` fails the build if `.electron-shasums` drifts from the pinned version. Nix is unaffected (uses nixpkgs Electron). Verified: makepkg reports `electron-...zip ... Passed` on a good build and `FAILED` on a wrong digest.
+- **GPG repo signing-key fingerprint published** in `README.md` (`825A 7D15 D78B ABE4 5646  D5DF 3824 09F5 9790 8867`, RSA 4096) so users can verify the APT/DNF key out-of-band.
+- **`packaging/apt/install.sh` GPG key hardening:** download the key to a temp file and validate it parses (`gpg --show-keys`) before writing the system keyring, instead of piping `curl` straight into `gpg --dearmor` (guards against a truncated/corrupt download leaving a broken keyring).
+- **Documented as non-issues** (in the issue thread): msix integrity rests on TLS - the `.latest` endpoint `hash` is an opaque release ID, not a content digest (no upstream signature to verify); the ydotool `0666` socket lives in user-private `/run/user/$UID` (0700); the Computer-Use TCC/sandbox-ref patches don't weaken a real boundary (macOS-only TCC; Linux genuinely has no VM); the manual CI `download_url` is admin-gated.
 
 ## 2026-06-12 (v1.12603.1) - Point release, all 50 patches apply unchanged
 
