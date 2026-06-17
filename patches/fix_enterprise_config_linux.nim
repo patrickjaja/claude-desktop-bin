@@ -76,11 +76,53 @@ proc patchEnterpriseWrapper(
       echo "  [INFO] index.pre.js: no enterprise wrapper (optional)"
     return (input, false)
 
+# Promote the upstream "enterprise config loaded" log from debug to info so a
+# successful, non-empty load is visible in main.log at the default log level.
+# Upstream logs it at debug:
+#     <logger>.debug("Enterprise config loaded: %o",<redactFn>(o))
+# There are two variants per bundle: the empty/"none" case (second arg `{}`) and
+# the loaded case (second arg a `<redactFn>(o)` call). We promote ONLY the loaded
+# case — promoting the "none" case would spam info on every launch without a file.
+# The logger var (`S`/`jr`) and redact fn are minified and differ per bundle, so
+# we capture them with `[\w$]+`. Idempotent: an existing `.info("Enterprise config
+# loaded: %o",<fn>(o))` counts as already applied.
+proc patchLoadedLogLevel(
+    input: string, required: bool
+): tuple[output: string, applied: bool] =
+  # Already promoted? (loaded variant: arg is a fn call, not `{}`)
+  let donePat = re2"""\.info\("Enterprise config loaded: %o",[\w$]+\([\w$]+\)\)"""
+  var dummy: RegexMatch2
+  if input.find(donePat, dummy):
+    echo "  [OK] Loaded-config log already at info level"
+    return (input, true)
+
+  # Match the loaded variant only: ...debug("...",<redactFn>(<var>))
+  let pattern = re2"""(\.)debug(\("Enterprise config loaded: %o",[\w$]+\([\w$]+\)\))"""
+  var count = 0
+  let output = input.replace(
+    pattern,
+    proc(m: RegexMatch2, s: string): string =
+      inc count
+      s[m.group(0)] & "info" & s[m.group(1)],
+  )
+  if count >= 1:
+    echo "  [OK] Promoted loaded-config log debug->info: " & $count & " match(es)"
+    return (output, true)
+  else:
+    if required:
+      echo "  [FAIL] Could not find loaded-config debug log to promote"
+    else:
+      echo "  [INFO] index.pre.js: no loaded-config debug log (optional)"
+    return (input, false)
+
 proc apply*(input: string): string =
   let (output, applied) = patchEnterpriseWrapper(input, required = true)
   if not applied:
     quit(1)
-  result = output
+  let (output2, logApplied) = patchLoadedLogLevel(output, required = true)
+  if not logApplied:
+    quit(1)
+  result = output2
 
 when isMainModule:
   if paramCount() != 1:
@@ -103,8 +145,12 @@ when isMainModule:
   let preJs = parentDir(filePath) / "index.pre.js"
   if fileExists(preJs):
     let preContent = readFile(preJs)
-    let (newPreContent, preApplied) =
+    let (afterWrapper, preApplied) =
       patchEnterpriseWrapper(preContent, required = false)
-    if preApplied and newPreContent != preContent:
+    # Promote the loaded-config log here too (best-effort; pre.js may differ).
+    let (newPreContent, _) = patchLoadedLogLevel(afterWrapper, required = false)
+    if newPreContent != preContent:
       writeFile(preJs, newPreContent)
       echo "  [OK] index.pre.js: enterprise config patched"
+    elif preApplied:
+      echo "  [OK] index.pre.js: enterprise config already patched"

@@ -4,6 +4,11 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 
 ## 2026-06-17 (v1.13576.0 / v1.13576.1) - Major version bump: 7 patches fixed, 1 removed, 1 added (50 total), all apply
 
+### Enterprise config visibility
+
+- **`fix_enterprise_config_linux` now promotes the upstream "Enterprise config loaded" log from `debug` to `info`** so a successful, non-empty managed-config load is visible in `main.log` at the default log level (previously the only signal was a `debug` line below the default threshold, plus upstream's own `managedMcpServers entry N dropped - <reason>` validation warnings). Only the *loaded* variant is promoted (second arg is a redact-fn call); the empty/"none" case stays at `debug` so launches without `/etc/claude-desktop/enterprise.json` don't spam `info`. Applied to both `index.js` and `index.pre.js`; idempotent. The Linux reader injection itself is unchanged.
+- **Clarified the `enterprise.json` schema for users (re: #140):** the top-level key the v1.13576 build reads is **`managedMcpServers`** - an **array** of objects each requiring `name` (unique), `transport` (`"http"`/`"sse"`/`"stdio"`), and `url`/`command`. A top-level object-keyed `mcpServers` map (or per-entry `type` instead of `transport`) is silently ignored by the schema parser - no entries reach the per-entry validator, so no "dropped" warning is emitted. Managed servers apply unconditionally (no `allowManagedMcpServers` enable-gate; `allowManagedMcpServersOnly` only restricts the allowlist to managed-only).
+
 ### Upstream (v1.13576.1) - build bump, no patch work
 
 - **Version bump v1.13576.0 -> v1.13576.1 (patch-level rebuild of the same major build 13576).** Upstream `.latest` reports `1.13576.1` (hash `772d01ffc175c3795a49154acdecf043d634b5d1`). Bundle re-minified but functionally identical: unpatched `index.js` 15.12 MB, vendored `@anthropic-ai/claude-agent-sdk` copies unchanged at **0.3.174 / 0.3.177** (still two copies). Unpatched platform-conditional counts: darwin 77, win32 137, linux 10 - consistent with v1.13576.0.
