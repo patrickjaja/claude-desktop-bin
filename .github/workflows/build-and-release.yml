@@ -1160,6 +1160,11 @@ jobs:
     if: needs.check-version.outputs.should_build == 'true'
     runs-on: ubuntu-latest
     steps:
+      # Check out the repo so scripts/verify-electron.sh and .electron-shasums
+      # are present in the working directory for the verification step below.
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Download tarball
         uses: actions/download-artifact@v4
         with:

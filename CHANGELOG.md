@@ -48,6 +48,7 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 ### Build tooling
 
 - **`build-local.sh` rebuild checksum fix:** the local `claude-desktop-*.tar.gz` is a build artifact regenerated every run (bytes/sha change each build), but makepkg cached it in `cache/` under its download name and re-validated the **stale** cached copy against the freshly-generated `sha256sums` -> `One or more files did not pass the validity check`. The script now purges any cached `claude-desktop-*-linux.tar.gz` before makepkg so it re-copies the fresh artifact; the upstream **electron zip stays cached** (checksummed, reused across builds). Removed the dead `cp` that copied the tarball under a basename makepkg never looked up.
+- **CI `test-pkgbuild` Electron-verify fix:** the job sourced `scripts/verify-electron.sh` (added with the shasum checks) but had no `actions/checkout` step, so the script and `.electron-shasums` were absent at runtime -> `scripts/verify-electron.sh: No such file or directory`. Added a checkout step to the job; artifact downloads and the makepkg step are unaffected.
 
 ### Docs updated
 
