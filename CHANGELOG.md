@@ -4,6 +4,10 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 
 ## 2026-06-17 (v1.13576.0 / v1.13576.1) - Major version bump: 7 patches fixed, 1 removed, 1 added (50 total), all apply
 
+### Cowork startup-error visibility (re: #142)
+
+- **`fix_cowork_error_message` gained Patch C: replay the stored Cowork startup error once the mainView is ready.** When the Cowork VM startup fails before the web view exists (e.g. `claude-cowork-service` is not running on Linux), the upstream dispatcher stored the error in a module var but only logged `Cannot dispatch startup error (no mainView): <err>` and never replayed it - so the helpful "install claude-cowork-service" message (Patch A/B) never reached the UI, and the uncaught throw crash-looped the app (or bounced the renderer back to the start screen on chat-open). Confirmed in `cowork_vm_node.log` (`[VM:start] VM boot failed: ...` + `Cannot dispatch startup error (no mainView): ...`). Patch C rewrites the no-mainView branch to install a one-shot poller (Linux only, ~30s budget, `globalThis.__cdbStartupErrReplay` guard) that waits for the view's webContents to finish loading, then re-dispatches the stored error through the same dispatcher. Anchored on the unique `Cannot dispatch startup error (no mainView): ` literal; all minified identifiers captured from the match. `EXPECTED_PATCHES` 2 -> 3.
+
 ### Enterprise config visibility
 
 - **`fix_enterprise_config_linux` now promotes the upstream "Enterprise config loaded" log from `debug` to `info`** so a successful, non-empty managed-config load is visible in `main.log` at the default log level (previously the only signal was a `debug` line below the default threshold, plus upstream's own `managedMcpServers entry N dropped - <reason>` validation warnings). Only the *loaded* variant is promoted (second arg is a redact-fn call); the empty/"none" case stays at `debug` so launches without `/etc/claude-desktop/enterprise.json` don't spam `info`. Applied to both `index.js` and `index.pre.js`; idempotent. The Linux reader injection itself is unchanged.
