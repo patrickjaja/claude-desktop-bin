@@ -69,22 +69,38 @@ proc apply*(input: string): string =
     else:
       echo "  [FAIL] 0 mode preamble: \"use strict\"; not at file start"
 
-  # ── Patch A: VM client loader — extend Li check to include Linux ──
+  # ── Patch A: VM client loader — extend the install gate to include Linux ──
+  #
+  # History:
+  #   <=v1.12603: `zo?IM={vm:L7i}:IM=(await import("@ant/claude-swift")).default`
+  #     — a win32(zo) ternary: win32 loaded the TS vmClient `{vm:...}`, else
+  #     imported the native `@ant/claude-swift`. We OR'd Linux into the win32
+  #     side so Linux used the TS vmClient.
+  #   v1.13576.0: REFACTORED. The ternary is gone. The loader is now
+  #     `function d_t(){return tu()?sG||WoA||(...,WoA=(async()=>{try{return
+  #     sG={vm:qti},...})()):null}` — gated entirely on tu() (MSIX/appPath
+  #     install detection), with NO @ant/claude-swift fallback branch. tu()
+  #     is false on Linux (no windowsStore, no "windowsapps" in execPath), so
+  #     d_t() returns null and Cowork never gets a VM client.
+  #
+  # We widen the install gate to also fire on Linux, so d_t() loads the TS
+  # vmClient (`{vm:qti}`) there. Anchored on the unique "[VM] Loading %s
+  # module..." + "vmClient (TypeScript)" + `{vm:...}` body so we hit only the
+  # loader and capture the minified gate-fn call (tu()).
   block:
     let pat =
-      re"""([\w$]+)\?([\w$]+)=(\{vm:[\w$]+\}):\2=\(await import\("@ant/claude-swift"\)\)\.default"""
+      re"""(function [\w$]+\(\)\{return )([\w$]+\(\))(\?[\w$]+\|\|[\w$]+\|\|\([\w$]+\.info\("\[VM\] Loading %s module\.\.\.","vmClient \(TypeScript\)"\),[\w$]+=\(async\(\)=>\{try\{return [\w$]+=\{vm:[\w$]+\})"""
     let n = replaceAllRegex(
       content,
       pat,
       proc(m: RegexMatch): string =
-        let liVar = m.captures[0]
-        let efVar = m.captures[1]
-        let vmObj = m.captures[2]
-        "(" & liVar & "||process.platform===\"linux\")?" & efVar & "=" & vmObj & ":" &
-          efVar & "=(await import(\"@ant/claude-swift\")).default",
+        let prefix = m.captures[0]
+        let gateCall = m.captures[1]
+        let rest = m.captures[2]
+        prefix & "(" & gateCall & "||process.platform===\"linux\")" & rest,
     )
     if n >= 1:
-      echo &"  [OK] A VM client loader: extended to Linux ({n} match)"
+      echo &"  [OK] A VM client loader: install gate extended to Linux ({n} match)"
       inc patchesApplied
     else:
       echo "  [FAIL] A VM client loader: 0 matches"
@@ -162,7 +178,26 @@ proc apply*(input: string): string =
     else:
       echo "  [FAIL] C1 bundle config: win32 block not found"
 
-  # ── Patch C2: Alias linux→win32 at Xs.files[…] lookup sites ──
+  # ── Patch C2: Alias linux→win32 at the VM-bundle lookup ──
+  #
+  # History:
+  #   <=v1.12603: the bundle resolver indexed the file map by process.platform:
+  #     `const A=process.platform,e=mSA();return Io.files[A]` (fns nX/fci). On
+  #     Linux that yielded the (empty) linux entry, so we aliased linux→win32
+  #     under kvm mode to reuse the win32 bundle list.
+  #   v1.13576.0: REFACTORED. The platform-indexed resolver is gone. The only
+  #     remaining VM-bundle lookup HARDCODES win32:
+  #       function C3i(){...const A="win32",e=process.arch;...
+  #         if(!((r=fo.files[A])!=null&&r[e]))return{...unsupported_architecture}
+  #     i.e. on Linux the arch check already reads fo.files["win32"][arch] —
+  #     exactly the linux→win32 alias this patch used to inject. The alias is
+  #     therefore already upstream's behavior; there is no process.platform
+  #     index left to rewrite.
+  #
+  # We first try the historical platform-indexed form; if it's absent, we
+  # confirm the new hardcoded-win32 lookup exists (alias already satisfied)
+  # and succeed without changes. Failing only if NEITHER is present guards
+  # against a wholesale removal of the VM-bundle resolver.
   block:
     let pat =
       re"""(const ([\w$]+)=)process\.platform(,[\w$]+=[\w$]+\(\);return [\w$]+\.files\[\2\])"""
@@ -178,7 +213,16 @@ proc apply*(input: string): string =
       echo &"  [OK] C2 bundle lookup alias: linux→win32 when kvm mode ({n} site(s))"
       inc patchesApplied
     else:
-      echo "  [FAIL] C2 bundle lookup alias: no matching sites found"
+      # No platform-indexed lookup. Confirm the hardcoded-win32 lookup exists:
+      #   const A="win32",e=process.arch; ... (r=<map>.files[A])!=null&&r[e]
+      let hardcodedWin32Lookup = re(
+        """const ([\w$]+)="win32",[\w$]+=process\.arch;[\s\S]{0,400}?\([\w$]+=[\w$]+\.files\[\1\]\)!=null&&r\["""
+      )
+      if content.find(hardcodedWin32Lookup).isSome:
+        echo "  [OK] C2 bundle lookup alias: lookup hardcoded to win32 upstream (linux→win32 alias already in effect; skipped)"
+        inc patchesApplied
+      else:
+        echo "  [FAIL] C2 bundle lookup alias: no matching sites found (neither platform-indexed nor hardcoded-win32)"
 
   # ── Patch D: pathToClaudeCodeExecutable — dynamic on Linux ──
   block:

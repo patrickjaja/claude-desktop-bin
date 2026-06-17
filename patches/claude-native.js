@@ -58,6 +58,11 @@ module.exports = {
     writeRegistryValue: () => {},
     readRegistryDword: () => 0,
     getCurrentPackageFamilyName: () => null,
+    // Windows UAC elevation type. v1.13576.0 removed the win32-only guard
+    // around the getSystemInfo / desktop_windows_elevation_detected call
+    // sites, so this is now invoked on every platform. "default" = the
+    // normal, non-elevated state (matches both call sites' ?? fallbacks).
+    getWindowsElevationType: () => "default",
     // Windows HCS/VM stubs
     getHcsStatus: () => ({ available: false, missingServices: ["not-windows"] }),
     enableWindowsOptionalFeature: async () => ({ success: false, restartNeeded: false }),

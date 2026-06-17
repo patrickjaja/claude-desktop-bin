@@ -16,40 +16,71 @@ import std/[os, strutils]
 import regex
 
 const linuxReader =
-  """process.platform==="linux"?(()=>{try{return JSON.parse(require("fs").readFileSync("/etc/claude-desktop/enterprise.json","utf8"))}catch(e){return{}}})():{}"""
+  """(()=>{try{return JSON.parse(require("fs").readFileSync("/etc/claude-desktop/enterprise.json","utf8"))}catch(e){return{}}})()"""
 
-proc apply*(input: string): string =
-  # Idempotency check: skip if already patched
+# v1.13576.0: upstream collapsed the darwin/win32 ternary
+#     process.platform==="darwin"?FUNC_D():process.platform==="win32"?FUNC_W():{}
+# into a single wrapper that unconditionally calls the win32 registry
+# reader (the mac plist reader was removed):
+#     function Mei(){const A=Rei();return Object.keys(A).length>0?A:void 0}
+# where Rei() reads `SOFTWARE\Policies\...` and yields {} off-Windows.
+#
+# We patch that wrapper so on Linux it reads /etc/claude-desktop/enterprise.json
+# instead of the (empty) registry result:
+#     function Mei(){const A=process.platform==="linux"?(...):Rei();return ...}
+#
+# The wrapper is anchored on the registry-reader fn, whose name we capture
+# from its `SOFTWARE\Policies` body so we don't hardcode a minified name.
+# The same structure lives in index.pre.js (early bootstrap), so this is
+# applied to both files.
+proc patchEnterpriseWrapper(
+    input: string, required: bool
+): tuple[output: string, applied: bool] =
   if "/etc/claude-desktop/enterprise.json" in input:
     echo "  [OK] Already patched (enterprise.json path found)"
-    echo "  [PASS] No changes needed"
-    return input
+    return (input, true)
 
-  # Pattern: the ternary chain in enterprise config loader functions.
-  #
-  # Original:
-  #   process.platform==="darwin"?FUNC_D():process.platform==="win32"?FUNC_W():{}
-  #
-  # Patched -- add Linux branch before the fallback {}:
-  #   process.platform==="darwin"?FUNC_D():process.platform==="win32"?FUNC_W():
-  #     process.platform==="linux"?(...)():{}
-  let pattern =
-    re2"""process\.platform==="darwin"\?([\w$]+)\(\):process\.platform==="win32"\?([\w$]+)\(\):\{\}"""
+  let regFnPat =
+    re2"""function ([\w$]+)\(\)\{var [\w$]+,[\w$]+;const [\w$]+=`SOFTWARE\\\\Policies"""
+  var regMatch: RegexMatch2
+  if not input.find(regFnPat, regMatch):
+    if required:
+      echo "  [FAIL] Could not locate win32 registry reader (SOFTWARE\\Policies fn)"
+    else:
+      echo "  [INFO] index.pre.js: no SOFTWARE\\Policies registry fn (optional)"
+    return (input, false)
+  let regFn = input[regMatch.group(0)]
+
+  # Patch the enterprise wrapper that calls the registry reader:
+  #   function X(){const Y=<regFn>();return Object.keys(Y).length>0?Y:void 0}
+  let pattern = re2(
+    """(function [\w$]+\(\)\{const [\w$]+=)(""" & regFn &
+      """\(\);return Object\.keys\([\w$]+\)\.length>0)"""
+  )
   var count = 0
-  result = input.replace(
+  let output = input.replace(
     pattern,
     proc(m: RegexMatch2, s: string): string =
       inc count
-      let darwinFn = s[m.group(0)]
-      let win32Fn = s[m.group(1)]
-      """process.platform==="darwin"?""" & darwinFn &
-        """():process.platform==="win32"?""" & win32Fn & "():" & linuxReader,
+      # const Y= -> const Y=process.platform==="linux"?(...):
+      s[m.group(0)] & """process.platform==="linux"?""" & linuxReader & ":" &
+        s[m.group(1)],
   )
   if count >= 1:
     echo "  [OK] Enterprise config Linux reader: " & $count & " match(es)"
+    return (output, true)
   else:
-    echo "  [FAIL] Enterprise config default case: 0 matches"
+    if required:
+      echo "  [FAIL] Enterprise config wrapper not found (calls " & regFn & "())"
+    else:
+      echo "  [INFO] index.pre.js: no enterprise wrapper (optional)"
+    return (input, false)
+
+proc apply*(input: string): string =
+  let (output, applied) = patchEnterpriseWrapper(input, required = true)
+  if not applied:
     quit(1)
+  result = output
 
 when isMainModule:
   if paramCount() != 1:
@@ -67,27 +98,13 @@ when isMainModule:
     writeFile(filePath, output)
   echo "  [PASS] Enterprise config Linux support added"
 
-  # Also patch index.pre.js if it exists (early bootstrap enterprise config)
+  # Also patch index.pre.js if it exists (early bootstrap enterprise config).
+  # Same refactored wrapper structure as index.js (best-effort, not required).
   let preJs = parentDir(filePath) / "index.pre.js"
   if fileExists(preJs):
     let preContent = readFile(preJs)
-    if "/etc/claude-desktop/enterprise.json" in preContent:
-      echo "  [OK] index.pre.js: already patched"
-    else:
-      let prePattern =
-        re2"""process\.platform==="darwin"\?([\w$]+)\(\):process\.platform==="win32"\?([\w$]+)\(\):\{\}"""
-      var preCount = 0
-      let newPreContent = preContent.replace(
-        prePattern,
-        proc(m: RegexMatch2, s: string): string =
-          inc preCount
-          let darwinFn = s[m.group(0)]
-          let win32Fn = s[m.group(1)]
-          """process.platform==="darwin"?""" & darwinFn &
-            """():process.platform==="win32"?""" & win32Fn & "():" & linuxReader,
-      )
-      if preCount >= 1:
-        writeFile(preJs, newPreContent)
-        echo "  [OK] index.pre.js: enterprise config patched (" & $preCount & " match)"
-      else:
-        echo "  [INFO] index.pre.js: no matching pattern (optional)"
+    let (newPreContent, preApplied) =
+      patchEnterpriseWrapper(preContent, required = false)
+    if preApplied and newPreContent != preContent:
+      writeFile(preJs, newPreContent)
+      echo "  [OK] index.pre.js: enterprise config patched"

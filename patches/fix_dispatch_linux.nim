@@ -70,10 +70,20 @@ proc apply*(input: string): string =
     else:
       echo "  [FAIL] Remote session control: pattern not found"
 
-  # -- Patch C: Add Linux to HI() platform label --
+  # -- Patch C: Add Linux to the HI() platform label --
+  # v1.13576.0: upstream replaced the old `switch(process.platform){...
+  # default:return"Unsupported Platform"}` label fn with a ternary that
+  # already returns "Linux":
+  #   function umi(){return process.platform==="darwin"?"macOS":
+  #     process.platform==="win32"?"Windows":"Linux"}
+  # When that upstreamed form is present, Linux is already labelled and we
+  # skip without failing. We still handle the historical switch form.
   let platformOld = "default:return\"Unsupported Platform\""
   let platformNew =
     "case\"linux\":return\"Linux\";default:return\"Unsupported Platform\""
+  let platformUpstreamed = re(
+    "process\\.platform===\"darwin\"\\?\"macOS\":process\\.platform===\"win32\"\\?\"Windows\":\"Linux\""
+  )
 
   if platformNew in result:
     echo "  [OK] Platform label: already patched (skipped)"
@@ -82,21 +92,34 @@ proc apply*(input: string): string =
     result = result.replace(platformOld, platformNew)
     echo "  [OK] Platform label: added Linux to HI()"
     inc patchesApplied
+  elif result.find(platformUpstreamed).isSome:
+    echo "  [OK] Platform label: Linux already returned upstream (ternary form; skipped)"
+    inc patchesApplied
   else:
     echo "  [FAIL] Platform label: pattern not found"
 
-  # -- Patch D: Include Linux in Xqe telemetry gate --
-  # Backreferences: \1 and \3 ensure same var names in combined expression
+  # -- Patch D: Include Linux in the telemetry gate --
+  # Historically, dispatch telemetry was gated on a darwin||win32 boolean:
+  #   cn=process.platform==="darwin",zo=process.platform==="win32",cAA=cn||zo
+  # and each telemetry fn early-returned `if(!cAA)return;`, so telemetry
+  # never ran on Linux. We OR'd in `||process.platform==="linux"`.
+  #
+  # v1.13576.0: upstream DROPPED that platform gate entirely - the
+  # darwin/win32 triple-assignment is gone and the telemetry functions no
+  # longer early-return on platform (they now gate only on the
+  # `disableNonessentialTelemetry` config). Telemetry already runs on Linux,
+  # so when the old triple-assignment is absent we skip without failing.
+  # Backreferences \1 and \3 ensure same var names in the combined expression.
   let telemetryAlready = re(
     "([\\w$]+)(=process\\.platform===\"darwin\",)([\\w$]+)(=process\\.platform===\"win32\",)([\\w$]+)=\\1\\|\\|\\3\\|\\|process\\.platform===\"linux\""
+  )
+  let telemetryPattern = re(
+    "([\\w$]+)(=process\\.platform===\"darwin\",)([\\w$]+)(=process\\.platform===\"win32\",)([\\w$]+)=\\1\\|\\|\\3"
   )
   if result.find(telemetryAlready).isSome:
     echo "  [OK] Telemetry gate: already patched (skipped)"
     inc patchesApplied
-  else:
-    let telemetryPattern = re(
-      "([\\w$]+)(=process\\.platform===\"darwin\",)([\\w$]+)(=process\\.platform===\"win32\",)([\\w$]+)=\\1\\|\\|\\3"
-    )
+  elif result.find(telemetryPattern).isSome:
     var countD = 0
     result = result.replace(
       telemetryPattern,
@@ -111,6 +134,15 @@ proc apply*(input: string): string =
       inc patchesApplied
     else:
       echo "  [FAIL] Telemetry gate: pattern not found"
+  else:
+    # No darwin||win32 telemetry gate present -> upstream removed it; Linux
+    # telemetry already runs. Confirm the telemetry-org plumbing still exists
+    # before declaring success (guards against a wholesale telemetry removal).
+    if "telemetryOrgUuid()" in result:
+      echo "  [OK] Telemetry gate: removed upstream (telemetry no longer platform-gated; Linux covered)"
+      inc patchesApplied
+    else:
+      echo "  [FAIL] Telemetry gate: neither platform gate nor telemetry plumbing found"
 
   # -- Patch E: Override Pt() for Linux-critical GrowthBook flags --
   # Force 3558849738 (dispatch) ON and 1143815894 (hostLoopMode) OFF.

@@ -2,6 +2,52 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-06-17 (v1.13576.0) - Major version bump: 7 patches fixed, 1 removed (49 total), all apply
+
+### Upstream (v1.13576.0)
+
+- **Version bump v1.12603.1 -> v1.13576.0 (~970 builds, full re-minify).** Bundle 15.03 -> 15.12 MB (+0.6%). Vendored `@anthropic-ai/claude-agent-sdk` copies bumped 0.3.170/0.3.167 -> **0.3.174/0.3.177** (still two copies - the duplicated-SDK match-site hazard still applies). Package built as `claude-desktop-bin-1.13576.0-1-x86_64.pkg.tar.zst`; `node --check` passes on the patched bundle.
+- **8 patches failed on first build; the failures were upstream refactors, not just renames.** 7 fixed, 1 removed -> **50 -> 49 patches**, all apply.
+- **Several macOS/Windows-only platform gates were DROPPED upstream (Linux now covered natively):**
+  - **Dispatch platform label:** the `switch(process.platform){...default:return"Unsupported Platform"}` label fn became a ternary `process.platform==="darwin"?"macOS":process.platform==="win32"?"Windows":"Linux"` - Linux is now labelled correctly upstream.
+  - **Dispatch telemetry gate:** the `cn=darwin,zo=win32,cAA=cn||zo` triple + `if(!cAA)return;` early-returns are gone; telemetry now runs unconditionally (gated only on `disableNonessentialTelemetry`), so Linux gets dispatch telemetry without a patch.
+  - **Office-addin connected-file detection:** `(darwin||win32)&&await FN(e.app,e.document)` lost its platform gate (now `if(await FN(e.app,e.document))`) - the feature is gated only on the `louderPenguinEnabled` flag (which `enable_local_agent_mode` already forces). The whole `fix_office_addin_linux.nim` patch is now **obsolete and removed**.
+  - **setTitleBarOverlay theme-update gate:** the win32-only `zo&&...getAllWindows().forEach(...)` guard was removed; the call is unconditional, so the integrated titlebar already receives theme updates on Linux.
+- **Enterprise managed-config loader collapsed:** the `process.platform==="darwin"?macReader():process.platform==="win32"?winReader():{}` ternary became a single wrapper `function Mei(){const A=Rei();return Object.keys(A).length>0?A:void 0}` that unconditionally calls the win32 registry reader (mac plist reader removed; `readPlistValue` refs 3 -> 1). `fix_enterprise_config_linux` rebased to inject the Linux `/etc/claude-desktop/enterprise.json` branch into that wrapper (both `index.js` and `index.pre.js`).
+- **Cowork (yukonSilver) support gate refactored:** static registry now wires `yukonSilver:Zce()`, where `Zce()` delegates to `Q3i()`/`C3i()` and `C3i()` **hardcodes `const A="win32"`** for the VM-bundle arch lookup (`fo.files["win32"][arch]`) - the explicit `process.platform!=="darwin"&&!=="win32"` Cowork gate is gone. `enable_local_agent_mode` Patch 1b rebased to inject the Linux early-return into `Zce()`; `fix_cowork_linux` Patch A (VM client loader) and Patch C2 (bundle lookup alias) rebased (see below).
+- **Tray icon selection refactored:** the win32 `isWin?e=...:e="TrayIconTemplate.png"` ternary became `switch(G1r){case"ico":...case"template-image":...case"png":...}` keyed on a build-time icon-type constant (`G1r="ico"` on Windows builds). `fix_tray_icon_theme` now injects a Linux override after the switch (`process.platform==="linux"&&(e="TrayIconTemplate-Dark.png")`).
+- **Sensitive-dirs array** gained two new intervening arrays (`["Scheduled","Artifacts"]`, scheduled-tasks/agents/...) between the win32 block and the old `.zshrc` anchor; `fix_sensitive_dirs_linux` re-anchored on the stable `"PowerShell")]:[]` win32 close.
+
+### Patches fixed (7) + removed (1)
+
+- **`fix_tray_icon_theme`** - rewrote for the new `switch(G1r)` icon selector; injects a post-switch Linux override (forces `TrayIconTemplate-Dark.png`, since the win32 `.ico` files the `"ico"` build-type picks don't ship on Linux). **Note:** trailing `;` on the injected expression is required - it's followed immediately by `const t=...` with no line terminator (ASI does not apply in minified code).
+- **`fix_sensitive_dirs_linux`** - re-anchored on `"PowerShell")]:[]` (win32-array close) instead of the now-displaced `.zshrc` next-var.
+- **`fix_enterprise_config_linux`** - rebased onto the new `Mei()`/`Rei()` wrapper (captures the registry-reader fn from its `SOFTWARE\Policies` body); applies to `index.js` and `index.pre.js`.
+- **`fix_native_frame`** - Patch 2 (setTitleBarOverlay gate) now detects the upstreamed unconditional call and skips without failing; Patches 1 + 3 unchanged.
+- **`fix_dispatch_linux`** - Patch C (platform label) and Patch D (telemetry gate) detect their upstreamed forms (ternary returning `"Linux"`; telemetry no longer platform-gated) and skip without failing; A/B/E unchanged.
+- **`enable_local_agent_mode`** - Patch 1b (yukonSilver) rebased to inject the Linux early-return into the new `Zce()` delegate-chain (`const A=Q3i();...const e=C3i();if(e.status!=="supported")return AW(e)`), keeping the historical `process.platform` forms as fallbacks. All 25 sub-patches apply.
+- **`fix_cowork_linux`** - Patch A (VM client loader) rebased: the old win32 ternary `zo?IM={vm:X}:IM=(await import("@ant/claude-swift"))` became `function d_t(){return tu()?...{vm:qti}...:null}` gated on `tu()` (MSIX/appPath install detection); we widen the gate to `(tu()||process.platform==="linux")`. Patch C2 (bundle lookup alias) detects that the platform-indexed `Io.files[process.platform]` lookup is gone - the only remaining lookup hardcodes `"win32"` (`C3i`), which already gives Linux the win32 bundle, so the linux->win32 alias is now upstream's default; it skips without failing. All 10 sub-patches apply.
+- **`fix_office_addin_linux`** - **REMOVED** (obsolete; the connected-file-detection platform gate it widened was dropped upstream - the feature now runs on all platforms gated only on `louderPenguinEnabled`).
+
+### Audits (re-validated against the new bundle)
+
+- **Feature flags:** static registry **37 -> 39** (added `iosSimulatorH264`, `quickEntryGlobalShortcut`; removed none) + 5 async-only (`louderPenguin`/`coworkKappa`/`coworkArtifacts`/`markTaskComplete`/`epitaxyMcpApps`). Function renames: registry `aD()`->`sR()`, async merger `fSA`->`c0A`, prod dev-gate `vR()`->`rM()`, GrowthBook bool reader `dt()`->`Ct()`; electron var `lA` unchanged. **GrowthBook delta vs v1.12603.0:** +3 (`1703762832` onModelRefusalFallback retry [already present in v1.12603.1], `1985784543` an isEnabled gate, `3646818354` shouldKillOnIdlePause), 0 removed. `enable_local_agent_mode` 12-flag override list unchanged - none of the new flags is darwin/win32-gated.
+- **Built-in MCP servers:** internal roster unchanged; `registerInternalMcpServer` present. Bundled Microsoft 365 server (`resources/office365-mcp/`) still ships.
+- **Platform gates:** darwin 79 -> 77 / win32 141 -> 137 / linux 9 -> 10. The net drop is the upstreamed gates above (dispatch label/telemetry, office-addin, setTitleBarOverlay) collapsing explicit `process.platform` checks. **No new PORTABLE (Linux-compat) opportunity.**
+- **ion-dist SPA:** 94 -> 95 MB, 730 JS (unchanged), config chunk `c71860c77-upcFhKtF.js` -> `c71860c77-DXc_sfB9.js`; both `fix_ion_dist_linux.nim` sub-patterns still match (`mountPath` still mac/win-only, platform ternary `_===M.Win32?...win:...mac`). New 3P config keys: Vertex `inferenceVertexProjectId`/`inferenceVertexRegion`/`inferenceVertexWorkforceOidc`/`inferenceVertexWorkforceUserProject`, Gateway `inferenceGatewayBaseUrl`/`inferenceGatewayHeaders`.
+
+### Runtime fix
+
+- **`getSystemInfo` crash on Linux:** v1.13576.0 dropped the `win32`-only guard around the `getWindowsElevationType()` call in `getSystemInfo` (and the `desktop_windows_elevation_detected` telemetry), so it's now invoked on every platform. Our Linux `@ant/claude-native` stub lacked the method -> `TypeError: i.getWindowsElevationType is not a function`, spamming on every Settings/feedback system-info request. Added `getWindowsElevationType: () => "default"` to the stub (`patches/claude-native.js`) - `"default"` is the non-elevated state, matching both call sites' `?? null` / `?? "default"` fallbacks (`can_elevate_to_admin` -> `false` on Linux). Other native methods that lost guards this release (`cuGetOwnBundleId`, `getActiveWindowHandle`) are still safe (darwin-only path / wrapped in try-catch).
+
+### Build tooling
+
+- **`build-local.sh` rebuild checksum fix:** the local `claude-desktop-*.tar.gz` is a build artifact regenerated every run (bytes/sha change each build), but makepkg cached it in `cache/` under its download name and re-validated the **stale** cached copy against the freshly-generated `sha256sums` -> `One or more files did not pass the validity check`. The script now purges any cached `claude-desktop-*-linux.tar.gz` before makepkg so it re-copies the fresh artifact; the upstream **electron zip stays cached** (checksummed, reused across builds). Removed the dead `cp` that copied the tarball under a basename makepkg never looked up.
+
+### Docs updated
+
+- `CHANGELOG.md` (this entry), `baseline/CLAUDE_FEATURE_FLAGS.md`, `baseline/CLAUDE_BUILT_IN_MCP.md`, `baseline/ION.md`, `baseline/PLATFORM_GATE_BASELINE.md` refreshed to v1.13576.0. `README.md` patch table - removed `fix_office_addin_linux` row, count 50 -> 49.
+
 ## 2026-06-12 (v1.12603.1) - Point release, all 50 patches apply unchanged
 
 ### Upstream (v1.12603.1)

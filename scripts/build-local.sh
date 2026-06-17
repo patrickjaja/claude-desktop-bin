@@ -157,11 +157,21 @@ log_info "SHA256: $SHA256"
 log_info "Generating PKGBUILD..."
 "$SCRIPT_DIR/generate-pkgbuild.sh" "$VERSION" "$SHA256" "file://$TARBALL" ${PKGREL:+"$PKGREL"} > "$BUILD_DIR/PKGBUILD"
 
-# Build the package with makepkg (cache electron zip across builds)
+# Build the package with makepkg.
+#
+# We use SRCDEST=cache/ so the large upstream electron zip is downloaded once
+# and reused across builds (checksummed in the PKGBUILD). The claude-desktop
+# tarball, however, is a LOCAL build artifact we regenerate every run: its
+# bytes (and sha256) change each build, so any cached copy is stale and makepkg
+# would fail it against the freshly-generated sha256sum. makepkg keys the cache
+# entry on its download filename (claude-desktop-<pkgver>-<pkgrel>-linux.tar.gz,
+# which includes the pkgrel and need not match the artifact's real basename),
+# so we purge every cached claude-desktop tarball before the build and let
+# makepkg re-copy the fresh one from the file:// source. Electron stays cached.
 log_info "Building Arch package..."
 SRCDEST_DIR="$PROJECT_DIR/cache"
 mkdir -p "$SRCDEST_DIR"
-cp "$TARBALL" "$SRCDEST_DIR/$(basename "$TARBALL")"
+rm -f "$SRCDEST_DIR"/claude-desktop-*-linux.tar.gz "$SRCDEST_DIR"/claude-desktop-*-linux-aarch64.tar.gz
 cd "$BUILD_DIR"
 SRCDEST="$SRCDEST_DIR" makepkg -sf --noconfirm
 

@@ -1,6 +1,6 @@
 # Platform Gate Baseline
 
-**Last audited:** 2026-06-12 against **v1.12603.1** (point release on v1.12603.0; counts **unchanged**: darwin 79 / win32 141 / linux 9; bundle grew by only 446 bytes; zero new platform gates. **No new PORTABLE gate**. Prior: v1.12603.0 darwin 73->79 / win32 122->141 / linux 5->9; entire swing was second vendored copy of Claude Code CLI/SDK helper code)
+**Last audited:** 2026-06-17 against **v1.13576.0** (major bump v1.12603.1 -> v1.13576.0, ~970 builds, full re-minify). Counts: darwin 79->77 / win32 141->137 / linux 9->10. The net **drop** is several mac/win-only gates being **upstreamed** (Linux now covered natively, no patch): the dispatch platform-label `switch` became a ternary returning `"Linux"`; the dispatch telemetry `cn=darwin,zo=win32,cAA=cn||zo`+`if(!cAA)return` gate was removed (telemetry now unconditional); the office-addin connected-file-detection `(darwin||win32)&&await FN(e.app,e.document)` lost its platform gate (now flag-only on `louderPenguinEnabled`); the `setTitleBarOverlay` win32 `getAllWindows().forEach` guard was dropped. The enterprise managed-config darwin/win32 ternary collapsed to a single win32 registry reader; the Cowork `process.platform!=="darwin"&&!=="win32"` gate became `C3i()` with a hardcoded `const A="win32"` arch lookup. **No new PORTABLE gate.** `fix_office_addin_linux` was **removed** (obsolete - the gate it widened is gone). Prior: v1.12603.1 darwin 79 / win32 141 / linux 9 (unchanged from v1.12603.0).
 
 This is the **re-audit baseline** for the question *"is there anything we could make Linux-compatible that we don't already?"* It records every macOS/Windows-only gate found in the bundle and **why it is or isn't patched**, so future audits skip ground that's already been settled.
 
@@ -12,9 +12,9 @@ Treat it like `ION.md` and `CLAUDE_FEATURE_FLAGS.md`: minified names change ever
 NEW=/tmp/claude-new/app/.vite/build/index.js   # extracted main bundle
 
 # 1. Count platform conditionals — large swing vs the baseline below = investigate
-echo "darwin: $(rg -o 'platform==="darwin"' "$NEW" | wc -l)"   # baseline v1.12603.1: 79 (v1.12603.0: 79, v1.11847.5: 73, v1.11187.4: 72, v1.10628.0: 65; v1.12603's +6 is a duplicated vendored-CLI copy, not new gates)
-echo "win32:  $(rg -o 'platform==="win32"'  "$NEW" | wc -l)"   # baseline v1.12603.1: 141 (v1.12603.0: 141, v1.11847.5: 122; +19 = second vendored CLI copy: which/cross-spawn/isexe/supports-color duplicates)
-echo "linux:  $(rg -o 'platform==="linux"'  "$NEW" | wc -l)"   # baseline v1.12603.1: 9 (v1.12603.0: 9, v1.11847.5: 5; +4 = duplicated WSL-detect + signal-list helpers)
+echo "darwin: $(rg -o 'platform==="darwin"' "$NEW" | wc -l)"   # baseline v1.13576.0: 77 (v1.12603.1: 79, v1.11847.5: 73, v1.10628.0: 65; -2 = upstreamed dispatch label/telemetry + office-addin + setTitleBarOverlay gates collapsing)
+echo "win32:  $(rg -o 'platform==="win32"'  "$NEW" | wc -l)"   # baseline v1.13576.0: 137 (v1.12603.1: 141, v1.11847.5: 122; -4 = same upstreamed gates)
+echo "linux:  $(rg -o 'platform==="linux"'  "$NEW" | wc -l)"   # baseline v1.13576.0: 10 (v1.12603.1: 9, v1.11847.5: 5)
 
 # 2. List darwin/win32-only gates (the audit surface)
 rg -o '.{0,60}process\.platform==="darwin".{0,80}' "$NEW" | sort -u
@@ -77,7 +77,7 @@ As of v1.12603.0, every darwin/win32-only gate maps to PATCHED, NATIVE, or STUB.
 These map to existing `patches/*.nim`. If a re-audit surfaces a gate touching one of these areas, it's already handled — don't re-flag it. (See the README patch table for the authoritative list.)
 
 - **Compute/agent:** computer use (`fix_computer_use_linux`, `fix_computer_use_tcc`), cowork & local agent mode & VM sessions (`fix_cowork_*`, `fix_vm_session_handlers`, `enable_local_agent_mode`), Claude Code (`fix_claude_code`), dispatch (`fix_dispatch_linux`, `fix_dispatch_outputs_dir`)
-- **Servers/integrations:** office add-in / "office" MCP (`fix_office_addin_linux`), browser tools / Claude in Chrome (`fix_browser_tools_linux`), buddy BLE / hardware buddy (`fix_buddy_ble_linux`), imagine/visualize (`fix_imagine_linux`), marketplace (`fix_marketplace_linux`)
+- **Servers/integrations:** office add-in / "office" MCP (no patch as of v1.13576.0 - upstream dropped the connected-file-detection platform gate; now flag-only on `louderPenguinEnabled`, which `enable_local_agent_mode` forces; `fix_office_addin_linux` removed), browser tools / Claude in Chrome (`fix_browser_tools_linux`), buddy BLE / hardware buddy (`fix_buddy_ble_linux`), imagine/visualize (`fix_imagine_linux`), marketplace (`fix_marketplace_linux`)
 - **Config/paths:** enterprise config `/etc/claude-desktop` (`fix_enterprise_config_linux`), ion-dist org-plugins mountPath (`fix_ion_dist_linux`), detected projects (`fix_detected_projects_linux`), sensitive dirs (`fix_sensitive_dirs_linux`), locale paths (`fix_locale_paths`)
 - **Window/shell/UI:** tray + DBus + icon (`fix_tray_dbus`, `fix_tray_icon_theme`), quick entry (`fix_quick_entry_*`), native frame / window bounds / dock bounce (`fix_native_frame*`, `fix_window_bounds`, `fix_dock_bounce`), custom themes (`add_feature_custom_themes`), startup settings (`fix_startup_settings`), profile routing/title (`fix_profile_*`)
 - **Process/updater:** updater state + disable autoupdate (`fix_updater_state_linux`, `fix_disable_autoupdate`), node host / app quit / utility-process kill / cross-device rename / asar drop+cwd / process argv (`fix_0_node_host`, `fix_app_quit`, `fix_utility_process_kill`, `fix_cross_device_rename`, `fix_asar_*`, `fix_process_argv_renderer`)

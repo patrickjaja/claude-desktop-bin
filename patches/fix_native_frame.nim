@@ -89,22 +89,46 @@ proc apply*(input: string): string =
     raise newException(ValueError, &"main window pattern: {n}/1")
   echo &"  [OK] main window options: {n}"
 
-  # Patch 2: setTitleBarOverlay theme-update gate. Upstream guards the
-  # forEach-all-windows call with a win32-only boolean (e.g. `Io`). We OR
-  # in Linux integrated mode so the overlay receives theme updates there too.
+  # Patch 2: setTitleBarOverlay theme-update gate.
+  #
+  # Historically upstream guarded the forEach-all-windows call with a
+  # win32-only boolean (e.g. `Io`): `zo&&cA.BrowserWindow.getAllWindows()
+  # .forEach(t=>{try{t.setTitleBarOverlay(e)}...`. We OR'd in Linux
+  # integrated mode so the overlay received theme updates there too.
+  #
+  # v1.13576.0: upstream DROPPED the win32 gate entirely - the call is now
+  # unconditional (`lA.BrowserWindow.getAllWindows().forEach(r=>{try{
+  # r.setTitleBarOverlay(t)}...`), so Linux already receives theme updates.
+  # When we find no win32 gate but DO find the ungated call, that's the new
+  # already-satisfied state and we skip without failing.
   n = 0
   result = result.replace(
-    re2"""\b([\w$]+)&&([\w$]+)\.BrowserWindow\.getAllWindows\(\)\.forEach""",
+    re2"""\b([\w$]+)&&([\w$]+)\.BrowserWindow\.getAllWindows\(\)\.forEach\([\w$]+=>\{try\{[\w$]+\.setTitleBarOverlay""",
     proc(m: RegexMatch2, s: string): string =
       inc n
       let platformGate = s[m.group(0)]
       let electronVar = s[m.group(1)]
+      let restAfterGate = s[m.group(2)]
       "(" & platformGate & "||(" & LINUX_INTEGRATED & "))&&" & electronVar &
-        ".BrowserWindow.getAllWindows().forEach",
+        ".BrowserWindow.getAllWindows().forEach" & restAfterGate,
   )
-  if n != 1:
-    raise newException(ValueError, &"setTitleBarOverlay gate: {n}/1")
-  echo &"  [OK] setTitleBarOverlay gate: {n}"
+  if n == 1:
+    echo &"  [OK] setTitleBarOverlay gate: {n} (widened win32 gate for Linux)"
+  elif n == 0:
+    # No win32-gated form. Confirm the ungated call exists (gate removed
+    # upstream -> Linux already covered) before declaring success.
+    var ungated: RegexMatch2
+    let ungatedPat =
+      re2"""\.BrowserWindow\.getAllWindows\(\)\.forEach\([\w$]+=>\{try\{[\w$]+\.setTitleBarOverlay"""
+    if result.find(ungatedPat, ungated):
+      echo "  [OK] setTitleBarOverlay gate: removed upstream (call is " &
+        "unconditional; Linux already receives theme updates)"
+    else:
+      raise newException(
+        ValueError, "setTitleBarOverlay: neither gated nor ungated call found"
+      )
+  else:
+    raise newException(ValueError, &"setTitleBarOverlay gate: {n} (expected 0 or 1)")
 
   # Patch 3: opaque-color swap inside the helper that builds the overlay
   # style. The non-Hb branch uses a transparent placeholder ("#00000000"),

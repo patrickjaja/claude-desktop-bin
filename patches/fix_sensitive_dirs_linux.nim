@@ -36,28 +36,34 @@ proc apply*(input: string): string =
     # The array structure is:
     #   const <var>=[...cross-platform...,
     #     ...process.platform==="darwin"?[...]:[] ,
-    #     ...process.platform==="win32"?[...]:[]
-    #   ],<nextVar>=[".zshrc",...
+    #     ...process.platform==="win32"?[...,"PowerShell")]:[]
+    #   ],<nextVar>=[...]
     #
     # In the minified JS this looks like:
-    #   ..."gnupg")]:[]],sar=[".zshrc",...
+    #   ...("OneDrive","Documents","PowerShell")]:[]],<nextVar>=[...
     #
     # We want to inject BEFORE the outer ] that closes the sensitive-dirs array:
-    #   ..."gnupg")]:[],...linux?[...]:[]],sar=[".zshrc",...
+    #   ...("OneDrive","Documents","PowerShell")]:[],...linux?[...]:[]],<nextVar>=[...
+    #
+    # v1.13576.0: the next var after the array used to be the `.zshrc` shell-rc
+    # array, but upstream inserted two new arrays between them (`["Scheduled",
+    # "Artifacts"]` and a scheduled-tasks/agents/... array). The win32 block
+    # still ends with the same `"PowerShell")]:[]` close, which is unique in
+    # the bundle, so anchor on that instead of on `.zshrc`.
     #
     # Regex breakdown:
-    #   (:\[\])  - group 0: the win32 empty-fallback ":[]"
-    #   (\],)    - group 1: outer array close "]" + comma ","
-    #   ([\w$]+=\["\.zshrc") - group 2: next var assignment with ".zshrc" anchor
-    let pattern = re2"""(:\[\])(\],)([\w$]+=\["\.zshrc")"""
+    #   ("PowerShell"\)\]:\[\]) - group 0: last win32 path + win32-array close
+    #                             + ternary empty-fallback ":[]"
+    #   (\])                     - group 1: the outer sensitive-dirs array close
+    let pattern = re2"""("PowerShell"\)\]:\[\])(\])"""
 
     var count = 0
     result = result.replace(
       pattern,
       proc(m: RegexMatch2, s: string): string =
         inc count
-        # Reconstruct: win32 fallback + Linux spread + outer close + next var
-        s[m.group(0)] & LINUX_DIRS_SPREAD & s[m.group(1)] & s[m.group(2)],
+        # Reconstruct: win32 fallback + Linux spread + outer array close
+        s[m.group(0)] & LINUX_DIRS_SPREAD & s[m.group(1)],
     )
     if count > 0:
       echo &"  [OK] Linux sensitive dirs injected: {count} match(es)"

@@ -265,6 +265,15 @@ Calls the merger, validates the result against a Zod schema, and sends it to the
 - New `floatingPenguinEnabled` preference (not yet a feature flag in registry - config-only)
 - New `midnightOwl` prototype (dev toggle + GrowthBook flag `180602792`)
 
+#### New Boolean Flags in v1.13576.0
+
+(Delta measured vs the v1.12603.0 baseline bundle; `1703762832` was already added in v1.12603.1, so net-new in v1.13576.0 is `1985784543` + `3646818354`.)
+
+| Flag ID | Purpose | Patched? |
+|---------|---------|----------|
+| `1985784543` | An `isEnabled` gate spread onto a config object: `e?{...e,isEnabled:()=>Ct("1985784543")}:null`. No platform gate. | No |
+| `3646818354` | `shouldKillOnIdlePause()` returns `!Ct("3646818354")` - when ON, the session is NOT killed on idle pause. No platform gate. | No |
+
 #### New Boolean Flags in v1.12603.1
 
 | Flag ID | Purpose | Patched? |
@@ -802,6 +811,7 @@ Feature name strings are stable across versions because they're IPC identifiers 
 ## Version History
 
 | Version | Static Registry | Async Merger | Gate Function | Notable Changes |
+| v1.13576.0 | `sR()` | `c0A` | `rM()` | **Major bump v1.12603.1 -> v1.13576.0 (~970 builds, full re-minify).** **2 new static features:** `iosSimulatorH264:rM(GYA)` and `quickEntryGlobalShortcut:g3i()` -> **39 static + `louderPenguin` async-only + 4 other async (`coworkKappa`/`coworkArtifacts`/`markTaskComplete`/`epitaxyMcpApps`) = 44 total**; no features removed. Async merger shape unchanged (`{...sR(),louderPenguin:A,coworkKappa:e,coworkArtifacts:t,markTaskComplete:r,epitaxyMcpApps:i}`). Function renames: registry `aD()`->`sR()`, merger `fSA`->`c0A`, dev-gate `vR()`->`rM()` (`function rM(A){return lA.app.isPackaged?{status:"unavailable"}:A()}`, electron var `cA`->`lA`), flag reader `dt()`->`Ct()`. **Cowork (`yukonSilver`) gate refactored:** registry entry now `yukonSilver:Zce()` where `Zce()` delegates to `Q3i()`/`C3i()` and `C3i()` HARDCODES `const A="win32"` for the VM-bundle arch lookup (`fo.files["win32"][arch]`) - the old `const X=process.platform;if(X!=="darwin"&&X!=="win32")...unsupported_platform` form is GONE. `enable_local_agent_mode.nim` Patch 1b rebased to inject the Linux early-return into `Zce()`'s delegate-chain; all 25 sub-patches apply. **GrowthBook delta vs v1.12603.0 baseline:** 3 added (`1703762832` onModelRefusalFallback retry [already in v1.12603.1], `1985784543` an `isEnabled` gate, `3646818354` `shouldKillOnIdlePause`), 0 removed. `enable_local_agent_mode.nim` 12-flag override list unchanged (none of the new flags is darwin/win32-gated). 7 patches fixed + 1 removed (`fix_office_addin_linux` - its connected-file-detection platform gate was dropped upstream) -> 50->49 patches; all apply. |
 |---------|----------------|--------------|---------------|-----------------|
 | v1.1.3770 | `Oh()` | `mC()` | `QL()` | louderPenguin async override added, ccdPlugins via Kf() spread |
 | v1.1.3918 | `Fd()` | `mP` | `o_e()` | chillingSlothEnterprise moved to static, mP simplified to louderPenguin only, ccdPlugins inlined, chillingSlothLocal unconditional |

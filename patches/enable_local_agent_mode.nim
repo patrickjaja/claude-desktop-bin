@@ -87,7 +87,31 @@ proc apply*(input: string): string =
     echo "  [FAIL] Required patterns did not match"
     quit(1)
 
-  # Patch 1b: Bypass yukonSilver (NH) platform gate on Linux
+  # Patch 1b: Bypass the yukonSilver (Cowork) platform gate on Linux.
+  #
+  # History of the gate function this targets:
+  #   - <=v1.12603: `function NH(){const A=process.platform;if(A!=="darwin"
+  #     &&A!=="win32")return{status:"unsupported",reason:...,unsupportedCode:
+  #     "unsupported_platform"};...}` - an explicit process.platform gate.
+  #   - v1.13576.0: REFACTORED. The static-registry entry is now
+  #     `yukonSilver:Zce()`, and Zce() no longer reads process.platform for
+  #     the platform gate. Instead it delegates:
+  #       function Zce(){const A=Q3i();if(A)return A;if(IfA)return IfA;
+  #         const e=C3i();if(e.status!=="supported")return AW(e);
+  #         ...secureVmFeaturesEnabled...}
+  #     where C3i() hardcodes `const A="win32"` and checks arch +
+  #     `fo.files["win32"][arch]` + tu() (MSIX/appPath install detection).
+  #     On Linux that chain yields unsupported (no win32 VM bundle, no MSIX).
+  #
+  # We inject a Linux early-return at the top of the yukonSilver support
+  # function so it reports supported on Linux. (Patch 3's async-merger
+  # override also forces yukonSilver:{status:"supported"}, but the static
+  # registry is consulted directly in places, so we patch both layers.)
+  #
+  # The v1.13576 form is anchored on Zce()'s distinctive delegate chain
+  # (Q3i/IfA/C3i + `status!=="supported"` + AW()), which is unique.
+  let nhPatternZce =
+    re"""(function [\w$]+\(\)\{)(const [\w$]+=[\w$]+\(\);if\([\w$]+\)return [\w$]+;if\([\w$]+\)return [\w$]+;const [\w$]+=[\w$]+\(\);if\([\w$]+\.status!=="supported"\)return [\w$]+\([\w$]+\);)"""
   let nhPatternOld =
     re"""(function [\w$]+\(\)\{)(const ([\w$]+)=process\.platform;if\(\3!=="darwin"&&\3!=="win32"\)return\{status:"unsupported",reason:`Unsupported platform: \$\{\3\}`\})"""
   # reason: can be either Qe.formatMessage (old) or Qe().formatMessage (new, v1.4758+)
@@ -99,33 +123,49 @@ proc apply*(input: string): string =
     inc patchesApplied
   else:
     var count1b = 0
-    let nhResult = result.replace(
-      nhPatternOld,
+    # Try the v1.13576 Zce() delegate-chain form first.
+    let nhResultZce = result.replace(
+      nhPatternZce,
       proc(m: RegexMatch): string =
         inc count1b
         m.captures[0] & "if(process.platform===\"linux\")return{status:\"supported\"};" &
           m.captures[1],
     )
     if count1b >= 1:
-      result = nhResult
-      echo &"  [OK] yukonSilver (NH): Linux early return injected ({count1b} match)"
+      result = nhResultZce
+      echo &"  [OK] yukonSilver (Zce): Linux early return injected ({count1b} match)"
       inc patchesApplied
     else:
-      var count1bNew = 0
-      let nhResult2 = result.replace(
-        nhPatternNew,
+      # Fall back to the historical explicit-process.platform gate forms.
+      var count1bOld = 0
+      let nhResult = result.replace(
+        nhPatternOld,
         proc(m: RegexMatch): string =
-          inc count1bNew
+          inc count1bOld
           m.captures[0] & "if(process.platform===\"linux\")return{status:\"supported\"};" &
             m.captures[1],
       )
-      if count1bNew >= 1:
-        result = nhResult2
-        echo &"  [OK] yukonSilver (NH): Linux early return injected (formatMessage variant, {count1bNew} match)"
+      if count1bOld >= 1:
+        result = nhResult
+        echo &"  [OK] yukonSilver (NH): Linux early return injected ({count1bOld} match)"
         inc patchesApplied
       else:
-        echo "  [FAIL] yukonSilver (NH): 0 matches"
-        failed = true
+        var count1bNew = 0
+        let nhResult2 = result.replace(
+          nhPatternNew,
+          proc(m: RegexMatch): string =
+            inc count1bNew
+            m.captures[0] &
+              "if(process.platform===\"linux\")return{status:\"supported\"};" &
+              m.captures[1],
+        )
+        if count1bNew >= 1:
+          result = nhResult2
+          echo &"  [OK] yukonSilver (NH): Linux early return injected (formatMessage variant, {count1bNew} match)"
+          inc patchesApplied
+        else:
+          echo "  [FAIL] yukonSilver (NH): 0 matches"
+          failed = true
 
   # Patch 2: chillingSlothLocal -- no gate needed
   echo "  [OK] chillingSlothLocal: no gate needed (naturally returns supported on Linux)"
