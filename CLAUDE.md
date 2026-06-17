@@ -60,6 +60,8 @@ These files embed assumptions about upstream internals and **must be challenged 
 
 **Rule of thumb:** If a doc references a specific minified name, it will be wrong after the next upstream release. Use `\w+` wildcards in patches; in docs, always note the version the names apply to.
 
+**Reading `CHANGELOG.md`:** It is large and append-at-top (newest entry first). To see the current state, **read only the head — `offset: 1, limit: 60`** (the most recent dated `##` section). Do not read the whole file; older entries are historical context you rarely need. Read further down only when you specifically need a past release's notes.
+
 ## CI-Managed Files (Do NOT Edit Manually)
 
 - **README.md install command version numbers** (`.deb`, `.rpm`, `.AppImage` filenames) — updated automatically by the `release` job in `.github/workflows/build-and-release.yml` via `sed`. Manual edits will cause merge conflicts with the CI commit.
