@@ -13,6 +13,8 @@ jobs:
   check-version:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
       - name: Query latest upstream version
         id: upstream
         run: |
@@ -25,30 +27,22 @@ jobs:
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "Upstream version: ${VERSION}"
 
-      - name: Get latest released version
+      - name: Get current tracked version
         id: released
         if: steps.upstream.outputs.version
-        env:
-          REPO: ${{ github.repository }}
         run: |
-          HIGHEST_VERSION=$(curl -sf "https://api.github.com/repos/${REPO}/releases?per_page=20" | python3 -c "
-          import sys, json
-          releases = json.load(sys.stdin)
-          versions = []
-          for r in releases:
-              tag = r['tag_name'].lstrip('v')
-              base = tag.split('-')[0] if '-' in tag else tag
-              parts = [int(x) for x in base.split('.')]
-              versions.append((parts, base))
-          if versions:
-              versions.sort(key=lambda x: x[0], reverse=True)
-              print(versions[0][1])
-          else:
-              print('')
-          ")
+          # Read from .upstream-version (committed to repo, tracks which Claude
+          # Desktop version our patches & docs were last validated against).
+          # Bump + commit this file once a version has been handled — even a
+          # trivial build bump with no public release — to silence the issue.
+          if [ -f .upstream-version ]; then
+            CURRENT=$(cat .upstream-version | tr -d '[:space:]')
+          else
+            CURRENT=""
+          fi
 
-          echo "version=${HIGHEST_VERSION}" >> $GITHUB_OUTPUT
-          echo "Latest released version: ${HIGHEST_VERSION}"
+          echo "version=${CURRENT}" >> $GITHUB_OUTPUT
+          echo "Current tracked version: ${CURRENT}"
 
       - name: Ensure new-version label exists
         if: steps.upstream.outputs.version && steps.released.outputs.version != steps.upstream.outputs.version
@@ -78,18 +72,6 @@ jobs:
 
           echo "count=${ISSUE_COUNT}" >> $GITHUB_OUTPUT
           echo "Open issues for v${UPSTREAM}: ${ISSUE_COUNT}"
-
-      - name: Checkout repo (for issue template)
-        if: |
-          steps.upstream.outputs.version &&
-          steps.released.outputs.version != steps.upstream.outputs.version &&
-          steps.existing.outputs.count == '0'
-        uses: actions/checkout@v4
-        with:
-          sparse-checkout: |
-            .github/issue-templates
-            UPDATE-PROMPT-CC-INPUT-MANUAL.md
-          sparse-checkout-cone-mode: false
 
       - name: Render issue body from template
         id: body

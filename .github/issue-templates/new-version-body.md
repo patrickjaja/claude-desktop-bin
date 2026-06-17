@@ -3,7 +3,7 @@
 | | Version |
 |---|---|
 | **Upstream** | `{{UPSTREAM}}` |
-| **Current release** | `{{RELEASED}}` |
+| **Current (`.upstream-version`)** | `{{RELEASED}}` |
 
 ---
 

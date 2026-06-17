@@ -11,6 +11,10 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 - **Documented fragile anchors re-verified, all match v1.13576.0:** enterprise wrapper `function Mei(){const A=Rei();...}` (readPlistValue refs still 1), Cowork `yukonSilver:Zce()`, tray-icon `switch(...){case"ico":...}` (build-time const renamed `G1r`->`GJr`, absorbed by the flexible pattern), feature-flag fn present.
 - **No baseline-doc changes:** feature flags, built-in MCP servers (1 `registerInternalMcpServer`), ion-dist patterns, and platform gates all unchanged. `.electron-version` stays 42.0.0 (shasums verified OK). Package built as `claude-desktop-bin-1.13576.1-1-x86_64.pkg.tar.zst`.
 
+### CI
+
+- **`version-check.yml` now tracks handled versions via a committed `.upstream-version` file** (mirrors claude-cowork-service) instead of the highest GitHub release tag. Bump + commit `.upstream-version` once a version is handled - even a trivial build bump with no public release - to silence the "new version detected" issue and turn the badge green. Seeded the file at `1.13576.1`.
+
 ### Upstream (v1.13576.0)
 
 - **Version bump v1.12603.1 -> v1.13576.0 (~970 builds, full re-minify).** Bundle 15.03 -> 15.12 MB (+0.6%). Vendored `@anthropic-ai/claude-agent-sdk` copies bumped 0.3.170/0.3.167 -> **0.3.174/0.3.177** (still two copies - the duplicated-SDK match-site hazard still applies). Package built as `claude-desktop-bin-1.13576.0-1-x86_64.pkg.tar.zst`; `node --check` passes on the patched bundle.

@@ -55,6 +55,7 @@ These files embed assumptions about upstream internals and **must be challenged 
 | `baseline/ION.md` | ion-dist SPA bundle stats, patched patterns, config key schema | Run ion-dist checks (Prompt 4 in update-prompt.md) |
 | `baseline/PLATFORM_GATE_BASELINE.md` | darwin/win32 conditional counts, gate classifications (PATCHED/NATIVE/STUB/PORTABLE) | Run platform gate re-audit (Prompt 5 in update-prompt.md) |
 | `CHANGELOG.md` | Version-specific notes | Add new entry for each release. **One entry per day** - merge multiple changes into a single dated `##` section with subsections. |
+| `.upstream-version` | The Claude Desktop version our patches & docs were last validated against | **Bump + commit to the new version once a version is handled** — even a trivial build bump with no public release. `version-check.yml` compares upstream `.latest` against this file; until they match, the "new version detected" issue is (re)created every 2h. |
 | `.electron-shasums` | Per-arch SHA-256 of the pinned Electron zips (verified by makepkg + the deb/rpm/appimage builders) | **When bumping `.electron-version`, also run `./scripts/update-electron-shasums.sh`** and commit both. CI (`lint-scripts`) fails the build if they drift (`update-electron-shasums.sh --check`). |
 
 **Rule of thumb:** If a doc references a specific minified name, it will be wrong after the next upstream release. Use `\w+` wildcards in patches; in docs, always note the version the names apply to.
