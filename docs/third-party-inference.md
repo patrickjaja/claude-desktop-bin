@@ -1,11 +1,11 @@
 # Third-Party Inference on Linux
 
-The upstream **Developer → Configure Third-Party Inference** wizard works on Linux as of v1.6259 (after the `ion-dist` packaging fix in #57). This page covers the Linux-specific bits that aren't in the [official Anthropic 3P docs](https://claude.com/docs/cowork/3p/installation) — which only cover macOS and Windows — plus the headless `/etc/claude-desktop/enterprise.json` route for fleet rollouts and remote/CI machines where the wizard isn't practical.
+The upstream **Developer → Configure Third-Party Inference** wizard works on Linux as of v1.6259 (after the `ion-dist` packaging fix in #57). This page covers the Linux-specific bits that aren't in the [official Anthropic 3P docs](https://claude.com/docs/cowork/3p/installation) - which only cover macOS and Windows - plus the headless `/etc/claude-desktop/enterprise.json` route for fleet rollouts and remote/CI machines where the wizard isn't practical.
 
 > **Looking for the full `enterprise.json` key reference?** This page is the Linux *how-to*. For the complete, authoritative list of every config key, see Anthropic's official docs:
-> - [Configuration reference](https://claude.com/docs/cowork/3p/configuration) — every key, all providers, credential helpers, security profiles.
-> - [Enterprise configuration for Claude Desktop](https://support.claude.com/en/articles/12622667-enterprise-configuration-for-claude-desktop) — managed-preferences overview.
-> - [Extend Claude Cowork with third-party platforms](https://support.claude.com/en/articles/14680753-extend-claude-cowork-with-third-party-platforms) — how MCP/plugins/skills differ on 3P.
+> - [Configuration reference](https://claude.com/docs/cowork/3p/configuration) - every key, all providers, credential helpers, security profiles.
+> - [Enterprise configuration for Claude Desktop](https://support.claude.com/en/articles/12622667-enterprise-configuration-for-claude-desktop) - managed-preferences overview.
+> - [Extend Claude Cowork with third-party platforms](https://support.claude.com/en/articles/14680753-extend-claude-cowork-with-third-party-platforms) - how MCP/plugins/skills differ on 3P.
 
 ## Two routes
 
@@ -55,18 +55,18 @@ sudo tee /etc/claude-desktop/enterprise.json >/dev/null <<'JSON'
 }
 JSON
 
-# 3. Fully restart the app — config is read once at startup:
+# 3. Fully restart the app - config is read once at startup:
 pkill -x claude-desktop 2>/dev/null
 nohup claude-desktop >/dev/null 2>&1 &
 ```
 
 **What each key does:**
 
-- `inferenceProvider: "vertex"` — required. Activates 3P mode. Other valid values: `"gateway"`, `"bedrock"`, `"foundry"`.
-- `inferenceVertexProjectId` — required. Your GCP project ID.
-- `inferenceVertexRegion` — required. Either a GCP region (`us-east5`, `europe-west1`, …) or `"global"` for Vertex's global endpoint. Validator regex: `^([a-z]+-[a-z]+\d{1,2}|global)$`.
-- `inferenceModels` — required when not using bootstrap. List of model entries shown in the picker; **first entry is the default**. Each entry is either a string (`"claude-sonnet-4-6"`) or an object (`{ "name": "claude-opus-4-7", "supports1m": true }` to enable the 1M-token context window for models that support it on Vertex).
-- `disableDeploymentModeChooser: true` — optional. Hides the personal claude.ai sign-in option entirely. Recommended for 3P-only setups; omit if you want to be able to switch back.
+- `inferenceProvider: "vertex"` - required. Activates 3P mode. Other valid values: `"gateway"`, `"bedrock"`, `"foundry"`.
+- `inferenceVertexProjectId` - required. Your GCP project ID.
+- `inferenceVertexRegion` - required. Either a GCP region (`us-east5`, `europe-west1`, …) or `"global"` for Vertex's global endpoint. Validator regex: `^([a-z]+-[a-z]+\d{1,2}|global)$`.
+- `inferenceModels` - required when not using bootstrap. List of model entries shown in the picker; **first entry is the default**. Each entry is either a string (`"claude-sonnet-4-6"`) or an object (`{ "name": "claude-opus-4-7", "supports1m": true }` to enable the 1M-token context window for models that support it on Vertex).
+- `disableDeploymentModeChooser: true` - optional. Hides the personal claude.ai sign-in option entirely. Recommended for 3P-only setups; omit if you want to be able to switch back.
 
 **Authentication options** (any one):
 
@@ -78,7 +78,7 @@ nohup claude-desktop >/dev/null 2>&1 &
 
 ### Bedrock and Foundry
 
-Same shape as Vertex but with provider-specific keys. The full validator schema lives in `app.asar` — these keys are surfaced in the in-app wizard form, so the path of least resistance is:
+Same shape as Vertex but with provider-specific keys. The full validator schema lives in `app.asar` - these keys are surfaced in the in-app wizard form, so the path of least resistance is:
 
 1. Set `inferenceProvider: "bedrock"` (or `"foundry"`) plus the bare-minimum required keys.
 2. Restart, open **Developer → Configure Third-Party Inference**, fill in the rest interactively.
@@ -100,13 +100,13 @@ Foundry keys: `inferenceFoundryResource`, `inferenceFoundryApiKey`.
 }
 ```
 
-`inferenceGatewayAuthScheme` accepts `"auto"`, `"x-api-key"`, `"bearer"`, or `"sso"`. For gateways that expose a `/v1/models` endpoint, `inferenceModels` is optional — the picker uses model discovery.
+`inferenceGatewayAuthScheme` accepts `"auto"`, `"x-api-key"`, `"bearer"`, or `"sso"`. For gateways that expose a `/v1/models` endpoint, `inferenceModels` is optional - the picker uses model discovery.
 
 #### 5-minute local quickstart (LiteLLM container)
 
-Want to see Linux 3P working end-to-end before wiring it to your real fleet gateway? Stand up a [LiteLLM](https://github.com/BerriAI/litellm) proxy locally, point Claude Desktop at it, and you'll be running Cowork + Code against your own inference endpoint in a few minutes. This is the exact shape used in production — just trimmed to Anthropic-only so it's copy-paste runnable.
+Want to see Linux 3P working end-to-end before wiring it to your real fleet gateway? Stand up a [LiteLLM](https://github.com/BerriAI/litellm) proxy locally, point Claude Desktop at it, and you'll be running Cowork + Code against your own inference endpoint in a few minutes. This is the exact shape used in production - just trimmed to Anthropic-only so it's copy-paste runnable.
 
-**1. Minimal LiteLLM config** — `litellm_config.yaml` (Anthropic passthrough only; no secrets in the file, the key is read from the environment):
+**1. Minimal LiteLLM config** - `litellm_config.yaml` (Anthropic passthrough only; no secrets in the file, the key is read from the environment):
 
 ```yaml
 model_list:
@@ -131,7 +131,7 @@ litellm_settings:
   drop_params: true
 ```
 
-**2. Run the proxy** — one container, two env vars (replace both values; nothing is persisted to the image):
+**2. Run the proxy** - one container, two env vars (replace both values; nothing is persisted to the image):
 
 ```bash
 docker run --rm -p 4000:4000 \
@@ -141,12 +141,12 @@ docker run --rm -p 4000:4000 \
   ghcr.io/berriai/litellm:main-stable \
   --config /app/config.yaml --port 4000
 
-# sanity check from another terminal — should list claude-opus-4-8 / claude-sonnet-4-6:
+# sanity check from another terminal - should list claude-opus-4-8 / claude-sonnet-4-6:
 curl -s http://127.0.0.1:4000/v1/models \
   -H "Authorization: Bearer sk-pick-any-strong-gateway-token" | python3 -m json.tool
 ```
 
-**3. Point Claude Desktop at it** — `/etc/claude-desktop/enterprise.json`. The `inferenceGatewayApiKey` here is the gateway's `master_key` from step 2 (**not** your Anthropic key):
+**3. Point Claude Desktop at it** - `/etc/claude-desktop/enterprise.json`. The `inferenceGatewayApiKey` here is the gateway's `master_key` from step 2 (**not** your Anthropic key):
 
 ```bash
 sudo install -d -m 755 /etc/claude-desktop
@@ -181,13 +181,13 @@ tail -f ~/.config/Claude/logs/main.log | grep -E 'custom-3p|account|inference'
 
 You should see `[custom-3p] 3P mode active { provider: 'gateway' }` and an identity-changed line within a few seconds. Open a Cowork or Code session and confirm the model picker shows your two models.
 
-> **Don't commit your real values.** `inferenceGatewayApiKey` and `ANTHROPIC_API_KEY` are credentials — keep them in `enterprise.json` / env only. The redacted placeholders above are intentional. LiteLLM reads every secret from the environment (`os.environ/…`), so the config file itself is safe to check into a repo.
+> **Don't commit your real values.** `inferenceGatewayApiKey` and `ANTHROPIC_API_KEY` are credentials - keep them in `enterprise.json` / env only. The redacted placeholders above are intentional. LiteLLM reads every secret from the environment (`os.environ/…`), so the config file itself is safe to check into a repo.
 
-> **Beyond Anthropic:** LiteLLM can front Bedrock, Vertex, Azure, or any OpenAI-/Anthropic-compatible upstream — swap the `model_list` block and keep `enterprise.json` identical. That's the point of the gateway provider: one stable client config, any backend behind it.
+> **Beyond Anthropic:** LiteLLM can front Bedrock, Vertex, Azure, or any OpenAI-/Anthropic-compatible upstream - swap the `model_list` block and keep `enterprise.json` identical. That's the point of the gateway provider: one stable client config, any backend behind it.
 
 ## Maximum `enterprise.json` (every key)
 
-The quickstart above is intentionally minimal. Below is a **feature-complete** gateway config that turns on every surface and shows the governance, telemetry, sandbox, and plugin knobs an enterprise rollout typically wants. Every key here is a real managed-config setting in v1.14271.0 (`scopes:["3p"]` or `["3p","1p"]`); add only the ones you need. Keys marked **secret** must hold real credentials — keep this file readable only as needed and never commit real values.
+The quickstart above is intentionally minimal. Below is a **feature-complete** gateway config that turns on every surface and shows the governance, telemetry, sandbox, and plugin knobs an enterprise rollout typically wants. Every key here is a real managed-config setting in v1.14271.0 (`scopes:["3p"]` or `["3p","1p"]`); add only the ones you need. Keys marked **secret** must hold real credentials - keep this file readable only as needed and never commit real values.
 
 ```jsonc
 {
@@ -249,7 +249,7 @@ The quickstart above is intentionally minimal. Below is a **feature-complete** g
 }
 ```
 
-> `jsonc` (comments) is shown for readability — **strip the comments** before deploying; the file must be valid JSON. A few keys are `scopes:["1p"]`-only (claude.ai login deployments) and are therefore **not** valid in a 3P/gateway file: `requireCoworkFullVmSandbox`, `secureVmFeaturesEnabled`, `forceLoginOrgUUID`, `loginSsoOrgDomain`. For provider-specific blocks (Bedrock SSO, Vertex OAuth/workforce, Foundry tenant) and the exact accepted values of every key, see the [official configuration reference](https://claude.com/docs/cowork/3p/configuration).
+> `jsonc` (comments) is shown for readability - **strip the comments** before deploying; the file must be valid JSON. A few keys are `scopes:["1p"]`-only (claude.ai login deployments) and are therefore **not** valid in a 3P/gateway file: `requireCoworkFullVmSandbox`, `secureVmFeaturesEnabled`, `forceLoginOrgUUID`, `loginSsoOrgDomain`. For provider-specific blocks (Bedrock SSO, Vertex OAuth/workforce, Foundry tenant) and the exact accepted values of every key, see the [official configuration reference](https://claude.com/docs/cowork/3p/configuration).
 
 **Switching the provider block:** keep everything from "Surfaces" down identical and replace only the inference block:
 
@@ -281,7 +281,7 @@ You should see (within a few seconds of launch):
 [account] Identity changed (loggedOut: true → false, uuid: <none> → <uuid>)
 ```
 
-If you see `[oauth] failed to obtain oauth token … Pro or Max subscription`, the policy file didn't load — most likely a JSON parse error. Validate it:
+If you see `[oauth] failed to obtain oauth token … Pro or Max subscription`, the policy file didn't load - most likely a JSON parse error. Validate it:
 
 ```bash
 python3 -c 'import json; json.load(open("/etc/claude-desktop/enterprise.json"))'
@@ -291,5 +291,5 @@ python3 -c 'import json; json.load(open("/etc/claude-desktop/enterprise.json"))'
 
 - **The file must be readable by your user.** `install -m 644` (used above) is correct. `chmod 600` will silently make Claude fall back to the default config.
 - **The app caches the deployment mode** in `~/.config/Claude/Local State` after the first 3P launch. If you remove `enterprise.json` later, the app may stay in 3P mode until you also clear that cache.
-- **`global` region requires Vertex's global endpoint to be enabled** for your project — newer projects have this on by default; older ones may need to be enabled in the Cloud Console under Vertex AI Studio settings.
+- **`global` region requires Vertex's global endpoint to be enabled** for your project - newer projects have this on by default; older ones may need to be enabled in the Cloud Console under Vertex AI Studio settings.
 - **`sqlite3` is needed for project detection.** Unrelated to 3P, but if you hit `[detectedProjects] spawn /usr/bin/sqlite3 ENOENT` in the logs, `apt install sqlite3` clears it.
