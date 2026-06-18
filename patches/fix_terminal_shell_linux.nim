@@ -21,8 +21,16 @@
 # yields exactly `execvp(3) failed.: No such file or directory` + exit code 1.)
 #
 # Fix: rewrite ONLY the shell string value into a platform-aware ternary so the
-# user's login shell ($SHELL, falling back to /bin/bash) is used off-Windows.
+# user's login shell ($SHELL, then /bin/bash, then /bin/sh) is used off-Windows.
 # The `args` value and the surrounding function are left untouched.
+#
+# Why a /bin/sh fallback after /bin/bash: NixOS (a supported target via the Nix
+# flake) does NOT ship /bin/bash by default - only /bin/sh exists (the real
+# shells live in the Nix store). When $SHELL is unset (some minimal/headless or
+# service-launched sessions), a bare "/bin/bash" fallback would fail with the
+# exact execvp(3) error this patch fixes. /bin/sh is effectively universal, so
+# the runtime existsSync check picks /bin/bash when present (the common case,
+# better interactive UX) and /bin/sh otherwise (never a dead PTY).
 #
 # Robustness notes (this pattern is intentionally minimal so it survives
 # upstream re-minification):
@@ -45,13 +53,16 @@ import regex
 const EXPECTED_PATCHES = 1
 
 # Platform-aware shell value. On win32 it reproduces the original verbatim;
-# everywhere else it uses the user's login shell with a /bin/bash fallback.
+# everywhere else it prefers the user's login shell ($SHELL), then /bin/bash if
+# it exists on disk, falling back to the near-universal /bin/sh (see NixOS note
+# above). require("fs") is self-contained - it does not depend on any minified
+# fs binding in the bundle (the bundle is CJS and require() is available).
 const SHELL_EXPR =
-  """process.platform==="win32"?"powershell.exe":process.env.SHELL||"/bin/bash""""
+  """process.platform==="win32"?"powershell.exe":process.env.SHELL||(require("fs").existsSync("/bin/bash")?"/bin/bash":"/bin/sh")"""
 
 # Unique marker proving our replacement is already present (idempotency).
-# "/bin/bash" does not otherwise occur in the upstream bundle.
-const PATCHED_MARKER = """process.env.SHELL||"/bin/bash""""
+# This exact substring does not otherwise occur in the upstream bundle.
+const PATCHED_MARKER = """require("fs").existsSync("/bin/bash")?"/bin/bash":"/bin/sh""""
 
 proc apply*(input: string): string =
   result = input
@@ -73,7 +84,7 @@ proc apply*(input: string): string =
         s[m.group(0)] & SHELL_EXPR,
     )
     if count > 0:
-      echo &"  [OK] Terminal shell rewritten to $SHELL/bin/bash: {count} match(es)"
+      echo &"  [OK] Terminal shell rewritten to $SHELL→/bin/bash→/bin/sh: {count} match(es)"
       patchesApplied += 1
     else:
       echo "  [FAIL] Could not find `shell:\"powershell.exe\"` selector"
