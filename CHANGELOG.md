@@ -2,6 +2,13 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-06-18 - New patch: built-in terminal spawns a Linux shell instead of PowerShell (#143)
+
+### Built-in terminal fixed (re: #143)
+
+- **New `fix_terminal_shell_linux.nim` (51 patches total): the built-in agent/Cowork terminal now spawns the user's Linux shell instead of PowerShell.** The upstream shell-selection helper is hardcoded to PowerShell on every platform - `function <minified>(){return{shell:"powershell.exe",args:[]}}` - and its result is passed straight into node-pty's `pty.spawn(shell, args, …)` in `LocalSessions.startShellPty` (and the bash-PTY path). On Linux `powershell.exe` is not on `PATH`, so `spawn-helper`'s `execvp(3)` fails and the PTY dies immediately: the renderer shows **"Shell exited."** / "Restart shell" and `main.log` records `Shell PTY for session local_… exited with code 1`. Confirmed by forking `powershell.exe` through the bundled `pty.node`/`spawn-helper` (yields exactly `execvp(3) failed.: No such file or directory` + exit code 1), while `/bin/bash` spawns cleanly.
+- **The patch rewrites only the shell string value into a platform-aware ternary:** `shell:process.platform==="win32"?"powershell.exe":process.env.SHELL||"/bin/bash"`, leaving the (minified) function name and the `args` value untouched. Anchored on `(shell\s*:\s*)["']powershell\.exe["']`, which occurs exactly once in the bundle (the bare string `powershell.exe` appears 8x elsewhere - Windows-path detection, executable allow-sets - but only here behind a `shell:` key). The pattern is intentionally minimal so it survives re-minification: it does not depend on the per-release function name, the `args` value, whitespace, or quote style, and the replacement is Windows-semantics-preserving (on win32 it still evaluates to `"powershell.exe"`, so even an accidental second match stays correct). Idempotent via the unique `process.env.SHELL||"/bin/bash"` marker; `EXPECTED_PATCHES` = 1 with `quit(1)` on miss. Verified against the v1.13576.4 bundle: 1 match, `node --check` passes, and the rewritten shell spawns a working PTY.
+
 ## 2026-06-17 (v1.13576.0 / v1.13576.1) - Major version bump: 7 patches fixed, 1 removed, 1 added (50 total), all apply
 
 ### Cowork startup-error visibility (re: #142)
