@@ -11,10 +11,22 @@ The issue to debug: **$ARGUMENTS**
 
 You are debugging the patched Claude Desktop and/or the cowork daemon. Gather the relevant local evidence below (skip what's clearly irrelevant to "$ARGUMENTS"), form a hypothesis, then ask the user for anything you can't collect yourself. Read `/architecture` for how the pieces fit and `/linux` for session/CU specifics if relevant.
 
+## 0. Resolve the config/log dir FIRST (1p vs 3p) - or you read stale evidence
+The runtime dir is **conditional**: a 3p/enterprise deployment relocates everything to `~/.config/Claude-3p/`.
+Resolve it once and use `$CFG` everywhere below.
+```bash
+# 3p (inference-gateway / Bedrock / managed) -> Claude-3p ; otherwise -> Claude
+if [ -f /etc/claude-desktop/enterprise.json ]; then CFG=~/.config/Claude-3p; else CFG=~/.config/Claude; fi
+# sanity-check against the running process (named profiles add a further -<profile> suffix):
+pgrep -af claude | grep -o -- '--user-data-dir=[^ ]*' | head -1
+echo "using CFG=$CFG"
+```
+If `pgrep` shows a `--user-data-dir` that differs from `$CFG` (e.g. a named profile), prefer that path.
+
 ## 1. Last local-agent-mode session transcript (the single source of truth for Cowork/Dispatch/agent runs)
 `audit.jsonl` records exactly what the model saw and did. Find the newest one and read **the user's last prompt + the assistant tool calls + any errors**:
 ```bash
-AUDIT=$(find ~/.config/Claude/local-agent-mode-sessions -name audit.jsonl -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -1 | cut -d' ' -f2)
+AUDIT=$(find "$CFG"/local-agent-mode-sessions -name audit.jsonl -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -1 | cut -d' ' -f2)
 echo "newest audit: $AUDIT"
 python3 -c "
 import json,sys
@@ -45,15 +57,15 @@ If "$ARGUMENTS" is about dispatch/cowork/skills not working, this transcript usu
 
 ## 2. Claude Desktop logs (whatever exists - globbed, not hardcoded)
 ```bash
-ls -la ~/.config/Claude/logs/ 2>/dev/null
-rg -i -a 'error|exception|fatal|denied|ENOENT|EACCES' ~/.config/Claude/logs/ 2>/dev/null | tail -40
+ls -la "$CFG"/logs/ 2>/dev/null
+rg -i -a 'error|exception|fatal|denied|ENOENT|EACCES' "$CFG"/logs/ 2>/dev/null | tail -40
 ```
-Known logs (presence varies): `main.log` (Electron main), `cowork_vm_node.log` (Cowork sessions), `mcp.log` + `mcp-server-*.log`, `claude.ai-web.log` (BrowserView), plus others like `ssh.log`, `unknown-window.log`. Tail the one(s) relevant to "$ARGUMENTS". Also check crash reports: `ls -la ~/.config/Claude/crash* 2>/dev/null`.
+Known logs (presence varies): `main.log` (Electron main), `cowork_vm_node.log` (Cowork sessions), `mcp.log` + `mcp-server-*.log`, `claude.ai-web.log` (BrowserView), plus others like `ssh.log`, `unknown-window.log`. Tail the one(s) relevant to "$ARGUMENTS". Also check crash reports: `ls -la "$CFG"/crash* 2>/dev/null`. (`$CFG` resolved in step 0 - `Claude-3p` under enterprise.json, else `Claude`.)
 
 ### Dispatch-specific (if relevant)
 ```bash
-grep -a 'DISPATCH-FWD.*PASSING\|DISPATCH-TRANSFORM\|DISPATCH-WRITE' ~/.config/Claude/logs/main.log | tail -20
-grep -a 'Permission.*denied' ~/.config/Claude/logs/main.log | tail -10
+grep -a 'DISPATCH-FWD.*PASSING\|DISPATCH-TRANSFORM\|DISPATCH-WRITE' "$CFG"/logs/main.log | tail -20
+grep -a 'Permission.*denied' "$CFG"/logs/main.log | tail -10
 ```
 
 ## 3. cowork-svc daemon (if Cowork/Dispatch backend is implicated)
@@ -78,7 +90,7 @@ Based on "$ARGUMENTS", use `AskUserQuestion` to request anything missing - only 
 - Session/distro: output of `claude-desktop --diagnose` and the `[claude-cu] diagnostics:` lines from terminal (for Computer Use / Wayland issues).
 - Whether to run the verbose `cowork-svc-linux -debug` capture (step 3) and reproduce now.
 - A screenshot / the exact error text shown in the UI.
-- For stale-state bugs: permission to clear `~/.config/Claude/local-agent-mode-sessions/` (the model can otherwise "remember" past errors).
+- For stale-state bugs: permission to clear `"$CFG"/local-agent-mode-sessions/` (the model can otherwise "remember" past errors; `$CFG` = `Claude-3p` under enterprise.json, else `Claude`).
 
 ## 5. Diagnose
 State the hypothesis grounded in the evidence (cite the log line / audit record / file:line). If it's a patch/upstream issue, point at the patch and suggest `/fresh-upstream` + `/update`. If it's a protocol drift, point at `COWORK_RPC_PROTOCOL.md` vs the daemon. Propose the fix; apply only if the user asks. Cross-reference memory (`~/.claude/projects/-home-patrickjaja-development-claude-desktop-bin/memory/`, e.g. dispatch-linux-debug, cowork-crash-debug) for prior findings before concluding.

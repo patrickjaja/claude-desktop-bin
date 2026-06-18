@@ -2,14 +2,18 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
-## 2026-06-18 - New patch: built-in terminal spawns a Linux shell instead of PowerShell (#143)
+## 2026-06-18 - v1.14271.0 bump (2 patches fixed) + new patch: suppress false VM-download banner on Linux native (#143)
 
-### Upstream (v1.14271.0) - 2 patches fixed, all 51 apply
+### Upstream (v1.14271.0) - 2 patches fixed, all 52 apply
 
 - **Version bump v1.13576.4 -> v1.14271.0** (~700 builds, full re-minify). Routine re-minify release for Linux: no new platform gates lock out a Linux feature, no new native modules, no new built-in MCP servers, and the Cowork RPC contract is unchanged in both directions. Two patches needed work for the re-minified bundle.
 - **`fix_cowork_linux`: fixed C2's idempotency backreference.** The C2 "bundle lookup alias" fallback asserts upstream's hardcoded-win32 VM-bundle lookup (`(<var>=<map>.files["win32"])!=null&&<var>[arch]`) is present, but the deref var was hardcoded as literal `r`; re-minify renamed it `r` -> `i`, so the assertion stopped matching and C2 reported FAIL. Now captures the deref var and backreferences it so it tracks the rename.
 - **`fix_browser_tools_linux`: rewrote 3 sub-patches for a real upstream refactor.** The Chrome native-host install path was restructured, not just renamed: the per-browser install loop is gone, and the manifest is now written to a single `userData/ChromeNativeHost` dir on all platforms (which Chrome/Chromium never read on Linux), while the per-browser enumerator became uninstall-only. The binary-path resolver and Chrome user-data-dir lookup likewise collapsed to flat win-only forms. Rewrote Patch A (binary path: inject Linux `~/.claude/chrome/chrome-native-host` short-circuit), Patch B (reuse the manifest writer to install into all 6 real Linux `NativeMessagingHosts` dirs at the start of the installer), and Patch C (return the 5 Linux browser user-data dirs). This native-host area is structurally volatile - watch it on the next release.
 - **No baseline-doc internals moved structurally** beyond the usual minified-name churn; flag/ion-dist/platform-gate baselines updated with the new function names, config-chunk hash, and gate counts (see below). `enable_local_agent_mode.nim` (all 25 sub-patches) and `fix_ion_dist_linux.nim` apply unchanged.
+
+### New patch: suppress the false "Download a one-time package" agent-mode banner on Linux native
+
+- **New `fix_cowork_download_status_linux.nim` (52 patches total): the Cowork "Get set up for agent mode - Download a one-time package" banner no longer appears on Linux in native backend mode.** Desktop decides the agent-mode VM-image download status locally (it stopped calling the daemon RPC for this in v1.7196.0) via `getDownloadStatus(){return ...?Downloading:p5()?Ready:NotDownloaded}`, where `p5()` looks for the `claudevm.bundle` VM image on disk. On Linux native there is no VM image (Cowork runs the `claude` CLI on the host via claude-cowork-service), so the check always reported `NotDownloaded` and the remote claude.ai UI rendered a misleading "you're not set up" banner - even though Cowork works (sessions spawn and turns complete behind the banner). The patch rewrites `getDownloadStatus` so Linux native returns the enum's `Ready`; the original expression is preserved byte-for-byte for win32/darwin **and Linux-KVM**, where the guest image genuinely must be downloaded. Gated on `process.platform==="linux"&&!globalThis.__coworkKvmMode` (the KVM flag the cowork mode preamble already sets), so it never suppresses a legitimate KVM download prompt. **Not 3p/enterprise-specific** - it applies to 1p and 3p alike; it was first noticed in a gateway `enterprise.json` setup but a plain 1p Linux native user hits the identical false banner. Anchored on the unique `getDownloadStatus(){return ...}` method with the enum var captured by backreference (verified to survive the v1.14271.0 re-minify: `xX/p5/eN` -> `Z5/Rz/mM`); idempotency asserts the patched end-state.
 
 ### Forward-looking audit fixes (patches + CI hardening, verified against v1.13576.4)
 

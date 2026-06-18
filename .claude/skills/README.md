@@ -23,6 +23,7 @@ A skill is more than a saved prompt:
 |---|---|---|
 | `/linux` | auto (also on `patches/`,`scripts/`,`js/` edits) | working on Linux compatibility |
 | `/architecture` | auto / manual | you need the big picture of either project |
+| `/3p` | auto (also on enterprise/ion-dist patch edits) | working on enterprise.json, an inference gateway, or the Claude-3p deployment |
 | `/audit` | manual | you want a full project review |
 | `/deploy` | manual | you want to ship a release |
 | `/update` | manual | a new upstream Claude Desktop version dropped |
@@ -31,7 +32,7 @@ A skill is more than a saved prompt:
 
 ### How the skills connect
 
-The two **reference** skills (`/linux`, `/architecture`) hold durable domain knowledge and auto-inject; the five **action** skills consume them. The wiring is intentionally minimal - these are the links that earn their place:
+The three **reference** skills (`/linux`, `/architecture`, `/3p`) hold durable domain knowledge and auto-inject; the five **action** skills consume them. The wiring is intentionally minimal - these are the links that earn their place:
 
 ```
 fresh-upstream ──▶ update ──▶ deploy        new-version pipeline
