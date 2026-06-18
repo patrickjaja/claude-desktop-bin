@@ -831,8 +831,11 @@ attach to the same id and survive across sessions.
 - **NixOS**: the Nix package materialises a renamed Electron binary (`claude`) for correct Wayland `app_id`, but does not use `systemd-run --scope`. Portal identity may not resolve on GNOME Wayland - use `--install-gnome-hotkey` instead. Other sessions (KDE, Hyprland, Sway, X11) are unaffected.
 - **Sandboxes / containers without a reachable user-systemd** (bwrap, distrobox, restricted Flatpaks): the launcher auto-detects when `$XDG_RUNTIME_DIR/systemd/private` is missing and skips the scope wrap. Portal identity may not resolve in these environments; the app still starts. If the socket exists but is still unreachable (SELinux, bind-mount filters), force the bypass with `--no-systemd-scope` or `CLAUDE_DISABLE_SYSTEMD_SCOPE=1`. See [#89](https://github.com/patrickjaja/claude-desktop-bin/issues/89).
 
-## Tips
-- Press **Alt** to toggle the app menu bar (Electron default)
+## Cleanup
+- **Clear stale Cowork sessions** (stuck "setting up workspace", or the model replaying old errors): remove the sessions dir and restart. Default profile uses `~/.config/Claude/`; with an `enterprise.json` (3p) it's `~/.config/Claude-3p/`, and named profiles use `~/.config/Claude-<profile>/`.
+  ```bash
+  rm -rf ~/.config/Claude/local-agent-mode-sessions/
+  ```
 
 
 ## See Also

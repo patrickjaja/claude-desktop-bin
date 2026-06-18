@@ -45,7 +45,38 @@ proc buildSpacesServiceJs(eipcPrefix, singletonVar: string): string =
     "const _P=\"" & eipcPrefix & "\";" & "const _EVT=\"" & eventChannel & "\";" &
     "class _SpacesService extends _EE{" & "constructor(){" & "super();" &
     "this._file=_path.join(_app.getPath(\"userData\"),\"spaces.json\");" &
-    "this._spaces=[];" & "this._load();" & "}" & "_load(){" & "try{" &
+    "this._rssFile=_path.join(_app.getPath(\"userData\"),\"remote-session-spaces.json\");" &
+    "this._rss=new Map();" & "this._spaces=[];" & "this._load();" & "this._loadRss();" &
+    "}" &
+    # --- remote session spaces: id normalizer + cap (upstream: cse_->session_, cap 1000) ---
+    "_rssId(id){return String(id).replace(/^cse_/,\"session_\");}" & "_loadRss(){" &
+    "try{" & "if(_fs.existsSync(this._rssFile)){" &
+    "const d=_fs.readFileSync(this._rssFile,\"utf-8\");" & "const p=JSON.parse(d);" &
+    "const arr=Array.isArray(p.spaces)?p.spaces:Array.isArray(p)?p:[];" &
+    "for(const e of arr){if(e&&e.sessionId)this._rss.set(e.sessionId,e);}" & "}" &
+    "}catch(e){console.error(\"[SpacesService] rss load error:\",e);this._rss=new Map();}" &
+    "}" & "_saveRss(){" & "try{" & "const dir=_path.dirname(this._rssFile);" &
+    "if(!_fs.existsSync(dir))_fs.mkdirSync(dir,{recursive:true});" &
+    "_fs.writeFileSync(this._rssFile,JSON.stringify({spaces:Array.from(this._rss.values())},null,2));" &
+    "}catch(e){console.error(\"[SpacesService] rss save error:\",e);}" & "}" &
+    "getRemoteSessionSpaces(){return Array.from(this._rss.values());}" &
+    "setRemoteSessionSpace(entry){" & "try{" & "const sid=this._rssId(entry.sessionId);" &
+    "const prev=this._rss.get(sid);" &
+    "const folders=(Array.isArray(entry.folders)&&entry.folders.length===0&&prev&&Array.isArray(prev.folders)&&prev.folders.length>0)?prev.folders:entry.folders;" &
+    "const next=Object.assign({},entry,{sessionId:sid,folders});" &
+    "this._rss.delete(sid);" & "this._rss.set(sid,next);" &
+    "while(this._rss.size>1000){const k=this._rss.keys().next().value;if(k===undefined)break;this._rss.delete(k);}" &
+    "this._saveRss();" & "return true;" &
+    "}catch(e){console.error(\"[SpacesService] setRemoteSessionSpace error:\",e);return false;}" &
+    "}" & "removeRemoteSessionSpace(sessionId){" &
+    "const ok=this._rss.delete(this._rssId(sessionId));" & "if(ok)this._saveRss();" &
+    "return ok;" & "}" &
+    # --- AI-backed methods: no inference backend on Linux, contracts allow empty/null ---
+    "classifySessions(sessions,spaces){return [];}" &
+    "summarizeSpace(spaceName,sessions){return null;}" &
+    "setAutoDescription(spaceId,description){" & "const s=this._find(spaceId);" &
+    "if(!s||s.origin!==\"auto\")return null;" &
+    "return this.updateSpace(spaceId,{description});" & "}" & "_load(){" & "try{" &
     "if(_fs.existsSync(this._file)){" & "const d=_fs.readFileSync(this._file,\"utf-8\");" &
     "const p=JSON.parse(d);" &
     "this._spaces=Array.isArray(p.spaces)?p.spaces:Array.isArray(p)?p:[];" & "}" &
@@ -168,6 +199,12 @@ proc buildSpacesServiceJs(eipcPrefix, singletonVar: string): string =
     "_ipc.handle(_P+\"openFile\",(ev,id,p)=>_svc.openFile(id,p));" &
     "_ipc.handle(_P+\"createSpaceFolder\",(ev,parentPath,name)=>_svc.createSpaceFolder(parentPath,name));" &
     "_ipc.handle(_P+\"copyFilesToSpaceFolder\",(ev,id,f)=>_svc.copyFilesToSpaceFolder(id,f));" &
+    "_ipc.handle(_P+\"getRemoteSessionSpaces\",()=>_svc.getRemoteSessionSpaces());" &
+    "_ipc.handle(_P+\"setRemoteSessionSpace\",(ev,entry)=>_svc.setRemoteSessionSpace(entry));" &
+    "_ipc.handle(_P+\"removeRemoteSessionSpace\",(ev,sid)=>_svc.removeRemoteSessionSpace(sid));" &
+    "_ipc.handle(_P+\"classifySessions\",(ev,sessions,spaces)=>_svc.classifySessions(sessions,spaces));" &
+    "_ipc.handle(_P+\"setAutoDescription\",(ev,id,desc)=>_svc.setAutoDescription(id,desc));" &
+    "_ipc.handle(_P+\"summarizeSpace\",(ev,name,sessions)=>_svc.summarizeSpace(name,sessions));" &
     "try{" & singletonVar & ".set(_svc);" &
     "console.log(\"[SpacesService] Registered on " & singletonVar & " singleton\");" &
     "}catch(_e){console.warn(\"[SpacesService] Could not set singleton:\",_e);}" &
