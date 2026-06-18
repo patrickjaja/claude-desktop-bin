@@ -5,9 +5,9 @@ when_to_use: When the user mentions Linux compatibility, X11, Wayland, wlroots, 
 paths: patches/**, scripts/**, js/**, baseline/PLATFORM_GATE_BASELINE.md, wayland.md
 ---
 
-# Linux compatibility — claude-desktop-bin
+# Linux compatibility - claude-desktop-bin
 
-Patches a remotely-managed upstream `Claude.msix` (Windows Electron app) to run on Linux. **Linux only** — never add macOS/Windows code. Minified JS identifiers change every upstream release, so patterns must use `[\w$]+` wildcards anchored on stable strings (feature names, log messages, `process.platform==="darwin"`). For a clean unpatched bundle to test patterns against, see `/fresh-upstream`.
+Patches a remotely-managed upstream `Claude.msix` (Windows Electron app) to run on Linux. **Linux only** - never add macOS/Windows code. Minified JS identifiers change every upstream release, so patterns must use `[\w$]+` wildcards anchored on stable strings (feature names, log messages, `process.platform==="darwin"`). For a clean unpatched bundle to test patterns against, see `/fresh-upstream`.
 
 ## Support matrix (must validate every change against ALL rows)
 
@@ -36,13 +36,13 @@ Patches a remotely-managed upstream `Claude.msix` (Windows Electron app) to run 
 - Electron <40 on Wayland warns loudly: broken GlobalShortcutsPortal (electron/electron#49806) → global hotkeys only work when focused. Fix: update Electron, or `CLAUDE_USE_XWAYLAND=1`.
 - `claude-desktop --diagnose` dumps `XDG_SESSION_TYPE`, `WAYLAND_DISPLAY`, `platform_mode`, electron major.
 
-## Input + screenshot executors — single source of truth
+## Input + screenshot executors - single source of truth
 The cascade logic lives in checked-in JS under `js/`, embedded into `patches/fix_computer_use_linux.nim` via `staticRead` (35 sub-patches, PCRE/`std/nre` for backreferences). **Edit the `.js`, not the patch.**
-- `js/cu_linux_executor.js` — inline executor: detection, all screenshot/input cascades, `[claude-cu] diagnostics:` lines.
-- `js/executor_linux.js` — KWin/KDE hybrid executor.
-- `js/cu_handler_injection.js`, `js/cu_mode_preamble.js` — handler wiring + mode preamble.
+- `js/cu_linux_executor.js` - inline executor: detection, all screenshot/input cascades, `[claude-cu] diagnostics:` lines.
+- `js/executor_linux.js` - KWin/KDE hybrid executor.
+- `js/cu_handler_injection.js`, `js/cu_mode_preamble.js` - handler wiring + mode preamble.
 
-**Input:** `_checkYdotool()` → true only if `ydotool` present AND (`pgrep -x ydotoold` OR `$YDOTOOL_SOCKET`/`$XDG_RUNTIME_DIR/.ydotool_socket` exists). On Wayland use `ydotool`, else fall back to `xdotool` (via XWayland). xdotool cannot inject on native Wayland — daemon is mandatory there.
+**Input:** `_checkYdotool()` → true only if `ydotool` present AND (`pgrep -x ydotoold` OR `$YDOTOOL_SOCKET`/`$XDG_RUNTIME_DIR/.ydotool_socket` exists). On Wayland use `ydotool`, else fall back to `xdotool` (via XWayland). xdotool cannot inject on native Wayland - daemon is mandatory there.
 **Screenshot order (in code):** `COWORK_SCREENSHOT_CMD` (override) → grim (wlroots) → portal+pipewire (GNOME, restore-token) → gnome-screenshot+convert (GNOME) → gdbus (GNOME Shell DBus) → portal+pipewire (GNOME first-run) → spectacle (KDE) → gnome-screenshot (X11) → scrot (X11) → import/ImageMagick (X11) → Electron `desktopCapturer` (last resort).
 
 **`[claude-cu] diagnostics:`** lines print to stderr/stdout at startup/first-use: `input-backend=ydotool|xdotool`, `screenshot: captured via <tool>`, missing-tool warnings, VM/Wayland detection. **Always ask users to paste these when debugging Computer Use.**
@@ -57,7 +57,7 @@ The cascade logic lives in checked-in JS under `js/`, embedded into `patches/fix
 - New native binary → pick floor = its minimum viable distro; bump `.electron-shasums` workflow if Electron pinning involved.
 
 ## Multi-profile / window identity (`scripts/claude-desktop-launcher.sh`)
-- Per-profile Electron binary at `~/.local/lib/claude-desktop/<APP_ID>-<name>` via **hardlink → reflink → copy** (never symlink — Electron derives identity from `realpath(/proc/self/exe)`, kernel resolves symlinks first).
+- Per-profile Electron binary at `~/.local/lib/claude-desktop/<APP_ID>-<name>` via **hardlink → reflink → copy** (never symlink - Electron derives identity from `realpath(/proc/self/exe)`, kernel resolves symlinks first).
 - WM_CLASS = Wayland app_id = binary basename (`claude` default, `claude-<name>` per profile). systemd scope `app-claude(-<name>)-$$.scope`.
 - Per-profile isolation: `--user-data-dir` (Electron userData), `CLAUDE_CONFIG_DIR` (Claude Code CLI), `CLAUDE_PROFILE` env (sockets/markers). See CLAUDE.md "Profile System" table.
 - **Portal identity caveat** (`project_platform_gate_baseline` / portal memory): xdg-desktop-portal wants a reverse-URL app_id to route activations back to unsandboxed Electron; shipping single-segment `"Claude"` breaks routing across compositors. Fix is launcher-only.
@@ -79,7 +79,7 @@ The cascade logic lives in checked-in JS under `js/`, embedded into `patches/fix
 - KDE stale kglobalaccel entries after crash block re-registration → `gdbus` unregister before re-register.
 
 ## Rules
-1. Every change must work across all 5 session types and all distro/arch rows — think through each, especially Wayland fragmentation (GNOME ≠ KDE ≠ wlroots).
+1. Every change must work across all 5 session types and all distro/arch rows - think through each, especially Wayland fragmentation (GNOME ≠ KDE ≠ wlroots).
 2. New input/screenshot work → edit `js/cu_linux_executor.js` (+ `executor_linux.js` for KDE), keep diagnostics lines.
 3. Fixed user-level paths → prefer `app.getPath("userData")` (auto-isolates per profile) over `~/.config/Claude`.
 4. New native module → builds for x86_64 AND aarch64, pick a glibc floor, CI verifies.

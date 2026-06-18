@@ -1,11 +1,11 @@
 ---
 name: debug
-description: Debug a problem in claude-desktop-bin / claude-cowork-service by pulling the right local evidence — the most recent local-agent-mode session transcript (your last prompt + the model's tool calls/errors), the Claude Desktop logs, cowork-svc debug output — and asking you for anything else worth collecting for the specific issue. Invoke as "/debug <short description of what's broken>".
+description: Debug a problem in claude-desktop-bin / claude-cowork-service by pulling the right local evidence - the most recent local-agent-mode session transcript (your last prompt + the model's tool calls/errors), the Claude Desktop logs, cowork-svc debug output - and asking you for anything else worth collecting for the specific issue. Invoke as "/debug <short description of what's broken>".
 disable-model-invocation: true
 argument-hint: "<what is broken>"
 ---
 
-# Debug — collect evidence, then diagnose
+# Debug - collect evidence, then diagnose
 
 The issue to debug: **$ARGUMENTS**
 
@@ -43,7 +43,7 @@ for i,r in enumerate(rows):
 ```
 If "$ARGUMENTS" is about dispatch/cowork/skills not working, this transcript usually shows the failing tool call, a permission denial, or a wrong path.
 
-## 2. Claude Desktop logs (whatever exists — globbed, not hardcoded)
+## 2. Claude Desktop logs (whatever exists - globbed, not hardcoded)
 ```bash
 ls -la ~/.config/Claude/logs/ 2>/dev/null
 rg -i -a 'error|exception|fatal|denied|ENOENT|EACCES' ~/.config/Claude/logs/ 2>/dev/null | tail -40
@@ -70,10 +70,10 @@ nohup cowork-svc-linux -debug > /tmp/cowork-debug.log 2>&1 &
 # reproduce the issue in the app, then:
 grep -E 'DISPATCH-DEBUG|disallowedTools|injecting --brief|spawn|RPC' /tmp/cowork-debug.log | tail -40
 ```
-(`COWORK_LOG_FULL=1` disables the ~160-char line truncation.) Note native vs KVM (`COWORK_VM_BACKEND`) — behavior differs (see `/architecture`).
+(`COWORK_LOG_FULL=1` disables the ~160-char line truncation.) Note native vs KVM (`COWORK_VM_BACKEND`) - behavior differs (see `/architecture`).
 
 ## 4. Ask the user for what you can't collect
-Based on "$ARGUMENTS", use `AskUserQuestion` to request anything missing — only ask for what the task actually needs. Examples to consider:
+Based on "$ARGUMENTS", use `AskUserQuestion` to request anything missing - only ask for what the task actually needs. Examples to consider:
 - Exact repro steps + which feature (Chat/Code/Cowork/Dispatch/Computer Use/3P/Quick Entry).
 - Session/distro: output of `claude-desktop --diagnose` and the `[claude-cu] diagnostics:` lines from terminal (for Computer Use / Wayland issues).
 - Whether to run the verbose `cowork-svc-linux -debug` capture (step 3) and reproduce now.

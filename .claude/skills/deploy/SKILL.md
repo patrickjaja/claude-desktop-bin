@@ -6,7 +6,7 @@ argument-hint: "[force]"
 allowed-tools: Bash(gh workflow run *), Bash(gh run list *), Bash(gh run view *), Bash(gh workflow view *)
 ---
 
-# Deploy — trigger Build & Release
+# Deploy - trigger Build & Release
 
 Args: `$ARGUMENTS` (only the literal word `force` is meaningful; anything else → non-force run).
 
@@ -21,7 +21,7 @@ The workflow has one `workflow_dispatch` input: `force_rebuild` (boolean, defaul
 ## Steps
 1. Decide force: if `$ARGUMENTS` (trimmed, lowercased) equals `force` → `FORCE=true`, else `FORCE=false`.
 2. Print a one-line plan: "Triggering build-and-release.yml on `master` (force_rebuild=<FORCE>)". (The pipeline ignores branch for dispatch; it builds against the latest upstream msix and the committed tree on the default branch.)
-3. Fire it (no interactive confirmation — the user already typed /deploy):
+3. Fire it (no interactive confirmation - the user already typed /deploy):
    ```bash
    gh -R patrickjaja/claude-desktop-bin workflow run build-and-release.yml -f force_rebuild=<FORCE>
    ```
@@ -34,5 +34,5 @@ The workflow has one `workflow_dispatch` input: `force_rebuild` (boolean, defaul
 
 ## Notes
 - Non-force is the default and is correct for a normal new-upstream release (after `.upstream-version` was bumped). Use `force` for patch/feature changes where upstream version did not move.
-- Do NOT bump versions or edit files here — this only triggers the pipeline. Version/patch work belongs in `/update`.
-- If `gh workflow run` errors with "Workflow does not have 'workflow_dispatch'" it's a permissions/branch issue — confirm the workflow file on `master` still declares `workflow_dispatch`.
+- Do NOT bump versions or edit files here - this only triggers the pipeline. Version/patch work belongs in `/update`.
+- If `gh workflow run` errors with "Workflow does not have 'workflow_dispatch'" it's a permissions/branch issue - confirm the workflow file on `master` still declares `workflow_dispatch`.

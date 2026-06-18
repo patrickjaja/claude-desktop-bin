@@ -1,6 +1,6 @@
 ---
 name: update
-description: For claude-desktop-bin — handle a new upstream Claude Desktop version end-to-end: build, fix failing patches, diff old vs new JS for new platform gates, audit feature flags + ion-dist + platform gates, check the claude-cowork-service cross-dependency, update baseline docs + CHANGELOG, bump .upstream-version, then commit. Mirrors issue #145 / UPDATE-PROMPT-CC-INPUT-MANUAL.md.
+description: For claude-desktop-bin - handle a new upstream Claude Desktop version end-to-end: build, fix failing patches, diff old vs new JS for new platform gates, audit feature flags + ion-dist + platform gates, check the claude-cowork-service cross-dependency, update baseline docs + CHANGELOG, bump .upstream-version, then commit. Mirrors issue #145 / UPDATE-PROMPT-CC-INPUT-MANUAL.md.
 disable-model-invocation: true
 ---
 
@@ -10,7 +10,7 @@ Run from `/home/patrickjaja/development/claude-desktop-bin`. Upstream `Claude.ms
 
 Use sequential thinking and delegate independent analysis (diff, flag audit, ion-dist, platform gates) to parallel sub-agents where useful; you coordinate and edit.
 
-## Step 0 — clean slate
+## Step 0 - clean slate
 ```bash
 cd /home/patrickjaja/development/claude-desktop-bin
 git status                  # must be clean before starting
@@ -19,7 +19,7 @@ rm -f chrome-native-host.exe cowork-svc.exe smol-bin.vhdx
 ```
 Note current `.upstream-version` and `.electron-version`.
 
-## Step 1 — build & fix patches
+## Step 1 - build & fix patches
 Run the build for this OS (Arch here). It auto-downloads the latest msix, applies patches, packages:
 ```bash
 ./scripts/build-local.sh
@@ -36,9 +36,9 @@ If patches fail (upstream renamed identifiers / refactored / removed a feature):
    patches/<patch_name> /tmp/test-index.js; echo "exit=$?"
    node --check /tmp/test-index.js
    ```
-4. Re-run the build until all patches pass. **Every sub-patch must succeed or `quit(1)`** — never `[WARN]`+continue. If a feature was upstreamed, convert the patch into a regression guard (assert the upstreamed behavior, fail if it disappears) — see CLAUDE.md Rule 6 (no false-success).
+4. Re-run the build until all patches pass. **Every sub-patch must succeed or `quit(1)`** - never `[WARN]`+continue. If a feature was upstreamed, convert the patch into a regression guard (assert the upstreamed behavior, fail if it disappears) - see CLAUDE.md Rule 6 (no false-success).
 
-## Step 2 — Linux-compat analysis (new gates?)
+## Step 2 - Linux-compat analysis (new gates?)
 Diff old vs new for newly darwin/win32-gated features that need Linux support (set `OLD`/`NEW` to the two index.js paths):
 ```bash
 diff <(rg -o '.{0,40}process\.platform.{0,40}' "$OLD"|sort -u) <(rg -o '.{0,40}process\.platform.{0,40}' "$NEW"|sort -u)
@@ -48,32 +48,32 @@ diff <(rg -o 'require\("[^"]+"\)' "$OLD"|sort -u) <(rg -o 'require\("[^"]+"\)' "
 ```
 Validate any new input/screenshot feature across all 5 session types (X11, wlroots, GNOME, KDE, XWayland).
 
-## Step 3 — diff old vs new JS
+## Step 3 - diff old vs new JS
 File-level diff (new/removed files in app.asar), IPC handler diff (`handle("...")`), Claude Code / Cowork subsystem changes. Classify each finding: rename-only / new feature / changed behavior / removed. (Prompt 2 in `update-prompt.md`.)
 
-## Step 4 — feature-flag audit
+## Step 4 - feature-flag audit
 Read `baseline/CLAUDE_FEATURE_FLAGS.md`. Find the new static-registry function name (changes every release). Diff flag sets:
 ```bash
 diff <(rg -o '\w+\("[0-9]{6,}"\)' "$OLD"|sort -u) <(rg -o '\w+\("[0-9]{6,}"\)' "$NEW"|sort -u)
 ```
 Check `enable_local_agent_mode.nim`'s override list still covers the cowork/code flags and its Zod schema includes them. Update the doc + version-history table.
 
-## Step 5 — ion-dist SPA audit
+## Step 5 - ion-dist SPA audit
 Read `baseline/ION.md`. Confirm ion-dist exists in new resources; compare bundle stats + content-hash of the config chunk; confirm `fix_ion_dist_linux.nim` patterns (mountPath linux key, platform ternary) still match (it finds the target by content signature, not filename). Update `ION.md`/the patch if changed. (Prompt 4.)
 
-## Step 6 — platform-gate re-audit
+## Step 6 - platform-gate re-audit
 Read `baseline/PLATFORM_GATE_BASELINE.md`. Re-count darwin/win32/linux gates; reclassify any new ones PATCHED/NATIVE/STUB/PORTABLE. Any PORTABLE = a new Linux-support opportunity. Update the doc. (Prompt 5.)
 
-## Step 7 — cross-dependency: claude-cowork-service
+## Step 7 - cross-dependency: claude-cowork-service
 Check `/home/patrickjaja/development/claude-cowork-service`. Did the cowork RPC protocol gain methods, spawn params, or event types? Compare against `COWORK_RPC_PROTOCOL.md`. If Desktop's socket path / framing / spawn args changed, the daemon may need a matching update. See `/architecture` and `/audit`.
 
-## Step 8 — docs
+## Step 8 - docs
 Update only what changed:
-- `CHANGELOG.md` — add the new entry (one `##` section per day, newest at top; informative not a debug log).
-- `baseline/CLAUDE_FEATURE_FLAGS.md`, `CLAUDE_BUILT_IN_MCP.md`, `ION.md`, `PLATFORM_GATE_BASELINE.md` — if their tracked internals moved.
-- `README.md` patch table — if patches added/removed/changed. **Do NOT touch README install-command version numbers** (CI updates those via `sed`; manual edits cause merge conflicts).
+- `CHANGELOG.md` - add the new entry (one `##` section per day, newest at top; informative not a debug log).
+- `baseline/CLAUDE_FEATURE_FLAGS.md`, `CLAUDE_BUILT_IN_MCP.md`, `ION.md`, `PLATFORM_GATE_BASELINE.md` - if their tracked internals moved.
+- `README.md` patch table - if patches added/removed/changed. **Do NOT touch README install-command version numbers** (CI updates those via `sed`; manual edits cause merge conflicts).
 
-## Step 9 — bump .upstream-version (required) + commit
+## Step 9 - bump .upstream-version (required) + commit
 ```bash
 echo "<NEW_VERSION>" > .upstream-version    # closes the "new version detected" issue, greens the README badge
 ```
