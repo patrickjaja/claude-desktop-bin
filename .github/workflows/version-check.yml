@@ -28,13 +28,13 @@ jobs:
           echo "Upstream version: ${VERSION}"
 
       - name: Get current tracked version
-        id: released
+        id: tracked
         if: steps.upstream.outputs.version
         run: |
           # Read from .upstream-version (committed to repo, tracks which Claude
           # Desktop version our patches & docs were last validated against).
-          # Bump + commit this file once a version has been handled — even a
-          # trivial build bump with no public release — to silence the issue.
+          # Bump + commit this file once a version has been handled - even a
+          # trivial build bump with no public release - to silence the issue.
           if [ -f .upstream-version ]; then
             CURRENT=$(cat .upstream-version | tr -d '[:space:]')
           else
@@ -45,7 +45,7 @@ jobs:
           echo "Current tracked version: ${CURRENT}"
 
       - name: Ensure new-version label exists
-        if: steps.upstream.outputs.version && steps.released.outputs.version != steps.upstream.outputs.version
+        if: steps.upstream.outputs.version && steps.tracked.outputs.version != steps.upstream.outputs.version
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -57,7 +57,7 @@ jobs:
 
       - name: Check for existing notification issue
         id: existing
-        if: steps.upstream.outputs.version && steps.released.outputs.version != steps.upstream.outputs.version
+        if: steps.upstream.outputs.version && steps.tracked.outputs.version != steps.upstream.outputs.version
         env:
           GH_TOKEN: ${{ github.token }}
           UPSTREAM: ${{ steps.upstream.outputs.version }}
@@ -77,11 +77,11 @@ jobs:
         id: body
         if: |
           steps.upstream.outputs.version &&
-          steps.released.outputs.version != steps.upstream.outputs.version &&
+          steps.tracked.outputs.version != steps.upstream.outputs.version &&
           steps.existing.outputs.count == '0'
         env:
           UPSTREAM: ${{ steps.upstream.outputs.version }}
-          RELEASED: ${{ steps.released.outputs.version }}
+          TRACKED: ${{ steps.tracked.outputs.version }}
           REPO: ${{ github.repository }}
         run: |
           TEMPLATE=".github/issue-templates/new-version-body.md"
@@ -89,7 +89,7 @@ jobs:
           # Substitute simple placeholders
           BODY=$(cat "$TEMPLATE")
           BODY="${BODY//\{\{UPSTREAM\}\}/${UPSTREAM}}"
-          BODY="${BODY//\{\{RELEASED\}\}/${RELEASED}}"
+          BODY="${BODY//\{\{TRACKED\}\}/${TRACKED}}"
           BODY="${BODY//\{\{REPO\}\}/${REPO}}"
 
           # Inject CC_PROMPT (multi-line): split at marker, reassemble with file content
@@ -106,7 +106,7 @@ jobs:
       - name: Create notification issue
         if: |
           steps.upstream.outputs.version &&
-          steps.released.outputs.version != steps.upstream.outputs.version &&
+          steps.tracked.outputs.version != steps.upstream.outputs.version &&
           steps.existing.outputs.count == '0'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -122,18 +122,18 @@ jobs:
           echo "::notice::Created issue for new version v${UPSTREAM}"
 
       - name: Update version badge on gh-pages
-        if: steps.upstream.outputs.version && steps.released.outputs.version
+        if: steps.upstream.outputs.version && steps.tracked.outputs.version
         env:
           GH_TOKEN: ${{ github.token }}
           UPSTREAM: ${{ steps.upstream.outputs.version }}
-          RELEASED: ${{ steps.released.outputs.version }}
+          TRACKED: ${{ steps.tracked.outputs.version }}
         run: |
-          if [ "${RELEASED}" = "${UPSTREAM}" ]; then
+          if [ "${TRACKED}" = "${UPSTREAM}" ]; then
             COLOR="brightgreen"
-            MESSAGE="v${RELEASED} (latest)"
+            MESSAGE="v${TRACKED} (latest)"
           else
             COLOR="red"
-            MESSAGE="v${RELEASED} ← v${UPSTREAM} available"
+            MESSAGE="v${TRACKED} ← v${UPSTREAM} available"
           fi
 
           REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
@@ -176,7 +176,7 @@ jobs:
             RPM_ARCHS=""
             [ -d "$REPO_DIR/rpm/x86_64" ] && RPM_ARCHS="x86_64"
             [ -d "$REPO_DIR/rpm/aarch64" ] && RPM_ARCHS="${RPM_ARCHS:+$RPM_ARCHS, }aarch64"
-            RPM_VER=$(ls "$REPO_DIR/rpm/x86_64/" 2>/dev/null | head -1 | grep -oP '\d+\.\d+\.\d+' || echo "${RELEASED}")
+            RPM_VER=$(ls "$REPO_DIR/rpm/x86_64/" 2>/dev/null | head -1 | grep -oP '\d+\.\d+\.\d+' || echo "${TRACKED}")
             cat > "$REPO_DIR/badges/rpm-repo.json" <<BADGE_EOF
           {
             "schemaVersion": 1,
@@ -204,7 +204,7 @@ jobs:
           {
             "schemaVersion": 1,
             "label": "AppImage",
-            "message": "v${RELEASED} (${APPIMAGE_ARCHS})",
+            "message": "v${TRACKED} (${APPIMAGE_ARCHS})",
             "color": "blue"
           }
           BADGE_EOF
@@ -215,7 +215,7 @@ jobs:
           {
             "schemaVersion": 1,
             "label": "Nix flake",
-            "message": "v${RELEASED}",
+            "message": "v${TRACKED}",
             "color": "blue"
           }
           BADGE_EOF
