@@ -6,7 +6,7 @@ when_to_use: When the user asks what the project does, how the pieces fit, the d
 
 # Architecture — claude-desktop-bin + claude-cowork-service
 
-Two sibling repos that together bring the **full** Claude Desktop experience to Linux. Anthropic ships Claude Desktop for macOS/Windows only. See `/linux` for compat specifics, `/audit` for review.
+Two sibling repos that together bring the **full** Claude Desktop experience to Linux. Anthropic ships Claude Desktop for macOS/Windows only. See `/linux` for compat specifics.
 
 ## 1. claude-desktop-bin — Linux-patched Claude Desktop
 Repackages the upstream, **remotely-managed** `Claude.msix` (Windows Electron app) for Linux by applying ~51 surgical JS patches (`patches/*.nim`, compiled native binaries, regex on minified JS), rebuilding native modules (node-pty) for Linux x86_64+aarch64, and packaging as AUR/deb/rpm/AppImage/Nix. The upstream binary changes without notice and re-minifies every release → patches use `[\w$]+` wildcards anchored on stable strings, count `EXPECTED_PATCHES`, and `quit(1)` on any miss. `.upstream-version` records the last validated version.

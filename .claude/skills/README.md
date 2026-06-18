@@ -15,6 +15,7 @@ A skill is more than a saved prompt:
 - **Path scoping** (`paths:`) — `/linux` also auto-loads whenever Claude touches `patches/`, `scripts/`, or `js/`, even if you didn't mention Linux.
 - **Dynamic context** — a `` !`cmd` `` line in a skill runs *before* Claude sees the body and inlines the output. `/deploy` uses this to show the current branch, tracked version, and recent CI runs up front.
 - **Orchestration / args** — a skill body can instruct Claude to spawn a sub-agent team (`/audit`) or consume arguments (`/deploy force`, `/debug <what broke>`).
+- **Sparse, deliberate cross-links** — skills point at each other only at a real handoff (a command the body actually runs, or a decision fork it just computed), never for "completeness." Pointers *into* the two auto-injecting references (`/linux`, `/architecture`) are mostly omitted on purpose: the harness already pulls them when relevant, so an extra "see `/linux`" is just recurring token cost. See **How the skills connect** below.
 
 ## The skills
 
@@ -27,6 +28,24 @@ A skill is more than a saved prompt:
 | `/update` | manual | a new upstream Claude Desktop version dropped |
 | `/fresh-upstream` | manual | you need a clean unpatched bundle to inspect |
 | `/debug` | manual | something is broken and you need the evidence |
+
+### How the skills connect
+
+The two **reference** skills (`/linux`, `/architecture`) hold durable domain knowledge and auto-inject; the five **action** skills consume them. The wiring is intentionally minimal — these are the links that earn their place:
+
+```
+fresh-upstream ──▶ update ──▶ deploy        new-version pipeline
+       ▲             ▲ │
+  audit ┘     debug ──┘ └─ (patched feature misbehaves → debug)
+       └──────────────────▶ update          audit finds drift → remediate
+```
+
+- `update` runs `/fresh-upstream` (Step 1) and ends with `/deploy` (Step 9).
+- `fresh-upstream` branches on its result → `/update` (new version) or `/audit` (just refreshing).
+- `audit` finds drift → `/update`; defers deep log work → `/debug`.
+- `debug` bottoms out at a patch/upstream cause → `/fresh-upstream` + `/update`.
+- `deploy` redirects version/patch work → `/update` (it only fires the pipeline).
+- `/linux` ↔ `/architecture` link each other (complementary references); `/debug` cites both because, being manual-only, it won't auto-pull them and genuinely needs the CU cascade + native-vs-KVM context.
 
 ### `/linux` — Linux compatibility reference
 **What:** Loads the distro/session-manager support matrix, the Computer Use input + screenshot cascades (sourced from `js/cu_linux_executor.js`), native-binary glibc floors, multi-profile/window-identity rules, and the catalogue of known Linux gotchas mapped to their patches.
@@ -70,6 +89,7 @@ A skill is more than a saved prompt:
 - Keep the body concise (target < 500 lines) — once invoked it stays in context, so every line is a recurring token cost. State what to do, not why at length.
 - Use `disable-model-invocation: true` for anything with side effects (deploy, wipe, commit) so it's manual-only.
 - Reference minified upstream internals only via `[\w$]+`-style descriptions and note the version — names change every release.
+- Cross-reference another skill only where it pays off: a command the body actually runs, or a fork the skill just decided. Don't add a link just to mirror an existing one, and don't point at `/linux` or `/architecture` from a skill that already auto-injects them — let the mechanism do it (exception: manual-only skills like `/debug` that need that context but won't trigger the auto-inject).
 - This README is documentation, not a skill (no `SKILL.md`), so it is ignored by skill discovery.
 
 `.claude/settings.local.json` is intentionally git-ignored (machine-local); only `.claude/skills/` is tracked.

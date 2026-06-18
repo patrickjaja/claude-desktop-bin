@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # Update to a new upstream Claude Desktop version
 
-Run from `/home/patrickjaja/development/claude-desktop-bin`. Upstream `Claude.msix` is remotely managed and re-minifies every release; patches use `[\w$]+` wildcards on stable string anchors. See `/linux` for compat, `/fresh-upstream` for clean extracts, `/audit` for deep review, `/deploy` to release. `$ARGUMENTS` may name a target version.
+Run from `/home/patrickjaja/development/claude-desktop-bin`. Upstream `Claude.msix` is remotely managed and re-minifies every release; patches use `[\w$]+` wildcards on stable string anchors. Step 1 runs `/fresh-upstream` for a clean extract; Step 9 ends with `/deploy` to release. `$ARGUMENTS` may name a target version.
 
 Use sequential thinking and delegate independent analysis (diff, flag audit, ion-dist, platform gates) to parallel sub-agents where useful; you coordinate and edit.
 

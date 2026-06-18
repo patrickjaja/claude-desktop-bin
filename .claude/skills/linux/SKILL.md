@@ -7,7 +7,7 @@ paths: patches/**, scripts/**, js/**, baseline/PLATFORM_GATE_BASELINE.md, waylan
 
 # Linux compatibility — claude-desktop-bin
 
-Patches a remotely-managed upstream `Claude.msix` (Windows Electron app) to run on Linux. **Linux only** — never add macOS/Windows code. Minified JS identifiers change every upstream release, so patterns must use `[\w$]+` wildcards anchored on stable strings (feature names, log messages, `process.platform==="darwin"`). See `/architecture` for project purpose, `/audit` for review, `/fresh-upstream` for clean extracts.
+Patches a remotely-managed upstream `Claude.msix` (Windows Electron app) to run on Linux. **Linux only** — never add macOS/Windows code. Minified JS identifiers change every upstream release, so patterns must use `[\w$]+` wildcards anchored on stable strings (feature names, log messages, `process.platform==="darwin"`). For a clean unpatched bundle to test patterns against, see `/fresh-upstream`.
 
 ## Support matrix (must validate every change against ALL rows)
 
