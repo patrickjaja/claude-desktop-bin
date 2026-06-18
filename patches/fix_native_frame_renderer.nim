@@ -12,43 +12,50 @@
 # On macOS it's harmless because the height resolves to 0.
 #
 # Fix: make the main window branch return null on all platforms, matching
-# upstream's Windows behavior. Effects:
-#   * Windows:           unchanged (already returned null).
-#   * macOS:             unchanged (was a 0px div, paints nothing either way).
-#   * Linux integrated:  pointer events reach the UI buttons; Electron's
-#                        titleBarOverlay still provides a draggable area.
-#   * Linux GTK opt-out: also a no-op visually -- the GTK frame covered
-#                        the div anyway, and the div was never interactive.
+# upstream's Windows behavior.
 #
-# Unconditional rather than gated on CLAUDE_NATIVE_TITLEBAR because the
-# renderer can't read process.env: the preload (mainView.js) exposes a
-# filtered process object with arch / platform / type / versions / argv
-# only, no env. Since the change is a no-op everywhere else, gating is
-# unnecessary.
+# STATUS (v1.13576): UPSTREAMED. The Pe() title-bar component now returns
+# null for the main window natively as its first statement:
+#   function Pe({isMainWindow:e,...}){if(e)return null;...}
+# The old macOS/Linux drag-region branch (a `nc-drag` div with width:100%)
+# that this patch used to collapse no longer exists, so no rewrite is needed.
+#
+# This patch is therefore now a REGRESSION GUARD rather than an active fix:
+# it asserts that upstream still short-circuits the main window to null. If a
+# future release reintroduces a drag region (the original bug), the positive
+# assertion below fails the build loudly instead of silently shipping broken
+# pointer handling on Linux. Do NOT downgrade this to a silent skip -- the
+# whole point is to notice an upstream regression.
 
-import std/[os, strformat, strutils]
+import std/[os, strformat]
 import regex
 
 proc apply*(input: string): string =
   result = input
-  if not result.contains("className:\"nc-drag\"") and result.contains("isMainWindow"):
-    echo "  [INFO] already patched"
+
+  # Upstreamed form: the main-window branch returns null as the component's
+  # first statement, e.g. function Pe({isMainWindow:e,...}){if(e)return null;...}
+  # The `{isMainWindow:` destructure occurs exactly once in the renderer bundle,
+  # so this anchor is unambiguous without a backreference (the `regex`/re2
+  # engine treats \1 as an octal escape, unlike nre, so we avoid it here).
+  let guard = re2 r"""\{isMainWindow:[\w$]+,[^}]{0,100}\}\)\{if\([\w$]+\)return null"""
+
+  var found = 0
+  for m in result.findAll(guard):
+    inc found
+  if found >= 1:
+    echo &"  [OK] upstream main-window null short-circuit present (regression guard satisfied): {found}"
     return
 
-  # Match the exact Pe() drag-region statement. Minified names (`z`, `e`,
-  # `r`, `l`, the inner height var) are placeholders; we capture only the
-  # isMainWindow argument so the rewritten `if(e)return null;` references
-  # the same value.
-  var n = 0
-  result = result.replace(
-    re2 r"""if\(!([\w$]+)&&([\w$]+)\)return [\w$]+===0\?null:[\w$]+\.jsx\("div",\{className:"nc-drag",style:\{height:`\$\{[\w$]+\}px`,width:"100%"\}\}\);""",
-    proc(m: RegexMatch2, s: string): string =
-      inc n
-      "if(" & s[m.group(1)] & ")return null;",
+  # If the upstreamed null-return is gone, upstream may have reintroduced the
+  # drag region this patch originally fixed. Fail loudly -- this needs a human
+  # to re-evaluate whether the active rewrite must be restored.
+  raise newException(
+    ValueError,
+    "fix_native_frame_renderer: upstream main-window null short-circuit " &
+      "({isMainWindow:e,...}){if(e)return null) NOT found. Upstream may have " &
+      "regressed the native-frame fix -- re-audit the Pe() title-bar component.",
   )
-  if n != 1:
-    raise newException(ValueError, &"Pe nc-drag pattern: {n}/1")
-  echo &"  [OK] Pe nc-drag collapsed to if(e)return null;: {n}"
 
 when isMainModule:
   if paramCount() != 1:

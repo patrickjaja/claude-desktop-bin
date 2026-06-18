@@ -18,24 +18,32 @@ import std/nre
 
 proc apply*(input: string): string =
   # The Quick Entry show function waits for ready-to-show:
-  #   <VAR>||await(<VAR2>==null?void 0:<VAR2>.catch(n=>{R.error("Quick Entry: Error waiting for ready %o",{error:n})}))
-  # Variable names change every release (NEe/YEe, nK/AK, etc.).
+  #   <VAR>||await(<VAR2>==null?void 0:<VAR2>.catch(<P>=>{<LOG>.error("Quick Entry: Error waiting for ready %o",{error:<P>})}))
+  # Variable names change every release (NEe/YEe, nK/AK, etc.) and so does the
+  # logger module (`S` in v1.13576). We must REUSE the upstream logger and catch
+  # param in the replacement -- hardcoding them (e.g. `R.error`) plants a latent
+  # ReferenceError in the rejection branch even though the patch applies cleanly
+  # and node --check passes. Capture both and emit them verbatim.
   # We wrap this in Promise.race with a 100ms timeout.
   let pat =
-    re"""([\w$]+)\|\|await\(([\w$]+)==null\?void 0:\2\.catch\([\w$]+=>\{[\w$]+\.error\("Quick Entry: Error waiting for ready %o",\{error:[\w$]+\}\)\}\)\)"""
+    re"""([\w$]+)\|\|await\(([\w$]+)==null\?void 0:\2\.catch\(([\w$]+)=>\{([\w$]+)\.error\("Quick Entry: Error waiting for ready %o",\{error:\3\}\)\}\)\)"""
 
   let m = input.find(pat)
   if m.isSome:
     let match = m.get
     let flagVar = match.captures[0]
     let promiseVar = match.captures[1]
+    let catchParam = match.captures[2]
+    let logVar = match.captures[3]
     let newStr =
       flagVar & "||await Promise.race([" & promiseVar & "==null?void 0:" & promiseVar &
-      """.catch(n=>{R.error("Quick Entry: Error waiting for ready %o",{error:n})}),new Promise(_r=>setTimeout(_r,100))])"""
+      ".catch(" & catchParam & "=>{" & logVar &
+      ".error(\"Quick Entry: Error waiting for ready %o\",{error:" & catchParam &
+      "})}),new Promise(_r=>setTimeout(_r,100))])"
     result =
       input[0 ..< match.matchBounds.a] & newStr & input[match.matchBounds.b + 1 .. ^1]
     echo "  [OK] ready-to-show timeout (100ms) added (vars: " & flagVar & ", " &
-      promiseVar & ")"
+      promiseVar & ", logger: " & logVar & ")"
   else:
     echo "  [FAIL] ready-to-show wait pattern not found"
     quit(1)

@@ -442,6 +442,23 @@ jobs:
 
           echo "--- aarch64 binary ---"
           file /tmp/bridge-output/kwin-portal-bridge-aarch64
+          # Same glibc-2.39 floor as x86_64. The host runner needs an aarch64
+          # objdump to read the symbols; install binutils-aarch64-linux-gnu so
+          # the floor is actually enforced (not just logged) for the arm64 bridge.
+          if ! command -v aarch64-linux-gnu-objdump >/dev/null 2>&1; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq binutils-aarch64-linux-gnu || true
+          fi
+          if command -v aarch64-linux-gnu-objdump >/dev/null 2>&1; then
+            GLIBC_MAX_ARM=$(aarch64-linux-gnu-objdump -T /tmp/bridge-output/kwin-portal-bridge-aarch64 2>/dev/null | grep -oP 'GLIBC_[0-9.]+' | sort -uV | tail -1 || echo "unknown")
+            echo "kwin-portal-bridge aarch64 max glibc: ${GLIBC_MAX_ARM}"
+            HIGHEST_ARM=$(printf '%s\nGLIBC_2.39\n' "${GLIBC_MAX_ARM}" | sort -V | tail -1)
+            if [[ "${HIGHEST_ARM}" != "GLIBC_2.39" ]]; then
+              echo "::error::aarch64 binary requires ${GLIBC_MAX_ARM}, expected GLIBC_2.39 or lower"
+              exit 1
+            fi
+          else
+            echo "::warning::aarch64-linux-gnu-objdump unavailable — could not enforce glibc floor on the arm64 bridge"
+          fi
 
       - name: Build Patched Tarball
         id: build
@@ -529,7 +546,26 @@ jobs:
             exit 0
           fi
 
-          echo "Before rebuild: $(objdump -T "$PTY_NODE" 2>/dev/null | grep -oP 'GLIBC_\S+' | sort -uV | tail -1)"
+          # node-pty must run on the lowest supported glibc (Debian 11 = 2.31).
+          # Helper: highest GLIBC_ symbol an ELF requires.
+          pty_glibc() { objdump -T "$1" 2>/dev/null | grep -oP 'GLIBC_[0-9.]+' | sort -uV | tail -1; }
+          # Helper: assert an ELF's glibc floor is <= GLIBC_2.31; exit 1 otherwise.
+          assert_pty_floor() {
+            local f="$1" max highest
+            max=$(pty_glibc "$f")
+            if [ -z "$max" ]; then
+              echo "::error::could not read glibc symbols from $f"; exit 1
+            fi
+            highest=$(printf '%s\nGLIBC_2.31\n' "$max" | sort -V | tail -1)
+            if [ "$highest" != "GLIBC_2.31" ]; then
+              echo "::error::node-pty requires $max but the floor is GLIBC_2.31 (Debian 11 / Ubuntu 22.04 would break)"
+              exit 1
+            fi
+            echo "node-pty glibc floor OK: $max <= GLIBC_2.31"
+          }
+
+          BEFORE_GLIBC=$(pty_glibc "$PTY_NODE")
+          echo "Before rebuild: ${BEFORE_GLIBC}"
 
           # Read versions from package.json inside the asar contents
           # The asar was already repacked, so extract it temporarily
@@ -540,7 +576,11 @@ jobs:
           rm -rf "$ASAR_DIR"
 
           if [ -z "$ELECTRON_VERSION" ] || [ -z "$NODE_PTY_VERSION" ]; then
-            echo "::warning::Could not detect Electron ($ELECTRON_VERSION) or node-pty ($NODE_PTY_VERSION) version — skipping glibc-compat rebuild"
+            # Version detection failed, so we cannot rebuild. We may NOT silently
+            # ship the un-rebuilt binary if it violates the floor: assert the
+            # bundled pty.node already satisfies GLIBC_2.31 and fail loudly if not.
+            echo "::warning::Could not detect Electron ($ELECTRON_VERSION) or node-pty ($NODE_PTY_VERSION) version — skipping glibc-compat rebuild; verifying bundled binary instead"
+            assert_pty_floor "$PTY_NODE"
             rm -rf "$REPACK_DIR"
             exit 0
           fi
@@ -569,7 +609,11 @@ jobs:
           REBUILT_PTY="/tmp/pty-compat-output/pty.node"
           if [ -f "$REBUILT_PTY" ] && file "$REBUILT_PTY" | grep -q "ELF 64-bit"; then
             cp "$REBUILT_PTY" "$PTY_NODE"
-            echo "After rebuild: $(objdump -T "$PTY_NODE" 2>/dev/null | grep -oP 'GLIBC_\S+' | sort -uV | tail -1)"
+            echo "After rebuild: $(pty_glibc "$PTY_NODE")"
+            # Enforce the floor: the whole point of the rebuild is glibc 2.31
+            # compatibility. If the rebuilt binary still exceeds it, fail loudly
+            # rather than shipping a binary that breaks Debian 11 / Ubuntu 22.04.
+            assert_pty_floor "$PTY_NODE"
             # Install spawn-helper alongside pty.node
             SPAWN_HELPER_DIR="$(dirname "$PTY_NODE")"
             if [ -f /tmp/pty-compat-output/spawn-helper ]; then

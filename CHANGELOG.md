@@ -4,6 +4,17 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 
 ## 2026-06-18 - New patch: built-in terminal spawns a Linux shell instead of PowerShell (#143)
 
+### Forward-looking audit fixes (patches + CI hardening, verified against v1.13576.4)
+
+A full audit of patches/docs/CI against the current bundle found the suite healthy (51/51 apply, Cowork contract intact in both native and KVM modes, no new Linux gaps). Four items were worth fixing, all low-risk:
+
+- **`fix_quick_entry_ready_wayland`: fixed a latent runtime bug.** The replacement hardcoded a logger (`R.error`) that does not exist at the patched call site (the live logger is `S`); the patch applied cleanly and passed `node --check`, but a rejected ready-to-show promise would throw a ReferenceError in the very catch meant to swallow it. Now captures and reuses the upstream logger var + catch param so it survives re-minifies.
+- **`fix_imagine_linux`: retargeted Patch C to the renamed flag.** The Visualize/Imagine CCD gate `2204227020` was renamed to `3516166472` upstream, so Patch C had silently become a no-op (its standalone uses, including the `read_widget_context` tool registration, were no longer forced ON). Retargeted to the new ID. Also rewrote the Patch B/C idempotency checks to assert the patched end-state and fail loudly if the flag disappears, instead of treating flag-absence as success.
+- **`fix_native_frame_renderer`: converted to a regression guard.** Upstream upstreamed the fix (the main-window title-bar component now returns `null` natively), so the patch had been silently no-opping via an accidental guard. It now positively asserts the upstream null short-circuit and fails the build if a future release reintroduces the pointer-absorbing drag region.
+- **CI: glibc floors are now enforced, not just logged.** The node-pty rebuild asserts the GLIBC_2.31 floor (Debian 11 / Ubuntu 22.04) and fails loudly instead of silently shipping an un-rebuilt binary when version detection fails; the aarch64 kwin-portal-bridge gained the same objdump-based GLIBC_2.39 gate the x86_64 binary already had.
+
+Docs: added the missing `fix_open_in_editor_linux` row to the README patch table and corrected the obsolete `fix_native_frame_renderer` row; noted the `2204227020 -> 3516166472` rename and fixed contradictory version headers in `CLAUDE_FEATURE_FLAGS.md`. CLAUDE.md gained a strictness rule forbidding false-success reporting - an "already patched" line must assert the patched end-state, never the mere absence of the pre-patch pattern.
+
 ### Upstream (v1.13576.4) - build bump, no patch work
 
 - **Version bump v1.13576.1 -> v1.13576.4** (patch-level rebuild of build 13576, hash `414f858c`). Re-minify only; bundle functionally identical.

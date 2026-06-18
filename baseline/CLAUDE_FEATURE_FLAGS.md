@@ -1,6 +1,6 @@
 # Claude Desktop Feature Flag Architecture
 
-Reference documentation for the feature flag system in Claude Desktop's Electron app. This documents v1.8555.2 internals to aid patch maintenance.
+Reference documentation for the feature flag system in Claude Desktop's Electron app, to aid patch maintenance. The architecture/prose below was first written against v1.8555.2; minified names drift every release, so the **version history table at the bottom is the authoritative record of renames** (current through v1.13576.x). Always cross-check a specific name there before trusting it.
 
 ## Overview
 
@@ -165,7 +165,7 @@ Feature flags can also be affected by organization-level admin settings:
 
 Calls the merger, validates the result against a Zod schema, and sends it to the renderer process via IPC. The renderer uses these flags to conditionally render UI elements (e.g., Chat|Code toggle).
 
-## GrowthBook Flag Catalog (v1.8555.2)
+## GrowthBook Flag Catalog (baseline v1.8555.2; see version-history table for current names)
 
 ### Boolean Flags (wt())
 
@@ -261,7 +261,7 @@ Calls the merger, validates the result against a Zod schema, and sends it to the
 
 #### Notable Feature Changes in v1.8089.0
 
-- `2204227020` now also gates Visualize (Imagine) MCP server for CCD sessions (was cowork-only before)
+- `2204227020` also gated Visualize (Imagine) MCP server for CCD sessions (was cowork-only before). **Renamed to `3516166472` in v1.13576** - the old ID no longer appears in the bundle; `fix_imagine_linux.nim` Patch C tracks the new ID.
 - New `floatingPenguinEnabled` preference (not yet a feature flag in registry - config-only)
 - New `midnightOwl` prototype (dev toggle + GrowthBook flag `180602792`)
 

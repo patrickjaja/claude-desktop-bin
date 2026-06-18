@@ -213,13 +213,39 @@ if patchesApplied < EXPECTED_PATCHES:
 **Rules:**
 1. Count expected patches and require ALL to succeed (or be detected as "already applied")
 2. Never use `[WARN]` + continue for a patch that doesn't match — use `[FAIL]` and don't increment the counter
-3. "Already patched" detection (idempotency) counts as success — increment the counter
+3. "Already patched" detection (idempotency) counts as success — increment the counter. **But it MUST be a positive assertion that the desired end-state is present** (see Rule 6).
 4. When a patch fails after an upstream update, investigate why:
    - **Pattern changed:** The minified variable names shifted — update the regex
    - **Code refactored:** The target code was restructured — rewrite the patch approach
    - **Feature removed:** The code we patched no longer exists — the patch can be removed
-   - **Feature upstreamed:** Anthropic added native Linux support — the patch can be removed
+   - **Feature upstreamed:** Anthropic added native Linux support — convert the patch into a **regression guard** (assert the upstreamed behavior is present; `[FAIL]`+`quit(1)` if it disappears) rather than deleting it silently
 5. Never add a new patch with `[WARN]`-on-failure or `patchesApplied == 0` as the only check
+
+6. **No false success reporting — an `[OK]`/"already patched" line must never be backed by a false premise.**
+   A patch must report success only when it has *positively verified* the desired end-state exists in the
+   output. The classic trap is an idempotency check that keys off the **absence** of the old pattern:
+
+   ```nim
+   # BAD - reports "already patched" the moment upstream refactors the old code away,
+   # even if the desired behavior was NEVER applied. The [OK] is a lie.
+   if "className:\"nc-drag\"" notin result and "isMainWindow" in result:
+     echo "  [INFO] already patched"; return
+
+   # GOOD - assert the desired END-STATE is actually present; fail loud if it is not.
+   if result.contains(re2"\{isMainWindow:[\w$]+,.{0,100}\}\)\{if\([\w$]+\)return null"):
+     echo "  [OK] upstream null short-circuit present (regression guard satisfied)"; return
+   raise newException(ValueError, "desired end-state NOT found — upstream may have regressed; re-audit")
+   ```
+
+   Rules of thumb:
+   - "Already patched" / "already applied" must check for the **patched result** (the string/shape the
+     patch produces, or the behavior it guarantees), NOT merely that the pre-patch pattern is gone.
+     "Old pattern absent" ≠ "new behavior present" — those diverge the instant upstream refactors.
+   - If a feature was upstreamed and there is nothing left to rewrite, keep the patch as a **regression
+     guard** that asserts the upstreamed behavior and `quit(1)` if it ever disappears. A patch that can
+     only ever print success (a guaranteed no-op) is forbidden — it gives false confidence.
+   - Every `[OK]`/`[INFO]` success message must correspond to a real, checked fact. If you cannot assert
+     the fact, you must `[FAIL]`. Silence and false-positives are worse than a loud build failure.
 
 ### 6. Verify Syntax After Patching
 
