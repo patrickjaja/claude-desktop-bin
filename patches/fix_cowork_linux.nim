@@ -214,9 +214,11 @@ proc apply*(input: string): string =
       inc patchesApplied
     else:
       # No platform-indexed lookup. Confirm the hardcoded-win32 lookup exists:
-      #   const A="win32",e=process.arch; ... (r=<map>.files[A])!=null&&r[e]
+      #   const A="win32",e=process.arch; ... (i=<map>.files[A])!=null&&i[e]
+      # The deref var (\2) is minified and changes every release (was `r`,
+      # now `i`); capture it and backreference so we assert the real end-state.
       let hardcodedWin32Lookup = re(
-        """const ([\w$]+)="win32",[\w$]+=process\.arch;[\s\S]{0,400}?\([\w$]+=[\w$]+\.files\[\1\]\)!=null&&r\["""
+        """const ([\w$]+)="win32",[\w$]+=process\.arch;[\s\S]{0,400}?\(([\w$]+)=[\w$]+\.files\[\1\]\)!=null&&\2\["""
       )
       if content.find(hardcodedWin32Lookup).isSome:
         echo "  [OK] C2 bundle lookup alias: lookup hardcoded to win32 upstream (linux→win32 alias already in effect; skipped)"

@@ -4,6 +4,13 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 
 ## 2026-06-18 - New patch: built-in terminal spawns a Linux shell instead of PowerShell (#143)
 
+### Upstream (v1.14271.0) - 2 patches fixed, all 51 apply
+
+- **Version bump v1.13576.4 -> v1.14271.0** (~700 builds, full re-minify). Routine re-minify release for Linux: no new platform gates lock out a Linux feature, no new native modules, no new built-in MCP servers, and the Cowork RPC contract is unchanged in both directions. Two patches needed work for the re-minified bundle.
+- **`fix_cowork_linux`: fixed C2's idempotency backreference.** The C2 "bundle lookup alias" fallback asserts upstream's hardcoded-win32 VM-bundle lookup (`(<var>=<map>.files["win32"])!=null&&<var>[arch]`) is present, but the deref var was hardcoded as literal `r`; re-minify renamed it `r` -> `i`, so the assertion stopped matching and C2 reported FAIL. Now captures the deref var and backreferences it so it tracks the rename.
+- **`fix_browser_tools_linux`: rewrote 3 sub-patches for a real upstream refactor.** The Chrome native-host install path was restructured, not just renamed: the per-browser install loop is gone, and the manifest is now written to a single `userData/ChromeNativeHost` dir on all platforms (which Chrome/Chromium never read on Linux), while the per-browser enumerator became uninstall-only. The binary-path resolver and Chrome user-data-dir lookup likewise collapsed to flat win-only forms. Rewrote Patch A (binary path: inject Linux `~/.claude/chrome/chrome-native-host` short-circuit), Patch B (reuse the manifest writer to install into all 6 real Linux `NativeMessagingHosts` dirs at the start of the installer), and Patch C (return the 5 Linux browser user-data dirs). This native-host area is structurally volatile - watch it on the next release.
+- **No baseline-doc internals moved structurally** beyond the usual minified-name churn; flag/ion-dist/platform-gate baselines updated with the new function names, config-chunk hash, and gate counts (see below). `enable_local_agent_mode.nim` (all 25 sub-patches) and `fix_ion_dist_linux.nim` apply unchanged.
+
 ### Forward-looking audit fixes (patches + CI hardening, verified against v1.13576.4)
 
 A full audit of patches/docs/CI against the current bundle found the suite healthy (51/51 apply, Cowork contract intact in both native and KVM modes, no new Linux gaps). Four items were worth fixing, all low-risk:
