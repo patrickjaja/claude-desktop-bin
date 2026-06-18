@@ -2,6 +2,11 @@
 
 The upstream **Developer → Configure Third-Party Inference** wizard works on Linux as of v1.6259 (after the `ion-dist` packaging fix in #57). This page covers the Linux-specific bits that aren't in the [official Anthropic 3P docs](https://claude.com/docs/cowork/3p/installation) — which only cover macOS and Windows — plus the headless `/etc/claude-desktop/enterprise.json` route for fleet rollouts and remote/CI machines where the wizard isn't practical.
 
+> **Looking for the full `enterprise.json` key reference?** This page is the Linux *how-to*. For the complete, authoritative list of every config key, see Anthropic's official docs:
+> - [Configuration reference](https://claude.com/docs/cowork/3p/configuration) — every key, all providers, credential helpers, security profiles.
+> - [Enterprise configuration for Claude Desktop](https://support.claude.com/en/articles/12622667-enterprise-configuration-for-claude-desktop) — managed-preferences overview.
+> - [Extend Claude Cowork with third-party platforms](https://support.claude.com/en/articles/14680753-extend-claude-cowork-with-third-party-platforms) — how MCP/plugins/skills differ on 3P.
+
 ## Two routes
 
 | Route | When to use |
@@ -96,6 +101,167 @@ Foundry keys: `inferenceFoundryResource`, `inferenceFoundryApiKey`.
 ```
 
 `inferenceGatewayAuthScheme` accepts `"auto"`, `"x-api-key"`, `"bearer"`, or `"sso"`. For gateways that expose a `/v1/models` endpoint, `inferenceModels` is optional — the picker uses model discovery.
+
+#### 5-minute local quickstart (LiteLLM container)
+
+Want to see Linux 3P working end-to-end before wiring it to your real fleet gateway? Stand up a [LiteLLM](https://github.com/BerriAI/litellm) proxy locally, point Claude Desktop at it, and you'll be running Cowork + Code against your own inference endpoint in a few minutes. This is the exact shape used in production — just trimmed to Anthropic-only so it's copy-paste runnable.
+
+**1. Minimal LiteLLM config** — `litellm_config.yaml` (Anthropic passthrough only; no secrets in the file, the key is read from the environment):
+
+```yaml
+model_list:
+  # model_name MUST match the IDs in enterprise.json inferenceModels.
+  # Bare aliases (no dated suffix) are valid Anthropic IDs.
+  - model_name: claude-opus-4-8
+    litellm_params:
+      model: anthropic/claude-opus-4-8
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+  - model_name: claude-sonnet-4-6
+    litellm_params:
+      model: anthropic/claude-sonnet-4-6
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+general_settings:
+  # The gateway's own bearer token. Clients (Claude Desktop) send this;
+  # it is NOT your Anthropic key. Pick any strong string.
+  master_key: os.environ/LITELLM_MASTER_KEY
+
+litellm_settings:
+  drop_params: true
+```
+
+**2. Run the proxy** — one container, two env vars (replace both values; nothing is persisted to the image):
+
+```bash
+docker run --rm -p 4000:4000 \
+  -v "$(pwd)/litellm_config.yaml:/app/config.yaml:ro" \
+  -e ANTHROPIC_API_KEY="sk-ant-…your-anthropic-key…" \
+  -e LITELLM_MASTER_KEY="sk-pick-any-strong-gateway-token" \
+  ghcr.io/berriai/litellm:main-stable \
+  --config /app/config.yaml --port 4000
+
+# sanity check from another terminal — should list claude-opus-4-8 / claude-sonnet-4-6:
+curl -s http://127.0.0.1:4000/v1/models \
+  -H "Authorization: Bearer sk-pick-any-strong-gateway-token" | python3 -m json.tool
+```
+
+**3. Point Claude Desktop at it** — `/etc/claude-desktop/enterprise.json`. The `inferenceGatewayApiKey` here is the gateway's `master_key` from step 2 (**not** your Anthropic key):
+
+```bash
+sudo install -d -m 755 /etc/claude-desktop
+sudo tee /etc/claude-desktop/enterprise.json >/dev/null <<'JSON'
+{
+  "inferenceProvider": "gateway",
+  "inferenceGatewayBaseUrl": "http://127.0.0.1:4000",
+  "inferenceGatewayApiKey": "sk-pick-any-strong-gateway-token",
+  "inferenceGatewayAuthScheme": "bearer",
+  "inferenceModels": [
+    { "name": "claude-opus-4-8" },
+    { "name": "claude-sonnet-4-6" }
+  ],
+  "disableDeploymentModeChooser": true,
+  "betaFeaturesEnabled": true,
+  "chatTabEnabled": true,
+  "coworkTabEnabled": true
+}
+JSON
+sudo chmod 644 /etc/claude-desktop/enterprise.json
+```
+
+> **Surface toggles** (all `scopes:["3p"]`): `chatTabEnabled` brings back the **Chat** tab (the claude.ai web surface), `coworkTabEnabled` the **Cowork** tab, and `betaFeaturesEnabled` unlocks the beta-feature set those live under. `isClaudeCodeForDesktopEnabled` controls the **Code** tab. Omit one to hide that surface. See the [maximum example](#maximum-enterprisejson-every-key) below for the full set.
+
+**4. Restart and verify** (see [Verifying it worked](#verifying-it-worked) for the full log signature):
+
+```bash
+pkill -x claude-desktop 2>/dev/null
+nohup claude-desktop >/dev/null 2>&1 &
+tail -f ~/.config/Claude/logs/main.log | grep -E 'custom-3p|account|inference'
+```
+
+You should see `[custom-3p] 3P mode active { provider: 'gateway' }` and an identity-changed line within a few seconds. Open a Cowork or Code session and confirm the model picker shows your two models.
+
+> **Don't commit your real values.** `inferenceGatewayApiKey` and `ANTHROPIC_API_KEY` are credentials — keep them in `enterprise.json` / env only. The redacted placeholders above are intentional. LiteLLM reads every secret from the environment (`os.environ/…`), so the config file itself is safe to check into a repo.
+
+> **Beyond Anthropic:** LiteLLM can front Bedrock, Vertex, Azure, or any OpenAI-/Anthropic-compatible upstream — swap the `model_list` block and keep `enterprise.json` identical. That's the point of the gateway provider: one stable client config, any backend behind it.
+
+## Maximum `enterprise.json` (every key)
+
+The quickstart above is intentionally minimal. Below is a **feature-complete** gateway config that turns on every surface and shows the governance, telemetry, sandbox, and plugin knobs an enterprise rollout typically wants. Every key here is a real managed-config setting in v1.14271.0 (`scopes:["3p"]` or `["3p","1p"]`); add only the ones you need. Keys marked **secret** must hold real credentials — keep this file readable only as needed and never commit real values.
+
+```jsonc
+{
+  // ── Inference backend (pick ONE provider; gateway shown) ────────────────
+  "inferenceProvider": "gateway",                 // anthropic | gateway | bedrock | vertex | foundry
+  "inferenceGatewayBaseUrl": "http://127.0.0.1:4000",
+  "inferenceGatewayApiKey": "sk-your-gateway-token",   // secret
+  "inferenceGatewayAuthScheme": "bearer",         // auto | x-api-key | bearer | sso
+  "inferenceModels": [
+    // For providers with their own model IDs (Bedrock profiles, gateway aliases),
+    // set anthropicFamilyTier so the app knows which Claude tier the ID maps to.
+    { "name": "claude-opus-4-8",   "anthropicFamilyTier": "opus",   "supports1m": true },
+    { "name": "claude-sonnet-4-6", "anthropicFamilyTier": "sonnet", "supports1m": true }
+  ],
+  "modelDiscoveryEnabled": false,                 // true = pull model list from the gateway's /v1/models
+  "inferenceCustomHeaders": { "x-tenant": "acme" },    // extra headers on every inference request
+  "disableDeploymentModeChooser": true,           // lock to 3P; hide personal claude.ai sign-in
+
+  // ── Surfaces / tabs ─────────────────────────────────────────────────────
+  "betaFeaturesEnabled": true,                    // unlocks the beta-feature set below
+  "chatTabEnabled": true,                         // the Chat tab (claude.ai web surface)
+  "coworkTabEnabled": true,                       // the Cowork tab
+  "isClaudeCodeForDesktopEnabled": true,          // the Code tab (Claude Code)
+  "chatAdvancedFileAnalysisEnabled": true,        // code-execution / advanced file analysis in Chat
+  "autoModeEnabled": true,                        // allow Cowork "Auto" mode
+  "claudeAiImport": true,                         // allow importing claude.ai data
+
+  // ── MCP, plugins, extensions ────────────────────────────────────────────
+  "managedMcpServers": [
+    { "name": "atlassian-rovo", "transport": "http", "url": "https://mcp.atlassian.com/v1/mcp/authv2" }
+  ],
+  "organizationPluginsUrl": "https://plugins.acme.example/registry",  // org plugin/skill registry
+  "isDesktopExtensionEnabled": true,
+  "isDesktopExtensionSignatureRequired": true,    // only load signed extensions
+
+  // ── Sandbox / workspace / egress (governance) ───────────────────────────
+  "allowedWorkspaceFolders": ["/home", "/srv/projects"],   // restrict where sessions may operate
+  "coworkEgressAllowedHosts": ["api.acme.example", "github.com"],  // network allowlist for Cowork
+  "disabledBuiltinTools": [],                     // e.g. ["computer-use"] to block desktop control
+
+  // ── Identity ────────────────────────────────────────────────────────────
+  "deploymentOrganizationUuid": "00000000-0000-0000-0000-000000000000",
+
+  // ── Updates ─────────────────────────────────────────────────────────────
+  "disableAutoUpdates": false,
+  "autoUpdaterEnforcementHours": 72,              // force an update after N hours
+
+  // ── Telemetry (OpenTelemetry; all optional) ─────────────────────────────
+  "otlpEndpoint": "https://otel.acme.example:4318",
+  "otlpProtocol": "http/protobuf",                // grpc | http/protobuf
+  "otlpHeaders": { "authorization": "Bearer <otel-token>" },   // secret
+  "otlpResourceAttributes": { "service.name": "claude-desktop", "deployment.environment": "prod" },
+  "otlpDesktopLogLevel": "info",
+
+  // ── Usage limits (3P) ───────────────────────────────────────────────────
+  "inferenceMaxTokensPerWindow": 2000000,
+  "inferenceTokenWindowHours": 24,
+  "inferenceSessionLifetimeSec": 28800
+}
+```
+
+> `jsonc` (comments) is shown for readability — **strip the comments** before deploying; the file must be valid JSON. A few keys are `scopes:["1p"]`-only (claude.ai login deployments) and are therefore **not** valid in a 3P/gateway file: `requireCoworkFullVmSandbox`, `secureVmFeaturesEnabled`, `forceLoginOrgUUID`, `loginSsoOrgDomain`. For provider-specific blocks (Bedrock SSO, Vertex OAuth/workforce, Foundry tenant) and the exact accepted values of every key, see the [official configuration reference](https://claude.com/docs/cowork/3p/configuration).
+
+**Switching the provider block:** keep everything from "Surfaces" down identical and replace only the inference block:
+
+| Provider | Minimum required keys |
+|---|---|
+| **gateway** | `inferenceGatewayBaseUrl`, `inferenceGatewayApiKey`, `inferenceGatewayAuthScheme` |
+| **vertex** | `inferenceVertexProjectId`, `inferenceVertexRegion` (+ ADC or `inferenceVertexCredentialsFile`) |
+| **bedrock** | `inferenceBedrockRegion` + one auth: `inferenceBedrockBearerToken` *or* `inferenceBedrockProfile` *or* `inferenceBedrockSso{StartUrl,Region,AccountId,RoleName}` |
+| **foundry** | `inferenceFoundryResource`, `inferenceFoundryApiKey` (or `inferenceFoundryTenantId` + `inferenceFoundryClientId`) |
+| **anthropic** | `inferenceAnthropicApiKey` (direct to api.anthropic.com) |
+
+For credential rotation without static keys, all providers support an external helper: `inferenceCredentialHelper` (+ `inferenceCredentialHelperTtlSec`, `inferenceCredentialHelperTimeoutSec`, `inferenceCredentialHelperSilentRefreshEnabled`).
 
 ## Verifying it worked
 

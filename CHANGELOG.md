@@ -26,6 +26,11 @@ A full audit of patches/docs/CI against the current bundle found the suite healt
 
 Docs: added the missing `fix_open_in_editor_linux` row to the README patch table and corrected the obsolete `fix_native_frame_renderer` row; noted the `2204227020 -> 3516166472` rename and fixed contradictory version headers in `CLAUDE_FEATURE_FLAGS.md`. CLAUDE.md gained a strictness rule forbidding false-success reporting - an "already patched" line must assert the patched end-state, never the mere absence of the pre-patch pattern.
 
+### Docs: third-party inference (`enterprise.json`) expanded
+
+- **`docs/third-party-inference.md`: added a 5-minute LiteLLM gateway quickstart and a feature-complete "maximum `enterprise.json`" reference.** The quickstart stands up a local LiteLLM proxy (Anthropic passthrough, secrets via env) and points Claude Desktop at it with one JSON file. The maximum example documents every managed-config key (enumerated from the v1.14271.0 schema) - surfaces, MCP/plugins, sandbox/egress governance, telemetry, usage limits - plus a per-provider "minimum required keys" table.
+- **Surface toggles documented (`scopes:["3p"]`): `chatTabEnabled`, `coworkTabEnabled`, `isClaudeCodeForDesktopEnabled`, `betaFeaturesEnabled`.** These bring the Chat / Cowork / Code tabs back in 3P/gateway mode. README and the static site (`site/index.html`) gained matching coverage; README also embeds a Gateway-mode screenshot and links the official Anthropic 3P config docs. No app screenshots on the public static site (copyright) - it uses a copy-paste config block instead.
+
 ### Upstream (v1.13576.4) - build bump, no patch work
 
 - **Version bump v1.13576.1 -> v1.13576.4** (patch-level rebuild of build 13576, hash `414f858c`). Re-minify only; bundle functionally identical.

@@ -455,17 +455,27 @@ Hardware Buddy connects Claude Desktop to a [Nibblet](https://github.com/felixri
 
 ## Third-Party Inference
 
-Configure Claude Desktop to use your own cloud inference backend instead of Anthropic's API. Supports **Vertex AI** (Google Cloud), **Bedrock** (AWS), **Azure AI Foundry** (Microsoft), or any **Anthropic-compatible gateway** (LiteLLM, Portkey, in-house proxies). Access via **Developer → Configure Third-Party Inference**.
+**Run Claude Desktop entirely on your own inference backend - no personal claude.ai login required.** Point it at **Vertex AI** (Google Cloud), **Bedrock** (AWS), **Azure AI Foundry** (Microsoft), or any **Anthropic-compatible gateway** (LiteLLM, Portkey, in-house proxies) via a single `/etc/claude-desktop/enterprise.json`. Chat, Code, and Cowork all work in 3P mode on Linux today.
 
-![Third-Party Inference Configuration](docs/global/third-party-inference.png)
+![Cowork running in Gateway (3P) mode on Linux](docs/3p/2026-06-18_21-43.png)
 
-The configuration window lets you manage connection settings, provider credentials, model lists, sandbox/workspace restrictions, MCP servers, telemetry, usage limits, and org-plugin directories - all from a single UI. Configurations can be exported as `.mobileconfig` (macOS MDM), `.reg` (Windows GPO), or plain JSON (Linux `/etc/claude-desktop/enterprise.json`).
+> ⚡ **Try it in 5 minutes.** Stand up a local LiteLLM proxy, drop one JSON file, and you're running Cowork against your own endpoint - see the [**LiteLLM quickstart**](docs/third-party-inference.md#5-minute-local-quickstart-litellm-container). No claude.ai account, no cloud setup.
+
+**Enable the tabs you want.** The Chat, Cowork, and Code surfaces are managed-config toggles (all `scopes:["3p"]`): add `"betaFeaturesEnabled": true`, `"chatTabEnabled": true`, `"coworkTabEnabled": true`, and `"isClaudeCodeForDesktopEnabled": true` to your `enterprise.json`. For a full feature-complete file - surfaces, governance, telemetry, sandbox, usage limits - see the [**maximum `enterprise.json`**](docs/third-party-inference.md#maximum-enterprisejson-every-key).
+
+The in-app configuration window (**Developer → Configure Third-Party Inference**) lets you manage connection settings, provider credentials, model lists, sandbox/workspace restrictions, MCP servers, telemetry, usage limits, and org-plugin directories - all from a single UI. Configurations export as `.mobileconfig` (macOS MDM), `.reg` (Windows GPO), or plain JSON (Linux `/etc/claude-desktop/enterprise.json`).
 
 **How it works on Linux:** The upstream SPA requires two patches on Linux (`fix_ion_dist_linux.nim`): a `mountPath` entry for the Linux org-plugins directory, and a platform ternary fix. Only the file manager label text was upstreamed in v1.8089.0. The main process reads enterprise config from `/etc/claude-desktop/enterprise.json` and passes `platform: "linux"` to the frontend.
 
-**Enterprise deployment:** Use MDM (macOS), GPO (Windows), or drop a JSON file at `/etc/claude-desktop/enterprise.json` (Linux) to manage fleet-wide configuration. See the [Anthropic 3P configuration docs](https://claude.com/docs/cowork/3p/configuration) for the full key reference and recommended security profiles.
+**Enterprise deployment:** Use MDM (macOS), GPO (Windows), or drop a JSON file at `/etc/claude-desktop/enterprise.json` (Linux) to manage fleet-wide configuration.
 
-**Linux setup walkthrough:** The official 3P docs only cover macOS and Windows. See [docs/third-party-inference.md](docs/third-party-inference.md) for a Linux-specific quickstart — both the in-app wizard route (requires Developer Mode) and a headless `enterprise.json` route with a worked Vertex AI example using `gcloud` ADC.
+**Linux setup walkthrough:** The official 3P docs only cover macOS and Windows. See [docs/third-party-inference.md](docs/third-party-inference.md) for a Linux-specific guide - the in-app wizard route (requires Developer Mode), a headless `enterprise.json` route with worked **Vertex AI** (`gcloud` ADC) and **LiteLLM gateway** examples, and how to verify it via `main.log`.
+
+**`enterprise.json` key reference (official Anthropic docs):**
+
+- [Configuration reference](https://claude.com/docs/cowork/3p/configuration) - the full key reference (`inferenceProvider`, `inferenceModels` + `anthropicFamilyTier`, gateway/Bedrock/Vertex/Foundry keys, credential helpers, sandbox & security profiles).
+- [Enterprise configuration for Claude Desktop](https://support.claude.com/en/articles/12622667-enterprise-configuration-for-claude-desktop) - managed-preferences overview for fleet rollouts.
+- [Extend Claude Cowork with third-party platforms](https://support.claude.com/en/articles/14680753-extend-claude-cowork-with-third-party-platforms) - **note:** on 3P (Bedrock/Vertex/Azure/gateway), MCP connectors, plugins, and skills work differently than on Claude Enterprise. Cowork skills come from a local store rather than your claude.ai org, so document skills (`/pdf`, `/docx`, …) must be installed locally.
 
 ## Custom Themes (Experimental)
 
