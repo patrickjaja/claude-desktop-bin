@@ -23,7 +23,9 @@ claude-desktop-linux-flake/
 *~
 
 # Tool caches
-.claude/
+.claude/*
+!.claude/skills/
+.claude/skills/*/settings.local.json
 .playwright-mcp/
 cache/
 tmp-asar-extract/
