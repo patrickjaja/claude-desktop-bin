@@ -489,6 +489,8 @@ echo '{"activeTheme": "sweet"}' > ~/.config/Claude/claude-desktop-bin.json
 
 **Built-in themes:** `sweet`, `nord`, `catppuccin-mocha`, `catppuccin-frappe`, `catppuccin-latte`, `catppuccin-macchiato`
 
+Themes can also include a `customCss` field (a string or array of raw CSS rules, per-theme or global) to style selectors that plain CSS-variable overrides can't reach (e.g. Tailwind `!important` surfaces). See [themes/README.md](themes/README.md).
+
 | Sweet | Nord | Catppuccin Mocha |
 |-------|------|------------------|
 | Purple/pink warm tones ([github.com/EliverLara/Sweet](https://github.com/EliverLara/Sweet)) | Arctic blue-grey ([nordtheme.com](https://nordtheme.com)) | Warm pastels ([catppuccin.com](https://catppuccin.com)) |

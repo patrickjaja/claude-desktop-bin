@@ -93,6 +93,44 @@ fc-list : family | grep -i "fira"
 fc-list : family style | grep -i "mono"
 ```
 
+### Custom CSS (raw rules)
+
+CSS variables only get you so far. claude.ai is built with Tailwind utilities, many carrying
+`!important` — so for surfaces whose color is set by a hardcoded utility class (e.g. some body
+backgrounds, the sidebar, input boxes), overriding `--bg-000` alone won't win the cascade. The
+`customCss` field lets you inject raw CSS rules to target those selectors directly.
+
+`customCss` accepts either a single string or an array of strings (arrays are joined with newlines).
+It can live at the **top level** (applies to whatever theme is active) and/or **inside a theme object**
+(applies only when that theme is active). Both are injected **after** the variable declarations and the
+built-in element overrides, so your rules win the cascade — but you must include your own `!important`
+when fighting Tailwind utilities. The per-theme `customCss` is appended after the global one, so it
+takes precedence.
+
+```json
+{
+  "activeTheme": "catppuccin-mocha",
+  "customCss": ".shared-rule-for-every-theme{}",
+  "themes": {
+    "catppuccin-mocha": {
+      "--bg-000": "240 21% 15%",
+      "customCss": [
+        "body, [data-testid='sidebar']{background:hsl(var(--bg-000))!important}",
+        ".input-box, .input-box *{background:hsl(var(--bg-100))!important}"
+      ]
+    }
+  }
+}
+```
+
+> **Selectors are fragile.** claude.ai's class names are minified and change between Claude Desktop
+> releases, so any selector you target may stop matching after an upstream update. Prefer the stable
+> `[data-*]`/`[role=*]`/`[aria-*]` attributes and HSL design tokens where you can, and re-check your
+> rules after updates. Use DevTools or the extraction steps below to find the current selectors.
+
+On startup (run `claude-desktop` from a terminal) you'll see
+`[CustomThemes] customCss appended (N chars)` confirming your rules were injected.
+
 ## Extracting HTML & CSS for Reference
 
 To inspect the actual HTML structure and CSS classes used by each window:
