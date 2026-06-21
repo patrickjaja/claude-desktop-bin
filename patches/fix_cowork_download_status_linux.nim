@@ -1,8 +1,8 @@
 # @patch-target: app.asar.contents/.vite/build/index.js
 # @patch-type: nim
 #
-# Suppress the false "Download a one-time package" agent-mode banner on Linux
-# (native Cowork backend).
+# Suppress the false "Download a one-time package" agent-mode banner and skip
+# automatic VM provisioning on Linux (native Cowork backend).
 #
 # NOTE: this is NOT 3p/enterprise.json specific. It is gated purely on Linux +
 # native backend and applies equally to 1p (personal) and 3p (managed/gateway)
@@ -40,14 +40,27 @@
 # in Linux + native (`!globalThis.__coworkKvmMode`); Linux-KVM and win/mac fall
 # through to the original `p5()` check unchanged.
 #
-# Patch
-# -----
-# Rewrite getDownloadStatus so that on Linux native it returns the enum's Ready
-# value; otherwise the original expression is preserved byte-for-byte:
+# Patches
+# -------
+# 1. Rewrite getDownloadStatus so that on Linux native it returns the enum's
+# Ready value; otherwise the original expression is preserved byte-for-byte:
 #
 #     getDownloadStatus(){return process.platform==="linux"&&!globalThis.__coworkKvmMode
 #       ? <enumVar>.Ready
 #       : xX()?<enumVar>.Downloading:p5()?<enumVar>.Ready:<enumVar>.NotDownloaded}
+#
+# 2. Make the public download() entry point return success without provisioning
+# in Linux native mode. The renderer invokes this independently of the status.
+#
+# 3. Keep setYukonSilverConfig's config update, then return before its
+# autoDownloadInBackground refresh in Linux native mode. The original refresh
+# expression remains unchanged for Linux KVM, Windows, and macOS:
+#
+#     setYukonSilverConfig(config) {
+#       updateConfig(config);
+#       if (process.platform === "linux" && !globalThis.__coworkKvmMode) return;
+#       config.autoDownloadInBackground && ...
+#     }
 #
 # The enum var (`eN` in v1.13576.4) and the check fns (`xX`/`p5`) are minified
 # and churn every release, so we capture them with `[\w$]+` and a backreference
@@ -58,51 +71,101 @@
 import std/os
 import std/nre
 
-const EXPECTED_PATCHES = 1
+const EXPECTED_PATCHES = 3
 
-# Linux-native guard expression prepended inside getDownloadStatus.
-const LINUX_NATIVE_GUARD =
-  """process.platform==="linux"&&!globalThis.__coworkKvmMode?"""
+const LINUX_NATIVE_CONDITION =
+  """process.platform==="linux"&&!globalThis.__coworkKvmMode"""
 
 proc apply*(input: string): string =
   result = input
+  var patchesApplied = 0
 
-  # Idempotency: assert the PATCHED END-STATE is present (CLAUDE.md Rule 6),
-  # not merely that the old pattern is gone. The end-state is the Linux-native
-  # guard returning <enumVar>.Ready at the top of getDownloadStatus.
-  let donePat =
+  # Patch 1: report Ready without looking for a VM bundle in Linux native mode.
+  let statusDonePat =
     re"""getDownloadStatus\(\)\{return process\.platform==="linux"&&!globalThis\.__coworkKvmMode\?[\w$]+\.Ready:"""
-  if result.find(donePat).isSome:
-    echo "  [OK] Already patched (Linux-native download-status short-circuit present)"
-    return result
-
-  # Match the unpatched method and capture:
-  #   g1 = "getDownloadStatus(){return "   (literal prefix)
-  #   g2 = the full original expression     (preserved for the fall-through)
-  #   g3 = the enum var (e.g. eN)           (reused to build <enumVar>.Ready)
-  # The backreference \3 ties the three enum references together so we only match
-  # the genuine method shape.
-  let pattern =
-    re"""(getDownloadStatus\(\)\{return )([\w$]+\(\)\?([\w$]+)\.Downloading:[\w$]+\(\)\?\3\.Ready:\3\.NotDownloaded)\}"""
-
-  var count = 0
-  result = result.replace(
-    pattern,
-    proc(m: RegexMatch): string =
-      inc count
-      if count > 1:
-        return m.match # never touch a second (unexpected) occurrence
-      let prefix = m.captures[0]
-      let origExpr = m.captures[1]
-      let enumVar = m.captures[2]
-      prefix & LINUX_NATIVE_GUARD & enumVar & ".Ready:" & origExpr & "}",
-  )
-
-  if count >= 1:
-    echo "  [OK] getDownloadStatus Linux-native short-circuit: " & $count & " match"
+  if result.find(statusDonePat).isSome:
+    echo "  [OK] getDownloadStatus Linux-native short-circuit present"
+    inc patchesApplied
   else:
-    echo "  [FAIL] getDownloadStatus method not found " &
-      "(expected `getDownloadStatus(){return ...?...Downloading:...?...Ready:...NotDownloaded}`)"
+    let statusPattern =
+      re"""(getDownloadStatus\(\)\{return )([\w$]+\(\)\?([\w$]+)\.Downloading:[\w$]+\(\)\?\3\.Ready:\3\.NotDownloaded)\}"""
+    var statusCount = 0
+    result = result.replace(
+      statusPattern,
+      proc(m: RegexMatch): string =
+        inc statusCount
+        if statusCount > 1:
+          return m.match
+        let prefix = m.captures[0]
+        let origExpr = m.captures[1]
+        let enumVar = m.captures[2]
+        prefix & LINUX_NATIVE_CONDITION & "?" & enumVar & ".Ready:" &
+          origExpr & "}",
+    )
+    if statusCount == 1:
+      echo "  [OK] getDownloadStatus Linux-native short-circuit: 1 match"
+      inc patchesApplied
+    else:
+      echo "  [FAIL] getDownloadStatus method not found uniquely " &
+        "(expected `getDownloadStatus(){return ...?...Downloading:...?...Ready:...NotDownloaded}`)"
+
+  # Patch 2: the renderer may call download() even after observing Ready. Treat
+  # that request as already satisfied in native mode.
+  let downloadDonePat =
+    re"""async download\(\)\{if\(process\.platform==="linux"&&!globalThis\.__coworkKvmMode\)return\{success:!0\};try\{return await [\w$]+\(\),\{success:[\w$]+\(\)\}\}"""
+  if result.find(downloadDonePat).isSome:
+    echo "  [OK] download Linux-native provisioning guard present"
+    inc patchesApplied
+  else:
+    let downloadPattern =
+      re"""(async download\(\)\{)(try\{return await [\w$]+\(\),\{success:[\w$]+\(\)\}\})"""
+    var downloadCount = 0
+    result = result.replace(
+      downloadPattern,
+      proc(m: RegexMatch): string =
+        inc downloadCount
+        if downloadCount > 1:
+          return m.match
+        m.captures[0] & "if(" & LINUX_NATIVE_CONDITION &
+          ")return{success:!0};" & m.captures[1],
+    )
+    if downloadCount == 1:
+      echo "  [OK] download Linux-native provisioning guard: 1 match"
+      inc patchesApplied
+    else:
+      echo "  [FAIL] public VM download entry point not found uniquely"
+
+  # Patch 3: retain the config update, but do not provision a VM bundle when
+  # the native service is the selected Linux backend.
+  let provisioningDonePat =
+    re"""setYukonSilverConfig\(([\w$]+)\)\{[\w$]+\(\1\);if\(process\.platform==="linux"&&!globalThis\.__coworkKvmMode\)return;\1\.autoDownloadInBackground&&"""
+  if result.find(provisioningDonePat).isSome:
+    echo "  [OK] setYukonSilverConfig Linux-native provisioning guard present"
+    inc patchesApplied
+  else:
+    let provisioningPattern =
+      re"""(setYukonSilverConfig\(([\w$]+)\)\{[\w$]+\(\2\)),(\2\.autoDownloadInBackground&&)"""
+    var provisioningCount = 0
+    result = result.replace(
+      provisioningPattern,
+      proc(m: RegexMatch): string =
+        inc provisioningCount
+        if provisioningCount > 1:
+          return m.match
+        let configUpdate = m.captures[0]
+        let autoDownloadExpr = m.captures[2]
+        configUpdate & ";if(" & LINUX_NATIVE_CONDITION & ")return;" &
+          autoDownloadExpr,
+    )
+    if provisioningCount == 1:
+      echo "  [OK] setYukonSilverConfig Linux-native provisioning guard: 1 match"
+      inc patchesApplied
+    else:
+      echo "  [FAIL] setYukonSilverConfig auto-download path not found uniquely"
+
+  if patchesApplied < EXPECTED_PATCHES:
+    echo "  [FAIL] Only " & $patchesApplied & "/" & $EXPECTED_PATCHES &
+      " patches applied"
     quit(1)
 
 when isMainModule:

@@ -2,6 +2,11 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-06-21 - Prevent VM bundle provisioning in Linux native Cowork
+
+- **`fix_cowork_download_status_linux.nim` now blocks VM provisioning in Linux native mode ([#150](https://github.com/patrickjaja/claude-desktop-bin/issues/150)).** The existing patch made `getDownloadStatus()` report `Ready`, which hid the false setup banner, but the renderer still called the public `download()` entry point and `setYukonSilverConfig()` independently started a stale/missing bundle refresh whenever `autoDownloadInBackground` was enabled. These paths downloaded and unpacked about 9 GB of `rootfs.vhdx`, `vmlinuz`, and `initrd` even though `claude-cowork-service` runs the CLI directly on the host. The patch now returns success from `download()` and preserves the Yukon Silver config update before returning, both only when `process.platform==="linux"&&!globalThis.__coworkKvmMode`. Linux KVM, Windows, and macOS keep the original provisioning paths.
+- Added a fixture regression test covering fresh and partial patch states, idempotency, preservation of the non-native fallback expressions, and JavaScript syntax.
+
 ## 2026-06-18 - v1.14271.0 bump (2 patches fixed) + new patch: suppress false VM-download banner on Linux native (#143)
 
 ### Upstream (v1.14271.0) - 2 patches fixed, all 52 apply

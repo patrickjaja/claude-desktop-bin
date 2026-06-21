@@ -301,6 +301,9 @@ jobs:
           echo "=== Checking Nim patch syntax (compile check) ==="
           bash scripts/compile-nim-patches.sh
 
+      - name: Test Linux-native Cowork VM download guards
+        run: bash scripts/test-fix-cowork-download-status-linux.sh
+
       - name: Verify .electron-shasums matches pinned Electron version
         run: |
           echo "=== Verifying committed Electron digests ==="
