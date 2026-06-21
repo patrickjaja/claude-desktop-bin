@@ -489,7 +489,7 @@ echo '{"activeTheme": "sweet"}' > ~/.config/Claude/claude-desktop-bin.json
 
 **Built-in themes:** `sweet`, `nord`, `catppuccin-mocha`, `catppuccin-frappe`, `catppuccin-latte`, `catppuccin-macchiato`
 
-Themes can also include a `customCss` field (a string or array of raw CSS rules, per-theme or global) to style selectors that plain CSS-variable overrides can't reach (e.g. Tailwind `!important` surfaces). See [themes/README.md](themes/README.md).
+Themes can also include a `customCss` field (a string or array of raw CSS rules, per-theme or global) to style surfaces that plain CSS-variable overrides can't reach (the chat UI is Tailwind v4, whose `@layer` utilities win over `:root` variables). See [themes/README.md](themes/README.md) for the verified technique (double the Tailwind token class; clear gradient `background-image`).
 
 | Sweet | Nord | Catppuccin Mocha |
 |-------|------|------------------|
@@ -518,7 +518,7 @@ The package applies several patches to make Claude Desktop work on Linux. Each p
 | `fix_cli_governor_memavailable.nim` | Computes CliGovernor memory pressure from `MemAvailable`/`MemTotal` (`/proc/meminfo`) instead of Electron's `free` (= Linux `MemFree`, which excludes reclaimable page cache) - stops false `[CliGovernor] memory pressure` warnings on healthy systems; falls back to the upstream metric if the `/proc` read fails ([#128](https://github.com/patrickjaja/claude-desktop-bin/issues/128)) | `rg -o 'getFreeMemoryRatio.{0,160}' index.js` |
 | `fix_computer_use_linux.nim` | Enables Computer Use - removes platform gates, injects Linux executor (portal+PipeWire/grim/GNOME D-Bus/spectacle/scrot, xdotool/ydotool) | `rg -o 'process.platform.*darwin.*t7r' index.js` |
 | `fix_computer_use_tcc.nim` | Stubs macOS TCC permission handlers to prevent error logs | Prepended IIFE, UUID extraction |
-| `fix_cowork_download_status_linux.nim` | Suppresses the false VM-download banner and prevents background VM provisioning on Linux **native** mode (no VM image needed); leaves win/mac and Linux-KVM untouched. Gated on `process.platform==="linux"&&!globalThis.__coworkKvmMode` | `rg -o 'getDownloadStatus\(\)\{return\|setYukonSilverConfig' index.js` |
+| `fix_cowork_download_status_linux.nim` | Suppresses the false VM-download banner and prevents background VM provisioning on Linux **native** mode (no VM image needed); leaves win/mac and Linux-KVM untouched. Gated on `process.platform==="linux"&&!globalThis.__coworkKvmMode` | `rg -o 'getDownloadStatus\(\)\{return.{0,40}' index.js`; `rg -o 'setYukonSilverConfig\(.{0,60}' index.js` |
 | `fix_cowork_error_message.nim` | Replaces Windows VM errors with Linux-friendly guidance | String literal match |
 | `fix_cowork_font.nim` | Applies the user's chat font preference to the Cowork tab on load (avoids default Serif) | Prepended dom-ready IIFE, no regex |
 | `fix_cowork_linux.nim` | Enables Cowork - VM client, Unix socket, bundle config, binary resolution | `rg -o '.{0,50}vmClient.{0,50}' index.js` |

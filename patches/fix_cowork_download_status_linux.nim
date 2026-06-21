@@ -62,6 +62,16 @@
 #       config.autoDownloadInBackground && ...
 #     }
 #
+# Why patches 2 and 3 are NOT redundant with the downloader's own guard: the real
+# downloader (`I$A`) short-circuits when `Rz()` (bundle-ready) is true. But `Rz()`
+# is FALSE on Linux native -- it iterates the win32-keyed VM file list
+# (`oo.files["win32"][arch]`, populated on ALL platforms, so the list is non-empty)
+# and the files are genuinely absent on disk, so it does NOT early-out. The
+# download() and setYukonSilverConfig paths therefore really would fetch the ~9 GB
+# bundle. Do not "simplify" these guards away believing the internal check covers
+# them. (The native daemon never downloads a bundle; it only consumes one in KVM
+# mode from ~/.config/Claude/vm_bundles -- hence KVM keeps the original download.)
+#
 # The enum var (`eN` in v1.13576.4) and the check fns (`xX`/`p5`) are minified
 # and churn every release, so we capture them with `[\w$]+` and a backreference
 # (std/nre) instead of hardcoding. This pairs with enable_local_agent_mode.nim's
@@ -99,8 +109,7 @@ proc apply*(input: string): string =
         let prefix = m.captures[0]
         let origExpr = m.captures[1]
         let enumVar = m.captures[2]
-        prefix & LINUX_NATIVE_CONDITION & "?" & enumVar & ".Ready:" &
-          origExpr & "}",
+        prefix & LINUX_NATIVE_CONDITION & "?" & enumVar & ".Ready:" & origExpr & "}",
     )
     if statusCount == 1:
       echo "  [OK] getDownloadStatus Linux-native short-circuit: 1 match"
@@ -126,8 +135,8 @@ proc apply*(input: string): string =
         inc downloadCount
         if downloadCount > 1:
           return m.match
-        m.captures[0] & "if(" & LINUX_NATIVE_CONDITION &
-          ")return{success:!0};" & m.captures[1],
+        m.captures[0] & "if(" & LINUX_NATIVE_CONDITION & ")return{success:!0};" &
+          m.captures[1],
     )
     if downloadCount == 1:
       echo "  [OK] download Linux-native provisioning guard: 1 match"
@@ -154,8 +163,7 @@ proc apply*(input: string): string =
           return m.match
         let configUpdate = m.captures[0]
         let autoDownloadExpr = m.captures[2]
-        configUpdate & ";if(" & LINUX_NATIVE_CONDITION & ")return;" &
-          autoDownloadExpr,
+        configUpdate & ";if(" & LINUX_NATIVE_CONDITION & ")return;" & autoDownloadExpr,
     )
     if provisioningCount == 1:
       echo "  [OK] setYukonSilverConfig Linux-native provisioning guard: 1 match"
