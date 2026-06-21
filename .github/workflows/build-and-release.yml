@@ -302,7 +302,13 @@ jobs:
           bash scripts/compile-nim-patches.sh
 
       - name: Test Linux-native Cowork VM download guards
-        run: bash scripts/test-fix-cowork-download-status-linux.sh
+        run: |
+          # The Nim patches compile inside the nimlang/nim Docker image, where
+          # nim-regex dynamically links libpcre. Running the resulting binary on
+          # the runner host needs libpcre present too, or it aborts with
+          # "could not load: libpcre.so(.3|.1|)".
+          sudo apt-get update -qq && sudo apt-get install -y -qq libpcre3
+          bash scripts/test-fix-cowork-download-status-linux.sh
 
       - name: Verify .electron-shasums matches pinned Electron version
         run: |
