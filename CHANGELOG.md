@@ -2,10 +2,16 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
-## 2026-06-21 - Prevent VM bundle provisioning in Linux native Cowork
+## 2026-06-21
 
-- **`fix_cowork_download_status_linux.nim` now blocks VM provisioning in Linux native mode ([#150](https://github.com/patrickjaja/claude-desktop-bin/issues/150)).** The existing patch made `getDownloadStatus()` report `Ready`, which hid the false setup banner, but the renderer still called the public `download()` entry point and `setYukonSilverConfig()` independently started a stale/missing bundle refresh whenever `autoDownloadInBackground` was enabled. These paths downloaded and unpacked about 9 GB of `rootfs.vhdx`, `vmlinuz`, and `initrd` even though `claude-cowork-service` runs the CLI directly on the host. The patch now returns success from `download()` and preserves the Yukon Silver config update before returning, both only when `process.platform==="linux"&&!globalThis.__coworkKvmMode`. Linux KVM, Windows, and macOS keep the original provisioning paths.
+### Prevent VM bundle provisioning in Linux native Cowork (#150)
+
+- **`fix_cowork_download_status_linux.nim` now blocks VM provisioning in Linux native mode ([#150](https://github.com/patrickjaja/claude-desktop-bin/issues/150)).** The existing patch made `getDownloadStatus()` report `Ready`, which hid the false setup banner, but the renderer still called the public `download()` entry point and `setYukonSilverConfig()` independently started a stale/missing bundle refresh whenever `autoDownloadInBackground` was enabled. These paths downloaded and unpacked about 9 GB of `rootfs.vhdx`, `vmlinuz`, and `initrd` even though `claude-cowork-service` runs the CLI directly on the host. The patch now returns success from `download()` and preserves the Yukon Silver config update before returning, both only when `process.platform==="linux"&&!globalThis.__coworkKvmMode`. Linux KVM, Windows, and macOS keep the original provisioning paths. (The native daemon never downloads a VM bundle; it only consumes one in KVM mode from `~/.config/Claude/vm_bundles`, so the KVM-keeps-download gate is load-bearing.)
 - Added a fixture regression test covering fresh and partial patch states, idempotency, preservation of the non-native fallback expressions, and JavaScript syntax.
+
+### Custom themes: raw `customCss` field for selector-level styling (#149)
+
+- **`add_feature_custom_themes.nim`: themes can now carry a `customCss` field.** Previously a theme object only accepted CSS-variable keys (`--*`) plus `chatFont`, then a fixed block of element overrides was appended. Because claude.ai is built with Tailwind `!important` utilities, variable overrides re-theme text and accents but leave hardcoded surfaces (body background, sidebar, input boxes) at their defaults - and authors had no way to fix that without editing the patch and rebuilding. `customCss` accepts a raw CSS string or an array of strings (joined with newlines), at the top level (applies to the active theme) and/or inside a theme object (applies only for that theme). Both are injected after the variable declarations and built-in overrides so author rules win the cascade; per-theme is appended after global. The field is optional and fully backward-compatible - configs without it behave exactly as before. Startup logs `[CustomThemes] customCss appended (N chars)` when present. Documented in `themes/README.md` (with a caveat that minified claude.ai selectors are release-fragile).
 
 ## 2026-06-18 - v1.14271.0 bump (2 patches fixed) + new patch: suppress false VM-download banner on Linux native (#143)
 

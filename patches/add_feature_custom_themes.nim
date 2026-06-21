@@ -19,6 +19,11 @@ const THEME_INJECTION_JS =
   """;(function(){
 if(process.platform!=="linux")return;
 var _path=require("path"),_fs=require("fs"),_app=require("electron").app;
+function __cdb_toCss(v){
+if(typeof v==="string")return v;
+if(Array.isArray(v))return v.filter(function(x){return typeof x==="string"}).join("\n");
+return "";
+}
 var __cdb_builtins={
 "sweet":{
 "--bg-000":"285 50% 8%","--bg-100":"288 29% 17%","--bg-200":"300 26% 19%","--bg-300":"290 25% 14%","--bg-400":"285 50% 5%","--bg-500":"285 60% 3%",
@@ -193,6 +198,11 @@ __cdb_css+=":root{--theme-font-override:1}";
 __cdb_fontFlag=true;
 console.log("[CustomThemes] Font override: "+__cdb_font);
 }
+var __cdb_extra=__cdb_toCss(__cdb_cfg.customCss);
+var __cdb_themeExtra=__cdb_toCss(__cdb_vars.customCss);
+if(__cdb_extra)__cdb_css+="\n"+__cdb_extra;
+if(__cdb_themeExtra)__cdb_css+="\n"+__cdb_themeExtra;
+if(__cdb_extra||__cdb_themeExtra)console.log("[CustomThemes] customCss appended ("+((__cdb_extra?__cdb_extra.length:0)+(__cdb_themeExtra?__cdb_themeExtra.length:0))+" chars)");
 }
 console.log("[CustomThemes] Loaded "+__cdb_src+" theme '"+__cdb_name+"' with "+__cdb_rules.length+" CSS vars + element overrides");
 }catch(e){
