@@ -10,6 +10,11 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 - `claude-desktop --diagnose` now prints the assembled `electron_args` so future no-window reports show the active flags.
 - README gained a "No window opens on Wayland" troubleshooting section and a `CLAUDE_ENABLE_VULKAN` env-var row. Launcher-only change; no patch or upstream-version bump.
 
+### Custom themes: theme the desktop-shell surfaces that ignore `--bg-*` (#149)
+
+- **`add_feature_custom_themes.nim`: the built-in element overrides now recolor the surfaces that don't read `--bg-*`,** so the bundled `catppuccin-*` themes (and any custom theme) color the whole desktop shell out of the box instead of just the chat text. Three token layers paint independently of `--bg-*` and were staying their hardcoded neutral grey: the `dframe-*` frame classes (`.dframe-sidebar` -> `--bg-200`, `.dframe-content`/`main` -> `--bg-100`); the CDS/epitaxy **surface tokens** (`--cds-surface-0…3`, `--cds-surface-popover`/`-panel`, `--surface-primary`/`-primary-elevated`/`-popover`/`-panel`/`-hud`) that back the Settings dialog, popovers, cards, HUD and the Code tab; and the transcript **scrims** (`.epitaxy-top-scrim`/`.epitaxy-bottom-scrim`) that fade content under the titlebar with a fixed gradient. Each is now mapped onto the active theme's `--bg-*`, so they follow whatever theme is selected.
+- **Corrects the scope note from the 2026-06-21 entry.** `insertCSS()` *does* reach the chat webview and its `a.claude.ai/isolated-segment.html` iframe - the unthemed surfaces were never a cross-origin-iframe block, they were these token layers bypassing `--bg-*`. `themes/README.md` is updated to describe the real layers and how to target them. The one thing genuinely out of reach is the OS window-control buttons (min/max/close), which the window manager draws as native decorations - themed from the desktop environment, not from here.
+
 ## 2026-06-21
 
 ### Prevent VM bundle provisioning in Linux native Cowork (#150)

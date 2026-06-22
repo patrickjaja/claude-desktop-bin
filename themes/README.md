@@ -117,21 +117,27 @@ overrides; per-theme `customCss` is appended after the global one, so it takes p
 On startup (run `claude-desktop` from a terminal) you'll see
 `[CustomThemes] customCss appended (N chars)` confirming your rules were injected.
 
-> **Important limitation - `customCss` does NOT reach most of the chat UI.** The patch injects CSS with
-> Electron's `webContents.insertCSS()`, which applies a stylesheet **only to the frame it is called on**.
-> As of the current claude.ai build, the main chat surface - sidebar, conversation list, composer - renders
-> inside a **cross-origin child iframe** (`https://a.claude.ai/isolated-segment.html`). `insertCSS()` cannot
-> cross into a cross-origin frame, so neither `customCss` nor the built-in element overrides apply to those
-> elements. Only the `top` `https://claude.ai/` document and the local renderer windows (Quick Entry,
-> Find-in-Page, About) receive the injected CSS.
+> **`customCss` reaches the chat UI, but most surfaces don't read `--bg-*`.** The patch injects CSS with
+> Electron's `webContents.insertCSS()` on every WebContents it creates, including the chat webview and the
+> nested `https://a.claude.ai/isolated-segment.html` iframe - so both `customCss` and the built-in element
+> overrides *do* apply there. The catch is that the desktop UI paints many surfaces from token layers that
+> are **independent of `--bg-*`**, so overriding `--bg-*` alone leaves them their hardcoded neutral grey:
 >
-> **CSS variables are the exception and are what you should rely on.** The variable block is set on `:root`
-> of every document that does receive the injection, and the chat iframe inherits the same design-token
-> values through claude.ai's own styling - which is why a theme's `--bg-*` / `--text-*` / `--accent-*`
-> overrides *do* recolor the chat UI. Use variable overrides (the bulk of this guide) to theme the chat;
-> reserve `customCss` for the renderer windows and the `top` document. Selector-level styling of the chat
-> sidebar/composer is **not currently possible** from this config - that requires a patch-level change to
-> inject into sub-frames (tracked separately).
+> - **`dframe-*` classes** - the desktop frame: `.dframe-sidebar`, `.dframe-content` / `main` use plain
+>   class backgrounds, not `--bg-*`.
+> - **CDS surface tokens** - `--cds-surface-0…3` (Settings dialog, nav) derive from a neutral `--cds-gray-*`
+>   ramp; `--surface-primary` / `--surface-primary-elevated` / `--surface-popover` / `--surface-panel` /
+>   `--surface-hud` (cards, popovers, HUD, Code tab) live on `.epitaxy-root`.
+> - **Scrims** - `.epitaxy-top-scrim` / `.epitaxy-bottom-scrim` fade the transcript under the titlebar with
+>   a hardcoded gradient.
+>
+> The patch's **built-in element overrides** map each of these layers back onto the active theme's `--bg-*`
+> variables, so the sidebar, main content, Settings, popovers, cards and scrims recolor out of the box for
+> *every* theme - including ones you author - with no extra `customCss` needed. `customCss` is still there for
+> anything those overrides don't cover: target a specific selector and it will reach the chat UI just fine.
+>
+> Two things stay out of reach: the **OS window-control buttons** (min/max/close) are drawn by your window
+> manager's decorations, not by any web frame, and are themed from your desktop environment - not here.
 
 ## Extracting HTML & CSS for Reference
 
