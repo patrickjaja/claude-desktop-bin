@@ -1232,6 +1232,21 @@ case $platform_mode in
         ELECTRON_ARGS+=('--ozone-platform=wayland')
         ELECTRON_ARGS+=('--enable-wayland-ime')
         ELECTRON_ARGS+=('--wayland-text-input-version=3')
+        # On GPUs where Chromium (Electron 42) brings up Vulkan - real Intel/AMD/
+        # NVIDIA with a recent Mesa driver - it refuses to pair Vulkan with
+        # --ozone-platform=wayland: the Wayland surface factory fails and NO window
+        # is ever created (silent no-UI startup, seen on Ubuntu/GNOME Wayland).
+        # Machines where Chromium never selects Vulkan (VMs, software GL) don't hit
+        # this, and disabling the feature there is a harmless no-op. Chromium refuses
+        # Vulkan+Wayland outright, so this removes no working render path. x11/
+        # xwayland use --ozone-platform=x11 and keep Vulkan. Opt out: CLAUDE_ENABLE_VULKAN=1.
+        # log line: wayland_surface_factory.cc "'--ozone-platform=wayland' is not compatible with Vulkan"
+        if [[ "${CLAUDE_ENABLE_VULKAN:-}" != '1' ]]; then
+            ELECTRON_ARGS+=('--disable-features=Vulkan')
+            log 'Vulkan disabled for Wayland surface compatibility (set CLAUDE_ENABLE_VULKAN=1 to keep it)'
+        else
+            log 'Vulkan kept on Wayland (CLAUDE_ENABLE_VULKAN=1)'
+        fi
         ;;
 esac
 
@@ -1240,6 +1255,9 @@ esac
 if [[ -n ${_diagnose_requested:-} ]]; then
     echo "platform_mode = $platform_mode"
     echo "electron_major = $electron_major"
+    # Note: CLAUDE_DISABLE_GPU flags are appended after this point, so they are
+    # not reflected here; the platform/Vulkan/titlebar flags are.
+    echo "electron_args = ${ELECTRON_ARGS[*]}"
     _diagnose
     exit 0
 fi

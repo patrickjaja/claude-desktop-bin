@@ -95,29 +95,20 @@ fc-list : family style | grep -i "mono"
 
 ### Custom CSS (raw rules)
 
-CSS variables only get you so far. The main chat UI (claude.ai) is built with **Tailwind CSS v4**, whose
-utility classes (e.g. `.bg-bg-100`, `.border-border-300`) live in CSS `@layer`s and win the cascade over
-a plain `:root` variable override. So for surfaces whose color is painted by a utility class - the
-sidebar, some backgrounds, borders - overriding `--bg-000` alone doesn't change them. The `customCss`
-field lets you inject raw CSS rules that target those elements directly.
-
-`customCss` accepts either a single string or an array of strings (arrays are joined with newlines).
-It can live at the **top level** (applies to whatever theme is active) and/or **inside a theme object**
-(applies only when that theme is active). Both are injected **after** the variable declarations and the
-built-in element overrides. Per-theme `customCss` is appended after the global one, so it takes
-precedence.
+`customCss` lets a theme inject raw CSS rules (beyond `--` variables) into the windows the theme system
+styles. It accepts either a single string or an array of strings (arrays are joined with newlines), at the
+**top level** (applies under whatever theme is active) and/or **inside a theme object** (applies only when
+that theme is active). Both are injected **after** the variable declarations and the built-in element
+overrides; per-theme `customCss` is appended after the global one, so it takes precedence.
 
 ```json
 {
   "activeTheme": "nord",
-  "customCss": "/* applies under every theme */",
+  "customCss": ".some-renderer-element{ /* raw rule */ }",
   "themes": {
     "nord": {
       "--bg-000": "220 16% 22%",
-      "customCss": [
-        "nav.bg-bg-100.bg-bg-100{background-image:none!important;background-color:hsl(var(--bg-200))!important;border-right:2px solid hsl(var(--accent-main-100) / 0.55)!important}",
-        "[contenteditable=\"true\"], .ProseMirror{border:1px solid hsl(var(--accent-main-100) / 0.4)!important;border-radius:10px!important}"
-      ]
+      "customCss": ".container{ box-shadow: 0 0 0 1px hsl(var(--accent-main-100) / 0.4) !important }"
     }
   }
 }
@@ -126,27 +117,21 @@ precedence.
 On startup (run `claude-desktop` from a terminal) you'll see
 `[CustomThemes] customCss appended (N chars)` confirming your rules were injected.
 
-#### Beating Tailwind v4 utilities (verified, important)
-
-These two techniques are what make the example above actually work - and they're the difference between
-a rule that paints and one that silently no-ops:
-
-1. **Out-specify the utility by doubling its class.** A plain `!important` in your `customCss` does **not**
-   reliably beat a Tailwind v4 utility, because `@layer` ordering and the framework's own weights can win.
-   The robust, hash-free fix is to **repeat the utility class** so your selector has higher specificity:
-   `nav.bg-bg-100.bg-bg-100{...}` (two `.bg-bg-100` = specificity 0,2,0) beats `.bg-bg-100` (0,1,0). This
-   uses Tailwind's **stable token classes** (`bg-bg-100`, `border-border-300`, `text-text-100`, …), which
-   are far more durable than minified component-class hashes.
-2. **Backgrounds are often gradients - clear `background-image`.** The sidebar fill, for instance, is a
-   `bg-gradient-to-t` utility, not a flat color. Setting `background-color` alone does nothing visible; you
-   must also set `background-image:none!important` before your `background-color` shows through.
-
-> **Selectors drift between releases.** Prefer stable Tailwind token classes (`bg-bg-*`, `text-text-*`,
-> `border-border-*`) and `[contenteditable]`/`[role=*]`/`[aria-*]` attributes over minified component-class
-> hashes, and re-check your rules after an upstream update. To find the current element for a surface, open
-> the main view's DevTools and walk up from a known item until you hit the element whose computed
-> `background` is the one you see (note: with Tailwind v4 gradients, trust the rendered pixels - DevTools'
-> *Computed* panel can mis-report the background as unchanged). The extraction steps below also help.
+> **Important limitation - `customCss` does NOT reach most of the chat UI.** The patch injects CSS with
+> Electron's `webContents.insertCSS()`, which applies a stylesheet **only to the frame it is called on**.
+> As of the current claude.ai build, the main chat surface - sidebar, conversation list, composer - renders
+> inside a **cross-origin child iframe** (`https://a.claude.ai/isolated-segment.html`). `insertCSS()` cannot
+> cross into a cross-origin frame, so neither `customCss` nor the built-in element overrides apply to those
+> elements. Only the `top` `https://claude.ai/` document and the local renderer windows (Quick Entry,
+> Find-in-Page, About) receive the injected CSS.
+>
+> **CSS variables are the exception and are what you should rely on.** The variable block is set on `:root`
+> of every document that does receive the injection, and the chat iframe inherits the same design-token
+> values through claude.ai's own styling - which is why a theme's `--bg-*` / `--text-*` / `--accent-*`
+> overrides *do* recolor the chat UI. Use variable overrides (the bulk of this guide) to theme the chat;
+> reserve `customCss` for the renderer windows and the `top` document. Selector-level styling of the chat
+> sidebar/composer is **not currently possible** from this config - that requires a patch-level change to
+> inject into sub-frames (tracked separately).
 
 ## Extracting HTML & CSS for Reference
 

@@ -489,7 +489,7 @@ echo '{"activeTheme": "sweet"}' > ~/.config/Claude/claude-desktop-bin.json
 
 **Built-in themes:** `sweet`, `nord`, `catppuccin-mocha`, `catppuccin-frappe`, `catppuccin-latte`, `catppuccin-macchiato`
 
-Themes can also include a `customCss` field (a string or array of raw CSS rules, per-theme or global) to style surfaces that plain CSS-variable overrides can't reach (the chat UI is Tailwind v4, whose `@layer` utilities win over `:root` variables). See [themes/README.md](themes/README.md) for the verified technique (double the Tailwind token class; clear gradient `background-image`).
+Themes can also include a `customCss` field (a string or array of raw CSS rules, per-theme or global) for the renderer windows. Note: it does **not** reach the chat UI, which renders in a cross-origin iframe `insertCSS` can't enter - theme the chat via CSS variables instead. See [themes/README.md](themes/README.md).
 
 | Sweet | Nord | Catppuccin Mocha |
 |-------|------|------------------|
@@ -741,6 +741,7 @@ The `Created profile` output tells you which path was taken. Sibling files in th
 | `CLAUDE_CONFIG_DIR` | path | Override Claude Code's config dir. Auto-set by the launcher when `CLAUDE_PROFILE` is active; honored by `@anthropic-ai/claude-code` |
 | `CLAUDE_DISABLE_GPU` | `1`, `full` | Fix white screen on some GPU/driver combos ([#13](https://github.com/patrickjaja/claude-desktop-bin/issues/13)). `1` disables compositing only, `full` disables GPU entirely |
 | `CLAUDE_USE_XWAYLAND` | `1` | Force XWayland instead of native Wayland |
+| `CLAUDE_ENABLE_VULKAN` | `1` | Keep Vulkan enabled on native Wayland. Default off: on Wayland the launcher passes `--disable-features=Vulkan` because on real GPUs Chromium (Electron 42) brings up Vulkan, which it refuses to pair with `--ozone-platform=wayland` - causing a silent no-window startup. Harmless no-op where Vulkan wasn't selected (VMs, software GL). Only affects Wayland; X11/XWayland always keep Vulkan |
 | `CLAUDE_MENU_BAR` | `auto`, `visible`, `hidden` | Menu bar visibility (default: `auto`, toggle with Alt) |
 | `CLAUDE_DEV_TOOLS` | `detach` | Open Chromium DevTools on launch |
 | `CLAUDE_ELECTRON` | path | Override Electron binary path |

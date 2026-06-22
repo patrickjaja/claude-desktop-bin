@@ -2,6 +2,14 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-06-22
+
+### Fix: no window opens on Wayland (Vulkan incompatible with `--ozone-platform=wayland`)
+
+- **The launcher now passes `--disable-features=Vulkan` on native Wayland sessions.** On GPUs where Chromium (Electron 42) brings up Vulkan - real Intel/AMD/NVIDIA with a recent Mesa driver - it refuses to pair Vulkan with `--ozone-platform=wayland`, so the Wayland surface factory fails (`wayland_surface_factory.cc: '--ozone-platform=wayland' is not compatible with Vulkan`) and no window is ever created: a silent no-UI startup (the main process logs its `[claude-cu] diagnostics:` lines and stays alive, but nothing renders). Machines where Chromium never selects Vulkan (VMs, software GL) are unaffected and never hit this. Disabling the Vulkan feature is therefore a no-op on the unaffected machines and the fix on the affected ones - Chromium refuses Vulkan+Wayland outright, so no working render path is removed. Only the `wayland` arm is touched; X11 and XWayland (`CLAUDE_USE_XWAYLAND=1`) use `--ozone-platform=x11` and keep Vulkan. Opt back in with `CLAUDE_ENABLE_VULKAN=1`.
+- `claude-desktop --diagnose` now prints the assembled `electron_args` so future no-window reports show the active flags.
+- README gained a "No window opens on Wayland" troubleshooting section and a `CLAUDE_ENABLE_VULKAN` env-var row. Launcher-only change; no patch or upstream-version bump.
+
 ## 2026-06-21
 
 ### Prevent VM bundle provisioning in Linux native Cowork (#150)
@@ -10,9 +18,9 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 - Added a fixture regression test covering fresh and partial patch states, idempotency, preservation of the non-native fallback expressions, and JavaScript syntax.
 - Thanks to [@Adiker](https://github.com/Adiker) for the patch ([#151](https://github.com/patrickjaja/claude-desktop-bin/pull/151)).
 
-### Custom themes: raw `customCss` field for selector-level styling (#149)
+### Custom themes: raw `customCss` field for the renderer windows (#149)
 
-- **`add_feature_custom_themes.nim`: themes can now carry a `customCss` field.** Previously a theme object only accepted CSS-variable keys (`--*`) plus `chatFont`, then a fixed block of element overrides was appended. The main chat UI is Tailwind CSS v4, whose `@layer` utilities (`.bg-bg-100`, `.border-border-300`, …) win the cascade over a `:root` variable override - so variable overrides re-theme text and accents but leave utility-painted surfaces (sidebar, some backgrounds, borders) at their defaults, and authors had no way to fix that without editing the patch and rebuilding. `customCss` accepts a raw CSS string or an array of strings (joined with newlines), at the top level (applies to the active theme) and/or inside a theme object (applies only for that theme). Both are injected after the variable declarations and built-in overrides so author rules win the cascade; per-theme is appended after global. The field is optional and fully backward-compatible - configs without it behave exactly as before. Startup logs `[CustomThemes] customCss appended (N chars)` when present. `themes/README.md` documents the verified technique for beating Tailwind v4 utilities, found by inspecting the live DOM: **double the stable token class** to out-specify the utility (`nav.bg-bg-100.bg-bg-100{…}`) rather than chasing minified hashes, and **clear gradient `background-image`** (e.g. the sidebar fill is a `bg-gradient-to-t`, so `background-color` alone is invisible until `background-image:none` is set).
+- **`add_feature_custom_themes.nim`: themes can now carry a `customCss` field.** Previously a theme object only accepted CSS-variable keys (`--*`) plus `chatFont`, then a fixed block of element overrides was appended. `customCss` lets a theme inject raw CSS rules beyond variables. It accepts a raw CSS string or an array of strings (joined with newlines), at the top level (applies under the active theme) and/or inside a theme object (applies only for that theme). Both are injected after the variable declarations and built-in overrides; per-theme is appended after global. Optional and fully backward-compatible - configs without it behave exactly as before. Startup logs `[CustomThemes] customCss appended (N chars)` when present. **Scope caveat (documented in `themes/README.md`):** injection uses `webContents.insertCSS()`, which is per-frame, so `customCss` reaches the local renderer windows (Quick Entry, Find-in-Page, About) and the `top` `https://claude.ai/` document, but **not** the main chat UI - sidebar/conversation-list/composer render in a cross-origin child iframe (`a.claude.ai/isolated-segment.html`) that `insertCSS` cannot enter. Theme the chat UI via CSS variables (which the iframe inherits through claude.ai's own styling); selector-level styling of the chat surface needs a future patch-level sub-frame injection change.
 
 ## 2026-06-18 - v1.14271.0 bump (2 patches fixed) + new patch: suppress false VM-download banner on Linux native (#143)
 
