@@ -100,7 +100,7 @@ Type=Application
 Terminal=false
 Categories=Office;Utility;Chat;
 MimeType=x-scheme-handler/claude;
-StartupWMClass=claude
+StartupWMClass=claude-desktop
 DESKTOP
 
 # Install icon
