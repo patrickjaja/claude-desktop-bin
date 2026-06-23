@@ -9,11 +9,20 @@
 
 ## How to pick this up
 
-Open the repo in **Claude Code** and run the update skill:
-
-```
-/update {{UPSTREAM}}
-```
+1. Clone this repo and `cd` into it:
+   ```
+   git clone https://github.com/{{REPO}}.git && cd claude-desktop-bin
+   ```
+2. Start **Claude Code** in the project (`claude`).
+3. Add the sibling daemon repo so the skill can check the cowork RPC cross-dependency:
+   ```
+   /add-dir ../claude-cowork-service
+   ```
+   (clone [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service) next to this repo first if you don't have it).
+4. Run the update skill from inside this project:
+   ```
+   /update {{UPSTREAM}}
+   ```
 
 That's it. The skill drives the whole release: it re-builds against the new upstream msix, fixes any patches the re-minify broke, then runs the analysis (new platform gates, feature flags, ion-dist, platform-gate re-audit, `claude-cowork-service` cross-dependency), updates the docs, bumps `.upstream-version`, and ends with `/deploy`.
 
