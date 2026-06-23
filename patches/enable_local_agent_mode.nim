@@ -110,8 +110,13 @@ proc apply*(input: string): string =
   #
   # The v1.13576 form is anchored on Zce()'s distinctive delegate chain
   # (Q3i/IfA/C3i + `status!=="supported"` + AW()), which is unique.
+  # v1.15200: upstream added a leading `var r,n;` hoist declaration between the
+  # opening `{` and the first `const A=...`, so allow an optional
+  # `var <ids>;` after `{`. The injected Linux early-return goes *before* the
+  # hoist decl, which is harmless (the vars are still declared, just unused on
+  # the Linux path).
   let nhPatternZce =
-    re"""(function [\w$]+\(\)\{)(const [\w$]+=[\w$]+\(\);if\([\w$]+\)return [\w$]+;if\([\w$]+\)return [\w$]+;const [\w$]+=[\w$]+\(\);if\([\w$]+\.status!=="supported"\)return [\w$]+\([\w$]+\);)"""
+    re"""(function [\w$]+\(\)\{)((?:var [\w$,]+;)?const [\w$]+=[\w$]+\(\);if\([\w$]+\)return [\w$]+;if\([\w$]+\)return [\w$]+;const [\w$]+=[\w$]+\(\);if\([\w$]+\.status!=="supported"\)return [\w$]+\([\w$]+\);)"""
   let nhPatternOld =
     re"""(function [\w$]+\(\)\{)(const ([\w$]+)=process\.platform;if\(\3!=="darwin"&&\3!=="win32"\)return\{status:"unsupported",reason:`Unsupported platform: \$\{\3\}`\})"""
   # reason: can be either Qe.formatMessage (old) or Qe().formatMessage (new, v1.4758+)

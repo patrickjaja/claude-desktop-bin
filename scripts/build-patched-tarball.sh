@@ -212,6 +212,13 @@ if [ -d "$NODE_PTY_UNPACKED" ] && command -v npx &>/dev/null; then
             # Replace Windows binaries in asar contents with Linux builds
             # This is critical: .node files inside the asar can't be dlopen'd by Electron.
             # The --unpack flag in the asar pack step below moves them to app.asar.unpacked/
+            # node-pty 1.2.0-beta+ (Electron 42.4 era) ships only a prebuilds/
+            # layout (prebuilds/win32-x64/) and no build/Release/ dir. node-pty's
+            # loadNativeModule() checks ['build/Release','build/Debug',
+            # 'prebuilds/<platform>-<arch>'] in order, so dropping our Linux build
+            # into build/Release/ still wins — but we must create the dir first
+            # (older bundles shipped it pre-made; 1.2.0-beta no longer does).
+            mkdir -p "$NODE_PTY_CONTENTS/build/Release"
             rm -f "$NODE_PTY_CONTENTS/build/Release/"*.exe
             rm -f "$NODE_PTY_CONTENTS/build/Release/"*.dll
             rm -f "$NODE_PTY_CONTENTS/build/Release/conpty"*.node

@@ -76,28 +76,36 @@ proc patchEnterpriseWrapper(
       echo "  [INFO] index.pre.js: no enterprise wrapper (optional)"
     return (input, false)
 
-# Promote the upstream "enterprise config loaded" log from debug to info so a
+# Promote the upstream "managed config loaded" log from debug to info so a
 # successful, non-empty load is visible in main.log at the default log level.
 # Upstream logs it at debug:
-#     <logger>.debug("Enterprise config loaded: %o",<redactFn>(o))
+#     <logger>.debug("Managed config loaded: %o",<redactFn>(<var>))
 # There are two variants per bundle: the empty/"none" case (second arg `{}`) and
-# the loaded case (second arg a `<redactFn>(o)` call). We promote ONLY the loaded
+# the loaded case (second arg a redact-fn call). We promote ONLY the loaded
 # case — promoting the "none" case would spam info on every launch without a file.
-# The logger var (`S`/`jr`) and redact fn are minified and differ per bundle, so
-# we capture them with `[\w$]+`. Idempotent: an existing `.info("Enterprise config
-# loaded: %o",<fn>(o))` counts as already applied.
+# The logger var and redact fn are minified and differ per bundle, so we capture
+# them with `[\w$]+`. The redact arg may itself be a nested call
+# (v1.15200: `yXA(zJ(l))`), so match a fn call whose argument list is non-empty
+# and does NOT start with `{` (which excludes the empty/"none" `{}` variant).
+# Idempotent: an existing `.info("Managed config loaded: %o",<call>)` counts as
+# already applied.
+#
+# History: this string was "Enterprise config loaded" through v1.14271; upstream
+# renamed it to "Managed config loaded" in v1.15200.
 proc patchLoadedLogLevel(
     input: string, required: bool
 ): tuple[output: string, applied: bool] =
-  # Already promoted? (loaded variant: arg is a fn call, not `{}`)
-  let donePat = re2"""\.info\("Enterprise config loaded: %o",[\w$]+\([\w$]+\)\)"""
+  # Already promoted? (loaded variant: arg is a fn call starting with an identifier, not `{}`)
+  let donePat = re2"""\.info\("Managed config loaded: %o",[\w$]+\([^{][^)]*\)\)"""
   var dummy: RegexMatch2
   if input.find(donePat, dummy):
     echo "  [OK] Loaded-config log already at info level"
     return (input, true)
 
-  # Match the loaded variant only: ...debug("...",<redactFn>(<var>))
-  let pattern = re2"""(\.)debug(\("Enterprise config loaded: %o",[\w$]+\([\w$]+\)\))"""
+  # Match the loaded variant only: ...debug("...",<redactFn>(<non-{ args>))
+  # Arg starts with `[\w$]+(` and its first inner char is not `{`, so the
+  # empty/"none" `.debug("...",{})` variant is excluded.
+  let pattern = re2"""(\.)debug(\("Managed config loaded: %o",[\w$]+\([^{][^)]*\)\))"""
   var count = 0
   let output = input.replace(
     pattern,
