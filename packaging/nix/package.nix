@@ -50,11 +50,13 @@ stdenvNoCC.mkDerivation {
 
   nativeBuildInputs = [ makeWrapper copyDesktopItems ];
 
-  # Reverse-URL name ("name") becomes the .desktop filename; startupWMClass
-  # must match Electron's reported app_id. Electron ignores Chromium's --class
-  # flag *and* argv[0] (both silently dropped) — it reads /proc/self/exe and
-  # takes the basename as the Wayland app_id / X11 WM_CLASS instance. So we
-  # materialise a copy of Electron's libexec dir with the binary renamed.
+  # "name" becomes the .desktop filename (claude.desktop), matching APP_ID in
+  # the launcher for the systemd-scope / cgroup portal identity. startupWMClass
+  # must match the app's *live* app_id, which is "claude-desktop" - Chromium's
+  # GetXdgAppId() reads the app's desktopName ("claude-desktop.desktop" in
+  # app.asar package.json), strips ".desktop", and ignores the binary basename
+  # / --class / argv[0]. The binary rename below is kept only as a cosmetic
+  # argv[0] / scope hint; it does NOT set WM_CLASS. See issue #148.
   desktopItems = [
     (makeDesktopItem {
       name = "claude";
@@ -64,7 +66,7 @@ stdenvNoCC.mkDerivation {
       icon = "claude-desktop";
       categories = [ "Office" "Utility" "Chat" ];
       mimeTypes = [ "x-scheme-handler/claude" ];
-      startupWMClass = "claude";
+      startupWMClass = "claude-desktop";
       terminal = false;
     })
   ];
@@ -77,8 +79,9 @@ stdenvNoCC.mkDerivation {
     cp -r app/* $out/lib/claude-desktop/resources/
 
     # Materialise Electron's libexec dir inside our derivation with the binary
-    # renamed to APP_ID. /proc/self/exe at runtime will resolve to this path
-    # so the basename drives the Wayland app_id / X11 WM_CLASS.
+    # renamed to "claude" (cosmetic argv[0] / systemd-scope hint only). The
+    # Wayland app_id / X11 WM_CLASS is NOT derived from this basename - it comes
+    # from the app's desktopName ("claude-desktop"); see startupWMClass above.
     mkdir -p $out/libexec/claude-desktop
     cp -rL ${electron}/libexec/electron/. $out/libexec/claude-desktop/
     mv $out/libexec/claude-desktop/electron \

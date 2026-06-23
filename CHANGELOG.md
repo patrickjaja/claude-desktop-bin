@@ -2,6 +2,15 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-06-23
+
+### Fix: missing GNOME/KDE dock icon - `StartupWMClass` did not match the real window class (#148)
+
+- **Every `.desktop` we ship now sets `StartupWMClass=claude-desktop` instead of `claude`.** The dock/taskbar icon was missing on GNOME (Fedora, Wayland) and KDE Plasma 6.7 ([#148](https://github.com/patrickjaja/claude-desktop-bin/issues/148)) because the running window's real X11 WM_CLASS / Wayland app_id is `claude-desktop`, not `claude` - confirmed here with `xprop`/`wmctrl`. GNOME/KDE match a window to its installed `.desktop` entry by `StartupWMClass` first, so the mismatch meant no icon. The window id comes from Chromium's `GetXdgAppId()`, which reads the app's `desktopName` (`claude-desktop.desktop`, set by upstream in app.asar `package.json`) and **ignores the renamed Electron binary / `--class` / argv[0]** - so renaming the binary to `claude` never set the window class, contrary to the old build comments. Fixed across **all** packaging formats: AUR (`PKGBUILD.template`), the `.deb` build script (`packaging/debian/build-deb.sh`, the path CI actually ships), the static `packaging/debian/claude.desktop`, the RPM spec, the AppImage build script, the Nix package, and the launcher's runtime-generated AppImage `.desktop`.
+- **Corrected the misleading "Electron derives WM_CLASS from the binary basename" comments** in those files and the launcher header to state the real source (`desktopName`). The binary rename and `APP_ID="claude"` (systemd scope / `.desktop` filename / cgroup portal identity) are unchanged - that is a separate identity signal and was already correct.
+- **Known limitation, not addressed here:** per-profile instances (`--create-profile`) still all report `claude-desktop` for the same reason (the shared app.asar `desktopName` wins over the per-profile binary basename), so they don't yet get distinct dock icons. A per-profile `desktopName`/`CHROME_DESKTOP` override (the mechanism `fix_quick_entry_app_id.nim` already uses) is the follow-up. Launcher/packaging-only change; no patch or upstream-version bump.
+- Builds on [#154](https://github.com/patrickjaja/claude-desktop-bin/pull/154) by [@noprogressinpleasure](https://github.com/noprogressinpleasure), which had the right diagnosis but covered only the static deb file (inert for CI releases) and the RPM spec.
+
 ## 2026-06-22
 
 ### Fix: no window opens on Wayland (Vulkan incompatible with `--ozone-platform=wayland`)

@@ -23,12 +23,18 @@
 
 set -euo pipefail
 
-# Reverse-URL application id used everywhere identity matters:
-#   - .desktop filename (minus the .desktop suffix)
-#   - StartupWMClass in the .desktop
-#   - Bundled Electron binary basename (Electron ignores Chromium's --class
-#     flag; Wayland app_id and X11 WM_CLASS both derive from the binary name)
-#   - systemd --user scope name (cgroup → portal identity)
+# Application id for the cgroup/scope side of portal identity:
+#   - .desktop filename (minus the .desktop suffix): claude.desktop
+#   - Bundled Electron binary basename (cosmetic argv[0] only)
+#   - systemd --user scope name (app-claude-PID.scope → cgroup portal identity)
+#
+# IMPORTANT: this is NOT the window's WM_CLASS / Wayland app_id. That value is
+# "claude-desktop" (verified via xprop/wmctrl) and comes from Chromium's
+# GetXdgAppId(), which reads the app's desktopName ("claude-desktop.desktop" in
+# app.asar package.json) and ignores the binary basename / --class / argv[0].
+# Hence StartupWMClass in every .desktop we write is "claude-desktop", not
+# APP_ID - GNOME/KDE match windows to .desktop entries by StartupWMClass first,
+# so a mismatch loses the dock icon (issue #148).
 APP_ID='claude'
 
 # ---------------------------------------------------------------------------
@@ -215,15 +221,18 @@ fi
 ELECTRON_BIN="${CLAUDE_ELECTRON:-}"
 APP_ASAR="${CLAUDE_APP_ASAR:-}"
 
-# The bundled Electron binary must be named after APP_ID so Wayland app_id /
-# X11 WM_CLASS match our .desktop file. Electron ignores Chromium's --class
-# flag and derives the window identity from the binary name instead. We
-# prefer the renamed binary; fall back to `electron` for mid-upgrade installs.
+# The bundled Electron binary is named after APP_ID (cosmetic argv[0] / scope
+# hint). NOTE: the binary basename does NOT set the window WM_CLASS - that comes
+# from the app's desktopName ("claude-desktop"); see the APP_ID header above and
+# issue #148. We prefer the renamed binary; fall back to `electron` for
+# mid-upgrade installs.
 #
-# When a profile is active, prefer the user-local symlink at
+# When a profile is active, prefer the user-local copy at
 # ~/.local/lib/claude-desktop/<APP_ID>-<profile> created by --create-profile.
-# That path's basename gives Wayland/X11 a per-profile WM_CLASS, so the window
-# manager treats it as a separate app (separate icon, separate Alt-Tab group).
+# (Intent was a per-profile WM_CLASS via the basename for separate icons/Alt-Tab
+# groups; in practice all profiles still report "claude-desktop" because the
+# shared app.asar desktopName wins - distinct per-profile WM_CLASS would need a
+# per-profile desktopName/CHROME_DESKTOP override, as in fix_quick_entry_app_id.nim.)
 if [[ -z "$ELECTRON_BIN" ]]; then
     candidates=()
     if [[ -n "$profile_suffix" ]]; then
@@ -560,7 +569,7 @@ Type=Application
 Terminal=false
 Categories=Office;Utility;Chat;
 MimeType=x-scheme-handler/claude;
-StartupWMClass=claude
+StartupWMClass=claude-desktop
 DESKTOP_EOF
 
     local appimage_icon=""
@@ -669,11 +678,14 @@ _create_profile() {
 
     mkdir -p "$(dirname "$electron_bin_path")" "$(dirname "$launcher_link")" "$(dirname "$desktop_file")"
 
-    # The per-profile Electron binary must be a real file (not a symlink) so
-    # /proc/self/exe resolves to the per-profile path. Electron derives Wayland
-    # app_id from its own /proc/self/exe basename; without a distinct binary
-    # the WM groups all profiles as one app. This is how Chrome itself does
-    # multi-channel (google-chrome-stable / google-chrome-beta are real copies).
+    # The per-profile Electron binary is a real file (not a symlink) so
+    # /proc/self/exe resolves to the per-profile path (distinct argv[0] / scope).
+    # This mirrors how Chrome does multi-channel (google-chrome-stable /
+    # google-chrome-beta are real copies). NOTE: this alone does NOT give each
+    # profile a distinct WM_CLASS - Chromium's app_id comes from the shared
+    # app.asar desktopName ("claude-desktop"), not the binary basename, so the
+    # WM still groups all profiles as one app. See issue #148 / the discovery
+    # comment above for the per-profile-desktopName follow-up.
     #
     # Strategy: hardlink first (zero-cost, same fs only), reflink second
     # (zero-cost on btrfs/xfs), copy fallback (typically ~200 MB per profile).
@@ -1366,9 +1378,11 @@ fi
 
 log "Launching: $ELECTRON_BIN $APP_ASAR ${ELECTRON_ARGS[*]} $*"
 
-# Launch inside a named systemd user scope. The scope name (cgroup) gives
-# xdg-desktop-portal a second identity signal alongside the Wayland app_id /
-# X11 WM_CLASS, which come from the binary basename. Both must match APP_ID.
+# Launch inside a named systemd user scope. The scope name (cgroup,
+# app-${APP_ID}-PID.scope) is the identity signal xdg-desktop-portal uses to
+# resolve us back to claude.desktop. It is independent of the window app_id /
+# X11 WM_CLASS ("claude-desktop", from the app's desktopName) - the dock-icon
+# match uses StartupWMClass instead (see APP_ID header / issue #148).
 # Fall back to direct exec in environments without user systemd (rare).
 # Three gates: explicit opt-out, binary present, runtime dir set, and the
 # user-systemd private socket actually reachable. The last check matters in
