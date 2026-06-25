@@ -13,8 +13,8 @@
       "--text-100": "218 27% 94%",
       "--text-200": "219 28% 88%",
       "--text-300": "219 28% 88%",
-      "--text-400": "220 10% 55%",
-      "--text-500": "220 10% 55%",
+      "--text-400": "219 18% 66%",
+      "--text-500": "219 18% 66%",
 
       "--accent-brand": "179 25% 65%",
       "--accent-main-000": "193 43% 67%",
@@ -62,9 +62,9 @@
       "--success-200": "92 28% 42%",
       "--success-900": "92 28% 20%",
 
-      "--oncolor-100": "0 0% 100%",
-      "--oncolor-200": "218 27% 94%",
-      "--oncolor-300": "219 28% 88%",
+      "--oncolor-100": "220 16% 15%",
+      "--oncolor-200": "220 16% 15%",
+      "--oncolor-300": "220 16% 15%",
 
       "--pictogram-100": "218 27% 94%",
       "--pictogram-200": "219 28% 88%",
@@ -87,8 +87,8 @@
       "--claude-border-300-more": "#8FBCBB55",
       "--claude-text-100": "#ECEFF4",
       "--claude-text-200": "#D8DEE9",
-      "--claude-text-400": "#8E95A4",
-      "--claude-text-500": "#8E95A4",
+      "--claude-text-400": "#9aa0ae",
+      "--claude-text-500": "#9aa0ae",
       "--claude-description-text": "#B9BFCB"
     }
   }

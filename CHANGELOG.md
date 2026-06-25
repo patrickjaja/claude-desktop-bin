@@ -4,6 +4,13 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 
 ## 2026-06-25
 
+### Fix: built-in theme text contrast (unreadable muted text + white-on-pale-accent labels)
+
+- **Muted/secondary text was below the WCAG AA readability floor in several built-in themes.** With a theme active, sidebar items, secondary text, links and suggestion-chip labels render from `--text-400`/`--text-500`; in `nord` these were `220 10% 55%`, only 3.47:1 against the background (AA needs 4.5:1), which read as dark-grey-on-dark. Raised the muted-text tokens to reference-faithful values that clear 4.5:1: `nord` -> `219 18% 66%` (also restores the Nord Snow Storm hue the old desaturated grey had lost), `catppuccin-latte` -> `233 13% 41%` (= Catppuccin Subtext1), `catppuccin-frappe` -> `228 28% 77%`, `sweet` `--text-500` -> `300 18% 64%`. Matching `--claude-text-500` (legacy hex, used by renderer chrome) bumped for `nord`/`latte`/`sweet`. `catppuccin-mocha` and `catppuccin-macchiato` already passed.
+- **White button labels were invisible on the themes' pale accent fills.** All dark themes set `--oncolor-*` (text on accent-filled buttons/badges/checkboxes) to white, but copied Catppuccin/Nord's *bright* accent colours into `--accent-main-100`, so white-on-accent computed to 1.5-2.7:1. Set `--oncolor-*` to each theme's darkest base tone (e.g. `nord` Polar Night `220 16% 15%`, Catppuccin Mantle/Crust), giving 5.7-11.5:1. `catppuccin-latte` keeps white oncolor (it's a light theme with darker accents).
+- Values mirrored into the `themes/*/claude-desktop-bin.json` reference files. Patch compiles, applies clean, and the output passes `node --check`. No upstream-version bump.
+- **Known remaining item (deferred):** bold notice-banner / card-section headings (e.g. the "Claude Fable 5 is currently unavailable" title) still read muddy. claude.ai draws those dimmed (reduced opacity / a CDS component token) on surfaces the theme darkens; the token is remote-only and not in the app bundle, so it needs a targeted selector override verified against the live UI - to be tackled in a follow-up.
+
 ### Fix: enterprise.json / 3p mode broken on Linux since v1.15200.0, plus a class of silent-no-op patch bugs
 
 A user reported enterprise.json "broken" after the v1.15200.0 release: the app hit `api.anthropic.com` instead of the configured inference gateway, userData stayed in `~/.config/Claude` instead of relocating to `~/.config/Claude-3p`, and the startup banner had no `[custom-3p]` lines. Investigating it surfaced a systemic defect class, fixed across several patches.
