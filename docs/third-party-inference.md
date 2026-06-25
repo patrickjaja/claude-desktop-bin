@@ -290,6 +290,19 @@ python3 -c 'import json; json.load(open("/etc/claude-desktop/enterprise.json"))'
 ## Common gotchas
 
 - **The file must be readable by your user.** `install -m 644` (used above) is correct. `chmod 600` will silently make Claude fall back to the default config.
-- **The app caches the deployment mode** in `~/.config/Claude/Local State` after the first 3P launch. If you remove `enterprise.json` later, the app may stay in 3P mode until you also clear that cache.
+- **Removing `enterprise.json` does NOT exit 3P mode - the deployment mode is sticky.** On the first successful 3P launch the app persists `"deploymentMode": "3p"` to `~/.config/Claude-3p/claude_desktop_config.json` (you'll see `[custom-3p] deploymentMode written { mode: '3p' }` in the log). On every later launch the bootstrap reads that persisted flag *before* the live config, so deleting `enterprise.json` leaves the app stuck in 3P - now **degraded**, because there are no credentials (`Credentials read failed … baseUrl: Required`, `inference apiHost=http://custom-3p-unused.invalid`), and it keeps using the separate `~/.config/Claude-3p/` profile. This is upstream behavior, not a packaging bug. To return to your personal claude.ai (1P) login:
+  - **One-shot:** launch once with the upstream flag `claude-desktop --boot-1p-once` (forces 1P for that boot only; it does not necessarily rewrite the persisted flag, so the next plain launch may revert).
+  - **Permanent:** set the persisted flag to `1p` (or delete the key) and restart:
+    ```bash
+    # in ~/.config/Claude-3p/claude_desktop_config.json: "deploymentMode": "3p" -> "1p"
+    python3 - <<'PY'
+    import json, pathlib
+    p = pathlib.Path.home() / ".config/Claude-3p/claude_desktop_config.json"
+    d = json.loads(p.read_text()); d["deploymentMode"] = "1p"
+    p.write_text(json.dumps(d, indent=2))
+    print("deploymentMode set to 1p")
+    PY
+    ```
+    Plain `claude-desktop` then boots in 1P and uses `~/.config/Claude/` again. Re-add `enterprise.json` at any time to switch back to 3P. (`--boot-1p-once` and `deploymentMode` are upstream Anthropic mechanisms, not flags added by this package.)
 - **`global` region requires Vertex's global endpoint to be enabled** for your project - newer projects have this on by default; older ones may need to be enabled in the Cloud Console under Vertex AI Studio settings.
 - **`sqlite3` is needed for project detection.** Unrelated to 3P, but if you hit `[detectedProjects] spawn /usr/bin/sqlite3 ENOENT` in the logs, `apt install sqlite3` clears it.

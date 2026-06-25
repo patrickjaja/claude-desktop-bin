@@ -469,6 +469,8 @@ The in-app configuration window (**Developer → Configure Third-Party Inference
 
 **Enterprise deployment:** Use MDM (macOS), GPO (Windows), or drop a JSON file at `/etc/claude-desktop/enterprise.json` (Linux) to manage fleet-wide configuration.
 
+**Switching back to personal (1P) login:** deployment mode is **sticky** - the first 3P launch persists `"deploymentMode": "3p"` to `~/.config/Claude-3p/claude_desktop_config.json`, so simply deleting `enterprise.json` leaves the app stuck in (now credential-less) 3P mode. Launch once with the upstream flag `claude-desktop --boot-1p-once`, or set that key to `"1p"` for a permanent switch. See [docs/third-party-inference.md → Common gotchas](docs/third-party-inference.md#common-gotchas).
+
 **Linux setup walkthrough:** The official 3P docs only cover macOS and Windows. See [docs/third-party-inference.md](docs/third-party-inference.md) for a Linux-specific guide - the in-app wizard route (requires Developer Mode), a headless `enterprise.json` route with worked **Vertex AI** (`gcloud` ADC) and **LiteLLM gateway** examples, and how to verify it via `main.log`.
 
 **`enterprise.json` key reference (official Anthropic docs):**
