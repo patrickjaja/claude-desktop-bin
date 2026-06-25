@@ -30,15 +30,25 @@
 #   5  HTTP header platform spoof
 #   5b User-Agent header spoof
 #   6  getSystemInfo IPC platform spoof
-#   7  mainView.js window.process.platform spoof
-#   8  navigator spoof injected after "use strict"
+#   8  navigator spoof injected after "use strict" (navigator.platform=Win32 +
+#      Windows userAgentFallback) — this is what the claude.ai SPA actually reads
+#      for platform detection (Ctrl vs ⌘ shortcuts, etc.)
 #
-# This patch targets BOTH index.js AND mainView.js (sibling file).
+# (There is no patch 7. A former "mainView.js window.process.platform spoof"
+# existed but was VESTIGIAL: it was added for keyboard-shortcut detection, which
+# patch 8's navigator.platform spoof already covers. It also never actually ran —
+# it located mainView.js via `filePath.parentDir/"mainView.js"`, but the orchestrator
+# stages each @patch-target into an isolated tmpfs copy, so the sibling mainView.js
+# was never present and the sub-patch silently self-passed. Removed in favour of the
+# navigator spoof. If a window.process.platform spoof is ever genuinely needed, add
+# it to fix_process_argv_renderer.nim, which legitimately targets mainView.js.)
+#
+# This patch targets index.js only.
 
 import std/[os, strformat, strutils]
 import std/nre
 
-const EXPECTED_PATCHES = 25
+const EXPECTED_PATCHES = 24
 
 proc apply*(input: string): string =
   result = input
@@ -574,55 +584,18 @@ when isMainModule:
   if output != input:
     writeFile(filePath, output)
 
-  # Patch 7: Spoof window.process.platform in mainView.js preload
-  let mainviewPath = filePath.parentDir / "mainView.js"
-  var patchesApplied = EXPECTED_PATCHES - 2 # patches 1-6 + 3b + 4 = 9 so far
-
-  # Count patches from apply (we need to recalculate since apply already counted them)
-  # Just handle patches 7 and 8 here
-
-  if fileExists(mainviewPath):
-    var mvContent = readFile(mainviewPath)
-    let mvOriginal = mvContent
-
-    let mvPattern =
-      re"(Object\.fromEntries\(Object\.entries\(process\)\.filter\(\(\[[\w$]+\]\)=>[\w$]+\[[\w$]+\]\)\);)([\w$]+)(\.version=[\w$]+\(\)\.appVersion;)"
-    var mvCount = 0
-    mvContent = mvContent.replace(
-      mvPattern,
-      proc(m: RegexMatch): string =
-        inc mvCount
-        if mvCount > 1:
-          return m.match
-        let procVar = m.captures[1]
-        m.captures[0] & procVar & m.captures[2] & "if(process.platform===\"linux\"){" &
-          procVar & ".platform=\"win32\"}",
-    )
-    if mvCount >= 1:
-      echo &"  [OK] mainView.js: window.process.platform spoof ({mvCount} match)"
-      patchesApplied += 1
-    elif ".platform=\"win32\"" in mvContent or ".platform=\"darwin\"" in mvContent:
-      echo "  [OK] mainView.js: window.process.platform spoof already applied"
-      patchesApplied += 1
-    else:
-      echo "  [FAIL] mainView.js: window.process.platform spoof: 0 matches"
-      quit(1)
-
-    if mvContent != mvOriginal:
-      writeFile(mainviewPath, mvContent)
-      echo "  [PASS] mainView.js patched successfully"
-  else:
-    echo &"  [OK] mainView.js not found at {mainviewPath} -- skipped (single-file test mode)"
-    patchesApplied += 1
-
-  # Patch 8: Spoof navigator.platform and navigator.userAgent in renderer main world
+  # Patch 8: Spoof navigator.platform and navigator.userAgent in renderer main world.
+  # (There is no longer a mainView.js "window.process.platform" sub-patch — see the
+  # note below. This is the only mainModule-level sub-patch, hence EXPECTED_MAINMODULE = 1.)
+  const EXPECTED_MAINMODULE = 1
+  var mainModuleApplied = 0
   let navigatorMarker = "__nav_spoof_applied"
   # Re-read in case apply() changed it
   var content = readFile(filePath)
 
   if navigatorMarker in content:
     echo "  [OK] navigator spoof: already applied"
-    patchesApplied += 1
+    inc mainModuleApplied
   else:
     let navSpoofJs =
       "if(process.platform===\"linux\"){" & "const __nav_spoof_applied=!0;" &
@@ -639,14 +612,15 @@ when isMainModule:
       content = strictPrefix & navSpoofJs & content[strictPrefix.len .. ^1]
       writeFile(filePath, content)
       echo "  [OK] navigator spoof: injected in index.js (userAgent + platform)"
-      patchesApplied += 1
+      inc mainModuleApplied
     else:
       echo "  [FAIL] navigator spoof: could not find 'use strict' prefix at start of index.js."
       quit(1)
 
-  # Strictness check
-  if patchesApplied < 2: # patches 7 and 8
-    echo &"  [FAIL] Only {patchesApplied}/2 mainModule patches applied"
+  # Strictness check (mainModule-level sub-patches only; apply() already hard-failed
+  # on any of patches 1-6/3x/4/5/5b/6).
+  if mainModuleApplied < EXPECTED_MAINMODULE:
+    echo &"  [FAIL] Only {mainModuleApplied}/{EXPECTED_MAINMODULE} mainModule patches applied"
     quit(1)
 
   echo &"  [PASS] {EXPECTED_PATCHES}/{EXPECTED_PATCHES} patches applied"

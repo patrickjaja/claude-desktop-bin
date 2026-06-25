@@ -49,14 +49,24 @@ proc apply*(input: string): string =
     echo "  [FAIL] Sessions-bridge gate: pattern not found"
 
   # -- Patch B: Bypass remote session control check --
+  # The gate is `...channel==="mobile"&&!<fn>("2216414644")` which throws
+  # "Remote session control is disabled". We flip the `!<fn>("2216414644")` to
+  # `!1` so the `&&` short-circuits and the throw never runs.
+  #
+  # Idempotency MUST assert the PRODUCED shape (`==="mobile"&&!1)throw new Error(
+  # "Remote session control is disabled"`), NOT merely the absence of the old
+  # `2216414644` call plus the generic error string. That string is upstream's own
+  # and is present whether or not the bypass was applied (it exists in the unpatched
+  # bundle), so keying "already patched" off it would falsely report success if
+  # upstream renamed/restructured the gate but left the throw — shipping dispatch
+  # broken on Linux (CLAUDE.md Rule 6).
   let remotePattern = re"""![\w$]+\("2216414644"\)"""
-  if not result.find(remotePattern).isSome:
-    if "Remote session control is disabled" in result:
-      echo "  [OK] Remote session control: already patched (skipped)"
-      inc patchesApplied
-    else:
-      echo "  [FAIL] Remote session control: pattern not found"
-  else:
+  let remotePatchedShape =
+    re"""==="mobile"&&!1\)throw new Error\("Remote session control is disabled"\)"""
+  if result.find(remotePatchedShape).isSome:
+    echo "  [OK] Remote session control: already bypassed (patched shape present)"
+    inc patchesApplied
+  elif result.find(remotePattern).isSome:
     var countB = 0
     result = result.replace(
       remotePattern,
@@ -69,6 +79,8 @@ proc apply*(input: string): string =
       inc patchesApplied
     else:
       echo "  [FAIL] Remote session control: pattern not found"
+  else:
+    echo "  [FAIL] Remote session control: neither old gate (\"2216414644\") nor patched !1 shape found — upstream may have regressed; re-audit"
 
   # -- Patch C: Add Linux to the HI() platform label --
   # v1.13576.0: upstream replaced the old `switch(process.platform){...

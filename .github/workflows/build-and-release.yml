@@ -301,6 +301,14 @@ jobs:
           echo "=== Checking Nim patch syntax (compile check) ==="
           bash scripts/compile-nim-patches.sh
 
+      - name: Guard against sibling-file no-op patches
+        run: |
+          # A patch can only reliably touch its single @patch-target (the
+          # orchestrator stages each target in an isolated tmpfs copy). Deriving a
+          # SECOND file's path from the staged target is a silent no-op — the
+          # mechanism that shipped index.pre.js / mainView.js unpatched in v1.15200.
+          bash scripts/check-patch-sibling-noop.sh
+
       - name: Test Linux-native Cowork VM download guards
         run: |
           # The Nim patches compile inside the nimlang/nim Docker image, where

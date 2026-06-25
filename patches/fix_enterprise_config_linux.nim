@@ -15,8 +15,17 @@
 import std/[os, strutils]
 import regex
 
-const linuxReader =
-  """(()=>{try{return JSON.parse(require("fs").readFileSync("/etc/claude-desktop/enterprise.json","utf8"))}catch(e){return{}}})()"""
+# The parsed JSON MUST be routed through the upstream key-registration function
+# (`Hzi` in v1.15200's index.js) rather than returned raw. That function registers
+# each config key into a module-scoped Set and validates the values (`AI(...)`).
+# On Windows the Set is populated by walking the registry; our Linux reader bypasses
+# that walk, so without calling it the Set stays empty and any managed/3p gate that
+# reads it evaluates false. (This is exactly what broke 3p activation in the
+# bootstrap — see fix_enterprise_config_linux_pre.nim.) We build the reader with the
+# captured fn name substituted in.
+proc linuxReader(kwFn: string): string =
+  "(()=>{try{return " & kwFn &
+    "(JSON.parse(require(\"fs\").readFileSync(\"/etc/claude-desktop/enterprise.json\",\"utf8\")))}catch(e){return{}}})()"
 
 # v1.13576.0: upstream collapsed the darwin/win32 ternary
 #     process.platform==="darwin"?FUNC_D():process.platform==="win32"?FUNC_W():{}
@@ -26,13 +35,14 @@ const linuxReader =
 # where Rei() reads `SOFTWARE\Policies\...` and yields {} off-Windows.
 #
 # We patch that wrapper so on Linux it reads /etc/claude-desktop/enterprise.json
-# instead of the (empty) registry result:
-#     function Mei(){const A=process.platform==="linux"?(...):Rei();return ...}
+# (routed through the key-registration fn) instead of the (empty) registry result:
+#     function Mei(){const A=process.platform==="linux"?(...kW(JSON.parse(...))...):Rei();return ...}
 #
-# The wrapper is anchored on the registry-reader fn, whose name we capture
-# from its `SOFTWARE\Policies` body so we don't hardcode a minified name.
-# The same structure lives in index.pre.js (early bootstrap), so this is
-# applied to both files.
+# The wrapper is anchored on the registry-reader fn, whose name we capture from its
+# `SOFTWARE\Policies` body so we don't hardcode a minified name. index.pre.js (the
+# early bootstrap) has the same structure but is patched by the separate
+# fix_enterprise_config_linux_pre.nim (the orchestrator stages each target in
+# isolation, so a sibling patch here would be a silent no-op).
 proc patchEnterpriseWrapper(
     input: string, required: bool
 ): tuple[output: string, applied: bool] =
@@ -46,10 +56,22 @@ proc patchEnterpriseWrapper(
   if not input.find(regFnPat, regMatch):
     if required:
       echo "  [FAIL] Could not locate win32 registry reader (SOFTWARE\\Policies fn)"
-    else:
-      echo "  [INFO] index.pre.js: no SOFTWARE\\Policies registry fn (optional)"
     return (input, false)
   let regFn = input[regMatch.group(0)]
+
+  # Capture the key-registration fn (Hzi): registers config keys into the gate Set
+  # and validates. Shape: function N(t){for(const e of Object.keys(t)){const r=
+  # <map>.get(e);r!==void 0&&<set>.add(r)}return ...}
+  let kwFnPat = re2(
+    """function ([\w$]+)\([\w$]+\)\{for\(const [\w$]+ of Object\.keys\([\w$]+\)\)\{const [\w$]+=[\w$]+\.get\([\w$]+\);[\w$]+!==void 0&&[\w$]+\.add\([\w$]+\)\}"""
+  )
+  var kwMatch: RegexMatch2
+  if not input.find(kwFnPat, kwMatch):
+    if required:
+      echo "  [FAIL] Could not locate key-registration fn (populates the managed/3p gate set)"
+    return (input, false)
+  # regex2 group(0) is the FIRST capture group (not the whole match) — the fn name.
+  let kwFn = input[kwMatch.group(0)]
 
   # Patch the enterprise wrapper that calls the registry reader:
   #   function X(){const Y=<regFn>();return Object.keys(Y).length>0?Y:void 0}
@@ -58,22 +80,21 @@ proc patchEnterpriseWrapper(
       """\(\);return Object\.keys\([\w$]+\)\.length>0)"""
   )
   var count = 0
+  let reader = linuxReader(kwFn)
   let output = input.replace(
     pattern,
     proc(m: RegexMatch2, s: string): string =
       inc count
-      # const Y= -> const Y=process.platform==="linux"?(...):
-      s[m.group(0)] & """process.platform==="linux"?""" & linuxReader & ":" &
-        s[m.group(1)],
+      # const Y= -> const Y=process.platform==="linux"?(...routed through kW...):
+      s[m.group(0)] & """process.platform==="linux"?""" & reader & ":" & s[m.group(1)],
   )
   if count >= 1:
-    echo "  [OK] Enterprise config Linux reader: " & $count & " match(es)"
+    echo "  [OK] Enterprise config Linux reader (via " & kwFn & "): " & $count &
+      " match(es)"
     return (output, true)
   else:
     if required:
       echo "  [FAIL] Enterprise config wrapper not found (calls " & regFn & "())"
-    else:
-      echo "  [INFO] index.pre.js: no enterprise wrapper (optional)"
     return (input, false)
 
 # Promote the upstream "managed config loaded" log from debug to info so a
@@ -148,17 +169,10 @@ when isMainModule:
     writeFile(filePath, output)
   echo "  [PASS] Enterprise config Linux support added"
 
-  # Also patch index.pre.js if it exists (early bootstrap enterprise config).
-  # Same refactored wrapper structure as index.js (best-effort, not required).
-  let preJs = parentDir(filePath) / "index.pre.js"
-  if fileExists(preJs):
-    let preContent = readFile(preJs)
-    let (afterWrapper, preApplied) =
-      patchEnterpriseWrapper(preContent, required = false)
-    # Promote the loaded-config log here too (best-effort; pre.js may differ).
-    let (newPreContent, _) = patchLoadedLogLevel(afterWrapper, required = false)
-    if newPreContent != preContent:
-      writeFile(preJs, newPreContent)
-      echo "  [OK] index.pre.js: enterprise config patched"
-    elif preApplied:
-      echo "  [OK] index.pre.js: enterprise config already patched"
+  # index.pre.js (the early bootstrap that gates the 3p-mode `-3p` userData split)
+  # is patched by the SEPARATE patch fix_enterprise_config_linux_pre.nim, which the
+  # orchestrator runs against the staged index.pre.js as its own target. It is NOT
+  # patched here: the orchestrator stages each target file into an isolated tmpfs
+  # copy, so index.pre.js is never a sibling of the staged index.js — a sibling
+  # patch attempt here is a guaranteed no-op (this is the exact mechanism that
+  # shipped v1.15200.0 half-patched).

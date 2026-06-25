@@ -65,17 +65,9 @@ when isMainModule:
   else:
     echo "  [OK] No changes made (already patched)"
 
-  # Also patch index.pre.js if it exists (new in v1.2278.0 -- bootstrap file)
-  let preJs = parentDir(filePath) / "index.pre.js"
-  if fileExists(preJs):
-    let oldResourcePathStr = "process.resourcesPath"
-    let newResourcePathStr =
-      """(require("path").dirname(require("electron").app.getAppPath())+"/locales")"""
-    let preContent = readFile(preJs)
-    let preCount = preContent.count(oldResourcePathStr)
-    if preCount > 0:
-      let newPreContent = preContent.replace(oldResourcePathStr, newResourcePathStr)
-      writeFile(preJs, newPreContent)
-      echo "  [OK] index.pre.js: process.resourcesPath patched (" & $preCount & " match)"
-    else:
-      echo "  [INFO] index.pre.js: no process.resourcesPath (already patched or absent)"
+  # index.pre.js (the early bootstrap bundle) is handled by the SEPARATE patch
+  # fix_locale_paths_pre.nim, which the orchestrator runs against the staged
+  # index.pre.js as its own target. It is NOT patched here: the orchestrator stages
+  # each target into an isolated tmpfs copy, so index.pre.js is never a sibling of
+  # the staged index.js — a sibling patch here is a guaranteed no-op (the mechanism
+  # that shipped the enterprise bootstrap patch broken in v1.15200.0).

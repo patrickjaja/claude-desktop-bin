@@ -59,7 +59,13 @@ proc apply*(input: string): string =
       echo "  [OK] Window bounds fix + size jiggle injected: 1 match(es)"
       applied.add("bounds-fix(1)")
     else:
+      # Must raise on its own miss — do NOT rely on the `applied.len == 0` guard
+      # below, which Patch 2 (Quick Entry blur) independently satisfies, masking a
+      # silent Patch 1 miss and shipping broken child-view geometry on Linux.
       echo "  [FAIL] Main window factory pattern not matched"
+      raise newException(
+        ValueError, "fix_window_bounds: Main window factory pattern not matched"
+      )
 
   # 2. Quick Entry blur before hide
   let qeBlurCheck = re"[\w$]+\.blur\(\),[\w$]+\.hide\(\)"

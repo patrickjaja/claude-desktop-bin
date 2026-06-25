@@ -52,51 +52,56 @@ proc apply*(input: string): string =
     result = SANITIZE_FN & result
     echo "  [OK] Injected __cdb_sanitizeCwd helper (at file start)"
 
+  # Each of the 5 bridge sites below must match EXACTLY ONCE. We assert per-site
+  # counts and fail loud on any miss — we do NOT sum match counts into a single
+  # `>= EXPECTED_PATCHES` threshold. Summing is unsafe here because sites 5 and 6
+  # use unbounded `replace` (count can be >1): an over-match at one site could mask
+  # a zero-match at another and still clear the threshold, shipping an unsanitized
+  # cwd bridge (app.asar usable as a Cowork workspace dir). Per-site exact-count
+  # guards make every bridge independently verified.
+  proc requireExactlyOne(siteName: string, count: int) =
+    if count == 1:
+      patchesApplied += 1
+      echo &"  [OK] {siteName}: 1 match"
+    else:
+      raise newException(
+        ValueError,
+        &"fix_asar_workspace_cwd: {siteName}: expected exactly 1 match, got {count} — upstream may have refactored this bridge; re-audit",
+      )
+
   # 2. Patch checkTrust bridge
   let patCt = re2"(checkTrust\()([\w$]+)(\)\{)"
-  var countCt = result.replaceFirst(
+  let countCt = result.replaceFirst(
     patCt,
     proc(m: RegexMatch2, s: string): string =
       let arg = s[m.group(1)]
       s[m.group(0)] & arg & s[m.group(2)] & arg & "=__cdb_sanitizeCwd(" & arg & ");",
   )
-  if countCt > 0:
-    patchesApplied += countCt
-    echo &"  [OK] checkTrust bridge: {countCt} match(es)"
-  else:
-    echo "  [WARN] checkTrust bridge: 0 matches"
+  requireExactlyOne("checkTrust bridge", countCt)
 
   # 3. Patch saveTrust bridge
   let patSt = re2"(async saveTrust\()([\w$]+)(\)\{)"
-  var countSt = result.replaceFirst(
+  let countSt = result.replaceFirst(
     patSt,
     proc(m: RegexMatch2, s: string): string =
       let arg = s[m.group(1)]
       s[m.group(0)] & arg & s[m.group(2)] & arg & "=__cdb_sanitizeCwd(" & arg & ");",
   )
-  if countSt > 0:
-    patchesApplied += countSt
-    echo &"  [OK] saveTrust bridge: {countSt} match(es)"
-  else:
-    echo "  [WARN] saveTrust bridge: 0 matches"
+  requireExactlyOne("saveTrust bridge", countSt)
 
   # 4. Patch start bridge
   let patStart =
     re2"(async start\()([\w$]+)(\)\{)([\w$]+\.info\(""LocalSessions\.start:""\))"
-  var countStart = result.replaceFirst(
+  let countStart = result.replaceFirst(
     patStart,
     proc(m: RegexMatch2, s: string): string =
       let arg = s[m.group(1)]
       s[m.group(0)] & arg & s[m.group(2)] & arg & ".cwd=__cdb_sanitizeCwd(" & arg &
         ".cwd);" & s[m.group(3)],
   )
-  if countStart > 0:
-    patchesApplied += countStart
-    echo &"  [OK] start bridge: {countStart} match(es)"
-  else:
-    echo "  [WARN] start bridge: 0 matches"
+  requireExactlyOne("start bridge", countStart)
 
-  # 5. Patch startCodeSession bridges (conditional ternary form)
+  # 5. Patch startCodeSession bridge (conditional ternary form)
   let patScs =
     re2"(startCodeSession:[\w$]+\?async\()([\w$]+)(,[\w$]+,[\w$]+,[\w$]+\)=>\{)"
   var countScs = 0
@@ -107,13 +112,9 @@ proc apply*(input: string): string =
       let arg = s[m.group(1)]
       s[m.group(0)] & arg & s[m.group(2)] & arg & "=__cdb_sanitizeCwd(" & arg & ");",
   )
-  if countScs > 0:
-    patchesApplied += countScs
-    echo &"  [OK] startCodeSession bridges: {countScs} match(es)"
-  else:
-    echo "  [WARN] startCodeSession bridges: 0 matches"
+  requireExactlyOne("startCodeSession bridge (ternary)", countScs)
 
-  # Also patch the dispatch startCodeSession (different signature)
+  # 6. Patch the dispatch startCodeSession bridge (different signature)
   let patScs2 = re2"(startCodeSession:async\()([\w$]+)(,[\w$]+,[\w$]+,[\w$]+\)=>\{)"
   var countScs2 = 0
   result = result.replace(
@@ -123,16 +124,12 @@ proc apply*(input: string): string =
       let arg = s[m.group(1)]
       s[m.group(0)] & arg & s[m.group(2)] & arg & "=__cdb_sanitizeCwd(" & arg & ");",
   )
-  if countScs2 > 0:
-    patchesApplied += countScs2
-    echo &"  [OK] dispatch startCodeSession: {countScs2} match(es)"
-  else:
-    echo "  [WARN] dispatch startCodeSession: 0 matches"
+  requireExactlyOne("dispatch startCodeSession bridge", countScs2)
 
-  if patchesApplied < EXPECTED_PATCHES:
+  if patchesApplied != EXPECTED_PATCHES:
     raise newException(
       ValueError,
-      &"fix_asar_workspace_cwd: Only {patchesApplied}/{EXPECTED_PATCHES} patches applied",
+      &"fix_asar_workspace_cwd: {patchesApplied}/{EXPECTED_PATCHES} sites patched (expected all distinct)",
     )
 
 when isMainModule:
