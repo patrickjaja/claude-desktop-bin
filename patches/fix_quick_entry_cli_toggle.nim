@@ -28,8 +28,11 @@ proc apply*(input: string): string =
     echo &"  [INFO] {HANDLER_GLOBAL} already present -- sub-patch A/C skipped"
     applied += 2
   else:
+    # The two ternary-branch calls take optional args ([\w$]*): in v1.15962 the
+    # focus-branch call gained the window var (i9t() -> GZt(tt)). The else-branch
+    # is still arg-less but is widened too for symmetry/future-proofing.
     let patA =
-      re2"([\w$]+)\(([\w$]+)\.QUICK_ENTRY,(\(\)=>\{[\w$]+&&![\w$]+\.isDestroyed\(\)&&[\w$]+\.isFullScreen\(\)\?\([\w$]+\.focus\(\),[\w$]+\(\)\):[\w$]+\(\)\})\)"
+      re2"([\w$]+)\(([\w$]+)\.QUICK_ENTRY,(\(\)=>\{[\w$]+&&![\w$]+\.isDestroyed\(\)&&[\w$]+\.isFullScreen\(\)\?\([\w$]+\.focus\(\),[\w$]+\([\w$]*\)\):[\w$]+\([\w$]*\)\})\)"
 
     var countA = 0
     var resultStr = ""

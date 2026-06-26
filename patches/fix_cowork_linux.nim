@@ -295,13 +295,19 @@ proc apply*(input: string): string =
 
   # ── Patch G: smol-bin copy gate — runtime-gated on kvm mode ──
   block:
-    let pat =
-      re"""if\(process\.platform==="win32"\)(\{const [\w$]+=[\w$]+\(\),[\w$]+=[\w$]+\.join\(process\.resourcesPath,`smol-bin\.)"""
+    # Anchor on the gate expression only (NOT the leading `if(`): v1.15962 wrapped
+    # the gate in an await comma-expr `if(await BO(),process.platform==="win32")`
+    # (GrowthBook-readiness) and prefixed the body with `await L9(5e3),await
+    # Promise.race([...]);`. Capture group 1 = the whole body up to the `smol-bin.`
+    # tail anchor (unique: bare `process.platform==="win32"` appears 68x, but only
+    # this one is followed by a resourcesPath/smol-bin join). The body has no `}`
+    # before `smol-bin.`, so `[^}]+` is a clean (non-lazy) body matcher.
+    let pat = re"""process\.platform==="win32"\)(\{[^}]+`smol-bin\.)"""
     let n = replaceAllRegex(
       content,
       pat,
       proc(m: RegexMatch): string =
-        "if(process.platform===\"win32\"||process.platform===\"linux\"&&globalThis.__coworkKvmMode)" &
+        "process.platform===\"win32\"||process.platform===\"linux\"&&globalThis.__coworkKvmMode)" &
           m.captures[0],
     )
     if n >= 1:

@@ -144,7 +144,7 @@ proc apply*(input: string): string =
   let original = input
   var patchesApplied = 0
   var changes = 0
-  const EXPECTED_PATCHES = 35
+  const EXPECTED_PATCHES = 36
 
   # ── Patch 1: inject executors + mode preamble at app.on("ready") ───────
   block:
@@ -198,6 +198,53 @@ proc apply*(input: string): string =
     else:
       echo "  [FAIL] createDarwinExecutor pattern: 0 matches"
       return original
+
+  # ── Patch 4d: platform executor factory (Cowork/agent path) ────────────
+  # As of v1.15200 upstream split the executor factory in two. Patch 4 above
+  # handles `createDarwinExecutor` (leading `!=="darwin"` throw). This SECOND
+  # factory — `{const{...,hostBundleId:Z()};if(win32)return ...;if(darwin)return
+  # ...;throw "computer-use executor not implemented for ${platform}"}` — is the
+  # one the Cowork/agent computer-use path actually calls, and it has no linux
+  # branch, so on Linux it fell straight to the throw (issue #159). Inject the
+  # linux branch immediately before the throw, after the darwin branch.
+  block:
+    # Idempotency (Rule 6): assert the linux branch is present AT THIS factory
+    # (immediately before the "executor not implemented" throw) — NOT merely that
+    # the branch string exists somewhere, since Patch 4 injects an identical
+    # string into createDarwinExecutor.
+    let alreadyPat =
+      re"""platform==="linux"&&globalThis\.__linuxExecutor\)return globalThis\.__linuxExecutor;if\(process\.platform==="win32"\)return [\w$]+\(\),[\w$]+\([\w$]+\);if\(process\.platform==="darwin"\)return [\w$]+\([\w$]+\);throw new Error\(`computer-use executor not implemented"""
+    if content.contains(alreadyPat):
+      echo "  [OK] platform executor factory: linux branch already present at throw-site"
+      inc patchesApplied
+    else:
+      # Anchor on the darwin-return immediately before the throw (unique: exactly
+      # one `darwin)return X(Y);throw "...executor not implemented"` site). Insert
+      # the linux branch between the darwin branch and the throw. Param/fn vars
+      # are minified — keep them as captured wildcards.
+      # NB: the throw interpolates `${process.platform}` — the placeholder body
+      # contains a `.`, so it is `[\w$.]+` (NOT `[\w$]+`, which stops at the dot
+      # and never reaches the closing `}` — a silent 0-match trap).
+      let pat =
+        re"""(if\(process\.platform==="darwin"\)return [\w$]+\([\w$]+\);)(throw new Error\(`computer-use executor not implemented for \$\{[\w$.]+\}`\))"""
+      let n = replaceFirst(
+        content,
+        pat,
+        proc(m: RegexMatch): string =
+          m.captures[0] &
+            "if(process.platform===\"linux\"&&globalThis.__linuxExecutor)return globalThis.__linuxExecutor;" &
+            m.captures[1],
+      )
+      if n == 1:
+        echo &"  [OK] platform executor factory: Linux branch before throw ({n} match)"
+        inc changes, n
+        inc patchesApplied
+      elif n > 1:
+        echo &"  [FAIL] platform executor factory: {n} matches (expected 1) — anchor too broad"
+        return original
+      else:
+        echo "  [FAIL] platform executor factory: 0 matches (issue #159 throw-site anchor) — re-audit"
+        return original
 
   # ── Patch 4b (kwin-wayland): cu lock acquire → __setLockHeld(true) ──────
   block:

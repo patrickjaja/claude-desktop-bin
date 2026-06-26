@@ -37,9 +37,11 @@ proc apply*(input: string): string =
     applied.add("bounds-fix(skip)")
   else:
     # Pattern uses \2 backreference for winVar.
-    # Allow optional code (e.g. profile title hook) between BrowserWindow() and the setup call.
+    # Allow optional code between BrowserWindow() and the setup call (group 5, midCode),
+    # AND between the setup call and the final `,W}` (group 7, trailing). v1.15962 added a
+    # `,Cft(tt)` call after the MAIN_WINDOW setup call which broke the old adjacency anchor.
     let mainWinPattern =
-      nre.re"(function [\w$]+\([\w$]+\)\{return )([\w$]+)=new ([\w$]+)\.BrowserWindow\(([\w$]+)\),(.*?)([\w$]+\(\2\.webContents,[\w$]+\.MAIN_WINDOW\)),\2\}"
+      nre.re"(function [\w$]+\([\w$]+\)\{return )([\w$]+)=new ([\w$]+)\.BrowserWindow\(([\w$]+)\),(.*?)([\w$]+\(\2\.webContents,[\w$]+\.MAIN_WINDOW\))(.*?),\2\}"
 
     let m1 = result.find(mainWinPattern)
     if m1.isSome:
@@ -50,10 +52,14 @@ proc apply*(input: string): string =
       let paramVar = m.captures[3]
       let midCode = m.captures[4]
       let setupCall = m.captures[5]
+      # trailing: any setup calls between the MAIN_WINDOW call and the final `,W}`.
+      # v1.15962 added `,Cft(tt)`; on v1.15200 this is "". Already includes its own
+      # leading comma, so it slots in directly after setupCall.
+      let trailing = m.captures[6]
       let iife = BOUNDS_FIX_JS & "(" & winVar & ")"
       let replacement =
         prefix & winVar & "=new " & electronVar & ".BrowserWindow(" & paramVar & ")," &
-        midCode & setupCall & "," & iife & "," & winVar & "}"
+        midCode & setupCall & trailing & "," & iife & "," & winVar & "}"
       result =
         result[0 ..< m.matchBounds.a] & replacement & result[m.matchBounds.b + 1 .. ^1]
       echo "  [OK] Window bounds fix + size jiggle injected: 1 match(es)"
