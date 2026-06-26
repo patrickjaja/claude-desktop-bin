@@ -63,3 +63,6 @@ resources
 .codex
 disabled
 /Claude.msix
+
+# Raw theme-extract captures (one-time DevTools dumps, not source)
+claude-theme-extract-*.json

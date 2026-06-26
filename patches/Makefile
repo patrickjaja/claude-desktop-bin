@@ -35,5 +35,9 @@ fix_cowork_linux: ../js/cowork_mode_preamble.js
 
 fix_cowork_font: ../js/fix_cowork_font.js
 
+# Theme patch embeds the spinner-reshape installer (swaps the loading-star SVG
+# for the active theme's custom shape) via staticRead.
+add_feature_custom_themes: ../js/spinner_injector.js
+
 clean:
 	@rm -rf $(BINS) .nimcache
