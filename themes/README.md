@@ -108,7 +108,7 @@ dual-variant and live inside the patch:
 | `catppuccin-macchiato` | Catppuccin **Latte** (light) | Catppuccin **Macchiato** (dark) - mauve accent | cat head (`pulse`) |
 | `catppuccin-frappe` | Catppuccin **Latte** (light) | Catppuccin **Frappe** (dark) - mauve accent | cat head (`pulse`) |
 | `catppuccin-latte` | Catppuccin **Latte** (light) | Catppuccin **Mocha** (dark) | coffee cup (`pulse`) |
-| `super-mario` | sky-blue overworld: pale-blue surfaces, Mario-red accent | night-navy underground: deep blue-violet surfaces, Mario-red accent (coin-gold + pipe-green status colors) | mushroom (`bounce`) |
+| `mario` | sky-blue overworld: pale-blue surfaces, dark-navy text, Mario-red accent | warm-brick underground: brown surfaces, cream text, Mario-red accent + coin-gold/pipe-green status | mushroom (`bounce`) |
 
 Notes:
 
@@ -134,7 +134,7 @@ The seven shapes that ship with the built-ins:
 
 | Theme | Shape | Color | Animation |
 |-------|-------|-------|-----------|
-| `super-mario` | Mario mushroom | multi-color (baked hex) | `bounce` |
+| `mario` | Mario mushroom | multi-color (baked hex) | `bounce` |
 | `sweet` | 5-petal blossom | accent (`currentColor`) | `spin` |
 | `nord` | 6-point snowflake | accent (`currentColor`) | `spin` |
 | `catppuccin-mocha` | cat head | accent (`currentColor`) | `pulse` |

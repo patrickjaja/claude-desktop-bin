@@ -50,7 +50,7 @@ is an opacity throb. Set `null` to inherit only claude.ai's own motion.
 
 | Theme | Shape | Paths | Color | Animation |
 |-------|-------|-------|-------|-----------|
-| `super-mario` | Mario mushroom | 8 | multi-color (explicit hex) | `bounce` |
+| `mario` | Mario mushroom | 8 | multi-color (explicit hex) | `bounce` |
 | `sweet` | 5-petal blossom | 1 | currentColor (pink accent) | `spin` |
 | `nord` | 6-point snowflake | 1 | currentColor | `spin` |
 | `catppuccin-mocha` | cat head | 1 | currentColor | `pulse` |
@@ -63,7 +63,7 @@ The three `catppuccin-*` dark variants intentionally **share** the cat-head shap
 
 ---
 
-### 1. `super-mario` - Mario mushroom (8 paths, multi-color, `bounce`)
+### 1. `mario` - Mario mushroom (8 paths, multi-color, `bounce`)
 
 The 8-path mushroom straight from [SPINNER_INJECTION_NOTES.md](SPINNER_INJECTION_NOTES.md)
 section 5: domed red cap, three white spots, a pale face/stem band, two dark eyes, and a
@@ -73,7 +73,7 @@ accent - its colors are baked so it always looks like the canonical mushroom.
 Colors: `#E52521` cap, `#FFFFFF` spots, `#FAD9C0` face, `#3A2A1A` outline + eyes.
 Build order matters: outline first (behind), then cap, face, spots, eyes on top.
 
-(Full path array: see `scratchpad/spinner_specs.json` -> `super-mario.paths`, identical
+(Full path array: see `scratchpad/spinner_specs.json` -> `mario.paths`, identical
 to the 8-path block in the injection notes.)
 
 ---
@@ -196,7 +196,7 @@ idempotency, no-op-on-null) is covered by `scratchpad/test_injector.js` against 
 DOM shim:
 
 ```bash
-node scratchpad/test_injector.js scratchpad/spinner_specs.json super-mario js/spinner_injector.js
+node scratchpad/test_injector.js scratchpad/spinner_specs.json mario js/spinner_injector.js
 ```
 
 ---
