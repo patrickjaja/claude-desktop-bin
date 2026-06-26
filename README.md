@@ -27,7 +27,7 @@ Unofficial Linux packages for Claude Desktop AI assistant with automated updates
 - [Computer Use](#computer-use)
 - [Hardware Buddy (Nibblet)](#hardware-buddy-nibblet)
 - [Third-Party Inference](#third-party-inference)
-- [Custom Themes (Experimental)](#custom-themes-experimental)
+- [Custom Themes](#custom-themes)
 - [Patches](#patches)
 - [Automation](#automation)
 - [Repository Structure](#repository-structure)
@@ -358,7 +358,7 @@ All major Claude Desktop features work natively on Linux through [42+ patches](#
 
 Features unique to the Linux port - not available in upstream Claude Desktop:
 
-- [**Custom Themes**](#custom-themes-experimental) - 6 built-in color themes (Nord, Catppuccin variants, Sweet) or create your own via JSON config. See [themes/README.md](themes/README.md) for the full guide
+- [**Custom Themes**](#custom-themes) - 7 built-in dual light/dark themes (Mario, Sweet, Nord, 4x Catppuccin), each with a custom loading spinner, or create your own via JSON config. See [themes/README.md](themes/README.md) for the full guide
 - [**Multiple Profiles**](#multiple-profiles) - run several instances side by side, each logged in to a different account with fully isolated state. `claude-desktop --create-profile=work` and you're done
 - [**Cowork Backend**](#cowork-integration) - [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service) enables Cowork, Dispatch, and Live Artifacts on Linux via a **native** backend (default, no VM overhead) or an experimental **[KVM backend](https://github.com/patrickjaja/claude-cowork-service#kvm-backend-experimental)** for sandboxed execution matching macOS/Windows
 
@@ -479,25 +479,37 @@ The in-app configuration window (**Developer → Configure Third-Party Inference
 - [Enterprise configuration for Claude Desktop](https://support.claude.com/en/articles/12622667-enterprise-configuration-for-claude-desktop) - managed-preferences overview for fleet rollouts.
 - [Extend Claude Cowork with third-party platforms](https://support.claude.com/en/articles/14680753-extend-claude-cowork-with-third-party-platforms) - **note:** on 3P (Bedrock/Vertex/Azure/gateway), MCP connectors, plugins, and skills work differently than on Claude Enterprise. Cowork skills come from a local store rather than your claude.ai org, so document skills (`/pdf`, `/docx`, …) must be installed locally.
 
-## Custom Themes (Experimental)
+## Custom Themes
 
-Themes override CSS variables in **all windows** (main chat, Quick Entry, Find-in-Page, About) via Electron's `insertCSS()` API. Set Claude Desktop to **dark mode** for best results with dark themes.
+Recolor the whole app - chat, sidebar, Code/Cowork, dialogs, Quick Entry - by overriding CSS variables, injected into every window via Electron's `insertCSS()`. Each theme is **dual light/dark**: it ships a `light` and a `dark` palette, and the app's own toggle (Settings -> Appearance) picks the matching one live. Every built-in is contrast-checked (WCAG AA).
 
-**Quick start:**
+**Quick start** - just pick a theme, no extra config needed:
 ```bash
-echo '{"activeTheme": "sweet"}' > ~/.config/Claude/claude-desktop-bin.json
-# Restart Claude Desktop
+echo '{"activeTheme": "mario"}' > ~/.config/Claude/claude-desktop-bin.json
+# Restart Claude Desktop, then toggle Settings -> Appearance for light/dark
 ```
 
-**Built-in themes:** `sweet`, `nord`, `catppuccin-mocha`, `catppuccin-frappe`, `catppuccin-latte`, `catppuccin-macchiato`
+### New: Mario theme
 
-Themes can also include a `customCss` field (a string or array of raw CSS rules, per-theme or global) for the renderer windows. Note: it does **not** reach the chat UI, which renders in a cross-origin iframe `insertCSS` can't enter - theme the chat via CSS variables instead. See [themes/README.md](themes/README.md).
+A full Nintendo-flavored theme with a **light "overworld"** and a **dark "underground"** variant - and the loading starburst is replaced with a bouncing **mushroom** spinner.
 
-| Sweet | Nord | Catppuccin Mocha |
-|-------|------|------------------|
-| Purple/pink warm tones ([github.com/EliverLara/Sweet](https://github.com/EliverLara/Sweet)) | Arctic blue-grey ([nordtheme.com](https://nordtheme.com)) | Warm pastels ([catppuccin.com](https://catppuccin.com)) |
+| Light (overworld) | Dark (underground) |
+|-------------------|--------------------|
+| ![Mario theme - light](themes/mario/2026-06-26_14-46-chat-light.png) | ![Mario theme - dark](themes/mario/2026-06-26_14-46-chat-dark.png) |
 
-See **[themes/README.md](themes/README.md)** for the full theming guide: CSS variable reference, how to extract app HTML/CSS for inspection, custom theme creation, and screenshots.
+### Built-in themes
+
+| Theme | Light variant | Dark variant | Spinner |
+|-------|---------------|--------------|---------|
+| `mario` | sky-blue overworld | warm-brick underground | mushroom |
+| `sweet` | blush/lavender | deep purple, vivid pink ([Sweet](https://github.com/EliverLara/Sweet)) | blossom |
+| `nord` (alias `nordic`) | Snow Storm | Polar Night ([nordtheme.com](https://nordtheme.com)) | snowflake |
+| `catppuccin-mocha` | Latte | Mocha ([catppuccin.com](https://catppuccin.com)) | cat |
+| `catppuccin-macchiato` | Latte | Macchiato | cat |
+| `catppuccin-frappe` | Latte | Frappe | cat |
+| `catppuccin-latte` | Latte | Mocha | coffee cup |
+
+Each theme can also replace the loading glyph with a custom SVG (the `spinner` field), and inject raw `customCss`. See **[themes/README.md](themes/README.md)** for the full guide: schema, CSS variable reference, contrast tips, and how to author your own theme.
 
 ## Patches
 
@@ -505,7 +517,7 @@ The package applies several patches to make Claude Desktop work on Linux. Each p
 
 | Patch | Purpose | Debug pattern |
 |-------|---------|---------------|
-| `add_feature_custom_themes.nim` | CSS theme injection - 6 built-in themes (sweet, nord, catppuccin-*) | Prepended IIFE, no regex |
+| `add_feature_custom_themes.nim` | CSS theme injection - 7 dual light/dark themes (mario, sweet, nord, catppuccin-*) + per-theme spinner reshape | Prepended IIFE, no regex |
 | `claude-native.js` | Linux stubs for `@anthropic/claude-native` (Windows-only module) | Static file, no regex |
 | `enable_local_agent_mode.nim` | Removes platform gates for Code/Cowork features, spoofs UA | `rg -o 'function \w+\(\)\{return process\.platform.*status' index.js` |
 | `fix_0_node_host.nim` | Fixes 4 sidecar runtime paths (MCP nodeHost, directMcpHost, shell-path-worker, transcript-search-worker) that join `process.resourcesPath+"app.asar"`; without this `fix_locale_paths` corrupts them into `resources/locales/app.asar/...` (remote MCP fails with ERR_MODULE_NOT_FOUND, issue #140) | `rg -o 'process\.resourcesPath,"app.asar"' index.js` |

@@ -5,15 +5,16 @@ Themes are now **dual light/dark**: each theme defines a `light` and a `dark`
 palette, and the app's own light/dark toggle (Settings -> Appearance) picks the
 matching one live.
 
-## Sweet Theme Preview
+## Preview - Mario theme (light + dark)
 
-| Chat | Cowork |
-|------|--------|
-| ![Chat view](sweet/screen.png) | ![Cowork view](sweet/screen2.png) |
+The same theme, both variants - toggle Settings -> Appearance to switch:
 
-| Code | Dialog |
-|------|--------|
-| ![Code view](sweet/screen3.png) | ![Keyboard shortcuts dialog](sweet/screen4.png) |
+| Light (overworld) | Dark (underground) |
+|-------------------|--------------------|
+| ![Mario light](mario/2026-06-26_14-46-chat-light.png) | ![Mario dark](mario/2026-06-26_14-46-chat-dark.png) |
+
+Note the loading glyph: each theme can replace Claude's starburst with a custom
+SVG spinner (Mario gets a mushroom). See [SPINNER_SHAPES.md](../baseline/SPINNER_SHAPES.md).
 
 ## What's new: dual light/dark variants
 
