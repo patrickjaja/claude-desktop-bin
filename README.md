@@ -135,7 +135,7 @@ sudo dnf install ydotool grim jq
 sudo dnf install ydotool grim hyprland
 # Wayland (KDE Plasma) - no extra packages needed
 # Wayland (GNOME):
-sudo dnf install ydotool xdotool glib2 gnome-screenshot ImageMagick python3-gobject gstreamer1-plugin-pipewire
+sudo dnf install ydotool xdotool glib2 gnome-screenshot ImageMagick python3-gobject pipewire-gstreamer
 # GNOME Wayland: enable Quick Entry hotkey (one-time, after install):
 # claude-desktop --install-gnome-hotkey
 # Optional: socat (faster Quick Entry toggle, ~2ms vs ~25ms python3 - not required)
