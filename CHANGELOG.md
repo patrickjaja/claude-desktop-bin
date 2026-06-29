@@ -2,6 +2,14 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-06-29
+
+### Upstream bump v1.15962.0 -> v1.15962.1 (patch-level, no patch changes)
+
+- **Version bump v1.15962.0 -> v1.15962.1**, a patch-level upstream rebuild with no re-minification. Every minified identifier our patches anchor on is byte-identical to v1.15962.0 - all 53 patches (49 on `index.js`, 2 on `index.pre.js`, 1 on `MainWindowPage`, 1 on `mainView.js`) plus both ion-dist patches applied unchanged, and the patched bundle passes `node --check`. The bundle grew ~170 KB but only in non-patched, non-Linux-relevant code.
+- **Baselines re-validated, no updates needed.** Feature-flag registry `QR()`, async merger `HSA`, dev/prod gate `gM()`, flag reader `it()` and yukonSilver fn `Uae()` all still resolve; the GrowthBook flag set is identical (91 IDs, no new/removed), so `enable_local_agent_mode.nim`'s override list and Zod schema still cover every targeted flag. Platform-gate counts and classifications in `PLATFORM_GATE_BASELINE.md` hold exactly (darwin/win32/linux 76/125/10); no new PORTABLE gate, no new native module (`sshcrypto.node` remains the only `.node` require). ion-dist config chunk still carries the `mountPath:{mac:...}` signature.
+- **Cowork daemon:** no change required. The RPC surface (`getNetworkDrives` + `configure.networkDrives`) is unchanged from v1.15962.0, still absorbed by the daemon's unknown-method passthrough and non-strict `json.Unmarshal`.
+
 ## 2026-06-26
 
 ### Themes: dual light/dark variants, corrected token map, per-theme spinners, new Mario theme
