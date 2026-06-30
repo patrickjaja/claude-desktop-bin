@@ -31,7 +31,7 @@ import std/nre
 
 proc apply*(input: string): string =
   # Idempotency: our injected override carries this exact literal.
-  if input.contains(""";process.platform==="linux"&&(e="TrayIconTemplate-Dark.png");"""):
+  if input.contains(""";process.platform==="linux"&&(e="TrayIconLinux-Dark.png");"""):
     echo "  [OK] tray icon theme logic: already patched (skipped)"
     result = input
     return
@@ -40,19 +40,20 @@ proc apply*(input: string): string =
   # anchored on the three case literals so we pin the one correct site.
   # Variable names may contain $ (valid JS identifier), so use [\w$]+.
   let pattern =
-    re"""let e;switch\([\w$]+\)\{case"ico":e=[\w$]+\.nativeTheme\.shouldUseDarkColors\?"Tray-Win32-Dark\.ico":"Tray-Win32\.ico";break;case"template-image":e="TrayIconTemplate\.png";break;case"png":e=[\w$]+\.nativeTheme\.shouldUseDarkColors\?"TrayIconTemplate-Dark\.png":"TrayIconTemplate\.png";break\}"""
+    re"""let e;switch\([\w$]+\)\{case"ico":e=[\w$]+\.nativeTheme\.shouldUseDarkColors\?"Tray-Win32-Dark\.ico":"Tray-Win32\.ico";break;case"template-image":e="TrayIconTemplate\.png";break;case"png":e=[\w$]+\(\)==="gnome"\|\|[\w$]+\.nativeTheme\.shouldUseDarkColors\?"TrayIconLinux-Dark\.png":"TrayIconLinux\.png";break\}"""
   var count = 0
   result = input.replace(
     pattern,
     proc(m: RegexMatch): string =
       inc count
-      # Re-emit the matched switch verbatim, then force the light icon on
-      # Linux (trays there are universally dark, and the .ico files the
-      # "ico" build-type would pick don't ship in the Linux package).
+      # Re-emit the matched switch verbatim, then force the dark Linux icon on
+      # Linux (trays there are universally dark; upstream now ships
+      # TrayIconLinux.png / TrayIconLinux-Dark.png and the false branch of
+      # Eni()==="gnome"||... would otherwise pick the light TrayIconLinux.png).
       # Trailing ';' is required: the matched switch is followed immediately
       # by `const t=...` with no line terminator, so without it the injected
       # expression statement runs into `const` (Unexpected token 'const').
-      m.match & """;process.platform==="linux"&&(e="TrayIconTemplate-Dark.png");""",
+      m.match & """;process.platform==="linux"&&(e="TrayIconLinux-Dark.png");""",
   )
   if count == 0:
     echo "  [FAIL] tray icon theme logic: 0 matches"

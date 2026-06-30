@@ -103,7 +103,7 @@ proc apply*(input: string): string =
   # already-satisfied state and we skip without failing.
   n = 0
   result = result.replace(
-    re2"""\b([\w$]+)&&([\w$]+)\.BrowserWindow\.getAllWindows\(\)\.forEach\([\w$]+=>\{try\{[\w$]+\.setTitleBarOverlay""",
+    re2"""\b([\w$]+)&&([\w$]+)\.BrowserWindow\.getAllWindows\(\)\.forEach\([\w$]+=>\{[^{]*try\{[\w$]+\.setTitleBarOverlay""",
     proc(m: RegexMatch2, s: string): string =
       inc n
       let platformGate = s[m.group(0)]
@@ -119,7 +119,7 @@ proc apply*(input: string): string =
     # upstream -> Linux already covered) before declaring success.
     var ungated: RegexMatch2
     let ungatedPat =
-      re2"""\.BrowserWindow\.getAllWindows\(\)\.forEach\([\w$]+=>\{try\{[\w$]+\.setTitleBarOverlay"""
+      re2"""\.BrowserWindow\.getAllWindows\(\)\.forEach\([\w$]+=>\{[^{]*try\{[\w$]+\.setTitleBarOverlay"""
     if result.find(ungatedPat, ungated):
       echo "  [OK] setTitleBarOverlay gate: removed upstream (call is " &
         "unconditional; Linux already receives theme updates)"

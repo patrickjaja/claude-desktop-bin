@@ -213,18 +213,25 @@ proc apply*(input: string): string =
       echo &"  [OK] C2 bundle lookup alias: linux→win32 when kvm mode ({n} site(s))"
       inc patchesApplied
     else:
-      # No platform-indexed lookup. Confirm the hardcoded-win32 lookup exists:
-      #   const A="win32",e=process.arch; ... (i=<map>.files[A])!=null&&i[e]
-      # The deref var (\2) is minified and changes every release (was `r`,
-      # now `i`); capture it and backreference so we assert the real end-state.
-      let hardcodedWin32Lookup = re(
-        """const ([\w$]+)="win32",[\w$]+=process\.arch;[\s\S]{0,400}?\(([\w$]+)=[\w$]+\.files\[\1\]\)!=null&&\2\["""
-      )
-      if content.find(hardcodedWin32Lookup).isSome:
-        echo "  [OK] C2 bundle lookup alias: lookup hardcoded to win32 upstream (linux→win32 alias already in effect; skipped)"
+      # No platform-indexed lookup. v1.17282.0 introduced a `unix` bundle key
+      # (native Linux rootfs.img) and a platform->key mapper:
+      #   function z0A(A){switch(A){case"darwin":case"linux":return"unix";
+      #     case"win32":return"win32";default:return null}}
+      # All VM-bundle lookups now go through it: `to.files[z0A(A)][e]`. On Linux
+      # z0A returns "unix" and `to.files["unix"][arch]` is a real native bundle --
+      # there is no win32 alias left to inject, AND aliasing linux->win32 would be
+      # WRONG (linux must use the native rootfs.img, not the win32 vhdx).
+      # Convert C2 into a regression guard: assert (a) the mapper routes linux->
+      # "unix" and (b) the `unix` bundle key actually exists. Fail loud if either
+      # disappears (would mean Linux lost its native VM bundle upstream).
+      let z0aMapper =
+        re("""case"darwin":case"linux":return"unix";case"win32":return"win32"""")
+      let unixBundleKey = re("""files:\{unix:\{[\w$]+:\[""")
+      if content.find(z0aMapper).isSome and content.find(unixBundleKey).isSome:
+        echo "  [OK] C2 bundle lookup alias: linux maps to native \"unix\" bundle upstream (regression guard satisfied; no alias needed)"
         inc patchesApplied
       else:
-        echo "  [FAIL] C2 bundle lookup alias: no matching sites found (neither platform-indexed nor hardcoded-win32)"
+        echo "  [FAIL] C2 bundle lookup alias: no matching sites found (neither platform-indexed, nor linux→unix mapper + unix bundle key)"
 
   # ── Patch D: pathToClaudeCodeExecutable — dynamic on Linux ──
   block:
@@ -318,13 +325,24 @@ proc apply*(input: string): string =
 
   # ── Patch H: Guard event subscription — skip if socket absent ──
   block:
-    # Two known shapes (minified names change every release):
+    # Three known shapes (minified names change every release):
     #   Sync:  function ZHe(){if(qD)return;const e=PtA.createConnection(lbA)
     #   Async: function Zje(){return vy?Promise.resolve():new Promise((e,A)=>{const t=PoA.createConnection(xYA)
+    #   Delegating (v1.17282.0): the connect+subscribe was split into helpers.
+    #     The guard entry is now `function R0t(){return CD?Promise.resolve():Aoi()}`
+    #     where Aoi() does the actual `await Yte()`->`createConnection(Kni)`. The
+    #     createConnection is no longer inline in the guarded fn, so we anchor on
+    #     the guard fn shape and disambiguate from the unrelated `function ex(){
+    #     return RH?Promise.resolve():hte()}` via a (non-consuming) lookahead for
+    #     the resubscribe helper that backreferences the fn name + the unique
+    #     "[vm-client] Event resubscribe" log. The socket path var (Kni) lives in
+    #     a sibling helper, so we capture it separately from createConnection().
     let patSync =
       re"""function ([\w$]+)\(\)\{if\(([\w$]+)\)return;const ([\w$]+)=([\w$]+)\.createConnection\(([\w$]+)\)"""
     let patAsync =
       re"""function ([\w$]+)\(\)\{return ([\w$]+)\?Promise\.resolve\(\):new Promise\(\(([\w$]+),([\w$]+)\)=>\{const ([\w$]+)=([\w$]+)\.createConnection\(([\w$]+)\)"""
+    let patDelegating =
+      re"""function ([\w$]+)\(\)\{return ([\w$]+)\?Promise\.resolve\(\):([\w$]+)\(\)\}(?=function [\w$]+\([\w$]+\)\{[\s\S]{0,80}?\1\(\)\.catch\([\s\S]{0,30}?\[vm-client\] Event resubscribe)"""
 
     proc buildGuardBody(funcName, pathVar: string): string =
       "if(process.platform===\"linux\"){" & "var _fs=require(\"fs\");" &
@@ -387,6 +405,36 @@ proc apply*(input: string): string =
         echo &"  [OK] H event subscription guard: socket check in {funcName} (async, pathVar={pathVar})"
         matched = true
         inc patchesApplied
+
+    if not matched:
+      # v1.17282.0 delegating shape: guard fn delegates to a connect helper; the
+      # createConnection() (and its path var) live in a sibling helper.
+      let delegatingMatch = content.find(patDelegating)
+      if delegatingMatch.isSome:
+        let m = delegatingMatch.get()
+        let funcName = m.captures[0]
+        let guardVar = m.captures[1]
+        let subFn = m.captures[2]
+
+        # The socket path var is not inside the guard fn anymore -- capture it
+        # from the connect helper's `.createConnection(<pathVar>)` site. After
+        # Patch B, this var is the runtime-selected Unix socket on Linux.
+        let connPat = re"""\.createConnection\(([\w$]+)\)"""
+        let connMatch = content.find(connPat)
+        if connMatch.isSome:
+          let pathVar = connMatch.get().captures[0]
+
+          let guard =
+            "function " & funcName & "(){" & buildGuardBody(funcName, pathVar) &
+            "return Promise.resolve();" & "}" &
+            "globalThis.__coworkServiceAvailable=true;" & "}" & "return " & guardVar &
+            "?Promise.resolve():" & subFn & "()}"
+
+          let bounds = m.matchBounds
+          content = content[0 ..< bounds.a] & guard & content[bounds.b + 1 .. ^1]
+          echo &"  [OK] H event subscription guard: socket check in {funcName} (delegating, subFn={subFn}, pathVar={pathVar})"
+          matched = true
+          inc patchesApplied
 
     if not matched:
       echo "  [FAIL] H event subscription guard: neither sync nor async pattern found"

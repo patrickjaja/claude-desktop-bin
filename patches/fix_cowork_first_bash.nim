@@ -18,12 +18,21 @@ proc apply*(input: string): string =
   # Step 1: find the events socket variable name
   # v1.6608 shape: function NAME(){if(VAR)return;const X=Y.createConnection
   # v1.7196 shape: function NAME(){return VAR?Promise.resolve():new Promise((e,A)=>{const X=Y.createConnection
+  # v1.17282 shape: connect logic split out -- thin wrapper delegates to a connect fn,
+  #   followed by a resubscribe guard referencing the same socket var (\2) and re-calling
+  #   the wrapper: function R0t(){return CD?Promise.resolve():Aoi()}function QYe(A){!$BA()||CD||setTimeout(...
+  #   The \2 backreference + setTimeout guard disambiguates the EVENTS wrapper from the
+  #   structurally-identical RPC-pipe wrapper (which is followed by an async fn, no guard).
   let evSockPatOld =
     re"function ([\w$]+)\(\)\{if\(([\w$]+)\)return;const [\w$]+=[\w$]+\.createConnection"
   let evSockPatNew =
     re"function ([\w$]+)\(\)\{return ([\w$]+)\?Promise\.resolve\(\):new Promise\(\([\w$]+,[\w$]+\)=>\{const [\w$]+=[\w$]+\.createConnection"
+  let evSockPat17282 =
+    re"""function ([\w$]+)\(\)\{return ([\w$]+)\?Promise\.resolve\(\):[\w$]+\(\)\}function [\w$]+\([\w$]+\)\{![\w$]+\(\)\|\|\2\|\|setTimeout"""
 
-  var evSockMatch = result.find(evSockPatNew)
+  var evSockMatch = result.find(evSockPat17282)
+  if evSockMatch.isNone:
+    evSockMatch = result.find(evSockPatNew)
   if evSockMatch.isNone:
     evSockMatch = result.find(evSockPatOld)
   if evSockMatch.isNone:

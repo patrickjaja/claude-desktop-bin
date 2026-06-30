@@ -14,7 +14,7 @@
 #   3b coworkKappa GrowthBook flag 123929380
 #   3c coworkArtifacts GrowthBook flag 2940196192
 #   3d chillingSlothPool GrowthBook flag 1992087837
-#   3e markTaskComplete GrowthBook flag 3732274605
+#   3e (removed upstream v1.17282.0: markTaskComplete flag 3732274605 no longer exists)
 #   3f ENABLE_TOOL_SEARCH GrowthBook flag 1129419822
 #   3g toolResultFormatting GrowthBook flag 2192324205
 #   3h deterministicSorting GrowthBook flag 2800354941
@@ -48,7 +48,7 @@
 import std/[os, strformat, strutils]
 import std/nre
 
-const EXPECTED_PATCHES = 24
+const EXPECTED_PATCHES = 23
 
 proc apply*(input: string): string =
   result = input
@@ -188,7 +188,7 @@ proc apply*(input: string): string =
 
   # Patch 3: Override features in mC() async merger
   let overrides =
-    ",quietPenguin:{status:\"supported\"},louderPenguin:{status:\"supported\"},chillingSlothFeat:{status:\"supported\"},chillingSlothLocal:{status:\"supported\"},chillingSlothPool:{status:\"supported\"},yukonSilver:{status:\"supported\"},yukonSilverGems:{status:\"supported\"},ccdPlugins:{status:\"supported\"},computerUse:{status:\"supported\"},coworkKappa:{status:\"supported\"},coworkArtifacts:{status:\"supported\"},markTaskComplete:{status:\"supported\"}"
+    ",quietPenguin:{status:\"supported\"},louderPenguin:{status:\"supported\"},chillingSlothFeat:{status:\"supported\"},chillingSlothLocal:{status:\"supported\"},chillingSlothPool:{status:\"supported\"},yukonSilver:{status:\"supported\"},yukonSilverGems:{status:\"supported\"},ccdPlugins:{status:\"supported\"},computerUse:{status:\"supported\"},coworkKappa:{status:\"supported\"},coworkArtifacts:{status:\"supported\"}"
 
   # New format: return{...FUNC(),...props}}; or }},
   let pattern3New = re"(return\{\.\.\.(?:[\w$]+)\(\),[^}]+)(\}\}[;,])"
@@ -199,7 +199,7 @@ proc apply*(input: string): string =
     let endTag = "}}" & endChar
     let insertPos = bounds.b + 1 - endTag.len
     result = result[0 ..< insertPos] & overrides & endTag & result[bounds.b + 1 .. ^1]
-    echo "  [OK] mC() feature merger: 12 features overridden (1 match)"
+    echo "  [OK] mC() feature merger: 11 features overridden (1 match)"
     inc patchesApplied
   else:
     # Fallback: old format
@@ -215,7 +215,7 @@ proc apply*(input: string): string =
         m.captures[0] & m.captures[1] & overrides & "})",
     )
     if count3 >= 1:
-      echo &"  [OK] mC() feature merger: 12 features overridden (old format, {count3} match)"
+      echo &"  [OK] mC() feature merger: 11 features overridden (old format, {count3} match)"
       inc patchesApplied
     else:
       echo "  [FAIL] mC() feature merger: 0 matches, expected 1"
@@ -275,21 +275,10 @@ proc apply*(input: string): string =
     echo "  [FAIL] chillingSlothPool flag 1992087837: 0 matches"
     failed = true
 
-  # Patch 3e: Enable markTaskComplete GrowthBook flag (3732274605) on Linux
-  let mtcPattern = re"""[\w$]+\("3732274605"\)"""
-  var mtcApplied = 0
-  result = result.replace(
-    mtcPattern,
-    proc(m: RegexMatch): string =
-      inc mtcApplied
-      "!0",
-  )
-  if mtcApplied >= 1:
-    echo &"  [OK] markTaskComplete flag 3732274605: forced ON ({mtcApplied} matches)"
-    inc patchesApplied
-  else:
-    echo "  [FAIL] markTaskComplete flag 3732274605: 0 matches"
-    failed = true
+  # Patch 3e (markTaskComplete, GrowthBook flag 3732274605) was REMOVED upstream
+  # in v1.17282.0 -- the feature no longer exists in the bundle (neither the numeric
+  # id nor the `markTaskComplete` key appear anywhere). Sub-patch deleted accordingly;
+  # EXPECTED_PATCHES dropped 24 -> 23 and the merger override list dropped to 11 keys.
 
   # Patch 3f: Enable ENABLE_TOOL_SEARCH for LAM sessions - flag 1129419822
   let toolSearchPattern = re"""[\w$]+\("1129419822"\)"""
@@ -483,9 +472,14 @@ proc apply*(input: string): string =
     echo "  [FAIL] Required patterns did not match"
     quit(1)
 
-  # Patch 5: Spoof platform as "darwin" in HTTP headers
-  let headerPattern =
-    re"(const [\w$]+=[\w$]+\.app\.getVersion\(\),)([\w$]+)(=)([\w$]+)(\.platform,)([\w$]+)(=\4\.getSystemVersion\(\)[;,])"
+  # Patch 5: Spoof platform as "darwin" in HTTP headers.
+  # v1.17282.0 refactored the header builder: the old
+  #   const A=X.app.getVersion(),PLAT=Y.platform,VER=Y.getSystemVersion()
+  # const-tuple became an inline array literal inside aso():
+  #   [...Object.entries(...),["anthropic-client-os-platform",ho.platform],
+  #    ["anthropic-client-os-version",ho.getSystemVersion()]]
+  # Anchor on the stable header-name string literal and spoof the .platform read.
+  let headerPattern = re"""(\["anthropic-client-os-platform",)([\w$]+)(\.platform\])"""
   var count5 = 0
   result = result.replace(
     headerPattern,
@@ -493,17 +487,14 @@ proc apply*(input: string): string =
       inc count5
       if count5 > 1:
         return m.match
-      let platVar = m.captures[1]
-      let osMod = m.captures[3]
-      let verVar = m.captures[5]
-      m.captures[0] & platVar & m.captures[2] &
-        "process.platform===\"linux\"?\"darwin\":" & osMod & m.captures[4] & verVar &
-        m.captures[6],
+      let osMod = m.captures[1]
+      m.captures[0] & "process.platform===\"linux\"?\"darwin\":" & osMod & m.captures[2],
   )
   if count5 >= 1:
     echo &"  [OK] HTTP header platform spoof: {count5} match(es)"
     inc patchesApplied
-  elif "process.platform===\"linux\"?\"darwin\":" in result:
+  elif "[\"anthropic-client-os-platform\",process.platform===\"linux\"?\"darwin\":" in
+      result:
     echo "  [OK] HTTP header platform spoof: already patched"
     inc patchesApplied
   else:

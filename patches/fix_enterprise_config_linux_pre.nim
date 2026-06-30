@@ -44,6 +44,19 @@ import regex
 #   2. validates/normalizes via `AI(...)`, matching Windows behavior.
 # kW is in the same module scope as the wrapper, so the injected code can call it.
 # We build the reader template with the captured kW name substituted in.
+# Minified names can contain regex metachars (esp. `$`, e.g. v1.17282.0 renamed
+# the reader fn to `o$`). Escape the captured name before embedding it in a regex,
+# or `$` is read as an end-of-line anchor and the pattern silently never matches.
+proc escapeRe(s: string): string =
+  result = ""
+  for c in s:
+    case c
+    of '\\', '.', '+', '*', '?', '(', ')', '[', ']', '{', '}', '|', '^', '$':
+      result.add('\\')
+      result.add(c)
+    else:
+      result.add(c)
+
 proc linuxReader(kwFn: string): string =
   "(()=>{try{return " & kwFn &
     "(JSON.parse(require(\"fs\").readFileSync(\"/etc/claude-desktop/enterprise.json\",\"utf8\")))}catch(e){return{}}})()"
@@ -78,7 +91,7 @@ proc apply*(input: string): string =
 
   # function X(){const Y=<regFn>();return Object.keys(Y).length>0?Y:void 0}
   let pattern = re2(
-    """(function [\w$]+\(\)\{const [\w$]+=)(""" & regFn &
+    """(function [\w$]+\(\)\{const [\w$]+=)(""" & escapeRe(regFn) &
       """\(\);return Object\.keys\([\w$]+\)\.length>0)"""
   )
   var count = 0

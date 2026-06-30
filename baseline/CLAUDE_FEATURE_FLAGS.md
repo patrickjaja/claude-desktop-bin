@@ -1,20 +1,20 @@
 # Claude Desktop Feature Flag Architecture
 
-Reference documentation for the feature flag system in Claude Desktop's Electron app, to aid patch maintenance. The architecture/prose below was first written against v1.8555.2; minified names drift every release, so the **version history table at the bottom is the authoritative record of renames** (current through v1.15962.x). Always cross-check a specific name there before trusting it.
+Reference documentation for the feature flag system in Claude Desktop's Electron app, to aid patch maintenance. The architecture/prose below was first written against v1.8555.2; minified names drift every release, so the **version history table at the bottom is the authoritative record of renames** (current through v1.17282.0). Always cross-check a specific name there before trusting it.
 
 ## Overview
 
-27 feature flags are controlled by a 3-layer system:
+Feature flags are controlled by a 3-layer system (current minified names — see version-history table for the rename trail):
 
-1. **`Np()` (static)** - Calls individual feature functions, builds base object (26 features)
-2. **`SIA` (async merger)** - Spreads `Np()`, adds `louderPenguin` + `coworkKappa` + `coworkArtifacts` + `markTaskComplete` as async overrides (4 total)
+1. **`xR()` (static)** - Calls individual feature functions, builds base object (was `QR()` in v1.15962.x).
+2. **`X0A` (async merger)** - Spreads `xR()` and applies the async overrides: returns `{...xR(),...n}` where `n={louderPenguin,coworkKappa,coworkArtifacts,epitaxyMcpApps,coworkWatchRecord}` (5 overrides). `markTaskComplete` is **no longer an async override** — it was removed in v1.17282.0 (was `HSA` in v1.15962.x).
 3. **IPC handler** - Calls merger, validates against schema, sends to renderer
 
-`wt()` flag reader, `Bm()` listener, `Pr()` multi-key reader. New `Lh()` single-value reader (reads `.value` directly from `CQ` storage). `Pr()` handles structured object flags with key+schema, splitting from the former unified `Pr()` approach used in earlier versions.
+`et(...)` flag reader (was `it(...)` in v1.15962.x). `Bm()` listener, `Pr()` multi-key reader, `Lh()` single-value reader (reads `.value` directly from storage). `Pr()` handles structured object flags with key+schema.
 
 Feature name strings (`chillingSlothFeat`, `louderPenguin`, etc.) are runtime IPC identifiers, **not minified** - they are stable pattern anchors.
 
-## All 27 Features
+## All Features (30 listed; `markTaskComplete` removed in v1.17282.0)
 
 | # | Feature | Function | Gate | Purpose |
 |---|---------|----------|------|---------|
@@ -37,7 +37,7 @@ Feature name strings (`chillingSlothFeat`, `louderPenguin`, etc.) are runtime IP
 | 17 | `computerUse` | `v7i()` | Set-based check on `process.platform` | Computer use feature flag (**patched for Linux** via Set modification) |
 | 18 | `coworkKappa` | static: `O7i()` (unavailable) + async in SIA | Depends on yukonSilver + GrowthBook `123929380` | Memory consolidation - `consolidate-memory` skill |
 | 19 | `coworkArtifacts` | static: `x7i()` (unavailable) + async in SIA | Depends on yukonSilver + GrowthBook `2940196192` | **Cowork artifacts** - artifact rendering in cowork sessions |
-| 20 | `markTaskComplete` | static: `Y7i()` (unavailable) + async in SIA | Depends on yukonSilver + GrowthBook `3732274605` | **Task completion** - mark tasks as done |
+| 20 | `markTaskComplete` | ~~static + async in merger~~ | ~~yukonSilver + GrowthBook `3732274605`~~ | **REMOVED in v1.17282.0** — gone from the static registry, the async merger, the Zod schema, and the force-ON defaults map. Was: task-completion ("mark tasks as done"), GrowthBook `3732274605`. Row kept for history. |
 | 21 | `framebufferPreview` | `b7i()` | **PM() production gate** + GrowthBook `1928275548` | VNC framebuffer preview (dev-gated) |
 | 22 | `iosSimulator` | `PM(iSe)` | **PM() production gate** + macOS-only | iOS Simulator integration (dev-gated + macOS-only) |
 | 23 | `androidEmulator` | `PM(iSe)` | **PM() production gate** + macOS-only | Android Emulator integration (dev-gated + macOS-only; inner function `iSe` unchanged) |
@@ -45,19 +45,22 @@ Feature name strings (`chillingSlothFeat`, `louderPenguin`, etc.) are runtime IP
 | 25 | `tearOffHalo` | `G7i()` | macOS >= 13 only | Tear-off halo overlay behind controlled windows (uses `@ant/claude-swift`) |
 | 26 | `grandPrixRequest` | `U7i()` | `Gxi()` - darwin only + service requests | GrandPrix service request availability |
 | 27 | `bootstrapConfig` | `PM(()=>gK)` | **PM() production gate** | Bootstrap config access (dev-gated) |
-| - | *(async-only: `louderPenguin`, `coworkKappa`, `coworkArtifacts`, `markTaskComplete`)* | See rows 6, 18-20 | async overrides in SIA | See respective rows |
+| 28 | `chillingSlothSshShell` | `V3e()` → `{status:"supported"}` | **None** (no platform gate) | **SSH shell for Code/Cowork** (new in v1.17282.0; same `V3e()` getter as `chillingSlothFeat`, always supported) |
+| 29 | `coworkWatchRecord` | `yHt()` | **darwin-only** (`process.platform!=="darwin"` → `{status:"unsupported", reason:"Watch-record is not available on this platform"}`) | Screen / watch-record (macOS only → **unsupported on Linux**). Async override in `X0A` (new in v1.17282.0) |
+| 30 | `spaceMemoryBridge` | `et("1197768857")?Ed:{status:"unavailable"}` | GrowthBook `1197768857` (no platform check) | **Space memory bridge** — read/index space memory (new in v1.17282.0) |
+| - | *(async overrides in `X0A`: `louderPenguin`, `coworkKappa`, `coworkArtifacts`, `epitaxyMcpApps`, `coworkWatchRecord`)* | See rows 6, 18-19, `epitaxyMcpApps`, 29 | async overrides in merger | `markTaskComplete` removed in v1.17282.0 — no longer an async override |
 
-## The PM() Production Gate (was Nb() in v1.8089.1, DT() in v1.7196.0, MW() in v1.6608.0)
+## The Production Gate `LM()` (was `gM()` in v1.15962.x, `HR()` in v1.15200.0, historically `PM()`/`Nb()`/`DT()`/`MW()`)
 
 ```javascript
-function PM(e){return gA.app.isPackaged?{status:"unavailable"}:e()}
+function LM(A){return sA.app.isPackaged?{status:"unavailable"}:A()}
 ```
 
 In production builds (`app.isPackaged === true`), PM() returns `{status:"unavailable"}` **without calling** the wrapped function. Only in development builds does it call `e()`.
 
 **Features gated by PM():** `plushRaccoon`, `quietPenguin`, `wakeScheduler`, `framebufferPreview`, `iosSimulator`, `androidEmulator`, `bootstrapConfig`
 
-Note: `louderPenguin` is no longer in Np() at all. It exists only in SIA as `await T7i()`, which has its own platform gate (darwin/win32 only) + server feature flag check via GrowthBook `4116586025`. `operon` has been completely removed in v1.6608.0. `coworkKappa`, `coworkArtifacts`, and `markTaskComplete` are async-only: static returns unavailable, async checks yukonSilver + respective GrowthBook flags. `chillingSlothPool` is GrowthBook-gated directly in the static registry.
+Note: `louderPenguin` is no longer in the static registry at all. It exists only in the async merger, which has its own platform gate (darwin/win32 only) + server feature flag check via GrowthBook `4116586025`. `operon` has been completely removed in v1.6608.0. `coworkKappa`, `coworkArtifacts`, and `coworkWatchRecord` are async-only: static returns unavailable, async checks GrowthBook flags (`coworkWatchRecord` is darwin-only via `yHt()`). **`markTaskComplete` was removed entirely in v1.17282.0** — it is no longer a static entry or an async override. `chillingSlothPool` is GrowthBook-gated directly in the static registry.
 
 This is why patching the inner functions alone is insufficient - PM() never calls them in packaged builds.
 
@@ -86,7 +89,10 @@ function Np(){
     computerUse:...,                   // Set-based gate, "linux" added by patch
     coworkKappa:...,                   // always unavailable (async-only)
     coworkArtifacts:...,               // always unavailable (async-only)
-    markTaskComplete:...,              // always unavailable (async-only)
+    // markTaskComplete: REMOVED in v1.17282.0 (was always-unavailable async-only)
+    coworkWatchRecord:...,             // always unavailable static; darwin-only async override (yHt())
+    chillingSlothSshShell:...,         // V3e() -> {status:"supported"}, no gate
+    spaceMemoryBridge:...,             // GrowthBook 1197768857 gate
     framebufferPreview:PM(...),        // dev-gated + GrowthBook 1928275548
     iosSimulator:PM(...),              // dev-gated + macOS-only
     androidEmulator:PM(...),           // dev-gated + macOS-only
@@ -100,21 +106,24 @@ function Np(){
 
 Returns 26 features synchronously. Features wrapped by `PM()` are always `{status:"unavailable"}` in packaged builds.
 
-### Layer 2: SIA - Async Merger (was UcA in v1.8089.1, woA in v1.7196.0, DoA in v1.6608.2)
+### Layer 2: X0A - Async Merger (was HSA in v1.15962.x, UcA in v1.8089.1, woA in v1.7196.0)
 
 ```javascript
-const SIA=async()=>{
-  const[e,A,t,i]=await Promise.all([
-    T7i(),                       // louderPenguin
-    ZyA(()=>wt("123929380")),    // coworkKappa
-    ZyA(()=>wt("2940196192")),   // coworkArtifacts
-    ZyA(()=>wt("3732274605"))    // markTaskComplete
+const X0A=async()=>{
+  const[A,e,t,r,i]=await Promise.all([
+    cZi(),                       // louderPenguin
+    W3e(()=>et("123929380")),    // coworkKappa
+    W3e(()=>et("2940196192")),   // coworkArtifacts
+    kge(()=>et("3516166472")),   // epitaxyMcpApps
+    lZi()                        // coworkWatchRecord (darwin-only via yHt())
   ]);
-  return{...Np(),louderPenguin:e,coworkKappa:A,coworkArtifacts:t,markTaskComplete:i}
+  // a 6th Promise.all slot (pt().overlayApplied()) is consumed separately, not in n
+  const n={louderPenguin:A,coworkKappa:e,coworkArtifacts:t,epitaxyMcpApps:r,coworkWatchRecord:i};
+  return{...xR(),...n}
 };
 ```
 
-Uses `Promise.all` to parallelize louderPenguin (`T7i()`), coworkKappa (`ZyA()+wt("123929380")`), coworkArtifacts (`ZyA()+wt("2940196192")`), and markTaskComplete (`ZyA()+wt("3732274605")`) async checks. Spreads `Np()` then adds the four as async overrides. `T7i()` checks platform (darwin/win32) then checks server feature flag `4116586025`. The `ZyA()` helper checks yukonSilver first, waits 5 seconds, then checks the respective GrowthBook flag. **`operon` was removed in v1.6608.0** - no longer has a static entry or async override.
+Uses `Promise.all` to parallelize the async overrides, then spreads `xR()` and applies `n` (5 overrides). louderPenguin (`cZi()`) checks platform (darwin/win32) then server feature flag `4116586025`. The `W3e()` helper checks yukonSilver first, waits 5 seconds, then checks the respective GrowthBook flag. `coworkWatchRecord` (`lZi()` → `yHt()`) is darwin-only — unsupported on Linux. **`markTaskComplete` was removed in v1.17282.0** — its former `W3e(()=>et("3732274605"))` slot and `markTaskComplete:i` override are both gone. **`operon` was removed in v1.6608.0.**
 
 **v1.1.3770 → v1.1.3918 changes:**
 - `chillingSlothEnterprise` moved from async-only (mC) to static (Fd)
@@ -166,6 +175,28 @@ Feature flags can also be affected by organization-level admin settings:
 Calls the merger, validates the result against a Zod schema, and sends it to the renderer process via IPC. The renderer uses these flags to conditionally render UI elements (e.g., Chat|Code toggle).
 
 ## GrowthBook Flag Catalog (baseline v1.8555.2; see version-history table for current names)
+
+#### New Flags in v1.17282.0
+
+| Flag ID | Role | Patched? |
+|---------|------|----------|
+| `1197768857` | `spaceMemoryBridge` feature gate — registry entry `et("1197768857")?Ed:{status:"unavailable"}`, also gates the space-memory MCP tools (`readSpaceMemoryIndex`) | No |
+| `1295378343` | `gapSurviveEnabled` — value flag, default OFF (`FE("1295378343",!1)`); spread onto a spawned live-process options object | No |
+| `130970054` | `et("130970054")` read into a prompt/feature enable check (`Ve({enabled:...})`) | No |
+| `1569828280` | Binary-asset-fetch gate — `if(!et("1569828280")){...gate_off...skipping binary asset fetch}` | No |
+| `2431502897` | Model-policy map entry — `"2431502897":lW("inherit")` in the model/permission policy resolver map | No |
+| `3778159589` | Device-stale-relogin — `et("3778159589")?e():A()` selecting the relogin path (`markDeviceStaleRelogin`) | No |
+| `629684104` | Assistant-error-recovery — gates synthesizing a recovery result (`assistantUuid`/`resultUuid`) on an assistant error | No |
+
+#### Removed in v1.17282.0
+
+| Flag ID | Was | Notes |
+|---------|-----|-------|
+| `1802019210` | Cowork plugin upload migration gate | Gone from the bundle (no `et()`/`wt()` calls) |
+| `1985784543` | `isEnabled` gate spread onto a config object (added v1.13576.0) | Gone from the bundle |
+| `3110209724` | (prior gate) | Gone from the bundle |
+| `3732274605` | `markTaskComplete` feature gate | Gone — feature removed from registry, merger, Zod schema, and force-ON defaults map |
+| `4018578026` | (prior gate) | Gone from the bundle |
 
 ### Boolean Flags (wt())
 
@@ -493,7 +524,7 @@ Calls the merger, validates the result against a Zod schema, and sends it to the
 | Flag ID | Purpose | Patched? |
 |---------|---------|----------|
 | `1992087837` | chillingSlothPool — concurrent session pooling | **Yes** — forced ON in `enable_local_agent_mode.nim` (2 call sites) |
-| `3732274605` | markTaskComplete — task completion feature | **Yes** — forced ON in `enable_local_agent_mode.nim` (3 call sites) |
+| `3732274605` | markTaskComplete — task completion feature | ~~**Yes** — forced ON in `enable_local_agent_mode.nim`~~ **REMOVED in v1.17282.0** (flag gone from bundle; the patch's markTaskComplete force-ON entry is now a vestigial no-op, but the patch was intentionally left unchanged) |
 
 #### New in v1.3883.0
 
@@ -616,7 +647,7 @@ This bypasses the PM() gate by overriding at the merger level (12 total override
 ...our overrides  -> quietPenguin: {status:"supported"}    (wins)
 ```
 
-Note: `chillingSlothLocal` and `ccdPlugins` overrides are defensive - both are already `{status:"supported"}`, but the overrides protect against future gating. `yukonSilverGemsCache` is NOT overridden but inherits support from the `TVA()` (yukonSilver) function patch in Patch 1b. `coworkKappa` is overridden to `{status:"supported"}` AND its GrowthBook flag `123929380` is forced ON (Patch 3b). `coworkArtifacts` is overridden AND its GrowthBook flag `2940196192` is forced ON (Patch 3c). `chillingSlothPool` is overridden AND its GrowthBook flag `1992087837` is forced ON (Patch 3d). `markTaskComplete` is overridden AND its GrowthBook flag `3732274605` is forced ON (Patch 3e).
+Note: `chillingSlothLocal` and `ccdPlugins` overrides are defensive - both are already `{status:"supported"}`, but the overrides protect against future gating. `yukonSilverGemsCache` is NOT overridden but inherits support from the `TVA()` (yukonSilver) function patch in Patch 1b. `coworkKappa` is overridden to `{status:"supported"}` AND its GrowthBook flag `123929380` is forced ON (Patch 3b). `coworkArtifacts` is overridden AND its GrowthBook flag `2940196192` is forced ON (Patch 3c). `chillingSlothPool` is overridden AND its GrowthBook flag `1992087837` is forced ON (Patch 3d). `markTaskComplete` was overridden AND its GrowthBook flag `3732274605` forced ON (Patch 3e) — **but the feature was removed upstream in v1.17282.0**, so this override/force-ON now targets a non-existent feature and flag (a harmless no-op; the patch was intentionally left unchanged). No new force-ON entries were needed for v1.17282.0 — none of the new features (`chillingSlothSshShell`, `coworkWatchRecord`, `spaceMemoryBridge`) is mandatory for Linux Cowork/Code, and `coworkWatchRecord` is a macOS-only screen/watch-record feature that must NOT be force-enabled on Linux.
 
 ### Cowork on Linux (experimental)
 
@@ -811,6 +842,7 @@ Feature name strings are stable across versions because they're IPC identifiers 
 ## Version History
 
 | Version | Static Registry | Async Merger | Gate Function | Notable Changes |
+| v1.17282.0 | `xR()` | `X0A` | `LM()` | **Bump v1.15962.x -> v1.17282.0 (full re-minify + feature churn).** Function renames: registry `QR()`->`xR()`, async merger fn `HSA`->`X0A`, flag reader `it()`->`et()`; dev-gate `gM()`->`LM()` (`function LM(A){return sA.app.isPackaged?{status:"unavailable"}:A()}`, electron var `aA`->`sA`); supported-constant `AB`->`Ed`. Gate-fn renames: yukonSilver `Uae()`->`Nge()`, yukonSilverGems `T3e()`->`j3e()`, coworkKappa `O6r()`->`BZi()`, coworkArtifacts `x6r()`->`QZi()`, artifactsPane `Fae()`->`vge()`, chillingSlothFeat `y6r()`->`V3e()`. **Registry: +`chillingSlothSshShell` (`V3e()` -> `{status:"supported"}`, no gate; same getter as `chillingSlothFeat`, which lost its darwin/win32 gate), +`coworkWatchRecord` (`yHt()`, darwin-only -> unsupported on Linux; async override in `X0A`), +`spaceMemoryBridge` (`et("1197768857")?Ed:{status:"unavailable"}`, GrowthBook-gated, no platform check); -`markTaskComplete` (REMOVED — gone from registry, merger, Zod schema, and force-ON defaults map).** Async merger now `n={louderPenguin:A,coworkKappa:e,coworkArtifacts:t,epitaxyMcpApps:r,coworkWatchRecord:i};return{...xR(),...n}` (5 overrides; `markTaskComplete:i` slot dropped, `coworkWatchRecord` added; a 6th `Promise.all` slot `pt().overlayApplied()` is consumed separately). **GrowthBook delta:** 7 added (`1197768857` spaceMemoryBridge; `1295378343` `gapSurviveEnabled` value flag, default OFF; `130970054`; `1569828280` binary-asset-fetch gate; `2431502897` model-policy map entry; `3778159589` device-stale-relogin; `629684104` assistant-error-recovery), 5 removed (`1802019210` cowork plugin upload migration; `1985784543`; `3110209724`; `3732274605` markTaskComplete; `4018578026`). **No new force-ON entries needed** — none of the new features is mandatory for Linux, and `coworkWatchRecord` is macOS-only (must NOT be force-enabled on Linux). `enable_local_agent_mode.nim` left unchanged; its `markTaskComplete` override/force-ON (Patch 3e) is now a vestigial no-op targeting the removed feature/flag. |
 | v1.15962.0 | `QR()` | `HSA` | `gM()` | **Bump v1.15200.0 -> v1.15962.0 (full re-minify).** Routine re-minify; **no new/removed static features**, merger shape unchanged (`n={louderPenguin:A,coworkKappa:e,coworkArtifacts:t,markTaskComplete:i,epitaxyMcpApps:r};return{...QR(),...n}`, 6-slot `Promise.all` with the 6th `yt().overlayApplied()` as before). Function renames: registry `z_()`->`QR()`, async merger `yDA`->`HSA`, dev-gate `HR()`->`gM()` (`function gM(A){return aA.app.isPackaged?{status:"unavailable"}:A()}`, electron var `aA` unchanged), flag reader `nt()`->`it()` (storage `Zf`->`Ih`). **Cowork (`yukonSilver`) support fn renamed `$oe()`->`Uae()`** (delegate chain + leading `var r,n;` hoist retained - `enable_local_agent_mode.nim` Patch 1b's `nhPatternZce` still matches; Patch 1's sole gate fn is now `M6r()`). **GrowthBook delta:** 4 added (`144158705` LAM remote folder-access consent network call; `3377630395` overlay/window mount toggle; `3531779070` agent-mode `thinking-display:"summarized"` CLI arg; `3555657854` org-scoped plugin-bridge MCP config loading), 1 removed (`2232207471` CLI governor session cap). None of the new flags is darwin/win32-gated or gates a cowork/code/dispatch/skill surface -> no forcing needed, override list unchanged. All 15 forced flag IDs + all 12 merger override feature names still present; `enable_local_agent_mode.nim` all anchors match (24/24 + mainmodule). **3 patches fixed for re-minify drift** (`fix_quick_entry_cli_toggle` focus-branch call gained an arg; `fix_window_bounds` new post-`MAIN_WINDOW` setup call; `fix_cowork_linux` Patch G smol-bin gate wrapped in a GrowthBook-await comma-expr) -> 49 index.js patches, all apply. `.electron-version` stays 42.0.0. |
 | v1.15200.0 | `z_()` | `yDA` | `HR()` | **Bump v1.14271.0 -> v1.15200.0 (full re-minify).** Routine re-minify; **no new/removed static features**, merger shape unchanged (`n={louderPenguin:A,coworkKappa:e,coworkArtifacts:t,markTaskComplete:i,epitaxyMcpApps:r};return{...z_(),...n}`). Function renames: registry `D_()`->`z_()`, async merger `PwA`->`yDA` (`const yDA=async()=>{const[A,e,t,i,r]=await Promise.all(...)}`), dev-gate `pR()`->`HR()` (`function HR(A){return aA.app.isPackaged?{status:"unavailable"}:A()}`, electron var `sA`->`aA`), flag reader now `nt()`. **Cowork (`yukonSilver`) support fn renamed `hre()`->`$oe()`** and gained a leading `var r,n;` hoist before the `const A=...` delegate chain - `enable_local_agent_mode.nim` Patch 1b's `nhPatternZce` updated to allow the optional `var <ids>;` (Linux early-return injected before the hoist; vars unused on Linux path, harmless); all 25 sub-patches apply. **GrowthBook delta:** 3 added (`2051751800` Chrome permission-mode `skip_all_permission_checks` resolver gate; `2726556121` SSH file-transfer fast-path *disable* gate - guarded `!nt(...)`; `3982397363` stale-model-clear robustness toggle), 0 removed. None gates a cowork/code/dispatch/skill surface -> no forcing needed, override list unchanged. All 15 forced flag IDs + all 12 merger override feature names still present. **1 patch fixed for re-minify drift** (`enable_local_agent_mode` yukonSilver `var` hoist) + `fix_enterprise_config_linux` ("Enterprise config loaded" log renamed to "Managed config loaded", nested redact arg `yXA(zJ(l))`) -> 52 patches, all apply. Plus a build-script fix: node-pty 1.2.0-beta.13 dropped the `build/Release/` dir for a `prebuilds/` layout, so `build-patched-tarball.sh` now `mkdir -p`s the dest. |
 | v1.14271.0 | `D_()` | `PwA` | `pR()` | **Bump v1.13576.4 -> v1.14271.0 (~700 builds, full re-minify).** Routine re-minify; **no new/removed static features**, merger shape unchanged (`n={louderPenguin:A,coworkKappa:e,coworkArtifacts:t,markTaskComplete:i,epitaxyMcpApps:r};return{...D_(),...n}`). Function renames: registry `nR()`->`D_()` (was `sR()` at v1.13576.0; the `.4` build had already re-minified to `nR()`), dev-gate `eM()`->`pR()` (electron var `lA`->`sA`), flag reader `dt()`->`ot()` (storage `Qh`->`Uf`). **GrowthBook delta:** 2 added (`1947305033` gates `create_artifact`/`update_artifact` tools - "...not enabled on this device" + `gate_off` telemetry; `2438134137` Figma/design OAuth `user:design:read user:design:write` scope expansion), 0 removed. Neither new flag is darwin/win32-gated -> no Linux impact, no forcing needed. `enable_local_agent_mode.nim` override list + all 25 sub-patches match unchanged; the patch overrides at the merger level (no embedded Zod schema to revalidate). All 12 merger override feature names still present. **2 patches fixed for re-minify drift** (`fix_cowork_linux` C2 deref-var backreference `r`->`i`; `fix_browser_tools_linux` 3 sub-patches rewritten for a real native-host install refactor) -> 51 patches, all apply. |

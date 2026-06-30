@@ -39,19 +39,41 @@ proc apply*(input: string): string =
   # robust against neighboring variables being merged into the same `let`
   # declaration (e.g. `let OE=null,Ak=null;function ECA(){}function _5A(){}`).
   var trayVar = ""
+  # v1.17282.0 destroy-expr extra captures (empty until matched):
+  #   <tray>&&!<tray>.isDestroyed()&&(<arr>=[],<bool>=!1,<tray>.destroy()),<tray>=null,<2nd>=null
+  var stateArr = ""
+  var stateBool = ""
+  var secondNull = ""
   if trayFunc != "":
     let funcStart = result.find("function " & trayFunc & "(){")
     if funcStart >= 0:
       let snippetEnd = min(funcStart + 2000, result.len)
       let body = result[funcStart ..< snippetEnd]
-      let destroyPat = re2"([\w$]+)&&\(([\w$]+)\.destroy\(\),([\w$]+)=null\)"
+      # v1.17282.0 shape: guarded by !isDestroyed(), two state vars reset before
+      # destroy, and <tray>=null + a second =null sit OUTSIDE the &&(...) group.
+      let destroyPat =
+        re2"([\w$]+)&&!([\w$]+)\.isDestroyed\(\)&&\(([\w$]+)=\[\],([\w$]+)=!1,([\w$]+)\.destroy\(\)\),([\w$]+)=null,([\w$]+)=null"
       for m in body.findAll(destroyPat):
-        let v1 = body[m.group(0)]
-        let v2 = body[m.group(1)]
-        let v3 = body[m.group(2)]
-        if v1 == v2 and v2 == v3:
-          trayVar = v1
+        let v0 = body[m.group(0)]
+        # group 0=tray, 1=isDestroyed var, 2=state arr, 3=state bool,
+        # 4=destroy var, 5=first =null, 6=second =null. All tray refs must agree.
+        if v0 == body[m.group(1)] and v0 == body[m.group(4)] and v0 == body[m.group(5)]:
+          trayVar = v0
+          stateArr = body[m.group(2)]
+          stateBool = body[m.group(3)]
+          secondNull = body[m.group(6)]
           break
+
+      # Fallback: pre-v1.17282 shape <tray>&&(<tray>.destroy(),<tray>=null)
+      if trayVar == "":
+        let destroyPatOld = re2"([\w$]+)&&\(([\w$]+)\.destroy\(\),([\w$]+)=null\)"
+        for m in body.findAll(destroyPatOld):
+          let v1 = body[m.group(0)]
+          let v2 = body[m.group(1)]
+          let v3 = body[m.group(2)]
+          if v1 == v2 and v2 == v3:
+            trayVar = v1
+            break
 
     if trayVar == "":
       echo "  [FAIL] tray variable: 0 matches, expected >= 1"
@@ -107,10 +129,16 @@ proc apply*(input: string): string =
 
   # Step 6: Add delay after Tray.destroy() for DBus cleanup
   if trayVar != "":
-    let oldDestroy = trayVar & "&&(" & trayVar & ".destroy()," & trayVar & "=null)"
-    let newDestroy =
-      trayVar & "&&(" & trayVar & ".destroy()," & trayVar &
-      "=null,await new Promise(r=>setTimeout(r,50)))"
+    var oldDestroy: string
+    if stateArr != "":
+      # v1.17282.0 shape (guarded + extra state vars + trailing second =null).
+      oldDestroy =
+        trayVar & "&&!" & trayVar & ".isDestroyed()&&(" & stateArr & "=[]," & stateBool &
+        "=!1," & trayVar & ".destroy())," & trayVar & "=null," & secondNull & "=null"
+    else:
+      # pre-v1.17282 shape.
+      oldDestroy = trayVar & "&&(" & trayVar & ".destroy()," & trayVar & "=null)"
+    let newDestroy = oldDestroy & ",await new Promise(r=>setTimeout(r,50))"
 
     if oldDestroy in result and newDestroy notin result:
       result = result.replace(oldDestroy, newDestroy)
@@ -122,7 +150,7 @@ proc apply*(input: string): string =
       failed = true
 
   # Step 7: Remove tray recreation from nativeTheme.on("updated") handler.
-  # On Linux the icon is always TrayIconTemplate-Dark.png (patched by
+  # On Linux the icon is always TrayIconLinux-Dark.png (patched by
   # fix_tray_icon_theme), so destroying and recreating the tray on theme
   # change is pointless and causes ghost icons on XFCE/StatusNotifierWatcher.
   if trayFunc != "":
