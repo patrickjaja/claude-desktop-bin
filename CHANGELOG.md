@@ -11,6 +11,8 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 - **`Third-Party / Enterprise Inference` trimmed to a teaser + link.** The full content already lived in [`docs/third-party-inference.md`](docs/third-party-inference.md); the README now points there instead of duplicating it.
 - **`Environment Variables` moved to [`docs/environment-variables.md`](docs/environment-variables.md).** The README keeps the four most-reached-for vars inline and links out for the full table.
 - **`Computer Use dependencies` section removed; deps inlined per distro + reference moved to [`docs/computer-use-dependencies.md`](docs/computer-use-dependencies.md).** Each Installation subsection now lists the Computer Use packages for that distro (session-broken-out) alongside the Cowork deps; the new doc holds the full matrix, the KDE/GNOME portal behavior notes, `COWORK_SCREENSHOT_CMD`, and the `ydotool` v1.0+ setup (incl. the Ubuntu/Debian build script).
+- **`Computer Use` feature section trimmed to a teaser + link → [`docs/computer-use.md`](docs/computer-use.md).** The README keeps a short USP paragraph; the new doc holds "how it works on Linux," the notes (primary-monitor, app discovery, teach overlay), and the tool-reference link. The `#computer-use` anchor is preserved so existing cross-links still resolve.
+- **Fixed `ydotool` scope in the install notes:** it's needed on Sway/Hyprland/GNOME Wayland; KDE Plasma Wayland needs none (the bundled `kwin-portal-bridge` handles input). Each distro's Computer Use deps became a per-session copyable command block.
 
 ### Removed `fix_dispatch_linux` (Dispatch is upstream-native on Linux)
 

@@ -227,18 +227,9 @@ curl -fsSL https://patrickjaja.github.io/claude-desktop-bin/gpg-key.asc | gpg --
 
 ## Computer Use
 
-**Our exclusive feature - not part of the official Linux beta.** Claude Desktop's built-in Computer Use MCP server exposes 27 tools for desktop automation (screenshot, click, type, scroll, drag, clipboard, and more). The **learn tools** (`learn_application`, `learn_screen_region`) generate interactive overlay tutorials that walk through any application's UI step by step.
+**Our exclusive feature - not part of the official Linux beta.** Claude Desktop's built-in Computer Use MCP server exposes 27 tools for desktop automation (screenshot, click, type, scroll, drag, clipboard, and more), plus **learn tools** that generate interactive overlay tutorials for any app. Upstream is macOS-only; the patch ([`fix_computer_use_linux.nim`](patches/fix_computer_use_linux.nim)) removes the platform gates and injects a Linux executor that auto-detects your session (xdotool/ydotool, grim/spectacle/scrot/portal, plus `kwin-portal-bridge` on KDE Wayland).
 
-Example prompt: *"Can you use computer use MCP to explain me the PhpStorm application?"*
-
-**How it works on Linux:** upstream Computer Use is macOS-only - gated behind `process.platform==="darwin"`, macOS TCC permissions, and a native Swift executor. The patch ([fix_computer_use_linux.nim](patches/fix_computer_use_linux.nim)) removes the platform gates, routes both upstream executor factories to an injected Linux executor, bypasses TCC with a no-op `{granted: true}`, and auto-detects your session type to use the right tools (xdotool/ydotool, grim/spectacle/scrot/portal, plus `kwin-portal-bridge` on KDE Wayland). Install the packages for your session from your distro's [Installation](#installation) section, or see [Computer Use dependencies](docs/computer-use-dependencies.md) for the full matrix and `ydotool` setup.
-
-**Notes:**
-- **Primary monitor only.** Screenshots, clicks, and the teach overlay target the primary display; use `switch_display` to target another for screenshots/clicks (teach overlay stays on primary).
-- **App discovery** for the teach overlay scans `.desktop` files from `/usr/share/applications`, `~/.local/share/applications`, and Flatpak dirs, registering each with multiple name variants for flexible matching.
-- **Teach overlay** stays interactive but blocks clicks to apps behind it during a tour (Electron's `setIgnoreMouseEvents` is [broken on X11](https://github.com/electron/electron/issues/16777)).
-
-See [CLAUDE_BUILT_IN_MCP.md](baseline/CLAUDE_BUILT_IN_MCP.md#14-computer-use) for the full tool reference. Install the packages for your session from your distro's [Installation](#installation) section; [docs/computer-use-dependencies.md](docs/computer-use-dependencies.md) has the full matrix, the KDE/GNOME portal behavior notes, `COWORK_SCREENSHOT_CMD`, and `ydotool` v1.0+ setup.
+See **[docs/computer-use.md](docs/computer-use.md)** for how it works, the notes (primary-monitor, app discovery, teach overlay), and links to the [tool reference](baseline/CLAUDE_BUILT_IN_MCP.md#14-computer-use). Install the tools for your session from your distro's [Installation](#installation) section; [Computer Use dependencies](docs/computer-use-dependencies.md) has the full matrix and `ydotool` setup.
 
 ## Custom Themes
 
