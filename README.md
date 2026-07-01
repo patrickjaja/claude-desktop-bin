@@ -76,6 +76,10 @@ sudo pacman -S --needed ydotool xdotool glib2 gnome-screenshot imagemagick pytho
 # claude-desktop --install-gnome-hotkey
 # Optional: socat (faster Quick Entry toggle, ~2ms vs ~25ms python3 - not required)
 sudo pacman -S --needed socat
+
+# Optional: Cowork agent workspace (needs /dev/kvm - see Cowork Integration below)
+sudo pacman -S --needed qemu-base edk2-ovmf
+sudo usermod -aG kvm "$USER"   # then log out and back in
 ```
 On Sway, Hyprland, or GNOME Wayland, the `ydotoold` daemon must be running - see [ydotool setup](#ydotool-setup-wayland).
 
@@ -107,6 +111,10 @@ sudo apt install ydotool xdotool libglib2.0-bin gnome-screenshot imagemagick pyt
 # claude-desktop --install-gnome-hotkey
 # Optional: socat (faster Quick Entry toggle, ~2ms vs ~25ms python3 - not required)
 sudo apt install socat
+
+# Optional: Cowork agent workspace (needs /dev/kvm - see Cowork Integration below)
+sudo apt install qemu-system-x86 ovmf   # arm64: also qemu-efi-aarch64
+sudo usermod -aG kvm "$USER"            # then log out and back in
 ```
 
 > **Sway / Hyprland / GNOME Wayland users:** [Computer Use](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool) requires ydotool v1.0+, but Ubuntu/Debian ship v0.1.8 which is **too old**. Run the [ydotool setup script](#ydotool-setup-wayland) - without this, clicks will not work.
@@ -145,6 +153,10 @@ sudo dnf install ydotool xdotool glib2 gnome-screenshot ImageMagick python3-gobj
 # claude-desktop --install-gnome-hotkey
 # Optional: socat (faster Quick Entry toggle, ~2ms vs ~25ms python3 - not required)
 sudo dnf install socat
+
+# Optional: Cowork agent workspace (needs /dev/kvm - see Cowork Integration below)
+sudo dnf install qemu-system-x86 edk2-ovmf
+sudo usermod -aG kvm "$USER"   # then log out and back in
 ```
 On Sway, Hyprland, or GNOME Wayland, the `ydotoold` daemon must be running - see [ydotool setup](#ydotool-setup-wayland).
 
@@ -400,7 +412,7 @@ Cowork is Claude Desktop's agentic workspace feature. It runs on the **official 
 ```bash
 # Arch:        sudo pacman -S --needed qemu-base edk2-ovmf
 # Fedora/RHEL: sudo dnf install qemu-system-x86 edk2-ovmf
-# Debian/Ubuntu: sudo apt install qemu-system-x86 ovmf
+# Debian/Ubuntu: sudo apt install qemu-system-x86 ovmf   # arm64: also qemu-efi-aarch64
 sudo usermod -aG kvm "$USER"   # then log out and back in
 ```
 
