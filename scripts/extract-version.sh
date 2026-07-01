@@ -41,7 +41,7 @@ if [ -f "$SRC" ]; then
     echo "$VERSION"
 elif [[ "$SRC" =~ ^https?:// ]]; then
     command -v curl >/dev/null 2>&1 || { echo "Error: 'curl' not found" >&2; exit 1; }
-    curl -fsSL "$SRC" | python3 - "$ARCH" <<'PY'
+    PYSCRIPT='
 import sys
 from functools import cmp_to_key
 want_arch = sys.argv[1]
@@ -63,7 +63,8 @@ vers = [d["Version"] for d in map(parse, blob.split("\n\n"))
 if not vers:
     sys.stderr.write(f"No claude-desktop {want_arch} version in index\n"); sys.exit(1)
 print(sorted(vers, key=cmp_to_key(vercmp))[-1])
-PY
+'
+    curl -fsSL "$SRC" | python3 -c "$PYSCRIPT" "$ARCH"
 else
     echo "Error: argument is neither a local file nor an http(s) URL: $SRC" >&2
     exit 1

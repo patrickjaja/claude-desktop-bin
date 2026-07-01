@@ -188,7 +188,7 @@ PY
         # Verify the SHA256 in our trusted index file appears in the signed Release,
         # so the Packages we parsed is the one Release vouches for. Then gpgv the sig.
         PKG_SHA="$(sha256sum "$PKGFILE" | cut -d' ' -f1)"
-        if ! grep -qiE "^[[:space:]]*$PKG_SHA[[:space:]]" "$WORK_DIR/Release"; then
+        if ! grep -qiE "^[[:space:]]*${PKG_SHA}[[:space:]]" "$WORK_DIR/Release"; then
             log_error "Packages SHA256 ($PKG_SHA) not present in the signed Release — chain broken"
             exit 1
         fi
