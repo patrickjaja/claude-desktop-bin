@@ -20,7 +20,7 @@ Anthropic publishes an official Claude Desktop [Linux `.deb`](https://code.claud
 - [**Multiple Profiles**](#multiple-profiles) - run several instances side by side, each logged in to a different account with fully isolated state.
 - [**Quick Entry**](#quick-entry) - global hotkey popup (Ctrl+Alt+Space), multi-monitor and Wayland-aware.
 
-Everything else - Chat, Claude Code, Cowork, Browser Tools, 3P/enterprise inference - is the **official upstream build working natively on Linux**, preserved through the repackage. On top of that we ship a batch of **Linux fixes** for rough edges reported by real users - things like Cowork "Download failed" on Arch/Fedora, MCP servers failing, and features that upstream still gates off on Linux. See the [Patches](#patches) table for the full list. As Anthropic ships these fixes natively, we retire the matching patch - so this set shrinks over time as the official build catches up.
+Everything else - Chat, Claude Code, Cowork, Browser Tools, 3P/enterprise inference - is the **official upstream build working natively on Linux**, preserved through the repackage. On top of that we ship a batch of **Linux fixes** (see [Patches](#patches)).
 
 > **If you run Ubuntu 22.04+ / Debian 12+,** Anthropic's [official `.deb`](https://code.claude.com/docs/en/desktop-linux) installs the base app directly. Use this project if you're on Arch/Fedora/RHEL/Nix/AppImage, or if you want the four value-adds and Linux fixes above.
 
@@ -369,7 +369,7 @@ The official Linux build is close to Linux-ready but not perfect. We apply a set
 
 Each patch is a self-contained `patches/*.nim` file compiled to a native binary. Patterns use `[\w$]+` wildcards anchored on stable strings because upstream re-minifies between releases. The **debug pattern** column shows the `rg` command to locate the relevant code in a new version's `index.js`. When an update breaks a patch, only that file needs updating.
 
-> A handful of the features listed here were later shipped natively by Anthropic. For those we keep a small set of **regression guards** in `patches/` (not listed below) that make no changes but fail the build loudly if the upstreamed Linux behavior ever disappears. `ls patches/*.nim` is the authoritative list of everything in the tree.
+> **We keep this set as small as possible.** On each upstream release we re-audit every patch against a fresh unpatched bundle to find ones Anthropic has since made unnecessary, and retire them - a patch that still applies cleanly isn't proof it's still needed, so we confirm each is genuinely doing work (or live-test the feature) before keeping it. Recently retired this way: the Dispatch patch, now that phone→desktop task orchestration works natively on Linux. Where a feature was upstreamed but we still want to catch a future regression, we keep a small **regression guard** in `patches/` (not listed below) that makes no changes but fails the build loudly if the upstreamed behavior ever disappears. `ls patches/*.nim` is the authoritative list of everything in the tree.
 
 ### Value-adds (Linux-only features)
 
