@@ -548,6 +548,11 @@ jobs:
               echo '=== Installing build dependencies ==='
               pacman -Syu --noconfirm
               pacman -S --noconfirm python nodejs npm git imagemagick xorg-server-xvfb shellcheck nim nimble binutils tar zstd xz gnupg
+              # Electron runtime shared libraries — required by the smoke test,
+              # which launches the bundled Electron binary. base-devel ships none
+              # of these, so without them the app aborts with exit 127
+              # (e.g. 'libnspr4.so: cannot open shared object file').
+              pacman -S --noconfirm nss nspr gtk3 alsa-lib libxss libnotify at-spi2-core mesa libcups
 
               echo '=== Installing Nim regex package ==='
               nimble install -y regex
