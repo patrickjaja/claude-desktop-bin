@@ -20,7 +20,7 @@ The workflow has one `workflow_dispatch` input: `force_rebuild` (boolean, defaul
 
 ## Steps
 1. Decide force: if `$ARGUMENTS` (trimmed, lowercased) equals `force` → `FORCE=true`, else `FORCE=false`.
-2. Print a one-line plan: "Triggering build-and-release.yml on `master` (force_rebuild=<FORCE>)". (The pipeline ignores branch for dispatch; it builds against the latest upstream msix and the committed tree on the default branch.)
+2. Print a one-line plan: "Triggering build-and-release.yml on `master` (force_rebuild=<FORCE>)". (The pipeline ignores branch for dispatch; it builds against the latest official `.deb` and the committed tree on the default branch.)
 3. Fire it (no interactive confirmation - the user already typed /deploy):
    ```bash
    gh -R patrickjaja/claude-desktop-bin workflow run build-and-release.yml -f force_rebuild=<FORCE>

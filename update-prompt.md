@@ -1,16 +1,18 @@
 # Claude Desktop Linux — Version Update Prompts
 
-Reusable prompts for updating the AUR package when a new Claude Desktop version drops.
+Reusable prompts for updating the packages when a new official Claude Desktop Linux `.deb` drops.
+
+This project repackages Anthropic's **official Linux `.deb`** (apt repo `https://downloads.claude.ai/claude-desktop/apt`); it bundles Electron 42.5.1 and a native Cowork VM backend. We download it, verify it, extract its `app.asar`, apply our patches, and repackage for Arch/Fedora/RHEL/Nix/AppImage + our own Debian/Ubuntu `.deb`.
 
 ## How to find the latest version
 
-The build script auto-downloads the latest version. To check manually:
+The build script auto-downloads the latest version. To check manually, query the apt Packages index:
 
 ```bash
-# JSON with version + hash (preferred)
-curl -s https://downloads.claude.ai/releases/win32/x64/.latest
-# Or the RELEASES file
-curl -s https://downloads.claude.ai/releases/win32/x64/latest/RELEASES
+# amd64 (use binary-arm64 for arm64)
+curl -s https://downloads.claude.ai/claude-desktop/apt/stable/dists/stable/main/binary-amd64/Packages \
+  | rg -A1 '^Version:' | head
+# Each stanza has Version:, Filename: (the .deb path), and SHA256:
 ```
 
 ---
@@ -23,18 +25,14 @@ Before any version update, remove stale artifacts so the build downloads fresh:
 >
 > 1. Remove old build artifacts:
 >    ```bash
->    rm -rf build/ extract/
+>    rm -rf build/ tmp/
 >    ```
-> 2. Remove leftover dev binaries from project root:
->    ```bash
->    rm -f chrome-native-host.exe cowork-svc.exe smol-bin.vhdx
->    ```
-> 3. Verify clean state:
+> 2. Verify clean state:
 >    ```bash
 >    git status
 >    ```
 >
-> Then proceed to **Prompt 1** - the build script will auto-download the latest msix.
+> Then proceed to **Prompt 1** - the build script will auto-download the latest official `.deb`.
 
 ---
 
@@ -49,7 +47,7 @@ Copy-paste this into Claude Code when a new version is available:
 >    - `baseline/CLAUDE_BUILT_IN_MCP.md` — current MCP servers, registration patterns
 >    - `CHANGELOG.md` — recent version history (first entry = current version)
 >
-> 2. Run the build (auto-downloads latest msix):
+> 2. Run the build (auto-downloads the latest official `.deb`):
 >    ```bash
 >    # Arch Linux:
 >    ./scripts/build-local.sh
@@ -57,13 +55,16 @@ Copy-paste this into Claude Code when a new version is available:
 >    ./scripts/build-ubuntu-local.sh
 >    # Fedora/RHEL:
 >    ./scripts/build-fedora-local.sh
+>    # To build from a specific version or a local .deb:
+>    ./scripts/build-local.sh --version 1.17282.0
+>    ./scripts/build-local.sh --deb /path/to/claude-desktop_amd64.deb
 >    ```
 >
-> 3. If patches fail, extract the app for analysis:
+> 3. If patches fail, extract the app for analysis (from the downloaded `.deb` in `./tmp/`):
 >    ```bash
 >    mkdir -p /tmp/claude-new
->    7z x -o/tmp/claude-new Claude.msix -y
->    asar extract /tmp/claude-new/app/resources/app.asar /tmp/claude-new/app
+>    dpkg-deb -x ./tmp/claude-desktop_*_amd64.deb /tmp/claude-new
+>    asar extract /tmp/claude-new/usr/lib/claude-desktop/resources/app.asar /tmp/claude-new/app
 >    ```
 >
 > 4. For each failing patch:
@@ -85,7 +86,7 @@ Copy-paste this into Claude Code when a new version is available:
 >
 > 8. Install:
 >    - **Arch:** `sudo pacman -U build/claude-desktop-bin-*-x86_64.pkg.tar.zst`
->    - **Ubuntu/Debian:** `sudo apt install build/claude-desktop-bin_*.deb`
+>    - **Ubuntu/Debian:** `sudo apt install ./build/claude-desktop-bin_*.deb`
 >    - **Fedora/RHEL:** `sudo dnf install build/claude-desktop-bin-*.rpm`
 >
 > 9. Update documentation (compare what you found vs your version A baseline):
@@ -94,7 +95,7 @@ Copy-paste this into Claude Code when a new version is available:
 >    - `CHANGELOG.md` — add new version entry
 >    - `README.md` patch table — if patches added/removed/changed
 >    - `baseline/ION.md` — if ion-dist bundle stats, patterns, or config keys changed
->    - **`.upstream-version` — bump to the new version (required).** This is what closes the auto-created "new version detected" issue and greens the README badge. `version-check.yml` compares upstream `.latest` against this file; until they match, the issue is recreated every 2h. Bump it even for a trivial build bump with no public release.
+>    - **`.upstream-version` — bump to the new version (required).** This is what closes the auto-created "new version detected" issue and greens the README badge. `version-check.yml` compares the highest `Version:` in the official apt Packages index against this file; until they match, the issue is recreated every 2h. Bump it even for a trivial build bump with no public release.
 >
 > 10. Commit the changes (including the `.upstream-version` bump)
 
@@ -230,8 +231,8 @@ Run this on EVERY version update to check the bundled Third-Party Inference UI:
 >
 > 2. Check if ion-dist exists in the new upstream resources:
 >    ```bash
->    # ion-dist is in the nupkg resources, NOT inside app.asar
->    ION="/tmp/claude-new/nupkg/lib/net45/resources/ion-dist"
+>    # ion-dist is in the .deb's resources, NOT inside app.asar
+>    ION="/tmp/claude-new/usr/lib/claude-desktop/resources/ion-dist"
 >    ls "$ION/index.html" && echo "ion-dist present" || echo "ion-dist MISSING"
 >    ```
 >
@@ -325,12 +326,9 @@ Run this to answer *"is there anything new we could make Linux-compatible?"* wit
 
 ---
 
-## Cross-Project Dependencies
+## Cowork backend
 
-This project depends on [claude-cowork-service](../claude-cowork-service/). When a new Claude Desktop version drops:
-- **Check both projects** — upstream changes may affect the Electron patches (this repo) AND the cowork Go backend
-- Cowork protocol changes (new RPC methods, spawn parameters, event types) are tracked in `claude-cowork-service/COWORK_RPC_PROTOCOL.md`
-- Run the cowork-service update process too: see `claude-cowork-service/UPDATE-PROMPT-CC-INPUT-MANUAL.md`
+Cowork runs on the **official native Cowork VM backend** bundled inside the Linux `.deb` (cowork-linux-helper + virtiofsd + smol-bin + QEMU/OVMF; requires `/dev/kvm`). We just preserve it through the repackage - there is no separate daemon to maintain. The old `claude-cowork-service` Go daemon is **deprecated/archived**; you do not need to update it on an upstream bump.
 
 ---
 
@@ -367,7 +365,6 @@ Minified names change every release. The pattern is always the same — just the
 | New IPC handler | Prompt 2 step 5 — `handle("...")` diff | May need Linux implementation |
 | Structural JS refactor | Multiple patches fail + new code shape | Rewrite affected patches to match new structure |
 | New MCP server | Search for `registerInternalMcpServer` | Update `baseline/CLAUDE_BUILT_IN_MCP.md` |
-| Cowork protocol change | Diff spawn/event/RPC patterns | Update `claude-cowork-service` too |
 | ion-dist SPA restructured | Prompt 4 — bundle stats + pattern check | Update `fix_ion_dist_linux.nim`, update `baseline/ION.md` baseline |
 | New darwin/win32-only gate (Linux opportunity?) | Prompt 5 — platform conditional count swing + gate diff | Classify vs `baseline/PLATFORM_GATE_BASELINE.md`; if PORTABLE, write a patch; update the baseline |
 

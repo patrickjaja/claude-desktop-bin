@@ -1,17 +1,36 @@
 # @patch-target: app.asar.contents/.vite/build/index.js
 # @patch-type: nim
 # Enable Chrome browser tools ("Claude in Chrome") on Linux.
-# Five patches:
-#   A - Binary path resolution (native host executable)
-#   B - NativeMessagingHosts directory paths
-#   C - Chrome user data directory detection (extension/profile discovery)
-#   D - Chrome extension auto-install (External Extensions pref)
-#   E - Chrome DevTools opener (chrome://inspect via xdg-open)
+#
+# State on the official Linux .deb (verified 2026-06): browser-tools is PARTIALLY
+# upstreamed. The browser directory enumerator is now native and Linux-shaped:
+#     function O_i(){const A=process.env.XDG_CONFIG_HOME;return A&&j.isAbsolute(A)?A:j.join(<os>.homedir(),".config")}
+#     function xSA(){<os>.homedir();{const A=O_i();return[{name:"Chrome",path:j.join(A,"google-chrome")},
+#                                                        {name:"Edge",path:j.join(A,"microsoft-edge")}]}}
+#     function Y_i(){return <os>.homedir(),xSA().map(A=>({name:A.name,path:j.join(A.path,"NativeMessagingHosts")}))}
+# and upstream's OWN sync loop writes the native-messaging manifest to those dirs:
+#     for(const{name:A,path:e}of Y_i())...l2n(e,A)/aer(e,A)...     // install/remove
+# plus a profile/extension discovery loop `x_i()` that iterates xSA(). So Chrome +
+# Edge work natively on Linux now.
+#
+# What's left for us — 4 sub-patches:
+#   A  Native-host BINARY PATH: redirect to the Claude Code native host under
+#      ~/.claude (the bundled artifacts path is Anthropic-internal and absent in
+#      our repackage). Anchor refactored from `${X}.exe` to a bare const.
+#   BC EXTEND the native browser list: xSA() ships ONLY Chrome+Edge. We add
+#      Chromium, Brave, Vivaldi and Opera. Because BOTH the NativeMessagingHosts
+#      install loop (via Y_i→xSA) AND profile discovery (x_i→xSA) derive from
+#      xSA(), extending this ONE function covers what the old separate Patch B
+#      (manifest write loop) and Patch C (user-data dirs) did — and reuses
+#      upstream's own manifest writer instead of duplicating it.
+#   D  Extension AUTO-INSTALL: still mac-gated (`Only macOS is supported.`). Inject
+#      the Linux External-Extensions path.
+#   E  DevTools opener: still darwin/win32 only. Add an xdg-open Linux handler.
 
 import std/[os, strformat, strutils]
 import regex
 
-const EXPECTED_PATCHES = 5
+const EXPECTED_PATCHES = 4
 
 proc replaceFirst(
     content: var string, pattern: Regex2, subFn: proc(m: RegexMatch2, s: string): string
@@ -37,31 +56,27 @@ proc apply*(input: string): string =
   result = input
   var patchesApplied = 0
 
-  # Patch A: Binary path resolution
-  # Upstream (v1.14271.0) refactored the native-host path fn from the old
-  # darwin/win32/"Helpers" branch into a flat ternary:
-  #   function pyt(){const A=`${Byt}.exe`;return sA.app.isPackaged?
-  #     AA.join(process.resourcesPath,A):AA.join(sA.app.getAppPath(),".../chrome-native-host/artifacts",A)}
-  # We inject a Linux short-circuit at the start of the function body that
-  # returns the Claude Code native host installed under ~/.claude.
+  # ── Patch A: native-host binary path ──────────────────────────────────────
+  # New shape: function wbt(){const A=Qbt;return aA.app.isPackaged?
+  #   j.join(process.resourcesPath,A):j.join(aA.app.getAppPath(),
+  #   "../../packages/desktop/chrome-native-host/artifacts",A)}
+  # Inject a Linux short-circuit returning the Claude Code native host under
+  # ~/.claude. Anchor on the function head up to "isPackaged?".
   let alreadyA =
     re2"""if\(process\.platform==="linux"\)return require\("path"\)\.join\(require\("os"\)\.homedir\(\),"\.claude","chrome","chrome-native-host"\)"""
-  var alreadyAFound = false
-  for m in result.findAll(alreadyA):
-    alreadyAFound = true
-    break
-
-  if alreadyAFound:
+  var amA: RegexMatch2
+  if result.find(alreadyA, amA):
     echo "  [OK] Binary path resolution: already patched (skipped)"
     patchesApplied += 1
   else:
-    # Capture: function NAME(){const VAR=`${VAR2}.exe`;return ELECTRON.app.isPackaged?
+    # function NAME(){const VAR=VAR2;return ELECTRON.app.isPackaged?
+    # (VAR2 is now a bare const, no `${...}.exe` template). Require the
+    # chrome-native-host artifacts path on the false branch to avoid matching an
+    # unrelated isPackaged fn.
     let patternA =
-      re2"""(function [\w$]+\(\)\{)(const [\w$]+=`\$\{[\w$]+\}\.exe`;return [\w$]+\.app\.isPackaged\?)"""
-
+      re2"""(function [\w$]+\(\)\{)(const [\w$]+=[\w$]+;return [\w$]+\.app\.isPackaged\?[\w$]+\.join\(process\.resourcesPath,[\w$]+\):[\w$]+\.join\([\w$]+\.app\.getAppPath\(\),"\.\./\.\./packages/desktop/chrome-native-host/artifacts",)"""
     let linuxBinary =
       "if(process.platform===\"linux\")return require(\"path\").join(require(\"os\").homedir(),\".claude\",\"chrome\",\"chrome-native-host\");"
-
     var countA = result.replaceFirst(
       patternA,
       proc(m: RegexMatch2, s: string): string =
@@ -71,152 +86,66 @@ proc apply*(input: string): string =
       echo &"  [OK] Binary path resolution: redirected to Claude Code native host ({countA} match)"
       patchesApplied += 1
     else:
-      echo "  [FAIL] Binary path resolution: pattern not found"
+      echo "  [FAIL] Binary path resolution: pattern not found (wbt() shape changed?)"
       echo "         Debug: rg -o 'chrome-native-host/artifacts' index.js"
 
-  # Patch B: NativeMessagingHosts manifest installation (Linux)
-  #
-  # Upstream (v1.14271.0) refactored native-host registration. Previously a
-  # per-browser dir enumerator (Aoe) returned a list and an install LOOP (xkn)
-  # wrote the manifest to every entry, so adding Linux dirs to the enumerator
-  # was enough. That loop is GONE. Now:
-  #   - myt() returns a single {name:"All",path: userData/ChromeNativeHost} on ALL platforms
-  #   - the per-browser enumerator (zcr) returns [] and is only used by the
-  #     UNINSTALL path (Bpn)
-  #   - the installer dpn() writes the manifest to myt()[0].path only, via Cpn()
-  # Chrome/Chromium on Linux read native messaging host manifests from
-  # ~/.config/<browser>/NativeMessagingHosts/, NOT from Electron's userData,
-  # so upstream's single-dir write does not make the host discoverable on Linux.
-  #
-  # Fix: inject a Linux short-circuit at the START of the installer dpn() that
-  # writes the manifest to every real Linux browser NativeMessagingHosts dir,
-  # reusing the existing Cpn(dir,"All") helper (which mkdir -p's and writes the
-  # JSON manifest), then returns before the Windows-registry logic.
-  let alreadyB = re2"""\[browser-tools\] diagnostics: native host manifest installed="""
-  var alreadyBFound = false
-  for m in result.findAll(alreadyB):
-    alreadyBFound = true
-    break
-
-  if alreadyBFound:
-    echo "  [OK] NativeMessagingHosts paths: already patched (skipped)"
+  # ── Patch BC: extend native browser list (xSA) to 6 browsers ──────────────
+  # Native xSA() returns ONLY Chrome+Edge. Replace its return array with one that
+  # also includes Chromium/Brave/Vivaldi/Opera, reusing the upstream config-dir
+  # var (the result of O_i(), bound to `const <A>=`). Both the NativeMessagingHosts
+  # install loop (Y_i→xSA) and profile discovery (x_i→xSA) then cover all 6.
+  let alreadyBC = re2"""\{name:"Chromium",path:[\w$]+\.join\([\w$]+,"chromium"\)\}"""
+  var amBC: RegexMatch2
+  if result.find(alreadyBC, amBC):
+    echo "  [OK] Browser list (xSA): already extended to Chromium/Brave/Vivaldi/Opera (skipped)"
     patchesApplied += 1
   else:
-    # Capture the installer head and the name of the Cpn-style manifest writer.
-    #   async function dpn(){var n,o,s;const A=(n=myt()[0])==null?void 0:n.path;if(!A)return;
-    #   ...if([...].some(Boolean))try{await Cpn(A,"All")}...
-    # group(1) = installer head up to "if(!A)return;"
-    # The regex engine caps {0,N} at N<=100, so the variable middle (~114 chars
-    # between "if(!A)return;" and "try{await") is matched with two bounded atoms.
-    let patternB =
-      re2"""(async function [\w$]+\(\)\{var [\w$]+,[\w$]+,[\w$]+;const A=\([\w$]+=[\w$]+\(\)\[0\]\)==null\?void 0:[\w$]+\.path;if\(!A\)return;)(.{0,99}.{0,40}?try\{await )([\w$]+)(\(A,"All"\))"""
-
-    var countB = result.replaceFirst(
-      patternB,
+    # function xSA(){<os>.homedir();{const <CFG>=O_i();return[{name:"Chrome",...},{name:"Edge",...}]}}
+    # Capture g0 = head through `const <CFG>=<dirfn>();return[`, g1 = the config-dir
+    # var name, then we rebuild the full 6-entry array and keep the original
+    # Chrome+Edge entries.
+    let patternBC =
+      re2"""(function [\w$]+\(\)\{[\w$]+\.homedir\(\);\{const )([\w$]+)(=[\w$]+\(\);return\[)(\{name:"Chrome",path:([\w$]+)\.join\([\w$]+,"google-chrome"\)\},\{name:"Edge",path:[\w$]+\.join\([\w$]+,"microsoft-edge"\)\})(\])"""
+    var countBC = result.replaceFirst(
+      patternBC,
       proc(m: RegexMatch2, s: string): string =
-        let head = s[m.group(0)]
-        let writerFn = s[m.group(2)]
-        let linuxInstall =
-          "if(process.platform===\"linux\"){" &
-          "const _h=require(\"os\").homedir(),_p=require(\"path\"),_fs=require(\"fs\");" &
-          "const _rel=[" & "[\"Chrome\",[\".config\",\"google-chrome\"]]," &
-          "[\"Chromium\",[\".config\",\"chromium\"]]," &
-          "[\"Brave\",[\".config\",\"BraveSoftware\",\"Brave-Browser\"]]," &
-          "[\"Edge\",[\".config\",\"microsoft-edge\"]]," &
-          "[\"Vivaldi\",[\".config\",\"vivaldi\"]]," &
-          "[\"Opera\",[\".config\",\"opera\"]]" &
-          "];let _any=!1,_det=[];for(const[_n,_seg]of _rel){const _base=_p.join(_h,..._seg);" &
-          "try{if(_fs.existsSync(_base)){await " & writerFn &
-          "(_p.join(_base,\"NativeMessagingHosts\"),\"All\");_any=!0;_det.push(_n)}}catch(_e){}}" &
-          "console.log(\"[browser-tools] diagnostics: native host manifest installed=\"+_any+\" browsers=[\"+_det.join(\", \")+\"]\");" &
-          "return}"
-        # Keep the original installer body intact after our Linux short-circuit.
-        head & linuxInstall & s[m.group(1)] & writerFn & s[m.group(3)],
+        let head = s[m.group(0)] # "function …{<os>.homedir();{const "
+        let cfgVar = s[m.group(1)] # the O_i() result var
+        let mid = s[m.group(2)] # "=O_i();return["
+        let chromeEdge = s[m.group(3)] # original Chrome+Edge entries
+        let joinVar = s[m.group(4)] # the path module var used in `<j>.join`
+        let extra =
+          ",{name:\"Chromium\",path:" & joinVar & ".join(" & cfgVar & ",\"chromium\")}" &
+          ",{name:\"Brave\",path:" & joinVar & ".join(" & cfgVar &
+          ",\"BraveSoftware\",\"Brave-Browser\")}" & ",{name:\"Vivaldi\",path:" & joinVar &
+          ".join(" & cfgVar & ",\"vivaldi\")}" & ",{name:\"Opera\",path:" & joinVar &
+          ".join(" & cfgVar & ",\"opera\")}"
+        head & cfgVar & mid & chromeEdge & extra & s[m.group(5)],
     )
-    if countB >= 1:
-      echo &"  [OK] NativeMessagingHosts paths: added Linux manifest install loop (6 browsers, {countB} match)"
+    if countBC >= 1:
+      echo &"  [OK] Browser list (xSA): extended to 6 browsers (Chromium/Brave/Vivaldi/Opera added) ({countBC} match)"
       patchesApplied += 1
     else:
-      echo "  [FAIL] NativeMessagingHosts paths: pattern not found"
-      echo "         Debug: rg -o '\"ChromeNativeHost\".{0,30}' index.js"
+      echo "  [FAIL] Browser list (xSA): native Chrome+Edge enumerator not found"
+      echo "         Debug: rg -o 'name:\"Chrome\",path:[\\w$]+.join([\\w$]+,\"google-chrome\")' index.js"
 
-  # Patch C: Chrome user data directory detection (WXA)
-  # Upstream (v1.14271.0) collapsed the old darwin/win32/[] branching fn (Xne)
-  # into a Windows-only fn (WXA) that UNCONDITIONALLY returns AppData\Local paths
-  # (no process.platform check, no Linux [] fallthrough):
-  #   function WXA(){const A=ti.homedir();{const e=AA.join(A,"AppData","Local");
-  #     return[{name:"Chrome",path:...},{name:"Edge",path:...}]}}
-  # On Linux this hands back non-existent Windows paths, breaking profile/extension
-  # discovery (consumers: jcr/Wcr/hyt/fyt). Inject a Linux branch at the start of
-  # the function body returning the real ~/.config/<browser> user-data dirs.
-  let alreadyC =
-    re2"""if\(process\.platform==="linux"\)return\[\{name:"Chrome",path:require\("path"\)\.join\([\w$]+,"\.config","google-chrome"\)\}"""
-  var alreadyCFound = false
-  for m in result.findAll(alreadyC):
-    alreadyCFound = true
-    break
-
-  if alreadyCFound:
-    echo "  [OK] Chrome user data dirs: already patched (skipped)"
-    patchesApplied += 1
-  else:
-    # Capture: function NAME(){const VAR=HOMEDIR.homedir();   (group2 = homedir var)
-    let patternC =
-      re2"""(function [\w$]+\(\)\{const )([\w$]+)(=[\w$]+\.homedir\(\);)(\{const [\w$]+=[\w$]+\.join\([\w$]+,"AppData","Local"\);return\[)"""
-
-    var countC = result.replaceFirst(
-      patternC,
-      proc(m: RegexMatch2, s: string): string =
-        let homeVar = s[m.group(1)]
-        let linuxUserDataDirs =
-          "if(process.platform===\"linux\")return[" &
-          "{name:\"Chrome\",path:require(\"path\").join(" & homeVar &
-          ",\".config\",\"google-chrome\")}," &
-          "{name:\"Chromium\",path:require(\"path\").join(" & homeVar &
-          ",\".config\",\"chromium\")}," & "{name:\"Brave\",path:require(\"path\").join(" &
-          homeVar & ",\".config\",\"BraveSoftware\",\"Brave-Browser\")}," &
-          "{name:\"Vivaldi\",path:require(\"path\").join(" & homeVar &
-          ",\".config\",\"vivaldi\")}," & "{name:\"Opera\",path:require(\"path\").join(" &
-          homeVar & ",\".config\",\"opera\")}" & "];"
-        # group0 = "function NAME(){const ", g1 = homevar, g2 = "=...homedir();", g3 = rest
-        s[m.group(0)] & homeVar & s[m.group(2)] & linuxUserDataDirs & s[m.group(3)],
-    )
-    if countC >= 1:
-      echo &"  [OK] Chrome user data dirs: added 5 Linux browsers ({countC} match)"
-      patchesApplied += 1
-    else:
-      echo "  [FAIL] Chrome user data dirs: pattern not found"
-      echo "         Debug: rg -o '\"User Data\".{{0,30}}' index.js"
-
-  # Patch D: Chrome extension auto-install (vkr)
-  # The vkr function returns an error on non-darwin. On Linux, the Chrome External Extensions
-  # directory is at ~/.config/google-chrome/External Extensions/ (and chromium equivalent).
-  # Patch: allow linux through the guard, inject Linux-specific install path.
+  # ── Patch D: Chrome extension auto-install (still mac-gated) ───────────────
   let alreadyD =
     re2"""process\.platform!=="darwin"&&process\.platform!=="linux"\)return\{status:"""
-  var alreadyDFound = false
-  for m in result.findAll(alreadyD):
-    alreadyDFound = true
-    break
-
-  if alreadyDFound:
+  var amD: RegexMatch2
+  if result.find(alreadyD, amD):
     echo "  [OK] Chrome extension install: already patched (skipped)"
     patchesApplied += 1
   else:
-    # Match the guard clause: if(process.platform!=="darwin")return{status:<enum>.Error,error:`Unsupported platform...`}
-    # We need to capture the status enum variable name and the full guard
     let patternD =
       re2"""(if\(process\.platform!=="darwin"\)return\{status:)([\w$]+)(\.Error,error:`Unsupported platform: \$\{process\.platform\}\. Only macOS is supported\.`\})"""
-
     var countD = result.replaceFirst(
       patternD,
       proc(m: RegexMatch2, s: string): string =
         let enumVar = s[m.group(1)]
-        # New guard: reject platforms that are neither darwin nor linux
         "if(process.platform!==\"darwin\"&&process.platform!==\"linux\")return{status:" &
           enumVar &
           ".Error,error:`Unsupported platform: ${process.platform}. Only macOS and Linux are supported.`};" &
-          # Linux-specific code path (runs and returns before darwin code)
           "if(process.platform===\"linux\"){" &
           "try{const _h=require(\"os\").homedir(),_p=require(\"path\")," &
           "_id=\"fcoeoabgfenejglbffodgkkbkcdhcgfn\"," &
@@ -239,30 +168,20 @@ proc apply*(input: string): string =
       echo "  [FAIL] Chrome extension install: pattern not found"
       echo "         Debug: rg -o 'Only macOS is supported.{{0,20}}' index.js"
 
-  # Patch E: Chrome DevTools opening (YOr)
-  # The YOr function opens chrome://inspect on darwin/win32 but has no Linux handler.
-  # On Linux, use xdg-open which works across all desktop environments.
+  # ── Patch E: Chrome DevTools opener (still darwin/win32 only) ──────────────
   let alreadyE =
     re2"""process\.platform==="linux"&&await [\w$]+\("xdg-open",\["chrome://inspect"\]\)"""
-  var alreadyEFound = false
-  for m in result.findAll(alreadyE):
-    alreadyEFound = true
-    break
-
-  if alreadyEFound:
+  var amE: RegexMatch2
+  if result.find(alreadyE, amE):
     echo "  [OK] Chrome DevTools opener: already patched (skipped)"
     patchesApplied += 1
   else:
-    # Match: process.platform==="win32"&&await <execFn>("start",["chrome","chrome://inspect"])
-    # Replace with: adding a linux handler after the win32 one
     let patternE =
       re2"""(process\.platform==="win32"&&await )([\w$]+)(\("start",\["chrome","chrome://inspect"\]\))"""
-
     var countE = result.replaceFirst(
       patternE,
       proc(m: RegexMatch2, s: string): string =
         let execFn = s[m.group(1)]
-        # Change win32's && to ? so we can chain :linux&&... as the false branch
         "process.platform===\"win32\"?await " & execFn & s[m.group(2)] &
           ":process.platform===\"linux\"&&await " & execFn &
           "(\"xdg-open\",[\"chrome://inspect\"])",

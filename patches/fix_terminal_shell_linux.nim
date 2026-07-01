@@ -1,94 +1,68 @@
 # @patch-target: app.asar.contents/.vite/build/index.js
 # @patch-type: nim
 #
-# Make the built-in agent/Cowork terminal spawn a Linux shell instead of
-# PowerShell.
+# Regression guard: the built-in agent/Cowork terminal spawns a real POSIX login
+# shell on Linux (no longer PowerShell).
 #
-# The upstream shell-selection helper is hardcoded to PowerShell on every
-# platform:
+# History: the upstream shell-selection helper used to be hardcoded to PowerShell
+# on every platform — `function X(){return{shell:"powershell.exe",args:[]}}` — so
+# the PTY died instantly on Linux (`execvp(3) failed.: No such file or directory`).
+# We rewrote the `shell:"powershell.exe"` value into a `$SHELL → /bin/bash → /bin/sh`
+# ternary.
 #
-#   function <minified>(){return{shell:"powershell.exe",args:[]}}
+# The official Linux .deb upstreamed a proper resolver and the `powershell.exe`
+# default is gone:
+#     function t6i(){const A=process.env.SHELL;if(A!=null&&A.startsWith("/")&&<fs>.existsSync(A))return A;
+#                    for(const t of CWe)if(<fs>.existsSync(t.path)&&...)return t.path;
+#                    for(const t of CWe)if(<fs>.existsSync(t.path))return t.path;return ...}
+#     function urt(){return{shell:t6i(),args:["-l"]}}
+# where the candidate list `CWe` ends with `{path:"/bin/sh"}`. This is a superset of
+# our old behavior (prefers $SHELL, then known shells by existence, then /bin/sh),
+# and it is the default on all platforms — there is no `shell:"powershell.exe"`
+# string left to rewrite.
 #
-# Its result is fed straight into node-pty's `pty.spawn(shell, args, ...)`
-# inside LocalSessions.startShellPty (and the bash-PTY path). On Linux
-# `powershell.exe` is not on PATH, so spawn-helper's execvp(3) fails and the
-# PTY dies immediately. The renderer shows "Shell exited." and the main log
-# records:
-#
-#   Shell PTY for session local_... exited with code 1
-#
-# (verified: forking `powershell.exe` through the bundled pty.node/spawn-helper
-# yields exactly `execvp(3) failed.: No such file or directory` + exit code 1.)
-#
-# Fix: rewrite ONLY the shell string value into a platform-aware ternary so the
-# user's login shell ($SHELL, then /bin/bash, then /bin/sh) is used off-Windows.
-# The `args` value and the surrounding function are left untouched.
-#
-# Why a /bin/sh fallback after /bin/bash: NixOS (a supported target via the Nix
-# flake) does NOT ship /bin/bash by default - only /bin/sh exists (the real
-# shells live in the Nix store). When $SHELL is unset (some minimal/headless or
-# service-launched sessions), a bare "/bin/bash" fallback would fail with the
-# exact execvp(3) error this patch fixes. /bin/sh is effectively universal, so
-# the runtime existsSync check picks /bin/bash when present (the common case,
-# better interactive UX) and /bin/sh otherwise (never a dead PTY).
-#
-# Robustness notes (this pattern is intentionally minimal so it survives
-# upstream re-minification):
-#   - Anchors on `shell:"powershell.exe"` only. The `shell` key is a semantic
-#     node-pty option name (not minified) and "powershell.exe" is the Windows
-#     default shell Anthropic is unlikely to rename.
-#   - Does NOT depend on the (minified, per-release) function name, on the
-#     `args:[]` value, or on any surrounding structure.
-#   - Whitespace- and quote-style-tolerant (`\s*`, `["']`).
-#   - The replacement is Windows-semantics-preserving: on win32 it still
-#     evaluates to "powershell.exe", so even an accidental second match
-#     elsewhere in the bundle stays correct on Windows and sane on Linux.
-#   - `shell:"powershell.exe"` occurs exactly once in the bundle today
-#     (the bare string "powershell.exe" appears 8x, but only here behind a
-#     `shell:` key), so a single match is expected.
+# Per CLAUDE.md Rule 6 (feature upstreamed -> regression guard, never silent delete),
+# this patch now POSITIVELY asserts the native resolver is present:
+#   - a shell-options factory `return{shell:<fn>(),args:["-l"]}` exists, AND
+#   - the resolver reads process.env.SHELL and falls back to "/bin/sh".
+# If a future bump reintroduces a hardcoded `shell:"powershell.exe"` default (or
+# removes the /bin/sh fallback), this FAILs loud so the dead-PTY regression is
+# caught at build time.
 
 import std/[os, strformat, strutils]
 import regex
 
 const EXPECTED_PATCHES = 1
 
-# Platform-aware shell value. On win32 it reproduces the original verbatim;
-# everywhere else it prefers the user's login shell ($SHELL), then /bin/bash if
-# it exists on disk, falling back to the near-universal /bin/sh (see NixOS note
-# above). require("fs") is self-contained - it does not depend on any minified
-# fs binding in the bundle (the bundle is CJS and require() is available).
-const SHELL_EXPR =
-  """process.platform==="win32"?"powershell.exe":process.env.SHELL||(require("fs").existsSync("/bin/bash")?"/bin/bash":"/bin/sh")"""
-
-# Unique marker proving our replacement is already present (idempotency).
-# This exact substring does not otherwise occur in the upstream bundle.
-const PATCHED_MARKER = """require("fs").existsSync("/bin/bash")?"/bin/bash":"/bin/sh""""
-
 proc apply*(input: string): string =
   result = input
   var patchesApplied = 0
 
-  if PATCHED_MARKER in result:
-    echo "  [INFO] Terminal shell already rewritten for Linux"
-    patchesApplied += 1
-  else:
-    # Group 1: the `shell:` key (with optional whitespace), preserved verbatim.
-    # The remainder (the "powershell.exe" string literal) is replaced.
-    let pattern = re2"""(shell\s*:\s*)["']powershell\.exe["']"""
+  # Hard regression: a re-introduced hardcoded PowerShell default would break the
+  # Linux PTY again. Assert it is NOT present as a shell-options value.
+  var psm: RegexMatch2
+  if input.find(re2"""shell\s*:\s*["']powershell\.exe["']""", psm):
+    echo "  [FAIL] A hardcoded `shell:\"powershell.exe\"` default reappeared — Linux PTY would die"
+    echo "         Re-audit: upstream regressed the shell selector; restore the $SHELL→/bin/sh rewrite."
+    quit(1)
 
-    var count = 0
-    result = result.replace(
-      pattern,
-      proc(m: RegexMatch2, s: string): string =
-        inc count
-        s[m.group(0)] & SHELL_EXPR,
-    )
-    if count > 0:
-      echo &"  [OK] Terminal shell rewritten to $SHELL→/bin/bash→/bin/sh: {count} match(es)"
-      patchesApplied += 1
-    else:
-      echo "  [FAIL] Could not find `shell:\"powershell.exe\"` selector"
-      echo "  [HINT] Search for 'powershell.exe' near 'args:[]' (function returning {shell,args})"
+  # Positive assertion 1: the shell-options factory returns shell:<resolver>() with
+  # login args. Anchored on the semantic `shell:`/`args:` keys (not minified names).
+  var fm: RegexMatch2
+  if not input.find(re2"""return\{shell:[\w$]+\(\),args:\["-l"\]\}""", fm):
+    echo "  [FAIL] Native shell-options factory `return{shell:<fn>(),args:[\"-l\"]}` NOT found"
+    echo "         Debug: rg -o 'return\\{shell:[\\w$]+\\(\\),args:\\[\"-l\"\\]\\}' index.js"
+    quit(1)
+
+  # Positive assertion 2: the resolver itself reads $SHELL and has a /bin/sh anchor
+  # in its candidate list (the universal fallback our old patch also relied on).
+  if "process.env.SHELL" notin input or "/bin/sh" notin input:
+    echo "  [FAIL] Native shell resolver missing process.env.SHELL or /bin/sh fallback"
+    quit(1)
+
+  echo "  [OK] Native POSIX shell resolver present (return{shell:<fn>(),args:[\"-l\"]}, " &
+    "$SHELL→…→/bin/sh) — regression guard satisfied"
+  patchesApplied += 1
 
   if patchesApplied < EXPECTED_PATCHES:
     echo &"  [FAIL] Only {patchesApplied}/{EXPECTED_PATCHES} patches applied"
@@ -99,7 +73,7 @@ when isMainModule:
     echo "Usage: fix_terminal_shell_linux <file>"
     quit(1)
   let filePath = paramStr(1)
-  echo "=== Patch: fix_terminal_shell_linux ==="
+  echo "=== Patch: fix_terminal_shell_linux (regression guard) ==="
   echo &"  Target: {filePath}"
   if not fileExists(filePath):
     echo &"  [FAIL] File not found: {filePath}"
@@ -108,6 +82,4 @@ when isMainModule:
   let output = apply(input)
   if output != input:
     writeFile(filePath, output)
-    echo "  [PASS] Terminal shell patched successfully"
-  else:
-    echo "  [PASS] No changes needed (already patched)"
+  echo "  [PASS] Native POSIX shell confirmed on Linux (no patch needed)"

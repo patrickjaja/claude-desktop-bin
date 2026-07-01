@@ -97,98 +97,73 @@ proc apply*(input: string): string =
     echo "  [FAIL] Required patterns did not match"
     quit(1)
 
-  # Patch 1b: Bypass the yukonSilver (Cowork) platform gate on Linux.
+  # Patch 1b: yukonSilver (Cowork) platform gate — now a REGRESSION GUARD.
   #
-  # History of the gate function this targets:
-  #   - <=v1.12603: `function NH(){const A=process.platform;if(A!=="darwin"
-  #     &&A!=="win32")return{status:"unsupported",reason:...,unsupportedCode:
-  #     "unsupported_platform"};...}` - an explicit process.platform gate.
-  #   - v1.13576.0: REFACTORED. The static-registry entry is now
-  #     `yukonSilver:Zce()`, and Zce() no longer reads process.platform for
-  #     the platform gate. Instead it delegates:
-  #       function Zce(){const A=Q3i();if(A)return A;if(IfA)return IfA;
-  #         const e=C3i();if(e.status!=="supported")return AW(e);
-  #         ...secureVmFeaturesEnabled...}
-  #     where C3i() hardcodes `const A="win32"` and checks arch +
-  #     `fo.files["win32"][arch]` + tu() (MSIX/appPath install detection).
-  #     On Linux that chain yields unsupported (no win32 VM bundle, no MSIX).
+  # History of the gate this used to force:
+  #   - <=v1.12603: `function NH(){const A=process.platform;if(A!=="darwin"&&
+  #     A!=="win32")return{status:"unsupported",...}}` — explicit platform gate.
+  #   - v1.13576: refactored to `yukonSilver:Zce()` delegating through a
+  #     support-status helper that hardcoded `const A="win32"` and checked
+  #     `fo.files["win32"][arch]` — so Linux yielded unsupported. We injected a
+  #     `if(process.platform==="linux")return{status:"supported"}` early-return.
   #
-  # We inject a Linux early-return at the top of the yukonSilver support
-  # function so it reports supported on Linux. (Patch 3's async-merger
-  # override also forces yukonSilver:{status:"supported"}, but the static
-  # registry is consulted directly in places, so we patch both layers.)
+  # The official Linux .deb UPSTREAMED native Cowork support. The chain is now:
+  #     yukonSilver:Wge()
+  #     function Wge(){const A=N6i();if(A)return A;if(ohA)return ohA;
+  #       const e=_6i();if(e.status!=="supported")return are()?g9(e):e; ...secureVm...}
+  #     function _6i(){return process.platform,S6i()}
+  #     function S6i(){const A=process.arch;
+  #       if(A!=="x64"&&A!=="arm64"||!eo.files[e_A("linux")][A])return{...unsupported_architecture};
+  #       const e=are(); return e?(...check helperBinaryPath/smolBinPath/virtiofsdPath...):...}
+  #     function e_A(A){switch(A){case"darwin":case"linux":return"unix";case"win32":return"win32";default:return null}}
+  #     const eo={...files:{unix:{arm64:[{name:"rootfs.img",...}],x64:[...]}, ...}}
+  # i.e. the support check is keyed on `e_A("linux")` -> "unix", a real VM-bundle
+  # key (rootfs.img is shipped), and gated on the REAL KVM/helper capability probe
+  # `are()`. So on Linux x64/arm64 with the bundle + KVM present, yukonSilver
+  # natively reports supported — and correctly reports unsupported when KVM is
+  # missing or the arch is unsupported.
   #
-  # The v1.13576 form is anchored on Zce()'s distinctive delegate chain
-  # (Q3i/IfA/C3i + `status!=="supported"` + AW()), which is unique.
-  # v1.15200: upstream added a leading `var r,n;` hoist declaration between the
-  # opening `{` and the first `const A=...`, so allow an optional
-  # `var <ids>;` after `{`. The injected Linux early-return goes *before* the
-  # hoist decl, which is harmless (the vars are still declared, just unused on
-  # the Linux path).
-  let nhPatternZce =
-    re"""(function [\w$]+\(\)\{)((?:var [\w$,]+;)?const [\w$]+=[\w$]+\(\);if\([\w$]+\)return [\w$]+;if\([\w$]+\)return [\w$]+;const [\w$]+=[\w$]+\(\);if\([\w$]+\.status!=="supported"\)return [\w$]+\([\w$]+\);)"""
-  let nhPatternOld =
-    re"""(function [\w$]+\(\)\{)(const ([\w$]+)=process\.platform;if\(\3!=="darwin"&&\3!=="win32"\)return\{status:"unsupported",reason:`Unsupported platform: \$\{\3\}`\})"""
-  # reason: can be either Qe.formatMessage (old) or Qe().formatMessage (new, v1.4758+)
-  let nhPatternNew =
-    re"""(function [\w$]+\(\)\{)(const ([\w$]+)=process\.platform;if\(\3!=="darwin"&&\3!=="win32"\)return\{status:"unsupported",reason:[\w$]+(?:\(\))?\.formatMessage\(\{defaultMessage:"Cowork is not currently supported on \{platform\}"(?:,id:"[^"]*")?\},\{platform:[\w$]+\(\)\}\),unsupportedCode:"unsupported_platform"\};)"""
-
-  if "if(process.platform===\"linux\")return{status:\"supported\"};const" in result:
-    echo "  [OK] yukonSilver (NH): already patched"
+  # Forcing `{status:"supported"}` now would be HARMFUL: it would override
+  # upstream's legitimate arch/KVM/bundle checks and claim Cowork works on a
+  # KVM-less or wrong-arch host (runtime failure). So per CLAUDE.md Rule 6 we keep
+  # this as a regression guard that POSITIVELY asserts the native Linux support
+  # path exists (the linux->"unix" bundle-key mapper AND the support determiner
+  # that indexes eo.files[e_A("linux")][arch]). If a future bump re-hardcodes the
+  # gate to win32 / drops the linux mapper, this FAILs loud — Cowork would silently
+  # vanish from Linux otherwise.
+  let eAMapsLinux =
+    re"""switch\([\w$]+\)\{case"darwin":case"linux":return"unix";case"win32":return"win32""""
+  let supportIndexesLinux = re"""\.files\[[\w$]+\("linux"\)\]\[[\w$]+\]"""
+  if result.find(eAMapsLinux).isSome and result.find(supportIndexesLinux).isSome:
+    echo "  [OK] yukonSilver: native Linux Cowork support path present (linux->\"unix\" bundle key + eo.files[e_A(\"linux\")][arch], gated on are() KVM probe) — regression guard satisfied"
     inc patchesApplied
   else:
-    var count1b = 0
-    # Try the v1.13576 Zce() delegate-chain form first.
-    let nhResultZce = result.replace(
-      nhPatternZce,
-      proc(m: RegexMatch): string =
-        inc count1b
-        m.captures[0] & "if(process.platform===\"linux\")return{status:\"supported\"};" &
-          m.captures[1],
-    )
-    if count1b >= 1:
-      result = nhResultZce
-      echo &"  [OK] yukonSilver (Zce): Linux early return injected ({count1b} match)"
-      inc patchesApplied
-    else:
-      # Fall back to the historical explicit-process.platform gate forms.
-      var count1bOld = 0
-      let nhResult = result.replace(
-        nhPatternOld,
-        proc(m: RegexMatch): string =
-          inc count1bOld
-          m.captures[0] & "if(process.platform===\"linux\")return{status:\"supported\"};" &
-            m.captures[1],
-      )
-      if count1bOld >= 1:
-        result = nhResult
-        echo &"  [OK] yukonSilver (NH): Linux early return injected ({count1bOld} match)"
-        inc patchesApplied
-      else:
-        var count1bNew = 0
-        let nhResult2 = result.replace(
-          nhPatternNew,
-          proc(m: RegexMatch): string =
-            inc count1bNew
-            m.captures[0] &
-              "if(process.platform===\"linux\")return{status:\"supported\"};" &
-              m.captures[1],
-        )
-        if count1bNew >= 1:
-          result = nhResult2
-          echo &"  [OK] yukonSilver (NH): Linux early return injected (formatMessage variant, {count1bNew} match)"
-          inc patchesApplied
-        else:
-          echo "  [FAIL] yukonSilver (NH): 0 matches"
-          failed = true
+    echo "  [FAIL] yukonSilver: native Linux Cowork support path NOT found (e_A linux->unix mapper or eo.files[e_A(\"linux\")][arch] index missing) — upstream may have re-gated Cowork off Linux; re-audit Patch 1b"
+    failed = true
 
   # Patch 2: chillingSlothLocal -- no gate needed
   echo "  [OK] chillingSlothLocal: no gate needed (naturally returns supported on Linux)"
   inc patchesApplied
 
-  # Patch 3: Override features in mC() async merger
+  # Patch 3: Override features in mC() async merger.
+  #
+  # IMPORTANT: do NOT force-override the Cowork VM capability features
+  # (yukonSilver / yukonSilverGems / coworkKappa / coworkArtifacts) here. Those
+  # are gated by upstream's NATIVE VM-capability probe (`Wge()`/`are()`, which
+  # checks /dev/kvm, OVMF firmware, qemu, virtiofsd and the bundled helper).
+  # Patch 1b above is a regression guard that asserts the native Linux support
+  # PATH exists; it deliberately forces nothing. Slamming yukonSilver to
+  # "supported" here would MASK a real unavailable state (KVM-less host, missing
+  # firmware/qemu), so the UI would advertise Cowork and then fail at VM spawn
+  # with a generic error instead of the honest "install QEMU / add to kvm group"
+  # message. Let the native determiner report true support. (This is the same
+  # capability-masking failure mode as the deleted claude-native.js stub.)
+  #
+  # We DO override the features we genuinely provide the backend for on Linux:
+  # Claude Code / dispatch (chillingSloth*), Computer Use (we ship the input +
+  # screenshot backends), plugins (ccdPlugins), and the penguin prefs.
   let overrides =
-    ",quietPenguin:{status:\"supported\"},louderPenguin:{status:\"supported\"},chillingSlothFeat:{status:\"supported\"},chillingSlothLocal:{status:\"supported\"},chillingSlothPool:{status:\"supported\"},yukonSilver:{status:\"supported\"},yukonSilverGems:{status:\"supported\"},ccdPlugins:{status:\"supported\"},computerUse:{status:\"supported\"},coworkKappa:{status:\"supported\"},coworkArtifacts:{status:\"supported\"}"
+    ",quietPenguin:{status:\"supported\"},louderPenguin:{status:\"supported\"},chillingSlothFeat:{status:\"supported\"},chillingSlothLocal:{status:\"supported\"},chillingSlothPool:{status:\"supported\"},ccdPlugins:{status:\"supported\"},computerUse:{status:\"supported\"}"
 
   # New format: return{...FUNC(),...props}}; or }},
   let pattern3New = re"(return\{\.\.\.(?:[\w$]+)\(\),[^}]+)(\}\}[;,])"
@@ -199,7 +174,7 @@ proc apply*(input: string): string =
     let endTag = "}}" & endChar
     let insertPos = bounds.b + 1 - endTag.len
     result = result[0 ..< insertPos] & overrides & endTag & result[bounds.b + 1 .. ^1]
-    echo "  [OK] mC() feature merger: 11 features overridden (1 match)"
+    echo "  [OK] mC() feature merger: 7 features overridden (1 match)"
     inc patchesApplied
   else:
     # Fallback: old format
@@ -215,7 +190,7 @@ proc apply*(input: string): string =
         m.captures[0] & m.captures[1] & overrides & "})",
     )
     if count3 >= 1:
-      echo &"  [OK] mC() feature merger: 11 features overridden (old format, {count3} match)"
+      echo &"  [OK] mC() feature merger: 7 features overridden (old format, {count3} match)"
       inc patchesApplied
     else:
       echo "  [FAIL] mC() feature merger: 0 matches, expected 1"

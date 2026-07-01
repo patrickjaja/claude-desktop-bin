@@ -1,19 +1,19 @@
 #!/bin/bash
 #
-# Build AppImage from pre-patched Claude Desktop tarball
+# Build AppImage from the pre-patched Claude Desktop tarball.
+#
+# The tarball (produced by scripts/build-patched-tarball.sh from the official
+# Linux .deb) already bundles the Electron runtime under electron/ and the
+# patched app under app/. We do NOT download or verify a separate Electron zip.
 #
 # Usage: ./build-appimage.sh [--arch x86_64|aarch64] <tarball_path> <output_dir>
 #
-# Requirements: wget, appimagetool (or will be downloaded), zsyncmake (for delta updates)
+# Requirements: wget (appimagetool/runtime download), appimagetool (or auto-downloaded),
+#               zsyncmake (for delta updates)
 #
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-# Resolve Electron version (pinned in .electron-version, overridable via env)
-source "$SCRIPT_DIR/../../scripts/resolve-electron-version.sh"
-# Electron zip SHA-256 verification helper (defines verify_electron_zip)
-source "$SCRIPT_DIR/../../scripts/verify-electron.sh"
 
 # Colors
 RED='\033[0;31m'
@@ -32,10 +32,8 @@ if [ "${1:-}" = "--arch" ]; then
     shift 2
 fi
 
-# Map AppImage arch to Electron arch
 case "$APPIMAGE_ARCH" in
-    x86_64)   ELECTRON_ARCH="x64" ;;
-    aarch64)  ELECTRON_ARCH="arm64" ;;
+    x86_64|aarch64) ;;
     *)
         log_error "Unsupported architecture: $APPIMAGE_ARCH (supported: x86_64, aarch64)"
         exit 1
@@ -64,9 +62,9 @@ if [ ! -f "$TARBALL_PATH" ]; then
     exit 1
 fi
 
-# Extract version from tarball filename
-VERSION=$(basename "$TARBALL_PATH" | sed -E 's/claude-desktop-([0-9]+\.[0-9]+\.[0-9]+)-linux\.tar\.gz/\1/')
-log_info "Building AppImage for version: $VERSION (arch: $APPIMAGE_ARCH, electron: $ELECTRON_ARCH)"
+# Extract version from tarball filename (handles both -linux.tar.gz and -linux-aarch64.tar.gz)
+VERSION=$(basename "$TARBALL_PATH" | sed -E 's/claude-desktop-([0-9]+\.[0-9]+\.[0-9]+)-linux(-aarch64)?\.tar\.gz/\1/')
+log_info "Building AppImage for version: $VERSION (arch: $APPIMAGE_ARCH)"
 
 # Create work directory
 WORK_DIR=$(mktemp -d)
@@ -91,22 +89,15 @@ else
     APPIMAGETOOL="appimagetool"
 fi
 
-# Download Electron (target architecture — may differ from host when cross-building)
-log_info "Downloading Electron v${ELECTRON_VERSION} for ${ELECTRON_ARCH}..."
-ELECTRON_ZIP="$WORK_DIR/electron.zip"
-wget -q -O "$ELECTRON_ZIP" \
-    "https://github.com/electron/electron/releases/download/v${ELECTRON_VERSION}/electron-v${ELECTRON_VERSION}-linux-${ELECTRON_ARCH}.zip"
-verify_electron_zip "$ELECTRON_ZIP" "$ELECTRON_ARCH"
-
-# Extract Electron to AppDir
-log_info "Extracting Electron..."
-mkdir -p "$APPDIR/usr/lib/claude-desktop"
-unzip -q "$ELECTRON_ZIP" -d "$APPDIR/usr/lib/claude-desktop"
-
-# Extract tarball
+# Extract tarball (contains both electron/ runtime and app/ patched payload)
 log_info "Extracting Claude Desktop tarball..."
 mkdir -p "$WORK_DIR/tarball"
 tar -xzf "$TARBALL_PATH" -C "$WORK_DIR/tarball"
+
+# Install the bundled Electron runtime (from the tarball's electron/ dir)
+log_info "Installing bundled Electron runtime..."
+mkdir -p "$APPDIR/usr/lib/claude-desktop"
+cp -r "$WORK_DIR/tarball/electron/"* "$APPDIR/usr/lib/claude-desktop/"
 
 # Copy app files to Electron resources directory
 log_info "Installing application files..."
@@ -119,9 +110,14 @@ cp -r "$WORK_DIR/tarball/app/"* "$APPDIR/usr/lib/claude-desktop/resources/"
 # ("claude-desktop.desktop" in app.asar package.json), strips ".desktop", and
 # ignores the binary basename / --class. The rename is kept only as a cosmetic
 # argv[0] / systemd-scope identity hint matching APP_ID="claude". StartupWMClass
-# below must equal the real app_id.
-mv "$APPDIR/usr/lib/claude-desktop/electron" \
-   "$APPDIR/usr/lib/claude-desktop/claude"
+# below must equal the real app_id. (The .deb names the binary "claude-desktop".)
+if [ -f "$APPDIR/usr/lib/claude-desktop/claude-desktop" ]; then
+    mv "$APPDIR/usr/lib/claude-desktop/claude-desktop" \
+       "$APPDIR/usr/lib/claude-desktop/claude"
+elif [ -f "$APPDIR/usr/lib/claude-desktop/electron" ]; then
+    mv "$APPDIR/usr/lib/claude-desktop/electron" \
+       "$APPDIR/usr/lib/claude-desktop/claude"
+fi
 
 # Install full launcher from tarball
 log_info "Installing launcher..."
@@ -166,26 +162,42 @@ EOF
 chmod +x "$APPDIR/AppRun"
 
 # Create desktop file.
-# Filename matches APP_ID in the launcher ("claude") so xdg-desktop-portal can
-# resolve our systemd-scope / cgroup identity. StartupWMClass, however, must
-# equal the live window app_id "claude-desktop" (from the app's desktopName,
-# not the binary) or GNOME/KDE can't bind the dock icon - see issue #148.
+# Filename is "claude-desktop.desktop" to match the live window app_id
+# "claude-desktop" (Chromium's GetXdgAppId() reads the app's desktopName
+# "claude-desktop.desktop" from app.asar, strips ".desktop"). appimagetool also
+# matches the AppDir-root .desktop basename to the icon/app id, so the root copy
+# must be claude-desktop.desktop too. On native Wayland there is no WM_CLASS, so
+# KWin/GNOME match by app_id; a mismatched basename gives a generic icon +
+# Alt+Tab duplicate (issue #148). Content mirrors the official Claude Desktop .deb.
 log_info "Creating desktop file..."
 mkdir -p "$APPDIR/usr/share/applications"
-cat > "$APPDIR/claude.desktop" << EOF
+cat > "$APPDIR/claude-desktop.desktop" << EOF
 [Desktop Entry]
 Name=Claude
-Comment=Claude AI Desktop Application
-Exec=claude-desktop %u
+Comment=Desktop application for Claude.ai
+GenericName=AI Assistant
+Keywords=AI;Chat;Assistant;Claude;Code;LLM;
+Exec=claude-desktop %U
 Icon=claude-desktop
 Type=Application
-Terminal=false
-Categories=Office;Utility;Chat;
-MimeType=x-scheme-handler/claude;
+StartupNotify=true
 StartupWMClass=claude-desktop
+# second-instance just focuses mainWindow; suppress GNOME's default "New Window" item
+SingleMainWindow=true
+Categories=Utility;Development;
+MimeType=x-scheme-handler/claude;
+Actions=NewChat;NewCode;
 X-AppImage-Version=${VERSION}
+
+[Desktop Action NewChat]
+Name=New chat
+Exec=claude-desktop claude://claude.ai/new
+
+[Desktop Action NewCode]
+Name=New Claude Code session
+Exec=claude-desktop claude://code/new
 EOF
-cp "$APPDIR/claude.desktop" "$APPDIR/usr/share/applications/"
+cp "$APPDIR/claude-desktop.desktop" "$APPDIR/usr/share/applications/"
 
 # Copy icon
 log_info "Installing icon..."

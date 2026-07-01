@@ -1,14 +1,33 @@
 #!/bin/bash
 #
-# Build a pre-patched tarball from Claude Desktop Windows msix
+# Build a pre-patched tarball from the OFFICIAL Claude Desktop Linux .deb.
 #
-# This script extracts the Windows msix package, applies all Linux patches,
-# and creates a distributable tarball. The tarball can then be packaged
-# for any Linux distribution (Arch, Debian, Snap, Flatpak, etc.)
+# Anthropic now ships an official Linux .deb (amd64 + arm64) via the apt repo at
+# https://downloads.claude.ai/claude-desktop/apt/stable/ . It already bundles
+# Electron, chrome-sandbox, a Linux node-pty + @ant/claude-native binding, the
+# tray icons, ion-dist, fonts, cowork-linux-helper, virtiofsd and smol-bin.x64.img.
+# We no longer download/verify Electron or rebuild node-pty for Linux — we ingest
+# the .deb, apply our Linux JS patches to app.asar, and repack into a distributable
+# tarball that the per-distro packagers (deb/rpm/appimage/nix/AUR) consume.
 #
-# Usage: ./scripts/build-patched-tarball.sh <msix_path> <output_dir>
+# Usage:
+#   ./scripts/build-patched-tarball.sh <deb-path-OR-apt-Packages-URL> <output_dir>
 #
-set -e
+#   Arg 1 is EITHER a local .deb file, OR an apt Packages index URL such as
+#     https://downloads.claude.ai/claude-desktop/apt/stable/dists/stable/main/binary-amd64/Packages
+#   When a URL is given we parse the highest Version stanza (Filename + SHA256),
+#   download the .deb, and verify its SHA256 against the index. With GPG verify on
+#   (default) we also verify the signed Release that the Packages index chains to.
+#
+# Environment:
+#   SKIP_SMOKE_TEST=1        Skip the Electron smoke test (default in local wrappers).
+#   KWIN_PORTAL_BRIDGE_BIN   Path to a pre-built kwin-portal-bridge to bundle.
+#   CLAUDE_DEB_ARCH          amd64|arm64 — which arch to pick when arg1 is a URL (default amd64).
+#   CLAUDE_GPG_VERIFY        1 (default) | 0 — verify the signed Release when arg1 is a URL.
+#   CLAUDE_DESKTOP_GPG_KEY   Override the bundled Anthropic signing key (.asc).
+#   CLAUDE_DESKTOP_APT_URL   Override the apt repo base (default derived from the Packages URL).
+#
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
@@ -23,7 +42,7 @@ if [ -d "$PATCHES_DIR" ] && ! touch "$PATCHES_DIR/.write-test" 2>/dev/null; then
     [ -d "$PROJECT_DIR/js" ] && cp -r "$PROJECT_DIR/js" "$(dirname "$WRITABLE_PATCHES")/js"
     PATCHES_DIR="$WRITABLE_PATCHES"
 else
-    rm -f "$PATCHES_DIR/.write-test" 2>/dev/null
+    rm -f "$PATCHES_DIR/.write-test" 2>/dev/null || true
 fi
 
 # Colors for output
@@ -37,106 +56,233 @@ log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 # Parse arguments
-MSIX_PATH="$1"
-OUTPUT_DIR="$2"
+DEB_SOURCE="${1:-}"
+OUTPUT_DIR="${2:-}"
 
-if [ -z "$MSIX_PATH" ] || [ -z "$OUTPUT_DIR" ]; then
-    echo "Usage: $0 <msix_path> <output_dir>"
+if [ -z "$DEB_SOURCE" ] || [ -z "$OUTPUT_DIR" ]; then
+    echo "Usage: $0 <deb-path-OR-apt-Packages-URL> <output_dir>"
     echo ""
     echo "Arguments:"
-    echo "  msix_path   Path to Claude.msix"
-    echo "  output_dir  Directory to write tarball and extracted files"
+    echo "  deb-path-or-url  Path to a local claude-desktop_*.deb, OR an apt Packages index URL"
+    echo "  output_dir       Directory to write the tarball and build-info.txt"
     echo ""
     echo "Output:"
-    echo "  <output_dir>/claude-desktop-<version>-linux.tar.gz"
+    echo "  <output_dir>/claude-desktop-<version>-linux.tar.gz          (amd64)"
+    echo "  <output_dir>/claude-desktop-<version>-linux-aarch64.tar.gz  (arm64)"
     exit 1
 fi
 
-if [ ! -f "$MSIX_PATH" ]; then
-    log_error "msix file not found: $MSIX_PATH"
-    exit 1
-fi
-
-# Check dependencies
+# Check dependencies. We crack the .deb with `ar` + `tar` (NOT dpkg-deb, which is
+# absent on Arch). asar/python3 for patching; gpg/gpgv only when verifying a URL.
 log_info "Checking dependencies..."
 MISSING_DEPS=()
-for dep in 7z asar python3; do
+for dep in ar tar asar python3; do
     if ! command -v "$dep" &> /dev/null; then
         MISSING_DEPS+=("$dep")
     fi
 done
-
-# convert (ImageMagick) is optional — used to resize the 300x300 logo to 256x256.
-# If missing we copy the source PNG as-is.
-if ! command -v convert &> /dev/null && ! command -v magick &> /dev/null; then
-    log_warn "ImageMagick (convert/magick) not found — icon will be copied at 300x300 instead of 256x256"
-fi
-
 if [ ${#MISSING_DEPS[@]} -ne 0 ]; then
     log_error "Missing dependencies: ${MISSING_DEPS[*]}"
-    echo "Install them with: sudo pacman -S p7zip imagemagick python"
+    echo "Install them with: sudo pacman -S binutils tar python (ar ships with binutils)"
     echo "For asar: yay -S asar (or npm install -g @electron/asar)"
     exit 1
 fi
 
-# Create output directory
+# Create output directory and a private work dir
 mkdir -p "$OUTPUT_DIR"
 WORK_DIR="$OUTPUT_DIR/work"
 rm -rf "$WORK_DIR"
 mkdir -p "$WORK_DIR"
 
-# Extract the msix package (flat zip with app/, assets/, AppxManifest.xml)
-log_info "Extracting msix package..."
-7z x -y "$MSIX_PATH" -o"$WORK_DIR/extract" >/dev/null 2>&1
+# ─────────────────────────────────────────────────────────────────────────────
+# Step 1: Resolve a local .deb path (download + verify from apt if a URL was given)
+# ─────────────────────────────────────────────────────────────────────────────
+DEB_PATH=""
+if [ -f "$DEB_SOURCE" ]; then
+    DEB_PATH="$DEB_SOURCE"
+    log_info "Using local .deb: $DEB_PATH"
+elif [[ "$DEB_SOURCE" =~ ^https?:// ]]; then
+    log_info "Resolving .deb from apt Packages index: $DEB_SOURCE"
+    # The apt repo base is everything up to /dists/ (where Filename paths are relative).
+    # CLAUDE_DESKTOP_APT_URL can override it explicitly.
+    APT_BASE="${CLAUDE_DESKTOP_APT_URL:-${DEB_SOURCE%%/dists/*}}"
+    DEB_ARCH="${CLAUDE_DEB_ARCH:-amd64}"
 
-# msix encodes special chars in paths (e.g. `@` → `%40`, `@2x` → `%402x`).
-# Asar needs `@scope` directories restored before it can resolve unpacked files,
-# so URL-decode every path under extract/.
-log_info "URL-decoding msix paths..."
-python3 -c "
-import os, urllib.parse
-root = '$WORK_DIR/extract'
-# Walk bottom-up so renaming a parent doesn't invalidate child paths.
-for dirpath, dirnames, filenames in os.walk(root, topdown=False):
-    for name in filenames + dirnames:
-        decoded = urllib.parse.unquote(name)
-        if decoded != name:
-            os.rename(os.path.join(dirpath, name), os.path.join(dirpath, decoded))
-"
+    PKGFILE="$WORK_DIR/Packages"
+    log_info "Fetching Packages index..."
+    curl -fsSL "$DEB_SOURCE" -o "$PKGFILE"
 
-# Resources live at app/resources/ in the msix layout
-RES_DIR="$WORK_DIR/extract/app/resources"
-if [ ! -f "$RES_DIR/app.asar" ]; then
-    log_error "app.asar not found at $RES_DIR — is this a valid Claude msix?"
+    # Parse the highest Version stanza for the requested arch → Filename + SHA256.
+    # apt Packages is a deb822 file (blank-line-separated stanzas). We pick the
+    # numerically-highest Version of package "claude-desktop" matching the arch
+    # (or the pinned CLAUDE_DESKTOP_WANT_VERSION). Capture first so a python exit
+    # is caught by our own check rather than aborting on read's EOF under set -e.
+    PKG_QUERY="$(python3 - "$PKGFILE" "$DEB_ARCH" "${CLAUDE_DESKTOP_WANT_VERSION:-}" <<'PY'
+import sys
+from functools import cmp_to_key
+
+path, want_arch = sys.argv[1], sys.argv[2]
+want_version = sys.argv[3] if len(sys.argv) > 3 else ""
+with open(path, encoding="utf-8") as f:
+    blob = f.read()
+
+def parse(stanza):
+    d = {}
+    for line in stanza.splitlines():
+        if line[:1].isspace() or ":" not in line:
+            continue
+        k, _, v = line.partition(":")
+        d[k.strip()] = v.strip()
+    return d
+
+def vercmp(a, b):
+    # Adequate for X.Y.Z(.W) upstream versions used here.
+    pa = [int(x) for x in a.replace("-", ".").split(".") if x.isdigit()]
+    pb = [int(x) for x in b.replace("-", ".").split(".") if x.isdigit()]
+    return (pa > pb) - (pa < pb)
+
+cands = []
+for stanza in blob.split("\n\n"):
+    d = parse(stanza)
+    if d.get("Package") == "claude-desktop" and d.get("Architecture") == want_arch:
+        if "Version" in d and "Filename" in d and "SHA256" in d:
+            cands.append(d)
+
+if not cands:
+    sys.stderr.write(f"No claude-desktop {want_arch} stanza in {path}\n")
+    sys.exit(1)
+
+if want_version:
+    pinned = [c for c in cands if c["Version"] == want_version]
+    if not pinned:
+        avail = ", ".join(sorted({c["Version"] for c in cands}))
+        sys.stderr.write(f"Version {want_version} ({want_arch}) not in index. Available: {avail}\n")
+        sys.exit(1)
+    best = pinned[0]
+else:
+    best = max(cands, key=cmp_to_key(lambda x, y: vercmp(x["Version"], y["Version"])))
+print(best["Version"], best["Filename"], best["SHA256"])
+PY
+)" || { log_error "Failed to resolve a $DEB_ARCH .deb from the Packages index"; exit 1; }
+    read -r DEB_VERSION DEB_FILENAME DEB_SHA256 <<< "$PKG_QUERY"
+    if [ -z "${DEB_VERSION:-}" ] || [ -z "${DEB_FILENAME:-}" ] || [ -z "${DEB_SHA256:-}" ]; then
+        log_error "Could not resolve a $DEB_ARCH .deb from the Packages index"
+        exit 1
+    fi
+    log_info "Selected version $DEB_VERSION ($DEB_ARCH)"
+
+    # GPG: verify the signed Release the Packages index chains into. The .deb's
+    # SHA256 (Packages) → Packages' SHA256 (Release) → Release signature (gpg).
+    if [ "${CLAUDE_GPG_VERIFY:-1}" = "1" ]; then
+        GPG_KEY="${CLAUDE_DESKTOP_GPG_KEY:-$PROJECT_DIR/packaging/claude-desktop-archive-keyring.asc}"
+        if [ ! -f "$GPG_KEY" ]; then
+            log_error "GPG key not found at $GPG_KEY (set CLAUDE_DESKTOP_GPG_KEY or CLAUDE_GPG_VERIFY=0)"
+            exit 1
+        fi
+        # dists/<suite>/ holds Release + Release.gpg (and InRelease). Derive the
+        # suite dir from the Packages URL: .../dists/<suite>/main/binary-<arch>/Packages
+        DISTS_DIR="${DEB_SOURCE%/main/*}"   # → .../dists/<suite>
+        log_info "Verifying signed Release (gpg)..."
+        curl -fsSL "$DISTS_DIR/Release"     -o "$WORK_DIR/Release"
+        curl -fsSL "$DISTS_DIR/Release.gpg" -o "$WORK_DIR/Release.gpg"
+        # Verify the SHA256 in our trusted index file appears in the signed Release,
+        # so the Packages we parsed is the one Release vouches for. Then gpgv the sig.
+        PKG_SHA="$(sha256sum "$PKGFILE" | cut -d' ' -f1)"
+        if ! grep -qiE "^[[:space:]]*$PKG_SHA[[:space:]]" "$WORK_DIR/Release"; then
+            log_error "Packages SHA256 ($PKG_SHA) not present in the signed Release — chain broken"
+            exit 1
+        fi
+        # Dearmor the ASCII key into a binary keyring, then gpgv the detached sig
+        # against it (the standard apt-secure pattern — no trust DB, no keyserver).
+        TMP_GNUPG="$(mktemp -d)"
+        KEYRING="$WORK_DIR/claude-desktop.gpg"
+        gpg --homedir "$TMP_GNUPG" --batch --yes --dearmor -o "$KEYRING" "$GPG_KEY" 2>/dev/null
+        if ! gpgv --keyring "$KEYRING" "$WORK_DIR/Release.gpg" "$WORK_DIR/Release" 2>"$WORK_DIR/gpgv.log"; then
+            cat "$WORK_DIR/gpgv.log" >&2
+            rm -rf "$TMP_GNUPG"
+            log_error "Release signature verification FAILED"
+            exit 1
+        fi
+        rm -rf "$TMP_GNUPG"
+        log_info "Release signature OK; Packages index chains to it"
+    else
+        log_warn "GPG verification disabled (CLAUDE_GPG_VERIFY=0) — trusting HTTPS only"
+    fi
+
+    DEB_PATH="$WORK_DIR/claude-desktop_${DEB_VERSION}_${DEB_ARCH}.deb"
+    log_info "Downloading .deb: $APT_BASE/$DEB_FILENAME"
+    curl -fsSL "$APT_BASE/$DEB_FILENAME" -o "$DEB_PATH"
+
+    GOT_SHA="$(sha256sum "$DEB_PATH" | cut -d' ' -f1)"
+    if [ "$GOT_SHA" != "$DEB_SHA256" ]; then
+        log_error ".deb SHA256 mismatch!"
+        log_error "  expected (Packages): $DEB_SHA256"
+        log_error "  got:                 $GOT_SHA"
+        exit 1
+    fi
+    log_info ".deb SHA256 verified against Packages index"
+else
+    log_error "Argument 1 is neither a local file nor an http(s) URL: $DEB_SOURCE"
     exit 1
 fi
 
-# Extract version from AppxManifest.xml (Identity Version is X.Y.Z.0)
-VERSION=$(python3 -c "
-import re, xml.etree.ElementTree as ET
-root = ET.parse('$WORK_DIR/extract/AppxManifest.xml').getroot()
-ns = {'m': 'http://schemas.microsoft.com/appx/manifest/foundation/windows10'}
-v = root.find('m:Identity', ns).attrib['Version']
-print(re.sub(r'\.0$', '', v))
-")
-log_info "Detected version: $VERSION"
+# ─────────────────────────────────────────────────────────────────────────────
+# Step 2: Crack the .deb (ar → data.tar.* → tar). No dpkg-deb dependency.
+# ─────────────────────────────────────────────────────────────────────────────
+log_info "Extracting .deb (ar + tar)..."
+AR_DIR="$WORK_DIR/ar"
+mkdir -p "$AR_DIR"
+( cd "$AR_DIR" && ar x "$(realpath "$DEB_PATH")" )
 
-# Prepare app directory
+# control.tar.* → read Version + Architecture from DEBIAN/control
+CONTROL_DIR="$WORK_DIR/control"
+mkdir -p "$CONTROL_DIR"
+CONTROL_TAR="$(ls "$AR_DIR"/control.tar.* 2>/dev/null | head -1)"
+[ -n "$CONTROL_TAR" ] || { log_error "control.tar.* not found in .deb"; exit 1; }
+tar -xf "$CONTROL_TAR" -C "$CONTROL_DIR"
+
+VERSION="$(awk -F': ' '/^Version:/{print $2; exit}' "$CONTROL_DIR/control" | tr -d '[:space:]')"
+DEB_ARCH="$(awk -F': ' '/^Architecture:/{print $2; exit}' "$CONTROL_DIR/control" | tr -d '[:space:]')"
+[ -n "$VERSION" ] || { log_error "Could not read Version from .deb control"; exit 1; }
+log_info "Detected version: $VERSION (arch: $DEB_ARCH)"
+
+# data.tar.* → the filesystem tree (usr/lib/claude-desktop/, usr/share/...).
+# tar auto-detects xz/zst/gz.
+DATA_DIR="$WORK_DIR/data"
+mkdir -p "$DATA_DIR"
+DATA_TAR="$(ls "$AR_DIR"/data.tar.* 2>/dev/null | head -1)"
+[ -n "$DATA_TAR" ] || { log_error "data.tar.* not found in .deb"; exit 1; }
+tar -xf "$DATA_TAR" -C "$DATA_DIR"
+
+LIB_DIR="$DATA_DIR/usr/lib/claude-desktop"
+RES_DIR="$LIB_DIR/resources"
+if [ ! -f "$RES_DIR/app.asar" ]; then
+    log_error "app.asar not found at $RES_DIR — is this a valid Claude Desktop .deb?"
+    exit 1
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Step 3: Stage the app/ tree (app.asar + unpacked + resources) and patch it.
+# Layout matches the historical tarball contract: packaging maps app/* → resources/.
+# ─────────────────────────────────────────────────────────────────────────────
 log_info "Preparing app directory..."
-mkdir -p "$WORK_DIR/app"
-cp "$RES_DIR/app.asar" "$WORK_DIR/app/"
-cp -r "$RES_DIR/app.asar.unpacked" "$WORK_DIR/app/" 2>/dev/null || true
+APP_DIR="$WORK_DIR/app"
+mkdir -p "$APP_DIR"
+cp "$RES_DIR/app.asar" "$APP_DIR/"
+# app.asar.unpacked already holds the Linux node-pty (prebuilds/linux-x64/pty.node)
+# and the Linux @ant/claude-native binding — copy it through verbatim (NO rebuild).
+cp -r "$RES_DIR/app.asar.unpacked" "$APP_DIR/" 2>/dev/null || true
 
 # Extract app.asar for patching
 log_info "Extracting app.asar..."
-cd "$WORK_DIR/app"
-asar extract app.asar app.asar.contents
+( cd "$APP_DIR" && asar extract app.asar app.asar.contents )
 
-# Copy i18n files into app.asar contents
+# i18n: the .deb ships locale JSONs directly under resources/. Mirror them into the
+# asar contents where the app expects resources/i18n/*.json (same as the msix flow).
 log_info "Copying i18n files..."
-mkdir -p app.asar.contents/resources/i18n
+mkdir -p "$APP_DIR/app.asar.contents/resources/i18n"
 if ls "$RES_DIR"/*.json 1> /dev/null 2>&1; then
-    cp "$RES_DIR"/*.json app.asar.contents/resources/i18n/
+    cp "$RES_DIR"/*.json "$APP_DIR/app.asar.contents/resources/i18n/"
 fi
 
 # Compile Nim patches (native build or Docker fallback)
@@ -145,7 +291,7 @@ log_info "Compiling Nim patches..."
 
 # Apply all patches via orchestrator
 log_info "Applying patches..."
-if ! python3 "$SCRIPT_DIR/apply_patches.py" "$PATCHES_DIR" "$WORK_DIR/app"; then
+if ! python3 "$SCRIPT_DIR/apply_patches.py" "$PATCHES_DIR" "$APP_DIR"; then
     log_error "One or more patches failed to apply"
     exit 1
 fi
@@ -153,138 +299,54 @@ fi
 # Validate JavaScript syntax after patching
 log_info "Validating JavaScript syntax..."
 SYNTAX_FAILED=false
-for js_file in "$WORK_DIR/app/app.asar.contents/.vite/build/"*.js; do
+for js_file in "$APP_DIR/app.asar.contents/.vite/build/"*.js; do
     [ -f "$js_file" ] || continue
     if ! node --check "$js_file" 2>/dev/null; then
         log_error "Syntax error in $(basename "$js_file")"
         SYNTAX_FAILED=true
     fi
 done
-for js_file in "$WORK_DIR/app/app.asar.contents/.vite/renderer/"*"/assets/"*.js; do
+for js_file in "$APP_DIR/app.asar.contents/.vite/renderer/"*"/assets/"*.js; do
     [ -f "$js_file" ] || continue
     if ! node --check "$js_file" 2>/dev/null; then
         log_error "Syntax error in $(basename "$js_file")"
         SYNTAX_FAILED=true
     fi
 done
-
 if [ "$SYNTAX_FAILED" = true ]; then
     log_error "JavaScript syntax validation FAILED - patched files have syntax errors"
     exit 1
 fi
 log_info "JavaScript syntax validation passed"
 
-# Remove Windows native binary (replaced by JS stubs in claude-native.js patch)
-rm -f "$WORK_DIR/app/app.asar.contents/node_modules/@ant/claude-native/claude-native-binding.node"
-rm -f "$WORK_DIR/app/app.asar.unpacked/node_modules/@ant/claude-native/claude-native-binding.node"
-
-# Rebuild node-pty for Linux (upstream ships only Windows binaries)
-# This enables the integrated terminal + read_terminal MCP tool
-NODE_PTY_CONTENTS="$WORK_DIR/app/app.asar.contents/node_modules/node-pty"
-NODE_PTY_UNPACKED="$WORK_DIR/app/app.asar.unpacked/node_modules/node-pty"
-if [ -d "$NODE_PTY_UNPACKED" ] && command -v npx &>/dev/null; then
-    log_info "Rebuilding node-pty for Linux..."
-    # The extracted app only has prebuilt Windows binaries and lib/ (no source).
-    # Install from npm with source, rebuild against Electron headers, then swap in.
-    NODE_PTY_VERSION=$(node -e "console.log(require('$WORK_DIR/app/app.asar.contents/package.json').optionalDependencies?.['node-pty'] || '')" 2>/dev/null)
-    ELECTRON_VERSION=$(node -e "console.log(require('$WORK_DIR/app/app.asar.contents/package.json').devDependencies?.electron || '')" 2>/dev/null)
-
-    if [ -n "$NODE_PTY_VERSION" ] && [ -n "$ELECTRON_VERSION" ]; then
-        PTY_BUILD_DIR=$(mktemp -d)
-        (
-            cd "$PTY_BUILD_DIR"
-            npm init -y >/dev/null 2>&1
-            npm install "node-pty@$NODE_PTY_VERSION" --ignore-scripts 2>&1 | tail -1
-            npx @electron/rebuild --version "$ELECTRON_VERSION" \
-                --module-dir node_modules/node-pty --arch x64 2>&1 | tail -3
-        )
-
-        REBUILT_PTY="$PTY_BUILD_DIR/node_modules/node-pty/build/Release/pty.node"
-        if [ -f "$REBUILT_PTY" ] && file "$REBUILT_PTY" | grep -q "ELF 64-bit"; then
-            # Build spawn-helper from source (needed by pty.fork() to spawn PTY processes)
-            # @electron/rebuild only builds .node modules, not executables
-            SPAWN_HELPER_SRC="$PTY_BUILD_DIR/node_modules/node-pty/src/unix/spawn-helper.cc"
-            SPAWN_HELPER_BIN="$PTY_BUILD_DIR/spawn-helper"
-            if [ -f "$SPAWN_HELPER_SRC" ] && command -v gcc &>/dev/null; then
-                gcc -o "$SPAWN_HELPER_BIN" "$SPAWN_HELPER_SRC" 2>&1
-            fi
-
-            # Replace Windows binaries in asar contents with Linux builds
-            # This is critical: .node files inside the asar can't be dlopen'd by Electron.
-            # The --unpack flag in the asar pack step below moves them to app.asar.unpacked/
-            # node-pty 1.2.0-beta+ (Electron 42.4 era) ships only a prebuilds/
-            # layout (prebuilds/win32-x64/) and no build/Release/ dir. node-pty's
-            # loadNativeModule() checks ['build/Release','build/Debug',
-            # 'prebuilds/<platform>-<arch>'] in order, so dropping our Linux build
-            # into build/Release/ still wins — but we must create the dir first
-            # (older bundles shipped it pre-made; 1.2.0-beta no longer does).
-            mkdir -p "$NODE_PTY_CONTENTS/build/Release"
-            rm -f "$NODE_PTY_CONTENTS/build/Release/"*.exe
-            rm -f "$NODE_PTY_CONTENTS/build/Release/"*.dll
-            rm -f "$NODE_PTY_CONTENTS/build/Release/conpty"*.node
-            rm -f "$NODE_PTY_CONTENTS/build/Release/pty.node"
-            cp "$REBUILT_PTY" "$NODE_PTY_CONTENTS/build/Release/pty.node"
-            if [ -f "$SPAWN_HELPER_BIN" ]; then
-                cp "$SPAWN_HELPER_BIN" "$NODE_PTY_CONTENTS/build/Release/spawn-helper"
-                log_info "node-pty + spawn-helper rebuilt successfully ($(file -b "$REBUILT_PTY" | cut -d, -f1-2))"
-            else
-                log_warn "spawn-helper build failed — terminal may not spawn shells"
-                log_info "node-pty rebuilt successfully ($(file -b "$REBUILT_PTY" | cut -d, -f1-2))"
-            fi
-
-            # Also update the unpacked dir (used by rebuild-pty-for-arch.sh)
-            rm -f "$NODE_PTY_UNPACKED/build/Release/"*.node
-            rm -f "$NODE_PTY_UNPACKED/build/Release/"*.exe
-            rm -f "$NODE_PTY_UNPACKED/build/Release/"*.dll
-            mkdir -p "$NODE_PTY_UNPACKED/build/Release"
-            cp "$REBUILT_PTY" "$NODE_PTY_UNPACKED/build/Release/pty.node"
-            [ -f "$SPAWN_HELPER_BIN" ] && cp "$SPAWN_HELPER_BIN" "$NODE_PTY_UNPACKED/build/Release/spawn-helper"
-        else
-            log_warn "node-pty rebuild failed — integrated terminal will be unavailable"
-        fi
-        rm -rf "$PTY_BUILD_DIR"
-    else
-        log_warn "Could not detect node-pty or Electron version — skipping rebuild"
-    fi
-else
-    if [ ! -d "$NODE_PTY_UNPACKED" ]; then
-        log_warn "node-pty not found in app.asar.unpacked — skipping rebuild"
-    else
-        log_warn "npx not available — skipping node-pty rebuild"
-    fi
-fi
-
-# Remove remaining Windows .node/.exe/.dll from asar contents
-# Native .node files can't be loaded from inside an asar archive —
-# they must live in app.asar.unpacked/ (handled by --unpack below)
-log_info "Cleaning Windows native binaries from asar contents..."
-find "$WORK_DIR/app/app.asar.contents" \( -name "*.exe" -o -name "*.dll" \) -delete 2>/dev/null || true
-
-# Repack app.asar
-# --unpack ensures native .node files and spawn-helper are placed in app.asar.unpacked/
-# and marked in the asar header so Electron redirects require() to the unpacked location
+# Repack app.asar.
+# --unpack keeps native .node files and any spawn-helper in app.asar.unpacked/ and
+# flags them in the asar header so Electron redirects require() to the unpacked copy.
+# (The .deb's node-pty uses the prebuilds/<platform>-<arch>/ layout, which loads
+# from the unpacked dir; we preserve whatever the .deb shipped.)
 log_info "Repacking app.asar..."
-cd "$WORK_DIR/app"
-asar pack app.asar.contents app.asar --unpack "{**/*.node,**/spawn-helper}"
-rm -rf app.asar.contents
+( cd "$APP_DIR" && asar pack app.asar.contents app.asar --unpack "{**/*.node,**/spawn-helper}" )
+rm -rf "$APP_DIR/app.asar.contents"
 
-# Copy all upstream resources to locales/ (must be in place before smoke test)
-# This is future-proof: new resources Anthropic adds are automatically included.
-# Electron's process.resourcesPath is patched to resolve to this locales/ dir.
+# ─────────────────────────────────────────────────────────────────────────────
+# Step 4: Build the locales/ tree (== process.resourcesPath at runtime).
+# This is the .deb's resources/ tree minus app.asar{,.unpacked}, which we ship
+# separately above. Patched process.resourcesPath resolves here.
+# ─────────────────────────────────────────────────────────────────────────────
 log_info "Copying upstream resources to locales/..."
-mkdir -p "$WORK_DIR/app/locales"
-cp -r "$RES_DIR"/* "$WORK_DIR/app/locales/"
+mkdir -p "$APP_DIR/locales"
+cp -r "$RES_DIR"/* "$APP_DIR/locales/"
+# app.asar{,.unpacked} ship as app/app.asar and app/app.asar.unpacked, not in locales/.
+rm -rf "$APP_DIR/locales/app.asar" "$APP_DIR/locales/app.asar.unpacked"
+# Windows-only tray .ico files are dead weight on Linux.
+find "$APP_DIR/locales" \( -name "*.exe" -o -name "*.dll" -o -name "*.ico" \) -delete 2>/dev/null || true
 
-# Remove items already handled separately or Windows-only
-rm -rf "$WORK_DIR/app/locales/app.asar" "$WORK_DIR/app/locales/app.asar.unpacked"
-find "$WORK_DIR/app/locales" \( -name "*.exe" -o -name "*.dll" -o -name "*.vhdx" -o -name "*.ico" \) -delete
+# Ensure claude-ssh binaries are executable (if shipped)
+chmod +x "$APP_DIR/locales/claude-ssh/claude-ssh-"* 2>/dev/null || true
 
-# Ensure claude-ssh binaries are executable
-chmod +x "$WORK_DIR/app/locales/claude-ssh/claude-ssh-"* 2>/dev/null || true
-
-# Apply ion-dist patches (the SPA has content-hashed filenames, so the patch
-# finds its target file dynamically by grepping for a unique pattern)
-ION_DIST_DIR="$WORK_DIR/app/locales/ion-dist"
+# Apply ion-dist patches (the SPA has content-hashed filenames, so the patch finds
+# its target file dynamically by grepping for a unique pattern).
+ION_DIST_DIR="$APP_DIR/locales/ion-dist"
 ION_DIST_PATCH="$PATCHES_DIR/fix_ion_dist_linux"
 if [ -d "$ION_DIST_DIR" ] && [ -x "$ION_DIST_PATCH" ]; then
     log_info "Applying ion-dist patches..."
@@ -298,52 +360,66 @@ else
     log_warn "ion-dist not found in upstream resources - skipping"
 fi
 
-# Copy smol-bin VM image(s) — Desktop's startVM copies these from
-# process.resourcesPath into the per-session bundle dir as
-# `smol-bin.vhdx`, which the claude-cowork-service daemon then converts
-# to qcow2 on first boot. Without this, the guest boots without the SDK
-# binary disk and every spawn fails with "claude: No such file".
-# In the msix layout the vhdx ships at app/resources/smol-bin.*.vhdx.
-log_info "Copying smol-bin VM image(s)..."
-SMOL_FOUND=0
-for src in "$RES_DIR"/smol-bin.*.vhdx; do
-    [ -f "$src" ] || continue
-    cp "$src" "$WORK_DIR/app/locales/"
-    log_info "  -> $(basename "$src")"
-    SMOL_FOUND=1
+# ─────────────────────────────────────────────────────────────────────────────
+# Step 5: Stage the Electron runtime (electron/ tree) — the .deb's
+# usr/lib/claude-desktop/ MINUS resources/. This REPLACES the old downloaded
+# Electron zip; packaging lays electron/* into usr/lib/claude-desktop/.
+# ─────────────────────────────────────────────────────────────────────────────
+log_info "Staging bundled Electron runtime..."
+ELECTRON_DIR="$APP_DIR/../electron"
+rm -rf "$ELECTRON_DIR"
+mkdir -p "$ELECTRON_DIR"
+# Copy everything except resources/ (shipped via app/) into electron/.
+for entry in "$LIB_DIR"/*; do
+    base="$(basename "$entry")"
+    [ "$base" = "resources" ] && continue
+    cp -r "$entry" "$ELECTRON_DIR/"
 done
-if [ "$SMOL_FOUND" = 0 ]; then
-    log_error "No smol-bin.*.vhdx found at $RES_DIR — VM guest will fail to boot"
+# Record the bundled Electron version for traceability (no pin file anymore).
+ELECTRON_VERSION="$(cat "$ELECTRON_DIR/version" 2>/dev/null | tr -d '[:space:]' || true)"
+[ -n "$ELECTRON_VERSION" ] && log_info "Bundled Electron version: $ELECTRON_VERSION"
+# The Electron entrypoint binary is named "claude-desktop" in the .deb; packaging
+# renames it to "claude". Keep it as shipped here.
+if [ ! -f "$ELECTRON_DIR/claude-desktop" ]; then
+    log_error "Electron binary 'claude-desktop' missing from $LIB_DIR"
     exit 1
 fi
 
-# Run Electron smoke test if dependencies are available
+# ─────────────────────────────────────────────────────────────────────────────
+# Step 6: Optional Electron smoke test (runs the bundled binary against app.asar).
+# ─────────────────────────────────────────────────────────────────────────────
 if [ "${SKIP_SMOKE_TEST:-0}" = "1" ]; then
     log_warn "Skipping smoke test (SKIP_SMOKE_TEST=1)"
-elif command -v electron &>/dev/null && command -v xvfb-run &>/dev/null; then
-    log_info "Running Electron smoke test..."
-    if ! "$SCRIPT_DIR/smoke-test.sh" "$WORK_DIR/app/app.asar"; then
+elif command -v xvfb-run &>/dev/null; then
+    log_info "Running Electron smoke test (bundled Electron)..."
+    # Pass the bundled Electron binary as the smoke test's 2nd positional arg.
+    # The smoke test then sees chrome-sandbox next to it; here it's not yet SUID
+    # root (packaging sets 4755), so skip that check — we run with --no-sandbox.
+    if ! SKIP_SANDBOX_CHECK=1 "$SCRIPT_DIR/smoke-test.sh" "$APP_DIR/app.asar" "$ELECTRON_DIR/claude-desktop"; then
         log_error "Smoke test FAILED - the patched app crashes on startup"
         exit 1
     fi
 else
-    log_warn "Skipping smoke test (install electron and xorg-server-xvfb to enable)"
+    log_warn "Skipping smoke test (install xorg-server-xvfb to enable)"
 fi
 
-# Create tarball structure
+# ─────────────────────────────────────────────────────────────────────────────
+# Step 7: Assemble the tarball (app/ + electron/ + icons/ + launcher/).
+# ─────────────────────────────────────────────────────────────────────────────
 log_info "Creating tarball structure..."
 TARBALL_DIR="$WORK_DIR/tarball"
-mkdir -p "$TARBALL_DIR/app" "$TARBALL_DIR/icons" "$TARBALL_DIR/launcher"
+mkdir -p "$TARBALL_DIR/app" "$TARBALL_DIR/electron" "$TARBALL_DIR/icons" "$TARBALL_DIR/launcher"
 
-# Copy patched app
-cp -r "$WORK_DIR/app"/* "$TARBALL_DIR/app/"
+cp -r "$APP_DIR"/* "$TARBALL_DIR/app/"
+cp -r "$ELECTRON_DIR"/* "$TARBALL_DIR/electron/"
 
-# Copy launcher script
+# Launcher script
 cp "$SCRIPT_DIR/claude-desktop-launcher.sh" "$TARBALL_DIR/launcher/claude-desktop"
 chmod +x "$TARBALL_DIR/launcher/claude-desktop"
 
-# Bundle kwin-portal-bridge into locales/ (= process.resourcesPath at runtime)
-if [ -n "${KWIN_PORTAL_BRIDGE_BIN:-}" ] && [ -f "$KWIN_PORTAL_BRIDGE_BIN" ]; then
+# Bundle kwin-portal-bridge into locales/ (= process.resourcesPath) for KDE Wayland
+# Computer Use. STAYS — Computer Use is a kept feature.
+if [ -n "${KWIN_PORTAL_BRIDGE_BIN:-}" ] && [ -f "${KWIN_PORTAL_BRIDGE_BIN:-}" ]; then
     log_info "Bundling kwin-portal-bridge from $KWIN_PORTAL_BRIDGE_BIN"
     cp "$KWIN_PORTAL_BRIDGE_BIN" "$TARBALL_DIR/app/locales/kwin-portal-bridge"
     chmod +x "$TARBALL_DIR/app/locales/kwin-portal-bridge"
@@ -371,10 +447,7 @@ else
     log_warn "shellcheck not installed — skipping launcher validation"
 fi
 
-# Validate .desktop entry from PKGBUILD.template
-# The .desktop file is generated at install time by PKGBUILD, not shipped in the tarball.
-# We extract and validate it here to catch spec violations (like invalid Path= values)
-# before they reach users.
+# Validate .desktop entry from PKGBUILD.template (generated at install time, not shipped).
 if command -v desktop-file-validate &>/dev/null; then
     DESKTOP_TMP="$WORK_DIR/claude-desktop.desktop"
     sed -n '/^\[Desktop Entry\]/,/^EOF$/p' "$PROJECT_DIR/PKGBUILD.template" | head -n -1 > "$DESKTOP_TMP"
@@ -391,27 +464,34 @@ else
     log_warn "desktop-file-validate not installed — skipping .desktop validation"
 fi
 
-# Extract icon — msix ships pre-rendered PNGs in assets/.
-# Square150x150Logo.png is 300x300; resize to 256x256 for the hicolor theme.
-ICON_SRC="$WORK_DIR/extract/assets/Square150x150Logo.png"
+# Icon: the .deb ships pre-rendered PNGs under usr/share/icons/hicolor/. Use the
+# 256x256 one directly (no ImageMagick resize needed).
+ICON_SRC="$DATA_DIR/usr/share/icons/hicolor/256x256/apps/claude-desktop.png"
 ICON_DST="$TARBALL_DIR/icons/claude-desktop.png"
 if [ -f "$ICON_SRC" ]; then
-    if command -v magick &>/dev/null; then
-        magick "$ICON_SRC" -resize 256x256 "$ICON_DST"
-    elif command -v convert &>/dev/null; then
-        convert "$ICON_SRC" -resize 256x256 "$ICON_DST"
-    else
-        cp "$ICON_SRC" "$ICON_DST"
-    fi
+    cp "$ICON_SRC" "$ICON_DST"
 else
-    log_warn "Icon source not found at $ICON_SRC — package will ship without an icon"
+    # Fallback: resources/icon.png (large), resized if ImageMagick is present.
+    ICON_FALLBACK="$RES_DIR/icon.png"
+    if [ -f "$ICON_FALLBACK" ] && command -v magick &>/dev/null; then
+        magick "$ICON_FALLBACK" -resize 256x256 "$ICON_DST"
+    elif [ -f "$ICON_FALLBACK" ] && command -v convert &>/dev/null; then
+        convert "$ICON_FALLBACK" -resize 256x256 "$ICON_DST"
+    elif [ -f "$ICON_FALLBACK" ]; then
+        cp "$ICON_FALLBACK" "$ICON_DST"
+    else
+        log_warn "Icon source not found — package will ship without an icon"
+    fi
 fi
 
-# Create the tarball
-TARBALL_FILE="$OUTPUT_DIR/claude-desktop-${VERSION}-linux.tar.gz"
+# Create the tarball. amd64 → no suffix; arm64 → -aarch64 (matches PKGBUILD/Nix/release naming).
+case "$DEB_ARCH" in
+    arm64)  TARBALL_FILE="$OUTPUT_DIR/claude-desktop-${VERSION}-linux-aarch64.tar.gz" ;;
+    amd64)  TARBALL_FILE="$OUTPUT_DIR/claude-desktop-${VERSION}-linux.tar.gz" ;;
+    *)      TARBALL_FILE="$OUTPUT_DIR/claude-desktop-${VERSION}-linux-${DEB_ARCH}.tar.gz" ;;
+esac
 log_info "Creating tarball: $TARBALL_FILE"
-cd "$TARBALL_DIR"
-tar -czvf "$TARBALL_FILE" app/ icons/ launcher/
+( cd "$TARBALL_DIR" && tar -czf "$TARBALL_FILE" app/ electron/ icons/ launcher/ )
 
 # Calculate SHA256
 SHA256=$(sha256sum "$TARBALL_FILE" | cut -d' ' -f1)
@@ -423,12 +503,17 @@ rm -rf "$WORK_DIR"
 echo ""
 log_info "Build complete!"
 echo "  Version:  $VERSION"
+echo "  Arch:     $DEB_ARCH"
+echo "  Electron: ${ELECTRON_VERSION:-unknown}"
 echo "  Tarball:  $TARBALL_FILE"
 echo "  SHA256:   $SHA256"
 
-# Write metadata file for CI
+# Write metadata file for CI / orchestrators
 cat > "$OUTPUT_DIR/build-info.txt" << EOF
 VERSION="$VERSION"
 TARBALL="$TARBALL_FILE"
 SHA256="$SHA256"
+ARCH="$DEB_ARCH"
+DEB_VERSION="$VERSION"
+ELECTRON_VERSION="${ELECTRON_VERSION:-unknown}"
 EOF

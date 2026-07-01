@@ -1,8 +1,10 @@
 # Third-Party Inference on Linux
 
-The upstream **Developer → Configure Third-Party Inference** wizard works on Linux as of v1.6259 (after the `ion-dist` packaging fix in #57). This page covers the Linux-specific bits that aren't in the [official Anthropic 3P docs](https://claude.com/docs/cowork/3p/installation) - which only cover macOS and Windows - plus the headless `/etc/claude-desktop/enterprise.json` route for fleet rollouts and remote/CI machines where the wizard isn't practical.
+The upstream **Developer → Configure Third-Party Inference** wizard works on Linux as of v1.6259 (after the `ion-dist` packaging fix in #57). This page covers the Linux-specific bits that aren't in the [official Anthropic 3P docs](https://claude.com/docs/cowork/3p/installation) - which only cover macOS and Windows - plus the headless `/etc/claude-desktop/managed-settings.json` route for fleet rollouts and remote/CI machines where the wizard isn't practical.
 
-> **Looking for the full `enterprise.json` key reference?** This page is the Linux *how-to*. For the complete, authoritative list of every config key, see Anthropic's official docs:
+> **Migrating from `enterprise.json`?** Earlier releases of this package read managed config from `/etc/claude-desktop/enterprise.json`. The official Linux build reads `/etc/claude-desktop/managed-settings.json` natively instead. **Existing deployments must rename the file** (`sudo mv /etc/claude-desktop/enterprise.json /etc/claude-desktop/managed-settings.json`). The schema and keys are unchanged - `managedMcpServers` (array), `inferenceProvider`, `deploymentMode`, `betaFeaturesEnabled`, etc. all stay exactly as they were; only the filename moved.
+
+> **Looking for the full `managed-settings.json` key reference?** This page is the Linux *how-to*. For the complete, authoritative list of every config key, see Anthropic's official docs:
 > - [Configuration reference](https://claude.com/docs/cowork/3p/configuration) - every key, all providers, credential helpers, security profiles.
 > - [Enterprise configuration for Claude Desktop](https://support.claude.com/en/articles/12622667-enterprise-configuration-for-claude-desktop) - managed-preferences overview.
 > - [Extend Claude Cowork with third-party platforms](https://support.claude.com/en/articles/14680753-extend-claude-cowork-with-third-party-platforms) - how MCP/plugins/skills differ on 3P.
@@ -12,7 +14,7 @@ The upstream **Developer → Configure Third-Party Inference** wizard works on L
 | Route | When to use |
 |---|---|
 | **In-app wizard** | Single-user laptop install. You can interactively click through provider selection and credential entry. |
-| **`/etc/claude-desktop/enterprise.json`** | Fleet/MDM rollouts, headless servers, scripted provisioning, or when you want the same config reproducibly across machines. The app reads this file synchronously at startup; settings here override the wizard. |
+| **`/etc/claude-desktop/managed-settings.json`** | Fleet/MDM rollouts, headless servers, scripted provisioning, or when you want the same config reproducibly across machines. The app reads this file synchronously at startup; settings here override the wizard. |
 
 Both routes write the same underlying schema. The wizard just builds it for you.
 
@@ -26,9 +28,9 @@ Both routes write the same underlying schema. The wizard just builds it for you.
 
 If the menu item opens an empty window, you're on a build before #57 landed (`ion-dist` directory missing). Update to v1.6259+ or use Route B.
 
-## Route B: manual `enterprise.json`
+## Route B: manual `managed-settings.json`
 
-The app reads `/etc/claude-desktop/enterprise.json` on every launch. Setting `inferenceProvider` flips the app into 3P mode and bypasses the personal claude.ai sign-in flow.
+The app reads `/etc/claude-desktop/managed-settings.json` on every launch. Setting `inferenceProvider` flips the app into 3P mode and bypasses the personal claude.ai sign-in flow.
 
 ### Vertex AI (verified)
 
@@ -42,7 +44,7 @@ gcloud config get-value project                      # should print your project
 
 # 2. Drop the policy file (uses ADC by default; no credential paths needed):
 sudo install -d -m 755 /etc/claude-desktop
-sudo tee /etc/claude-desktop/enterprise.json >/dev/null <<'JSON'
+sudo tee /etc/claude-desktop/managed-settings.json >/dev/null <<'JSON'
 {
   "inferenceProvider": "vertex",
   "inferenceVertexProjectId": "your-gcp-project-id",
@@ -82,7 +84,7 @@ Same shape as Vertex but with provider-specific keys. The full validator schema 
 
 1. Set `inferenceProvider: "bedrock"` (or `"foundry"`) plus the bare-minimum required keys.
 2. Restart, open **Developer → Configure Third-Party Inference**, fill in the rest interactively.
-3. Optionally export the resulting config and redeploy via `enterprise.json`.
+3. Optionally export the resulting config and redeploy via `managed-settings.json`.
 
 Bedrock keys: `inferenceBedrockRegion`, `inferenceBedrockBearerToken`, `inferenceBedrockProfile`, `inferenceBedrockSso{StartUrl,Region,AccountId,RoleName}`, `inferenceBedrockServiceTier`.
 
@@ -110,7 +112,7 @@ Want to see Linux 3P working end-to-end before wiring it to your real fleet gate
 
 ```yaml
 model_list:
-  # model_name MUST match the IDs in enterprise.json inferenceModels.
+  # model_name MUST match the IDs in managed-settings.json inferenceModels.
   # Bare aliases (no dated suffix) are valid Anthropic IDs.
   - model_name: claude-opus-4-8
     litellm_params:
@@ -146,11 +148,11 @@ curl -s http://127.0.0.1:4000/v1/models \
   -H "Authorization: Bearer sk-pick-any-strong-gateway-token" | python3 -m json.tool
 ```
 
-**3. Point Claude Desktop at it** - `/etc/claude-desktop/enterprise.json`. The `inferenceGatewayApiKey` here is the gateway's `master_key` from step 2 (**not** your Anthropic key):
+**3. Point Claude Desktop at it** - `/etc/claude-desktop/managed-settings.json`. The `inferenceGatewayApiKey` here is the gateway's `master_key` from step 2 (**not** your Anthropic key):
 
 ```bash
 sudo install -d -m 755 /etc/claude-desktop
-sudo tee /etc/claude-desktop/enterprise.json >/dev/null <<'JSON'
+sudo tee /etc/claude-desktop/managed-settings.json >/dev/null <<'JSON'
 {
   "inferenceProvider": "gateway",
   "inferenceGatewayBaseUrl": "http://127.0.0.1:4000",
@@ -166,7 +168,7 @@ sudo tee /etc/claude-desktop/enterprise.json >/dev/null <<'JSON'
   "coworkTabEnabled": true
 }
 JSON
-sudo chmod 644 /etc/claude-desktop/enterprise.json
+sudo chmod 644 /etc/claude-desktop/managed-settings.json
 ```
 
 > **Surface toggles** (all `scopes:["3p"]`): `chatTabEnabled` brings back the **Chat** tab (the claude.ai web surface), `coworkTabEnabled` the **Cowork** tab, and `betaFeaturesEnabled` unlocks the beta-feature set those live under. `isClaudeCodeForDesktopEnabled` controls the **Code** tab. Omit one to hide that surface. See the [maximum example](#maximum-enterprisejson-every-key) below for the full set.
@@ -181,11 +183,11 @@ tail -f ~/.config/Claude/logs/main.log | grep -E 'custom-3p|account|inference'
 
 You should see `[custom-3p] 3P mode active { provider: 'gateway' }` and an identity-changed line within a few seconds. Open a Cowork or Code session and confirm the model picker shows your two models.
 
-> **Don't commit your real values.** `inferenceGatewayApiKey` and `ANTHROPIC_API_KEY` are credentials - keep them in `enterprise.json` / env only. The redacted placeholders above are intentional. LiteLLM reads every secret from the environment (`os.environ/…`), so the config file itself is safe to check into a repo.
+> **Don't commit your real values.** `inferenceGatewayApiKey` and `ANTHROPIC_API_KEY` are credentials - keep them in `managed-settings.json` / env only. The redacted placeholders above are intentional. LiteLLM reads every secret from the environment (`os.environ/…`), so the config file itself is safe to check into a repo.
 
-> **Beyond Anthropic:** LiteLLM can front Bedrock, Vertex, Azure, or any OpenAI-/Anthropic-compatible upstream - swap the `model_list` block and keep `enterprise.json` identical. That's the point of the gateway provider: one stable client config, any backend behind it.
+> **Beyond Anthropic:** LiteLLM can front Bedrock, Vertex, Azure, or any OpenAI-/Anthropic-compatible upstream - swap the `model_list` block and keep `managed-settings.json` identical. That's the point of the gateway provider: one stable client config, any backend behind it.
 
-## Maximum `enterprise.json` (every key)
+## Maximum `managed-settings.json` (every key)
 
 The quickstart above is intentionally minimal. Below is a **feature-complete** gateway config that turns on every surface and shows the governance, telemetry, sandbox, and plugin knobs an enterprise rollout typically wants. Every key here is a real managed-config setting in v1.14271.0 (`scopes:["3p"]` or `["3p","1p"]`); add only the ones you need. Keys marked **secret** must hold real credentials - keep this file readable only as needed and never commit real values.
 
@@ -284,13 +286,13 @@ You should see (within a few seconds of launch):
 If you see `[oauth] failed to obtain oauth token … Pro or Max subscription`, the policy file didn't load - most likely a JSON parse error. Validate it:
 
 ```bash
-python3 -c 'import json; json.load(open("/etc/claude-desktop/enterprise.json"))'
+python3 -c 'import json; json.load(open("/etc/claude-desktop/managed-settings.json"))'
 ```
 
 ## Common gotchas
 
 - **The file must be readable by your user.** `install -m 644` (used above) is correct. `chmod 600` will silently make Claude fall back to the default config.
-- **Removing `enterprise.json` does NOT exit 3P mode - the deployment mode is sticky.** On the first successful 3P launch the app persists `"deploymentMode": "3p"` to `~/.config/Claude-3p/claude_desktop_config.json` (you'll see `[custom-3p] deploymentMode written { mode: '3p' }` in the log). On every later launch the bootstrap reads that persisted flag *before* the live config, so deleting `enterprise.json` leaves the app stuck in 3P - now **degraded**, because there are no credentials (`Credentials read failed … baseUrl: Required`, `inference apiHost=http://custom-3p-unused.invalid`), and it keeps using the separate `~/.config/Claude-3p/` profile. This is upstream behavior, not a packaging bug. To return to your personal claude.ai (1P) login:
+- **Removing `managed-settings.json` does NOT exit 3P mode - the deployment mode is sticky.** On the first successful 3P launch the app persists `"deploymentMode": "3p"` to `~/.config/Claude-3p/claude_desktop_config.json` (you'll see `[custom-3p] deploymentMode written { mode: '3p' }` in the log). On every later launch the bootstrap reads that persisted flag *before* the live config, so deleting `managed-settings.json` leaves the app stuck in 3P - now **degraded**, because there are no credentials (`Credentials read failed … baseUrl: Required`, `inference apiHost=http://custom-3p-unused.invalid`), and it keeps using the separate `~/.config/Claude-3p/` profile. This is upstream behavior, not a packaging bug. To return to your personal claude.ai (1P) login:
   - **One-shot:** launch once with the upstream flag `claude-desktop --boot-1p-once` (forces 1P for that boot only; it does not necessarily rewrite the persisted flag, so the next plain launch may revert).
   - **Permanent:** set the persisted flag to `1p` (or delete the key) and restart:
     ```bash
@@ -303,6 +305,6 @@ python3 -c 'import json; json.load(open("/etc/claude-desktop/enterprise.json"))'
     print("deploymentMode set to 1p")
     PY
     ```
-    Plain `claude-desktop` then boots in 1P and uses `~/.config/Claude/` again. Re-add `enterprise.json` at any time to switch back to 3P. (`--boot-1p-once` and `deploymentMode` are upstream Anthropic mechanisms, not flags added by this package.)
+    Plain `claude-desktop` then boots in 1P and uses `~/.config/Claude/` again. Re-add `managed-settings.json` at any time to switch back to 3P. (`--boot-1p-once` and `deploymentMode` are upstream Anthropic mechanisms, not flags added by this package.)
 - **`global` region requires Vertex's global endpoint to be enabled** for your project - newer projects have this on by default; older ones may need to be enabled in the Cloud Console under Vertex AI Studio settings.
 - **`sqlite3` is needed for project detection.** Unrelated to 3P, but if you hit `[detectedProjects] spawn /usr/bin/sqlite3 ENOENT` in the logs, `apt install sqlite3` clears it.

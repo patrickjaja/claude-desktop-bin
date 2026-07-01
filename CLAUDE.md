@@ -2,11 +2,13 @@
 
 ## Project Overview
 
-This is an AUR package that repackages Claude Desktop (Windows) for Arch Linux. It applies JavaScript patches to make the Electron app work on Linux.
+This project repackages Anthropic's **official Claude Desktop Linux `.deb`** for the distros Anthropic does not ship (Arch/AUR primary, plus Fedora/RHEL via RPM, NixOS, AppImage, and our own Debian/Ubuntu `.deb`). It applies JavaScript patches to the official build's `app.asar` to add Linux-only value-adds (Computer Use, custom themes, multi-profile, Quick Entry) and Linux fixes.
 
-**Target platform:** Linux only. We do NOT need macOS or Windows compatibility — all patches target Linux exclusively (X11, Wayland, XWayland). Supported distros: Arch Linux (AUR primary), plus Fedora/Ubuntu via RPM/DEB packaging.
+The official `.deb` (apt repo `https://downloads.claude.ai/claude-desktop/apt`) bundles its own **Electron 42.5.1** and a **native Cowork VM backend**. We download it, verify GPG + SHA256, `dpkg-deb -x` it, patch its `app.asar`, and repackage. We no longer ingest the Windows MSIX, and we no longer pin Electron or rebuild node-pty (both are bundled in the official `.deb`).
 
-**Architectures:** x86_64 (primary) and aarch64 (Raspberry Pi 5, NVIDIA Jetson/DGX Spark, etc.). All native binaries (node-pty, kwin-portal-bridge) must be built for both architectures.
+**Target platform:** Linux only. We do NOT need macOS or Windows compatibility — all patches target Linux exclusively (X11, Wayland, XWayland).
+
+**Architectures:** x86_64 (primary) and aarch64 (Raspberry Pi 5, NVIDIA Jetson/DGX Spark, etc.). Any native binary **we** ship (`kwin-portal-bridge`) must be built for both architectures. (node-pty arrives pre-built for both arches inside the official `.deb`.)
 
 **Supported distros & session managers:**
 
@@ -14,21 +16,22 @@ This is an AUR package that repackages Claude Desktop (Windows) for Arch Linux. 
 |--------|-----------|-----------|------|
 | Arch Linux | AUR (`claude-desktop-bin`) | 2.41 (rolling) | x86_64, aarch64 |
 | Ubuntu 22.04+ | `.deb` | 2.35 | amd64, arm64 |
-| Debian 11+ | `.deb` | 2.31 | amd64, arm64 |
+| Debian 12+ | `.deb` | 2.36 | amd64, arm64 |
 | Fedora 40+ | `.rpm` | 2.39 | x86_64, aarch64 |
 | RHEL 9+ | `.rpm` | 2.34 | x86_64, aarch64 |
 | NixOS | Nix flake | 2.40 (current) | x86_64, aarch64 |
 | NVIDIA Jetson (JetPack 6) | `.deb` | 2.35 | aarch64 |
 | Any (glibc) | `.AppImage` | varies | x86_64, aarch64 |
 
-**glibc floors** (per-binary, because kwin-portal-bridge requires KWin 6.6+ which only ships on newer distros):
+**glibc floor is 2.34** (RHEL 9 / Ubuntu 22.04). Debian 11 (bullseye, glibc 2.31) is **no longer supported** — the official Linux `.deb` we repackage targets newer glibc.
+
+**glibc floor for binaries we ship:**
 
 | Binary | glibc floor | Rationale | CI build base |
 |--------|-------------|-----------|---------------|
-| node-pty | 2.31 (Debian 11) | Must run on all supported distros | `node:20-bullseye` |
 | kwin-portal-bridge | 2.39 (Ubuntu Noble) | KWin 6.6+ only ships on Noble+ / Fedora 40+ | `ubuntu:noble` + native cross |
 
-CI enforces floors via `objdump -T | grep GLIBC_` verification. If a new native binary is added, pick the floor that matches its minimum viable distro.
+CI enforces the floor via `objdump -T | grep GLIBC_` verification. If a new native binary is added, pick the floor that matches its minimum viable distro. (node-pty is not in this table — it is bundled pre-built in the official `.deb`, not built by us.)
 
 | Session type | Compositors / DEs | Input backend | Screenshot tools |
 |-------------|-------------------|---------------|-----------------|
@@ -40,7 +43,7 @@ CI enforces floors via `objdump -T | grep GLIBC_` verification. If a new native 
 
 Patches emit `[claude-cu] diagnostics:` lines to **stderr/stdout** at startup showing detected session, available/missing tools, and screenshot cascade order. Visible when running `claude-desktop` from a terminal. Ask users to share this output when debugging.
 
-**Key constraint:** The upstream binary (`Claude.msix`) is managed remotely by Anthropic and changes without notice. Every minified variable name, function signature, and feature flag can change between releases. This makes the project inherently fragile — patches and documentation must be re-validated on each upstream update.
+**Key constraint:** The official Linux `.deb` is managed by Anthropic and re-minifies between releases. Every minified variable name, function signature, and feature flag can change. This makes the project inherently fragile — patches and documentation must be re-validated on each upstream update.
 
 ## Version-Sensitive Artifacts
 
@@ -55,8 +58,7 @@ These files embed assumptions about upstream internals and **must be challenged 
 | `baseline/ION.md` | ion-dist SPA bundle stats, patched patterns, config key schema | Run ion-dist checks (Prompt 4 in update-prompt.md) |
 | `baseline/PLATFORM_GATE_BASELINE.md` | darwin/win32 conditional counts, gate classifications (PATCHED/NATIVE/STUB/PORTABLE) | Run platform gate re-audit (Prompt 5 in update-prompt.md) |
 | `CHANGELOG.md` | Version-specific notes | Add new entry for each release. **One entry per day** - merge multiple changes into a single dated `##` section with subsections. **Keep notes informative, simple, and straight** - state what changed and the conclusion; don't dump verification minutiae, raw diffs, byte counts, or every minified identifier. The CHANGELOG is a reader's summary, not a debug log. |
-| `.upstream-version` | The Claude Desktop version our patches & docs were last validated against | **Bump + commit to the new version once a version is handled** — even a trivial build bump with no public release. `version-check.yml` compares upstream `.latest` against this file; until they match, the "new version detected" issue is (re)created every 2h. |
-| `.electron-shasums` | Per-arch SHA-256 of the pinned Electron zips (verified by makepkg + the deb/rpm/appimage builders) | **When bumping `.electron-version`, also run `./scripts/update-electron-shasums.sh`** and commit both. CI (`lint-scripts`) fails the build if they drift (`update-electron-shasums.sh --check`). |
+| `.upstream-version` | The Claude Desktop version our patches & docs were last validated against | **Bump + commit to the new version once a version is handled** — even a trivial build bump with no public release. `version-check.yml` compares the highest `Version:` in the official apt Packages index against this file; until they match, the "new version detected" issue is (re)created every 2h. |
 
 **Rule of thumb:** If a doc references a specific minified name, it will be wrong after the next upstream release. Use `\w+` wildcards in patches; in docs, always note the version the names apply to.
 
@@ -70,14 +72,17 @@ These files embed assumptions about upstream internals and **must be challenged 
 
 When a new Claude Desktop version drops, follow [update-prompt.md](update-prompt.md) — it has copy-paste prompts for:
 
-1. **Prompt 1:** Build & fix patches (download msix, run build, fix failures)
+1. **Prompt 1:** Build & fix patches (download official `.deb`, run build, fix failures)
 2. **Prompt 2:** Diff & discover new changes (compare old vs new JS bundles)
 3. **Prompt 3:** Feature flag audit (catch new/changed flags)
 
 Quick start:
 ```bash
-# Build (auto-cleans build dir, auto-downloads latest msix, applies patches, packages)
+# Build (auto-cleans build dir, downloads the latest official .deb, applies patches, packages)
 ./scripts/build-local.sh
+# Or build from a specific version / local .deb:
+./scripts/build-local.sh --version 1.17282.0
+./scripts/build-local.sh --deb /path/to/claude-desktop_amd64.deb
 ```
 
 ### Building on Ubuntu / Debian
@@ -95,22 +100,20 @@ See also: [validate_and_fix_claude-setup-x64.md](validate_and_fix_claude-setup-x
 
 ## Debugging Patch Failures
 
-**IMPORTANT:** Always work against a **freshly extracted** bundle in `./tmp/` (project-local, gitignored). If the `Claude.msix` or any extracted `index.js` in `./tmp/` is older than today, re-fetch from upstream and re-extract before doing any patch work (review, debugging, writing). Stale extracts have different minified variable names and will lead to wrong conclusions.
+**IMPORTANT:** Always work against a **freshly extracted** bundle in `./tmp/` (project-local, gitignored). If the official `.deb` or any extracted `index.js` in `./tmp/` is older than today, re-fetch from upstream and re-extract before doing any patch work (review, debugging, writing). Stale extracts have different minified variable names and will lead to wrong conclusions.
 
 ```bash
 # Re-download + extract in one step (compares local vs upstream version automatically):
 ./scripts/build-local.sh
 
-# Or manually: download latest, extract to ./tmp/:
+# Or manually: extract a local .deb to ./tmp/:
 mkdir -p tmp
-./scripts/build-patched-tarball.sh Claude.msix ./tmp
-# The unpatched index.js is at: ./tmp/app/app.asar.contents/.vite/build/index.js
+dpkg-deb -x ./tmp/claude-desktop_*_amd64.deb ./tmp/extract
+asar extract ./tmp/extract/usr/lib/claude-desktop/resources/app.asar ./tmp/app.asar.contents
+# The unpatched index.js is then at: ./tmp/app.asar.contents/.vite/build/index.js
 
-# ion-dist (3P config SPA) is in the upstream resources, not inside app.asar:
-# After build: build/src/app/locales/ion-dist/
-# Or extract manually from the MSIX:
-#   7z x -o./tmp/extract Claude.msix -y
-#   ls ./tmp/extract/app/resources/ion-dist/
+# ion-dist (3P config SPA) is in the .deb's resources, not inside app.asar:
+#   ls ./tmp/extract/usr/lib/claude-desktop/resources/ion-dist/
 ```
 
 When patches fail after a new Claude Desktop release, follow this workflow:
@@ -118,12 +121,12 @@ When patches fail after a new Claude Desktop release, follow this workflow:
 ### 1. Extract and Test Locally
 
 ```bash
-# Extract the MSIX (place Claude.msix in project root first)
+# Extract the official .deb (the build script leaves it in ./tmp/; adjust path/arch as needed)
 mkdir -p tmp
-7z x -o./tmp/extract Claude.msix -y
+dpkg-deb -x ./tmp/claude-desktop_*_amd64.deb ./tmp/extract
 
 # Extract app.asar
-asar extract ./tmp/extract/app/resources/app.asar ./tmp/app.asar.contents
+asar extract ./tmp/extract/usr/lib/claude-desktop/resources/app.asar ./tmp/app.asar.contents
 ```
 
 ### 2. Run Validation Script
@@ -319,7 +322,7 @@ Multiple Desktop instances can run side by side via named profiles. The launcher
 | WM_CLASS / Wayland app_id | per-profile Electron binary (hardlink → reflink → copy fallback) | `~/.local/lib/claude-desktop/<APP_ID>-<name>` — must be a real file, not a symlink, because Electron derives its app identity from `/proc/self/exe` (the kernel resolves symlinks before reading) |
 | SSO callback routing | marker file written by JS hook on `shell.openExternal`; launcher reads marker to dispatch incoming `claude://` URL | `patches/fix_profile_url_routing.nim` (writer) + `claude-desktop-launcher.sh` URL-handler block (reader / re-exec) |
 
-**Rule when adding a new patch:** if it writes to a fixed user-level path, prefer `app.getPath("userData")` (auto-isolates) over `os.homedir()+"/.config/Claude"` (single-instance leak). If it opens a Unix socket or pipe that is owned by the Electron process itself, append `process.env.CLAUDE_PROFILE` to the path the same way `fix_quick_entry_cli_toggle.nim` does. If the socket is owned by a separate user-level daemon (like cowork-svc), do NOT suffix it — clients across all profiles need to connect to the same listener; profile isolation comes from per-profile state inherited via env. If the patch spawns a long-lived child process that holds state, propagate `process.env.CLAUDE_PROFILE` and `process.env.CLAUDE_CONFIG_DIR` (or accept that `child_process.spawn` inherits `process.env` by default — verify, don't assume).
+**Rule when adding a new patch:** if it writes to a fixed user-level path, prefer `app.getPath("userData")` (auto-isolates) over `os.homedir()+"/.config/Claude"` (single-instance leak). If it opens a Unix socket or pipe that is owned by the Electron process itself, append `process.env.CLAUDE_PROFILE` to the path the same way `fix_quick_entry_cli_toggle.nim` does. If the socket is owned by a separate shared user-level daemon, do NOT suffix it — clients across all profiles need to connect to the same listener; profile isolation comes from per-profile state inherited via env. If the patch spawns a long-lived child process that holds state, propagate `process.env.CLAUDE_PROFILE` and `process.env.CLAUDE_CONFIG_DIR` (or accept that `child_process.spawn` inherits `process.env` by default — verify, don't assume).
 
 ## Feature Flag System
 
@@ -331,10 +334,10 @@ See [CLAUDE_FEATURE_FLAGS.md](baseline/CLAUDE_FEATURE_FLAGS.md) for the full ref
 
 Runtime logs are at `~/.config/Claude/logs/`.
 
-**3p/enterprise deployments use a different dir.** If `/etc/claude-desktop/enterprise.json` **exists**
+**3p/enterprise deployments use a different dir.** If `/etc/claude-desktop/managed-settings.json` **exists**
 (inference-gateway / Bedrock / managed mode), the live logs and state are under **`~/.config/Claude-3p/logs/`**
 instead - upstream relocates Electron userData with a `-3p` suffix. Reading the wrong dir gives stale/1p
-evidence. So: **check for `/etc/claude-desktop/enterprise.json` first** and substitute `Claude-3p` for
+evidence. So: **check for `/etc/claude-desktop/managed-settings.json` first** and substitute `Claude-3p` for
 `Claude` in every path below when it's present (named profiles add a further `-<profile>` suffix). When in
 doubt, confirm the running process: `pgrep -af claude` and read its `--user-data-dir` / `--database=...Crashpad`
 arg. See the `/3p` skill for the full behavior.
@@ -386,12 +389,10 @@ with open('$AUDIT') as f:
             print(f'[{i}] {t} (error): {str(d)[:200]}')
 "
 
-# 4. Check cowork-service spawn args (did --tools, --disallowedTools, env pass correctly?)
-#    Run cowork-service in debug mode:
-kill $(pgrep cowork-svc); rm -f /run/user/1000/cowork-vm-service.sock
-nohup /path/to/cowork-svc-linux -debug > /tmp/cowork-debug.log 2>&1 &
-#    Then trigger a dispatch session and check:
-grep 'DISPATCH-DEBUG\|disallowedTools\|--tools\|CLAUDE_CODE_BRIEF' /tmp/cowork-debug.log
+# 4. Check the Cowork/VM backend log (the official native backend bundled in the .deb).
+#    The Electron-side log records spawn/VM lifecycle and the bridge's view of the session:
+grep -a 'Using Claude VM spawn\|Spawn succeeded\|vmStarted\|disallowedTools\|CLAUDE_CODE_BRIEF' \
+  ~/.config/Claude/logs/cowork_vm_node.log | tail -20
 
 # 5. Check what tools the CLI actually exposed to the model
 python3 -c "
@@ -417,11 +418,11 @@ rm -rf ~/.config/Claude/local-agent-mode-sessions/
 ## CI Pipeline
 
 GitHub Actions workflow:
-1. Downloads latest Claude Desktop MSIX package
-2. Runs patch validation in Docker
-3. If validation passes, pushes to AUR
+1. Polls the official apt Packages index; downloads the latest official Claude Desktop `.deb` and verifies GPG + SHA256
+2. Extracts `app.asar`, applies patches, repackages, and runs validation in Docker
+3. If validation passes, publishes packages and pushes to AUR
 
-When CI fails, download the MSIX locally and debug using the workflow above.
+When CI fails, download the `.deb` locally and debug using the workflow above.
 
 
 # Ubuntu VM

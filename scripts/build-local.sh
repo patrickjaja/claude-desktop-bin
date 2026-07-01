@@ -1,17 +1,23 @@
 #!/bin/bash
 #
-# Local build script for claude-desktop-bin
+# Local build script for claude-desktop-bin (cross-distro).
 #
-# This script downloads the latest Claude Desktop for Windows,
-# builds a pre-patched tarball, and optionally installs using pacman.
+# Ingests the OFFICIAL Claude Desktop Linux .deb (which already bundles Electron,
+# node-pty, chrome-sandbox, tray icons, ion-dist, ...), applies the Linux JS
+# patches, builds a pre-patched tarball, then produces an Arch package with
+# makepkg and optionally installs it.
 #
-# Usage: ./scripts/build-local.sh [--install]
+# Usage: ./scripts/build-local.sh [--deb PATH | --version X] [--install] [--smoke-test] [--pkgrel N]
 #
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 BUILD_DIR="$PROJECT_DIR/build"
+
+# Default apt Packages index (amd64). Override via CLAUDE_DESKTOP_APT_URL.
+APT_BASE="${CLAUDE_DESKTOP_APT_URL:-https://downloads.claude.ai/claude-desktop/apt/stable}"
+APT_PACKAGES_URL="$APT_BASE/dists/stable/main/binary-amd64/Packages"
 
 # Colors for output
 RED='\033[0;31m'
@@ -27,6 +33,8 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 INSTALL_AFTER_BUILD=false
 SKIP_SMOKE_TEST="${SKIP_SMOKE_TEST:-1}"
 PKGREL=""
+DEB_PATH=""
+DEB_VERSION=""
 while [[ $# -gt 0 ]]; do
     case $1 in
         --install|-i)
@@ -41,17 +49,27 @@ while [[ $# -gt 0 ]]; do
             PKGREL="$2"
             shift 2
             ;;
+        --deb)
+            DEB_PATH="$2"
+            shift 2
+            ;;
+        --version)
+            DEB_VERSION="$2"
+            shift 2
+            ;;
         --help|-h)
             echo "Usage: $0 [OPTIONS]"
             echo ""
             echo "Options:"
+            echo "  --deb <PATH>          Use a local official .deb instead of downloading"
+            echo "  --version <X>         Download a specific version from the apt repo"
             echo "  --install, -i         Install the package after building"
             echo "  --smoke-test          Run Electron smoke test (skipped by default)"
             echo "  --pkgrel, -r <REL>    Override package release number (default: 1)"
             echo "  --help, -h            Show this help message"
             echo ""
             echo "This script:"
-            echo "  1. Downloads Claude Desktop for Windows (if not present)"
+            echo "  1. Resolves the official Claude Desktop Linux .deb (local, pinned, or latest)"
             echo "  2. Applies Linux patches using build-patched-tarball.sh"
             echo "  3. Creates a .pkg.tar.zst package"
             echo "  4. Optionally installs it"
@@ -59,24 +77,23 @@ while [[ $# -gt 0 ]]; do
             ;;
         *)
             echo "Unknown option: $1"
-            echo "Usage: $0 [--install] [--pkgrel <REL>] [--smoke-test]"
+            echo "Usage: $0 [--deb PATH | --version X] [--install] [--pkgrel <REL>] [--smoke-test]"
             exit 1
             ;;
     esac
 done
 
-# Check dependencies
+# Check dependencies. ar (binutils) cracks the .deb; no 7z/dpkg-deb needed.
 log_info "Checking build dependencies..."
 MISSING_DEPS=()
-for dep in wget 7z asar python3 makepkg; do
+for dep in curl ar tar asar python3 makepkg; do
     if ! command -v "$dep" &> /dev/null; then
         MISSING_DEPS+=("$dep")
     fi
 done
-
 if [ ${#MISSING_DEPS[@]} -ne 0 ]; then
     log_error "Missing dependencies: ${MISSING_DEPS[*]}"
-    echo "Install them with: sudo pacman -S p7zip wget base-devel python imagemagick"
+    echo "Install them with: sudo pacman -S curl binutils base-devel python"
     echo "For asar: yay -S asar (or npm install -g @electron/asar)"
     exit 1
 fi
@@ -86,70 +103,45 @@ log_info "Setting up build directory..."
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
 
-# Always download latest msix (ensures patches match the current version)
-MSIX_FILE="$BUILD_DIR/Claude.msix"
-LOCAL_MSIX="$PROJECT_DIR/Claude.msix"
-
-# Query version API for latest version and hash
-log_info "Querying Claude Desktop version API..."
-LATEST_JSON=$(wget -q -O - "https://downloads.claude.ai/releases/win32/x64/.latest")
-if [ -z "$LATEST_JSON" ]; then
-    log_error "Failed to query version API"
-    exit 1
-fi
-LATEST_VERSION=$(echo "$LATEST_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['version'])")
-LATEST_HASH=$(echo "$LATEST_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['hash'])")
-DOWNLOAD_URL="https://downloads.claude.ai/releases/win32/x64/${LATEST_VERSION}/Claude-${LATEST_HASH}.msix"
-
-# Check if local msix is already the latest version
-if [ -f "$LOCAL_MSIX" ]; then
-    LOCAL_VERSION=$("$SCRIPT_DIR/extract-version.sh" "$LOCAL_MSIX" 2>/dev/null || echo "unknown")
-    if [ "$LOCAL_VERSION" = "$LATEST_VERSION" ]; then
-        log_info "Local msix is already latest (v$LATEST_VERSION), reusing"
-        cp "$LOCAL_MSIX" "$MSIX_FILE"
-    else
-        log_info "Local msix is v$LOCAL_VERSION, latest is v$LATEST_VERSION — downloading update"
-        wget -O "$MSIX_FILE" \
-            -U "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
-            "$DOWNLOAD_URL" 2>&1
-
-        if [ ! -f "$MSIX_FILE" ] || [ ! -s "$MSIX_FILE" ]; then
-            log_error "Download failed."
-            log_info "You can manually download from: https://claude.ai/download"
-            log_info "Then place the msix in $PROJECT_DIR/Claude.msix and re-run"
-            exit 1
-        fi
-        # Update local copy for future builds
-        cp "$MSIX_FILE" "$LOCAL_MSIX"
-        log_info "Download complete, local msix updated"
-    fi
-else
-    log_info "Downloading Claude Desktop for Windows (msix)..."
-    log_info "Latest version: $LATEST_VERSION"
-    log_info "Download URL: $DOWNLOAD_URL"
-
-    wget -O "$MSIX_FILE" \
-        -U "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
-        "$DOWNLOAD_URL" 2>&1
-
-    if [ ! -f "$MSIX_FILE" ] || [ ! -s "$MSIX_FILE" ]; then
-        log_error "Download failed."
-        log_info "You can manually download from: https://claude.ai/download"
-        log_info "Then place the msix in $PROJECT_DIR/Claude.msix and re-run"
+# ─────────────────────────────────────────────────────────────────────────────
+# Resolve the .deb source for the ingest script:
+#   --deb PATH    → local .deb
+#   --version X   → that version's .deb from the apt repo (download in ingest)
+#   default       → version pinned in .upstream-version if present in the index,
+#                   else the latest available version.
+# build-patched-tarball.sh handles the actual download + SHA256/GPG verification.
+# ─────────────────────────────────────────────────────────────────────────────
+DEB_ARG=""
+if [ -n "$DEB_PATH" ]; then
+    if [ ! -f "$DEB_PATH" ]; then
+        log_error "--deb file not found: $DEB_PATH"
         exit 1
     fi
-    # Save local copy for future builds
-    cp "$MSIX_FILE" "$LOCAL_MSIX"
-    log_info "Download complete"
+    log_info "Using local .deb: $DEB_PATH"
+    DEB_ARG="$DEB_PATH"
+elif [ -n "$DEB_VERSION" ]; then
+    log_info "Will fetch version $DEB_VERSION from apt repo"
+    DEB_ARG="$APT_BASE/dists/stable/main/binary-amd64/Packages"
+    export CLAUDE_DESKTOP_WANT_VERSION="$DEB_VERSION"
+else
+    # Pin to .upstream-version if it exists in the index; the ingest picks the
+    # latest if no explicit version is requested. We only print the pin here for
+    # the operator; build-patched-tarball.sh picks the highest available version.
+    PIN_FILE="$PROJECT_DIR/.upstream-version"
+    if [ -f "$PIN_FILE" ]; then
+        log_info "Pinned (.upstream-version): $(tr -d '[:space:]' < "$PIN_FILE") — ingest fetches latest from apt"
+    fi
+    DEB_ARG="$APT_PACKAGES_URL"
 fi
 
-# Build the patched tarball
-log_info "Building patched tarball..."
-SKIP_SMOKE_TEST="$SKIP_SMOKE_TEST" "$SCRIPT_DIR/build-patched-tarball.sh" "$MSIX_FILE" "$BUILD_DIR"
+# Build the patched tarball (ingest the .deb)
+log_info "Building patched tarball from official .deb..."
+SKIP_SMOKE_TEST="$SKIP_SMOKE_TEST" "$SCRIPT_DIR/build-patched-tarball.sh" "$DEB_ARG" "$BUILD_DIR"
 
 # Read build info
+# shellcheck disable=SC1091
 source "$BUILD_DIR/build-info.txt"
-log_info "Built version: $VERSION"
+log_info "Built version: $VERSION (electron ${ELECTRON_VERSION:-unknown})"
 log_info "Tarball: $TARBALL"
 log_info "SHA256: $SHA256"
 
@@ -157,17 +149,19 @@ log_info "SHA256: $SHA256"
 log_info "Generating PKGBUILD..."
 "$SCRIPT_DIR/generate-pkgbuild.sh" "$VERSION" "$SHA256" "file://$TARBALL" ${PKGREL:+"$PKGREL"} > "$BUILD_DIR/PKGBUILD"
 
+# makepkg reads the install= file relative to the PKGBUILD dir, so copy it in.
+cp "$PROJECT_DIR/claude-desktop-bin.install" "$BUILD_DIR/claude-desktop-bin.install"
+
 # Build the package with makepkg.
 #
-# We use SRCDEST=cache/ so the large upstream electron zip is downloaded once
-# and reused across builds (checksummed in the PKGBUILD). The claude-desktop
-# tarball, however, is a LOCAL build artifact we regenerate every run: its
-# bytes (and sha256) change each build, so any cached copy is stale and makepkg
-# would fail it against the freshly-generated sha256sum. makepkg keys the cache
-# entry on its download filename (claude-desktop-<pkgver>-<pkgrel>-linux.tar.gz,
-# which includes the pkgrel and need not match the artifact's real basename),
-# so we purge every cached claude-desktop tarball before the build and let
-# makepkg re-copy the fresh one from the file:// source. Electron stays cached.
+# The claude-desktop tarball is a LOCAL build artifact we regenerate every run:
+# its bytes (and sha256) change each build, so any cached copy is stale and
+# makepkg would fail it against the freshly-generated sha256sum. makepkg keys the
+# cache entry on its download filename (claude-desktop-<pkgver>-<pkgrel>-linux.tar.gz,
+# which includes the pkgrel and need not match the artifact's real basename), so
+# we purge every cached claude-desktop tarball before the build and let makepkg
+# re-copy the fresh one from the file:// source. There is no longer a separately
+# downloaded Electron zip to cache — Electron ships inside the tarball.
 log_info "Building Arch package..."
 SRCDEST_DIR="$PROJECT_DIR/cache"
 mkdir -p "$SRCDEST_DIR"

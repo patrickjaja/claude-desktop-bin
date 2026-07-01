@@ -12,9 +12,10 @@ override_dh_auto_install:
 	install -d debian/claude-desktop/usr/bin
 	install -m755 launcher/claude-desktop debian/claude-desktop/usr/bin/claude-desktop
 
-	# Install desktop file (basename must match APP_ID in the launcher: "claude")
+	# Install desktop file (basename must match the live app_id "claude-desktop"
+	# so native-Wayland WMs bind the dock icon; see issue #148)
 	install -d debian/claude-desktop/usr/share/applications
-	install -m644 debian/claude.desktop debian/claude-desktop/usr/share/applications/
+	install -m644 debian/claude-desktop.desktop debian/claude-desktop/usr/share/applications/
 
 	# Install icon
 	install -d debian/claude-desktop/usr/share/icons/hicolor/256x256/apps

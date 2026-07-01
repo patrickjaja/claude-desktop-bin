@@ -1,19 +1,18 @@
 #!/bin/bash
 #
-# Build RPM package from pre-patched Claude Desktop tarball
+# Build an RPM package from the pre-patched Claude Desktop tarball.
+#
+# The tarball (produced by scripts/build-patched-tarball.sh from the official
+# Linux .deb) already bundles the Electron runtime under electron/ and the
+# patched app under app/. We do NOT download or verify a separate Electron zip.
 #
 # Usage: ./build-rpm.sh [--arch x86_64|aarch64] <tarball_path> <output_dir> [pkgrel]
 #
-# Requirements: rpmbuild, wget, unzip
+# Requirements: rpmbuild, tar
 #
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-# Resolve Electron version (pinned in .electron-version, overridable via env)
-source "$SCRIPT_DIR/../../scripts/resolve-electron-version.sh"
-# Electron zip SHA-256 verification helper (defines verify_electron_zip)
-source "$SCRIPT_DIR/../../scripts/verify-electron.sh"
 
 # Colors
 RED='\033[0;31m'
@@ -32,10 +31,8 @@ if [ "${1:-}" = "--arch" ]; then
     shift 2
 fi
 
-# Map RPM arch to Electron arch
 case "$RPM_ARCH" in
-    x86_64)   ELECTRON_ARCH="x64" ;;
-    aarch64)  ELECTRON_ARCH="arm64" ;;
+    x86_64|aarch64) ;;
     *)
         log_error "Unsupported architecture: $RPM_ARCH (supported: x86_64, aarch64)"
         exit 1
@@ -43,8 +40,8 @@ case "$RPM_ARCH" in
 esac
 
 # Parse positional arguments
-TARBALL_PATH="$1"
-OUTPUT_DIR="$2"
+TARBALL_PATH="${1:-}"
+OUTPUT_DIR="${2:-}"
 PKGREL="${3:-1}"
 
 if [ -z "$TARBALL_PATH" ] || [ -z "$OUTPUT_DIR" ]; then
@@ -52,7 +49,7 @@ if [ -z "$TARBALL_PATH" ] || [ -z "$OUTPUT_DIR" ]; then
     echo ""
     echo "Arguments:"
     echo "  --arch        Target architecture (default: x86_64, also: aarch64)"
-    echo "  tarball_path  Path to claude-desktop-VERSION-linux.tar.gz"
+    echo "  tarball_path  Path to claude-desktop-VERSION-linux[-aarch64].tar.gz"
     echo "  output_dir    Directory to write .rpm package"
     echo "  pkgrel        Package release number (default: 1)"
     echo ""
@@ -66,29 +63,22 @@ if [ ! -f "$TARBALL_PATH" ]; then
     exit 1
 fi
 
-# Extract version from tarball filename
-VERSION=$(basename "$TARBALL_PATH" | sed -E 's/claude-desktop-([0-9]+\.[0-9]+\.[0-9]+)-linux\.tar\.gz/\1/')
-log_info "Building RPM package for version: $VERSION (arch: $RPM_ARCH, electron: $ELECTRON_ARCH)"
+# Extract version from tarball filename (handles both -linux.tar.gz and -linux-aarch64.tar.gz)
+VERSION=$(basename "$TARBALL_PATH" | sed -E 's/claude-desktop-([0-9]+\.[0-9]+\.[0-9]+)-linux(-aarch64)?\.tar\.gz/\1/')
+TARBALL_NAME=$(basename "$TARBALL_PATH")
+log_info "Building RPM package for version: $VERSION (arch: $RPM_ARCH)"
 
 # Create rpmbuild directory structure
 WORK_DIR=$(mktemp -d)
 RPM_BUILD="$WORK_DIR/rpmbuild"
 mkdir -p "$RPM_BUILD"/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
 
-cleanup() {
-    rm -rf "$WORK_DIR"
-}
+cleanup() { rm -rf "$WORK_DIR"; }
 trap cleanup EXIT
 
-# Copy tarball to SOURCES
-cp "$TARBALL_PATH" "$RPM_BUILD/SOURCES/"
+# Copy tarball to SOURCES (keep its real basename so Source0 resolves it)
+cp "$TARBALL_PATH" "$RPM_BUILD/SOURCES/$TARBALL_NAME"
 log_info "Copied tarball to SOURCES/"
-
-# Download Electron to SOURCES
-log_info "Downloading Electron v${ELECTRON_VERSION} for ${ELECTRON_ARCH}..."
-wget -q -O "$RPM_BUILD/SOURCES/electron.zip" \
-    "https://github.com/electron/electron/releases/download/v${ELECTRON_VERSION}/electron-v${ELECTRON_VERSION}-linux-${ELECTRON_ARCH}.zip"
-verify_electron_zip "$RPM_BUILD/SOURCES/electron.zip" "$ELECTRON_ARCH"
 
 # Copy spec file
 cp "$SCRIPT_DIR/claude-desktop-bin.spec" "$RPM_BUILD/SPECS/"
@@ -102,7 +92,7 @@ rpmbuild -bb \
     --define "_topdir $RPM_BUILD" \
     --define "pkg_version $VERSION" \
     --define "pkg_release $PKGREL" \
-    --define "electron_version $ELECTRON_VERSION" \
+    --define "pkg_source $TARBALL_NAME" \
     "$RPM_BUILD/SPECS/claude-desktop-bin.spec"
 
 # Copy RPM to output

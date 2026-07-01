@@ -1,32 +1,44 @@
 # @patch-target: app.asar.contents/.vite/build/index.js
 # @patch-type: nim
 #
-# Patch Claude Desktop to fix "Start at login" / "Start in system tray" on Linux.
+# "Start at login" / "Start in system tray" on Linux.
 #
-# Problem (three layers):
-# 1. isStartupOnLoginEnabled() must not call Electron's getLoginItemSettings() on Linux
-#    because it returns undefined values for openAtLogin/executableWillLaunchAtLogin,
-#    causing the Settings toggle to always show as disabled.
-# 2. setStartupOnLoginEnabled() must manage the XDG autostart file directly, because
-#    Electron's setLoginItemSettings() on Linux does not add --startup to the Exec line,
-#    so the main window would always appear even when started at login.
-# 3. GNOME session restore re-launches Claude after reboot without --startup because
-#    gnome-session-service re-launches saved apps independently of XDG autostart.
-#    No env var distinguishes a session-restore launch from a normal user launch.
+# History (three layers, all targeting the Windows MSIX):
+#   1. isStartupOnLoginEnabled() called Electron getLoginItemSettings() (returns
+#      undefined on Linux) -> Settings toggle always showed disabled.
+#   2. setStartupOnLoginEnabled() used Electron setLoginItemSettings() which on
+#      Linux does NOT add --startup to the Exec line -> main window always shown.
+#   3. GNOME session restore re-launches saved apps WITHOUT --startup -> the main
+#      window pops up after every reboot.
+# We used to patch all three (anchor: the env-var short-circuit
+# CLAUDE_AVOID_READING_LOGING_ITEM_SETTINGS, and the "Toggling" debug log).
 #
-# Fix:
-# - isStartupOnLoginEnabled(): migrate old com.anthropic.claude-desktop[-PROFILE].desktop
-#   to claude[-PROFILE].desktop, then check ~/.config/autostart/claude[-PROFILE].desktop
-# - setStartupOnLoginEnabled(enabled): create/remove that file with
-#   Exec=/usr/bin/claude-desktop [--profile=PROFILE] --startup
-# - Augment the --startup argv check: /run/user/UID/bus is created by systemd-logind at
-#   session start. If Claude starts within 60 s of that mtime, assume session-restore and
-#   suppress the main window (treat as --startup launch).
+# The official Linux .deb UPSTREAMED layers 1 and 2 natively:
+#   - read:  function ico(){...exists(zmA())...readFile(zmA())...!rco(...)}  reads
+#            the XDG autostart .desktop and parses Hidden / X-GNOME-Autostart-enabled.
+#   - write: function nco(A){...} writes/removes it, building the file with
+#            function tco(){return["[Desktop Entry]","Type=Application",
+#              `Name=${app.getName()}`,`Exec=${eco(process.execPath)} --startup`,
+#              "X-GNOME-Autostart-enabled=true",""].join(...)}
+#   - dir:   J6A() = (XDG_CONFIG_HOME||~/.config)/autostart
+#   - file:  zmA() = `${basename(process.execPath)}.desktop`  (profile-aware: our
+#            per-profile Electron binary has a distinct basename, so each profile
+#            manages its own autostart entry — same outcome our old patch hand-rolled)
+#   - setStartupOnLoginEnabled(A){...nco(A).catch(...)"Failed to update XDG autostart entry"}
+# The Exec line already carries --startup, so an autostart launch hides the window.
 #
-# Profile-aware: the injected JS reads process.env.CLAUDE_PROFILE at runtime so each
-# profile manages its own autostart file independently. Toggling "Start at login" inside
-# the work profile creates claude-work.desktop with --profile=work
-# in the Exec line, so the right profile auto-starts at login.
+# Layer 3 was NOT upstreamed: the window-show gate is purely
+#   wco=!<proc>.argv.includes("--startup")
+# and the whole bundle has ZERO /run/user and ZERO gnome-session references. A
+# GNOME session-restore relaunch (no --startup) therefore still shows the window.
+#
+# So per CLAUDE.md Rule 6:
+#   - P1 (read) + P2 (write): convert to REGRESSION GUARDS that positively assert
+#     the native XDG autostart read/write end-state is present (FAIL loud if a
+#     future bump removes it — that would silently break the Settings toggle and
+#     re-introduce the always-visible-window bug).
+#   - P3 (session-restore detection): KEEP as an ACTIVE patch — augment the single
+#     argv.includes("--startup") gate with a compositor-socket mtime heuristic.
 
 import std/[os, strutils]
 import regex
@@ -35,97 +47,81 @@ proc apply*(input: string): string =
   var patchesApplied = 0
   const expectedPatches = 3
 
-  # Pattern 1: isStartupOnLoginEnabled function
-  # Replace the env-var short-circuit with a Linux XDG check, then keep the env-var check.
-  let pattern1 =
-    re2"""isStartupOnLoginEnabled\(\)\{if\(process\.env\.CLAUDE_AVOID_READING_LOGING_ITEM_SETTINGS\)return!1;"""
-  const replacement1 =
-    """isStartupOnLoginEnabled(){if(process.platform==="linux"){try{const _ps=process.env.CLAUDE_PROFILE?"-"+process.env.CLAUDE_PROFILE:"";const _fs=require("fs"),_path=require("path"),_home=require("os").homedir();const _oldF=_path.join(_home,".config","autostart","com.anthropic.claude-desktop"+_ps+".desktop");const _newF=_path.join(_home,".config","autostart","claude"+_ps+".desktop");if(_fs.existsSync(_oldF)){if(!_fs.existsSync(_newF)){try{_fs.renameSync(_oldF,_newF)}catch(e){}}else{try{_fs.unlinkSync(_oldF)}catch(e){}}}return _fs.existsSync(_newF)}catch(e){return false}}if(process.env.CLAUDE_AVOID_READING_LOGING_ITEM_SETTINGS)return!1;"""
-
-  # Already-applied sentinel: Pattern 1 changes the function to start with platform check.
-  # Must be specific - other patches (fix_asar_workspace_cwd, fix_browser_tools_linux)
-  # also inject require("os").homedir(), so that alone is not a reliable sentinel.
-  if """isStartupOnLoginEnabled(){if(process.platform==="linux")""" in input:
-    echo "  [INFO] isStartupOnLoginEnabled: already patched"
-    patchesApplied += 1
-    result = input
-  else:
-    var count1 = 0
-    result = input.replace(
-      pattern1,
-      proc(m: RegexMatch2, s: string): string =
-        inc count1
-        replacement1,
-    )
-    if count1 > 0:
-      patchesApplied += count1
-      echo "  [OK] isStartupOnLoginEnabled: " & $count1 & " match(es)"
-    else:
-      echo "  [FAIL] isStartupOnLoginEnabled: 0 matches"
-
-  # Pattern 2: setStartupOnLoginEnabled function
-  # Inject Linux XDG autostart file management (create/remove with --startup in Exec line).
-  let pattern2 =
-    re2"""setStartupOnLoginEnabled\(([\w$]+)\)\{([\w$]+)\.debug\("Toggling"""
-
-  # Already-applied sentinel: Pattern 2 adds X-GNOME-Autostart-enabled (unique to our patch)
-  let intermediate = result
-  if "X-GNOME-Autostart-enabled" in input:
-    echo "  [INFO] setStartupOnLoginEnabled: already patched"
+  # ── P1 (guard): native XDG autostart READ ────────────────────────────────
+  # isStartupOnLoginEnabled now delegates to a read helper, and the autostart dir
+  # resolver + filename builder are the positive proof that Linux reads the real
+  # XDG autostart .desktop (not Electron's broken getLoginItemSettings()).
+  var m1: RegexMatch2
+  let readDelegates =
+    input.find(re2"""isStartupOnLoginEnabled\(\)\{return [\w$]+\(\)\}""", m1)
+  let autostartDir = input.find(
+    re2"""XDG_CONFIG_HOME\|\|[\w$]+\.join\([\w$]+\.homedir\(\),"\.config"\);return [\w$]+\.join\([\w$]+,"autostart"\)""",
+    m1,
+  )
+  let autostartFile = input.find(
+    re2"""return`\$\{[\w$]+\.basename\(process\.execPath\)\}\.desktop`""", m1
+  )
+  if readDelegates and autostartDir and autostartFile:
+    echo "  [OK] isStartupOnLoginEnabled reads XDG autostart natively " &
+      "((XDG_CONFIG_HOME||~/.config)/autostart, basename(execPath).desktop) — guard satisfied"
     patchesApplied += 1
   else:
-    var count2 = 0
-    result = intermediate.replace(
-      pattern2,
-      proc(m: RegexMatch2, s: string): string =
-        inc count2
-        let argVar = s[m.group(0)]
-        let loggerVar = s[m.group(1)]
-        """setStartupOnLoginEnabled(""" & argVar &
-          """){if(process.platform==="linux"){const _ps=process.env.CLAUDE_PROFILE?"-"+process.env.CLAUDE_PROFILE:"";const _pe=process.env.CLAUDE_PROFILE?" --profile="+process.env.CLAUDE_PROFILE:"";const _pn=process.env.CLAUDE_PROFILE?" ("+process.env.CLAUDE_PROFILE+")":"";const _f=require("path").join(require("os").homedir(),".config","autostart","claude"+_ps+".desktop");if(""" &
-          argVar &
-          """){require("fs").mkdirSync(require("path").dirname(_f),{recursive:true});require("fs").writeFileSync(_f,"[Desktop Entry]\nType=Application\nName=Claude"+_pn+"\nExec=/usr/bin/claude-desktop"+_pe+" --startup\nX-GNOME-Autostart-enabled=true\n")}else{try{require("fs").unlinkSync(_f)}catch(e){}}return}""" &
-          loggerVar & """.debug("Toggling""",
-    )
-    if count2 > 0:
-      patchesApplied += count2
-      echo "  [OK] setStartupOnLoginEnabled: " & $count2 & " match(es)"
-    else:
-      echo "  [FAIL] setStartupOnLoginEnabled: 0 matches"
+    echo "  [FAIL] Native XDG autostart READ path missing (delegate=" & $readDelegates &
+      " dir=" & $autostartDir & " file=" & $autostartFile & ")"
+    echo "         Upstream may have regressed startup-on-login; re-audit fix_startup_settings P1."
 
-  # Pattern 3: GNOME session restore detection.
-  # gnome-session-service re-launches saved apps without --startup. There is no env var
-  # to distinguish this from a normal user launch.
-  # Strategy: check the mtime of the Wayland compositor socket (WAYLAND_DISPLAY env var,
-  # e.g. /run/user/UID/wayland-1). The compositor socket is created when the graphical
-  # session starts -- even when systemd lingering is enabled (which keeps /run/user/UID/bus
-  # alive from boot, making the bus socket mtime unreliable as a login-time proxy).
-  # X11 fallback: uses the bus socket (works for X11 users without lingering).
-  # If Claude starts within 60 s of that timestamp, assume session-restore and hide window.
-  # Limitation: a manual launch within 60 s of compositor start is also suppressed.
-  let pattern3 = re2"""([\w$]+)\.argv\.includes\("--startup"\)"""
-
-  let intermediate2 = result
-  if "_b.mtimeMs" in intermediate2:
-    echo "  [INFO] GNOME session restore: already patched"
+  # ── P2 (guard): native XDG autostart WRITE (with --startup) ───────────────
+  # The .desktop builder must still emit BOTH the `--startup` flag (so autostart
+  # launches hide the window) and X-GNOME-Autostart-enabled. The write helper's
+  # error log is the second positive anchor.
+  var m2: RegexMatch2
+  let desktopBuilder = input.find(
+    re2"""\[Desktop Entry\]","Type=Application",`Name=\$\{[\w$]+\.app\.getName\(\)\}`,`Exec=\$\{[\w$]+\(process\.execPath\)\} --startup`,"X-GNOME-Autostart-enabled=true"""",
+    m2,
+  )
+  let writeErrLog = "Failed to update XDG autostart entry" in input
+  if desktopBuilder and writeErrLog:
+    echo "  [OK] setStartupOnLoginEnabled writes XDG autostart natively " &
+      "(Exec=… --startup, X-GNOME-Autostart-enabled=true) — guard satisfied"
     patchesApplied += 1
   else:
+    echo "  [FAIL] Native XDG autostart WRITE path missing (builder=" & $desktopBuilder &
+      " errlog=" & $writeErrLog & ")"
+    echo "         If the --startup flag or X-GNOME-Autostart-enabled disappeared, the"
+    echo "         autostart window-hide / toggle would break; re-audit fix_startup_settings P2."
+
+  # ── P3 (active patch): GNOME session-restore detection ────────────────────
+  # Native gate is only `wco=!<proc>.argv.includes("--startup")`. gnome-session-service
+  # re-launches saved apps WITHOUT --startup and there is no env var to distinguish it.
+  # Heuristic: the Wayland compositor socket (WAYLAND_DISPLAY, e.g.
+  # /run/user/UID/wayland-1) is created when the graphical session starts; X11 falls
+  # back to the session bus socket. If Claude starts within 60s of that mtime, assume
+  # session-restore and treat it as a --startup launch (hide the window).
+  # Idempotency: positively assert OUR injected marker (`_b.mtimeMs`) is present.
+  if "_b.mtimeMs" in input:
+    echo "  [INFO] GNOME session-restore detection: already patched (_b.mtimeMs present)"
+    patchesApplied += 1
+  else:
+    let pattern3 = re2"""([\w$]+)\.argv\.includes\("--startup"\)"""
     var count3 = 0
-    result = intermediate2.replace(
+    result = input.replace(
       pattern3,
       proc(m: RegexMatch2, s: string): string =
         inc count3
-        if count3 > 1:
-          return s[m.group(0)] & ".argv.includes(\"--startup\")"
         let processVar = s[m.group(0)]
         processVar &
           ".argv.includes(\"--startup\")||process.platform===\"linux\"&&(()=>{try{const _uid=String(process.getuid());const _wd=process.env.WAYLAND_DISPLAY;const _sock=_wd?require(\"path\").join(\"/run/user\",_uid,_wd):require(\"path\").join(\"/run/user\",_uid,\"bus\");const _b=require(\"fs\").statSync(_sock);return(Date.now()-_b.mtimeMs)<60000}catch(e){return false}})()",
     )
-    if count3 > 0:
-      patchesApplied += count3
-      echo "  [OK] GNOME session restore: " & $count3 & " match(es)"
+    if count3 == 1:
+      echo "  [OK] GNOME session-restore detection: augmented argv --startup gate (1 match)"
+      patchesApplied += 1
+    elif count3 == 0:
+      echo "  [FAIL] GNOME session-restore: argv.includes(\"--startup\") gate not found"
     else:
-      echo "  [FAIL] GNOME session restore: 0 matches"
+      echo "  [FAIL] GNOME session-restore: expected 1 argv --startup site, found " &
+        $count3 & " — re-audit (the window-show gate may have changed shape)"
+  if result.len == 0:
+    result = input
 
   if patchesApplied < expectedPatches:
     echo "  [FAIL] Only " & $patchesApplied & "/" & $expectedPatches & " patches applied"
@@ -145,6 +141,6 @@ when isMainModule:
   let output = apply(input)
   if output != input:
     writeFile(filePath, output)
-    echo "  [PASS] Startup settings patched successfully"
+    echo "  [PASS] Startup settings: native XDG autostart confirmed + session-restore detection injected"
   else:
-    echo "  [WARN] No changes made (patterns matched but already applied)"
+    echo "  [PASS] Startup settings: native XDG autostart confirmed (session-restore already patched)"

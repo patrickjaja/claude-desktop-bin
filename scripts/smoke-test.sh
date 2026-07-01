@@ -92,12 +92,11 @@ done
 
 # Check stderr for JS runtime errors. Filter out known-benign noise that
 # fires in the test environment but is harmless at runtime:
-#   - cowork-vm-service.sock ENOENT: cowork-svc is a separate user-level
-#     daemon installed alongside (not part of) Claude Desktop. The smoke
-#     test runs in a bare xvfb without it, so the VM client's eager
-#     subscription always fails. The connection is retried lazily once a
-#     real cowork session starts, so the absence at startup doesn't break
-#     anything we're testing here.
+#   - cowork-vm-service.sock ENOENT: a legacy out-of-tree cowork daemon
+#     (claude-cowork-service, now deprecated — the official build runs Cowork
+#     natively) listened on this socket. The smoke test runs in a bare xvfb,
+#     so any eager connect to a non-existent socket just ENOENTs. The filter
+#     stays as harmless belt-and-suspenders; it doesn't mask anything we test.
 ERROR_PATTERN='(TypeError|ReferenceError|SyntaxError|Cannot read properties|ENOENT)'
 ERRORS=$(grep -E "$ERROR_PATTERN" "$STDERR_LOG" \
     | grep -v 'cowork-vm-service\.sock' \

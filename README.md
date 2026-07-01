@@ -13,6 +13,8 @@
 
 Unofficial Linux packages for Claude Desktop AI assistant with automated updates.
 
+This project repackages [Anthropic's official Claude Desktop Linux `.deb`](https://code.claude.com/docs/en/desktop-linux) for the distros Anthropic does not ship directly (Arch/AUR, Fedora/RHEL, NixOS, AppImage, and our own Debian/Ubuntu `.deb`), and layers on Linux-only extras: [Computer Use](#computer-use), [custom themes](#custom-themes), [multiple profiles](#multiple-profiles), and [Quick Entry](#known-limitations). If you run Ubuntu 22.04+/Debian 12+ and only need the base app, Anthropic's [official `.deb`](https://code.claude.com/docs/en/desktop-linux) works directly.
+
 <details>
 <summary><b>Table of contents</b></summary>
 
@@ -80,6 +82,9 @@ On Sway, Hyprland, or GNOME Wayland, the `ydotoold` daemon must be running - see
 Updates arrive through your AUR helper (e.g. `yay -Syu`).
 
 ### Debian / Ubuntu (APT Repository)
+
+> **Requires Ubuntu 22.04+ / Debian 12+** (glibc 2.34 or newer). Debian 11 (bullseye) is no longer supported.
+
 ```bash
 # Add repository (one-time setup)
 curl -fsSL https://patrickjaja.github.io/claude-desktop-bin/install.sh | sudo bash
@@ -288,7 +293,7 @@ Claude Desktop works without these - features degrade gracefully when tools are 
 | Feature | Packages | Notes |
 |---------|----------|-------|
 | **Computer Use** | See table below | Install manually for your session type (X11 or Wayland) - the app auto-detects which tools to call at runtime |
-| **Cowork & Dispatch** | [`claude-cowork-service`](https://github.com/patrickjaja/claude-cowork-service) | Agentic workspace and mobile→desktop task orchestration |
+| **Cowork & Dispatch** | `/dev/kvm` (host) | Run on the official native Cowork VM backend bundled in the package; no separate daemon needed |
 | **Claude Code CLI** | [`claude`](https://code.claude.com/docs/en/setup) | Required for Code integration, Cowork, and Dispatch |
 | **Browser Tools** | [Claude in Chrome extension](https://chromewebstore.google.com/detail/claude-code/fcoeoabgfenejglbffodgkkbkcdhcgfn) | Uses Claude Code's native host (`~/.claude/chrome/chrome-native-host`). Claude Code CLI must be installed |
 | **Custom MCP Servers** | `nodejs` | Only needed for third-party MCP servers requiring system Node.js |
@@ -339,14 +344,14 @@ Restart Claude Desktop after setup.
 
 ## Features
 
-All major Claude Desktop features work natively on Linux through [42+ patches](#patches):
+All major Claude Desktop features work natively on Linux through [48 patches](#patches):
 
 - [**Claude Chat**](#claude-chat) - full desktop UI on Linux (x86_64 and ARM64, X11 and Wayland)
 - [**Claude Code CLI**](#claude-code-integration) - auto-detects system-installed Claude Code ([setup](https://code.claude.com/docs/en/setup))
 - [**Local Agent Mode**](#claude-code-integration) - git worktrees and agent sessions
-- [**Cowork**](#cowork-integration) - agentic workspace with [Live Artifacts](#live-artifacts), [CoworkSpaces](#coworkspaces), and [Imagine/Visualize](#cowork-integration) (requires [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service))
+- [**Cowork**](#cowork-integration) - agentic workspace with [Live Artifacts](#live-artifacts), [CoworkSpaces](#coworkspaces), and [Imagine/Visualize](#cowork-integration) (runs on the official native Cowork VM backend bundled in the package; requires `/dev/kvm`)
 - [**Computer Use**](#computer-use) - 27 desktop automation tools (screenshot, click, type, scroll, drag, teach mode, and more) - see [Optional Dependencies](#optional-dependencies)
-- [**Dispatch**](#dispatch-architecture) - phone→desktop task orchestration via Anthropic's dispatch agent (requires [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service))
+- [**Dispatch**](#dispatch-architecture) - phone→desktop task orchestration via Anthropic's dispatch agent (runs on the bundled native Cowork backend)
 - [**Browser Tools**](#features) - 18 Chrome automation tools via the [Claude in Chrome](https://chromewebstore.google.com/detail/claude-code/fcoeoabgfenejglbffodgkkbkcdhcgfn) extension
 - [**Third-Party Inference**](#third-party-inference) - use Vertex AI, Bedrock, Azure AI Foundry, or any Anthropic-compatible gateway ([docs](https://claude.com/docs/cowork/3p/installation))
 - [**Hardware Buddy (Nibblet)**](#hardware-buddy-nibblet) - BLE companion device showing animated session state (requires `bluez`)
@@ -360,7 +365,7 @@ Features unique to the Linux port - not available in upstream Claude Desktop:
 
 - [**Custom Themes**](#custom-themes) - 7 built-in dual light/dark themes (Mario, Sweet, Nord, 4x Catppuccin), each with a custom loading spinner, or create your own via JSON config. See [themes/README.md](themes/README.md) for the full guide
 - [**Multiple Profiles**](#multiple-profiles) - run several instances side by side, each logged in to a different account with fully isolated state. `claude-desktop --create-profile=work` and you're done
-- [**Cowork Backend**](#cowork-integration) - [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service) enables Cowork, Dispatch, and Live Artifacts on Linux via a **native** backend (default, no VM overhead) or an experimental **[KVM backend](https://github.com/patrickjaja/claude-cowork-service#kvm-backend-experimental)** for sandboxed execution matching macOS/Windows
+- [**Computer Use**](#computer-use) - full desktop automation (screenshot/click/type/scroll/drag) wired to Linux input + screenshot backends (xdotool/ydotool, grim/spectacle/scrot, plus the bundled `kwin-portal-bridge` for KDE Wayland). Not part of the official Linux beta - this is our own implementation
 
 ## Claude Chat
 
@@ -388,10 +393,18 @@ The patch auto-detects claude in `/usr/bin`, `~/.local/bin`, and `/usr/local/bin
 
 ## Cowork Integration
 
-Cowork is Claude Desktop's agentic workspace feature. This package patches it to work on Linux using [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service), which offers two backends:
+Cowork is Claude Desktop's agentic workspace feature. It runs on the **official native Cowork VM backend** bundled inside the package (cowork-linux-helper + virtiofsd + smol-bin + QEMU/OVMF) - the same backend Anthropic ships in the official Linux build. Sessions run in a lightweight VM with `$HOME` shared in; this requires **`/dev/kvm`** on the host. There is no separate daemon to install - our repackage simply preserves the official backend.
 
-- **Native** (default) - runs commands directly on your host. Zero VM overhead, ideal for most users.
-- **KVM** (experimental) - runs sessions inside a QEMU/KVM virtual machine, matching the sandboxed execution model of macOS and Windows. See the [KVM Backend docs](https://github.com/patrickjaja/claude-cowork-service#kvm-backend-experimental) for prerequisites and setup.
+**Setup (needed once for Cowork):** install QEMU + UEFI firmware, and make sure you can access `/dev/kvm`:
+
+```bash
+# Arch:        sudo pacman -S --needed qemu-base edk2-ovmf
+# Fedora/RHEL: sudo dnf install qemu-system-x86 edk2-ovmf
+# Debian/Ubuntu: sudo apt install qemu-system-x86 ovmf
+sudo usermod -aG kvm "$USER"   # then log out and back in
+```
+
+If the workspace shows "Download failed" and clicking Download does nothing, it's almost always missing firmware (`edk2-ovmf`/`ovmf`) or missing `kvm` group membership.
 
 ![Cowork in Claude Desktop](docs/cowork/co_in_cd.png)
 
@@ -405,19 +418,13 @@ Live Artifacts are persistent HTML pages stored within Cowork sessions that can 
 
 ![Live Artifacts in Cowork](docs/cowork/live-artifacts.png)
 
-Requires Claude Code CLI (see above) and [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service). See its Installation section for distro-specific instructions ([APT](https://github.com/patrickjaja/claude-cowork-service#debian--ubuntu-apt-repository), [DNF](https://github.com/patrickjaja/claude-cowork-service#fedora--rhel-dnf-repository), [AUR](https://github.com/patrickjaja/claude-cowork-service#arch-linux-aur), [Nix](https://github.com/patrickjaja/claude-cowork-service#nixos), or [binary install](https://github.com/patrickjaja/claude-cowork-service#quick-install-any-distro-x86_64--arm64)).
+Requires Claude Code CLI (see above) and a host with `/dev/kvm` available (the bundled native Cowork VM backend uses it).
 
 ## CoworkSpaces
 
-CoworkSpaces organizes folders, projects, and links into named Spaces for Cowork sessions. On macOS/Windows this is handled by the native backend (`@ant/claude-swift`). On Linux, `fix_cowork_spaces.nim` provides a full file-based implementation:
+CoworkSpaces organizes folders, projects, and links into named Spaces for Cowork sessions. This is handled by the official build's native backend; Spaces are stored locally per account (under `~/.config/Claude/local-agent-mode-sessions/`). The Spaces UI is rendered by the claude.ai web frontend (loaded in the BrowserView).
 
-- Stores spaces in `~/.config/Claude/spaces.json`
-- Full CRUD: create, update, delete spaces with folders, projects, and links
-- File operations: list folder contents, read files, open with system handler
-- Auto-memory directories per space (`~/.config/Claude/spaces/<id>/memory/`)
-- Integrates with the SpaceManager singleton so `resolveSpaceContext` works for sessions
-
-The Spaces UI is rendered by the claude.ai web frontend (loaded in the BrowserView).
+Note: Spaces are a **local-only** store on every platform - there is no claude.ai account-sync for Spaces, so a set of Spaces created on macOS/Windows does not transfer to Linux. This is upstream behavior by design.
 
 ## Computer Use
 
@@ -455,25 +462,27 @@ Hardware Buddy connects Claude Desktop to a [Nibblet](https://github.com/felixri
 
 ## Third-Party Inference
 
-**Run Claude Desktop entirely on your own inference backend - no personal claude.ai login required.** Point it at **Vertex AI** (Google Cloud), **Bedrock** (AWS), **Azure AI Foundry** (Microsoft), or any **Anthropic-compatible gateway** (LiteLLM, Portkey, in-house proxies) via a single `/etc/claude-desktop/enterprise.json`. Chat, Code, and Cowork all work in 3P mode on Linux today.
+**Run Claude Desktop entirely on your own inference backend - no personal claude.ai login required.** Point it at **Vertex AI** (Google Cloud), **Bedrock** (AWS), **Azure AI Foundry** (Microsoft), or any **Anthropic-compatible gateway** (LiteLLM, Portkey, in-house proxies) via a single `/etc/claude-desktop/managed-settings.json`. Chat, Code, and Cowork all work in 3P mode on Linux today.
+
+> **Migrating from `enterprise.json`?** The official Linux build reads `/etc/claude-desktop/managed-settings.json` (earlier releases of this package used `enterprise.json`). Rename the file - `sudo mv /etc/claude-desktop/enterprise.json /etc/claude-desktop/managed-settings.json` - the schema and keys (`managedMcpServers`, `inferenceProvider`, `deploymentMode`, `betaFeaturesEnabled`, …) are unchanged.
 
 ![Cowork running in Gateway (3P) mode on Linux](docs/3p/2026-06-18_21-43.png)
 
 > ⚡ **Try it in 5 minutes.** Stand up a local LiteLLM proxy, drop one JSON file, and you're running Cowork against your own endpoint - see the [**LiteLLM quickstart**](docs/third-party-inference.md#5-minute-local-quickstart-litellm-container). No claude.ai account, no cloud setup.
 
-**Enable the tabs you want.** The Chat, Cowork, and Code surfaces are managed-config toggles (all `scopes:["3p"]`): add `"betaFeaturesEnabled": true`, `"chatTabEnabled": true`, `"coworkTabEnabled": true`, and `"isClaudeCodeForDesktopEnabled": true` to your `enterprise.json`. For a full feature-complete file - surfaces, governance, telemetry, sandbox, usage limits - see the [**maximum `enterprise.json`**](docs/third-party-inference.md#maximum-enterprisejson-every-key).
+**Enable the tabs you want.** The Chat, Cowork, and Code surfaces are managed-config toggles (all `scopes:["3p"]`): add `"betaFeaturesEnabled": true`, `"chatTabEnabled": true`, `"coworkTabEnabled": true`, and `"isClaudeCodeForDesktopEnabled": true` to your `managed-settings.json`. For a full feature-complete file - surfaces, governance, telemetry, sandbox, usage limits - see the [**maximum `managed-settings.json`**](docs/third-party-inference.md#maximum-managed-settingsjson-every-key).
 
-The in-app configuration window (**Developer → Configure Third-Party Inference**) lets you manage connection settings, provider credentials, model lists, sandbox/workspace restrictions, MCP servers, telemetry, usage limits, and org-plugin directories - all from a single UI. Configurations export as `.mobileconfig` (macOS MDM), `.reg` (Windows GPO), or plain JSON (Linux `/etc/claude-desktop/enterprise.json`).
+The in-app configuration window (**Developer → Configure Third-Party Inference**) lets you manage connection settings, provider credentials, model lists, sandbox/workspace restrictions, MCP servers, telemetry, usage limits, and org-plugin directories - all from a single UI. Configurations export as `.mobileconfig` (macOS MDM), `.reg` (Windows GPO), or plain JSON (Linux `/etc/claude-desktop/managed-settings.json`).
 
-**How it works on Linux:** The upstream SPA requires two patches on Linux (`fix_ion_dist_linux.nim`): a `mountPath` entry for the Linux org-plugins directory, and a platform ternary fix. Only the file manager label text was upstreamed in v1.8089.0. The main process reads enterprise config from `/etc/claude-desktop/enterprise.json` and passes `platform: "linux"` to the frontend.
+**How it works on Linux:** The upstream SPA requires two patches on Linux (`fix_ion_dist_linux.nim`): a `mountPath` entry for the Linux org-plugins directory, and a platform ternary fix. Only the file manager label text was upstreamed in v1.8089.0. The main process reads enterprise config from `/etc/claude-desktop/managed-settings.json` and passes `platform: "linux"` to the frontend.
 
-**Enterprise deployment:** Use MDM (macOS), GPO (Windows), or drop a JSON file at `/etc/claude-desktop/enterprise.json` (Linux) to manage fleet-wide configuration.
+**Enterprise deployment:** Use MDM (macOS), GPO (Windows), or drop a JSON file at `/etc/claude-desktop/managed-settings.json` (Linux) to manage fleet-wide configuration.
 
-**Switching back to personal (1P) login:** deployment mode is **sticky** - the first 3P launch persists `"deploymentMode": "3p"` to `~/.config/Claude-3p/claude_desktop_config.json`, so simply deleting `enterprise.json` leaves the app stuck in (now credential-less) 3P mode. Launch once with the upstream flag `claude-desktop --boot-1p-once`, or set that key to `"1p"` for a permanent switch. See [docs/third-party-inference.md → Common gotchas](docs/third-party-inference.md#common-gotchas).
+**Switching back to personal (1P) login:** deployment mode is **sticky** - the first 3P launch persists `"deploymentMode": "3p"` to `~/.config/Claude-3p/claude_desktop_config.json`, so simply deleting `managed-settings.json` leaves the app stuck in (now credential-less) 3P mode. Launch once with the upstream flag `claude-desktop --boot-1p-once`, or set that key to `"1p"` for a permanent switch. See [docs/third-party-inference.md → Common gotchas](docs/third-party-inference.md#common-gotchas).
 
-**Linux setup walkthrough:** The official 3P docs only cover macOS and Windows. See [docs/third-party-inference.md](docs/third-party-inference.md) for a Linux-specific guide - the in-app wizard route (requires Developer Mode), a headless `enterprise.json` route with worked **Vertex AI** (`gcloud` ADC) and **LiteLLM gateway** examples, and how to verify it via `main.log`.
+**Linux setup walkthrough:** The official 3P docs only cover macOS and Windows. See [docs/third-party-inference.md](docs/third-party-inference.md) for a Linux-specific guide - the in-app wizard route (requires Developer Mode), a headless `managed-settings.json` route with worked **Vertex AI** (`gcloud` ADC) and **LiteLLM gateway** examples, and how to verify it via `main.log`.
 
-**`enterprise.json` key reference (official Anthropic docs):**
+**`managed-settings.json` key reference (official Anthropic docs):**
 
 - [Configuration reference](https://claude.com/docs/cowork/3p/configuration) - the full key reference (`inferenceProvider`, `inferenceModels` + `anthropicFamilyTier`, gateway/Bedrock/Vertex/Foundry keys, credential helpers, sandbox & security profiles).
 - [Enterprise configuration for Claude Desktop](https://support.claude.com/en/articles/12622667-enterprise-configuration-for-claude-desktop) - managed-preferences overview for fleet rollouts.
@@ -518,8 +527,7 @@ The package applies several patches to make Claude Desktop work on Linux. Each p
 | Patch | Purpose | Debug pattern |
 |-------|---------|---------------|
 | `add_feature_custom_themes.nim` | CSS theme injection - 7 dual light/dark themes (mario, sweet, nord, catppuccin-*) + per-theme spinner reshape | Prepended IIFE, no regex |
-| `claude-native.js` | Linux stubs for `@anthropic/claude-native` (Windows-only module) | Static file, no regex |
-| `enable_local_agent_mode.nim` | Removes platform gates for Code/Cowork features, spoofs UA | `rg -o 'function \w+\(\)\{return process\.platform.*status' index.js` |
+| `enable_local_agent_mode.nim` | Forces Local Agent Mode / Code / plugin feature flags on and spoofs the client-OS platform header. Does not force-mark the Cowork VM features (`yukonSilver`/`coworkKappa`/…) - those now reflect the native VM-capability probe | `rg -o 'status:"supported".{0,40}' index.js`; `rg -o 'anthropic-client-os-platform.{0,40}' index.js` |
 | `fix_0_node_host.nim` | Fixes 4 sidecar runtime paths (MCP nodeHost, directMcpHost, shell-path-worker, transcript-search-worker) that join `process.resourcesPath+"app.asar"`; without this `fix_locale_paths` corrupts them into `resources/locales/app.asar/...` (remote MCP fails with ERR_MODULE_NOT_FOUND, issue #140) | `rg -o 'process\.resourcesPath,"app.asar"' index.js` |
 | `fix_app_quit.nim` | Uses `app.exit(0)` to prevent hang on exit | `rg -o '.{0,50}app\.quit.{0,50}' index.js` |
 | `fix_asar_folder_drop.nim` | Prevents app.asar from being misdetected as a folder drop on launch ([#24](https://github.com/patrickjaja/claude-desktop-bin/issues/24)) | `rg -o 'filter.*\.asar' index.js` |
@@ -532,22 +540,19 @@ The package applies several patches to make Claude Desktop work on Linux. Each p
 | `fix_cli_governor_memavailable.nim` | Computes CliGovernor memory pressure from `MemAvailable`/`MemTotal` (`/proc/meminfo`) instead of Electron's `free` (= Linux `MemFree`, which excludes reclaimable page cache) - stops false `[CliGovernor] memory pressure` warnings on healthy systems; falls back to the upstream metric if the `/proc` read fails ([#128](https://github.com/patrickjaja/claude-desktop-bin/issues/128)) | `rg -o 'getFreeMemoryRatio.{0,160}' index.js` |
 | `fix_computer_use_linux.nim` | Enables Computer Use - removes platform gates, routes both executor factories to an injected Linux executor (portal+PipeWire/grim/GNOME D-Bus/spectacle/scrot, xdotool/ydotool) | `rg -o '.{0,60}executor not implemented' index.js` |
 | `fix_computer_use_tcc.nim` | Stubs macOS TCC permission handlers to prevent error logs | Prepended IIFE, UUID extraction |
-| `fix_cowork_download_status_linux.nim` | Suppresses the false VM-download banner and prevents background VM provisioning on Linux **native** mode (no VM image needed); leaves win/mac and Linux-KVM untouched. Gated on `process.platform==="linux"&&!globalThis.__coworkKvmMode` | `rg -o 'getDownloadStatus\(\)\{return.{0,40}' index.js`; `rg -o 'setYukonSilverConfig\(.{0,60}' index.js` |
-| `fix_cowork_error_message.nim` | Replaces Windows VM errors with Linux-friendly guidance | String literal match |
 | `fix_cowork_font.nim` | Applies the user's chat font preference to the Cowork tab on load (avoids default Serif) | Prepended dom-ready IIFE, no regex |
-| `fix_cowork_linux.nim` | Enables Cowork - VM client, Unix socket, bundle config, binary resolution | `rg -o '.{0,50}vmClient.{0,50}' index.js` |
-| `fix_cowork_sandbox_refs.nim` | Replaces VM/sandbox system prompts and tool descriptions with accurate host-system text | `rg 'lightweight Linux VM\|isolated Linux' index.js` |
-| `fix_cowork_first_bash.nim` | Fixes first bash command returning empty output - events socket race condition | `rg -o 'subscribeEvents' index.js` |
-| `fix_cowork_spaces.nim` | File-based CoworkSpaces service (CRUD, file ops, events) | `rg -o 'CoworkSpaces' index.js` |
+| `fix_cowork_firmware_paths_linux.nim` | Adds Fedora/RHEL + Arch OVMF firmware paths (and Arch's `/usr/lib/virtiofsd`) to the native Cowork VM capability probe, which otherwise only searches the Debian paths - fixes "Download failed" / inert Download button on non-Debian distros | `rg -o 'OVMF_CODE.{0,80}' index.js` |
 | `fix_cross_device_rename.nim` | EXDEV fallback for cross-filesystem file moves | Uses `.rename(` literal |
 | `fix_detected_projects_linux.nim` | Enables detected projects with Linux IDE paths (VSCode, Cursor, Zed) | `rg -o 'detectedProjects.{0,50}' index.js` |
 | `fix_disable_autoupdate.nim` | Disables auto-updater (no Linux installer) | `rg -o '.{0,40}isInstalled.{0,40}' index.js` |
 | `fix_dispatch_linux.nim` | Enables Dispatch - forces bridge init, bypasses platform gate, forwards responses natively | `rg -o 'sessions-bridge.*init' index.js` |
 | `fix_dock_bounce.nim` | Suppresses taskbar attention-stealing on KDE/Wayland | Prepended IIFE, no regex |
-| `fix_enterprise_config_linux.nim` | Reads enterprise config from `/etc/claude-desktop/enterprise.json` | `rg -o 'enterprise.json' index.js` |
+| `fix_enterprise_config_linux.nim` | Regression guard: the official build reads managed config natively from `/etc/claude-desktop/managed-settings.json` (top-level key `managedMcpServers`); this patch asserts that native reader is present and fails the build loudly if it disappears | `rg -o '/etc/claude-desktop.{0,40}managed-settings' index.js` |
+| `fix_enterprise_config_linux_pre.nim` | Regression guard for the early bootstrap bundle (`index.pre.js`): asserts the native managed-config reader is present there too (the bootstrap decides the `-3p` userData split) and fails loudly if it disappears | `rg -o '/etc/claude-desktop.{0,40}managed-settings' index.pre.js` |
 | `fix_imagine_linux.nim` | Enables Imagine/Visualize - forces GrowthBook flag for inline SVG/HTML rendering | `rg -o '3444158716' index.js` |
 | `fix_ion_dist_linux.nim` | Adds Linux org-plugins mount path + platform ternary to ion-dist 3P config SPA | `rg -o 'mountPath.{0,80}' ion-dist/assets/v1/*.js` |
-| `fix_locale_paths.nim` | Redirects locale file paths to Linux install location (also handles `index.pre.js` if present) | Global string replace on `process.resourcesPath` |
+| `fix_locale_paths.nim` | Redirects locale file paths to Linux install location | Global string replace on `process.resourcesPath` |
+| `fix_locale_paths_pre.nim` | Companion for the early bootstrap bundle (`index.pre.js`): redirects `process.resourcesPath` if the bootstrap reintroduces one, else positively asserts the bootstrap references none (no silent no-op) | `rg -o 'process\.resourcesPath.{0,40}' index.pre.js` |
 | `fix_marketplace_linux.nim` | Forces host-local mode for plugin operations (no VM); promotes `$HOME`-scoped CLI plugins to user scope so they appear under "Personal Plugins" | `rg -o 'function \w+\(\w+\)\{return\(\w+==null.*mode.*ccd' index.js` |
 | `fix_native_frame.nim` | Default: Windows-style integrated titlebar on Linux. Opt-out via `CLAUDE_NATIVE_TITLEBAR=1` or `--native-titlebar` to restore the native GTK frame. Preserves Quick Entry. | `rg -o 'titleBarStyle:process\.platform.{0,80}' index.js` |
 | `fix_native_frame_renderer.nim` | Renderer companion to `fix_native_frame`. As of v1.13576 the fix is upstreamed (the main-window title-bar component returns `null` natively), so this patch is now a regression guard: it asserts the upstream `null` short-circuit still exists and fails the build loudly if a future release reintroduces the pointer-absorbing drag region. | `rg -o '\{isMainWindow:\w+,.{0,80}return null' MainWindowPage-*.js` |
@@ -563,14 +568,13 @@ The package applies several patches to make Claude Desktop work on Linux. Each p
 | ~~`fix_read_terminal_linux.py`~~ | **Removed in v1.2.234** - upstream now natively supports Linux | N/A |
 | `fix_renderer_gone_suppressed_log.nim` | Logs main-webview renderer deaths that upstream silently swallows (expected kills, `killed`/`clean-exit` reasons - a kernel OOM SIGKILL maps to `killed`, so OOM-killed renderers left no trace in main.log) ([#128](https://github.com/patrickjaja/claude-desktop-bin/issues/128)) | `rg -o 'render process gone \(suppressed\).{0,60}' index.js` |
 | `fix_sensitive_dirs_linux.nim` | Adds Linux entries (`.local/share/keyrings`, `.pki`, `.config/autostart`) to the sandbox sensitive-directories block list | `rg -o '\.gnupg.{0,80}' index.js` |
-| `fix_startup_settings.nim` | XDG autostart management for "Start at login" toggle; per-profile autostart files for named profiles | `rg -o 'isStartupOnLoginEnabled.{0,50}' index.js` |
-| `fix_terminal_shell_linux.nim` | Rewrites the hardcoded `powershell.exe` shell of the built-in agent/Cowork terminal to a platform-aware ternary (`$SHELL` → `/bin/bash` → `/bin/sh` off-Windows, the last for NixOS), so the PTY no longer dies with exit code 1 ([#143](https://github.com/patrickjaja/claude-desktop-bin/issues/143)) | `rg -o '\{shell:"powershell\.exe".{0,20}' index.js` |
+| `fix_startup_settings.nim` | The official build now manages the XDG autostart `.desktop` entry natively for the "Start at login" toggle; the read/write paths are kept as regression guards asserting that native behavior, plus per-profile autostart-file handling for named profiles | `rg -o 'isStartupOnLoginEnabled.{0,50}' index.js` |
+| `fix_terminal_shell_linux.nim` | Regression guard: the official build's agent/Cowork terminal natively resolves a POSIX login shell (`$SHELL` → … → `/bin/sh`) instead of the old hardcoded `powershell.exe` ([#143](https://github.com/patrickjaja/claude-desktop-bin/issues/143)); this patch asserts that native resolver is present and fails the build loudly if it regresses to a fixed shell | `rg -o 'shell:\w+\(\).{0,40}' index.js` |
 | `fix_tray_dbus.nim` | Prevents DBus race conditions with mutex and cleanup delay | `rg -o 'menuBarEnabled.*function' index.js` |
 | `fix_tray_icon_theme.nim` | Theme-aware tray icon (light/dark) | `rg -o 'nativeTheme.{0,50}tray' index.js` |
 | ~~`fix_tray_path.py`~~ | **Removed** - tray icon paths handled by `fix_locale_paths.nim` | N/A |
 | `fix_updater_state_linux.nim` | Adds version fields to idle updater state to prevent TypeError | `rg -o 'status:"idle".{0,50}' index.js` |
 | `fix_utility_process_kill.nim` | SIGKILL fallback when UtilityProcess doesn't exit gracefully | `rg -o 'Killing utiltiy proccess' index.js` |
-| `fix_vm_session_handlers.nim` | Global exception handler for VM session safety | Prepended IIFE with fallbacks |
 | `fix_window_bounds.nim` | Fixes BrowserView bounds on maximize/snap, Quick Entry blur | Injected IIFE, minimal regex |
 
 When Claude Desktop updates break a patch, only the specific patch file needs updating. The **debug pattern** column shows the `rg` command to find the relevant code in the new version's `index.js`.
@@ -661,14 +665,14 @@ Subcommands honor the active profile: `claude-desktop-work --toggle` toggles wor
 
 | Resource | Default profile | Named profile (e.g. `work`) |
 |---|---|---|
-| Electron userData (login, logs, settings, custom themes, spaces.json, PipeWire portal token) | `~/.config/Claude` | `~/.config/Claude-work` |
+| Electron userData (login, logs, settings, custom themes, Cowork sessions/Spaces, PipeWire portal token) | `~/.config/Claude` | `~/.config/Claude-work` |
 | Claude Code config (settings, projects, sessions, plugins) | `~/.claude` | `~/.claude-work` |
 | Quick Entry toggle socket | `$XDG_RUNTIME_DIR/claude-desktop-qe.sock` | `…/claude-desktop-qe-work.sock` |
 | systemd user scope (cgroup, portal identity) | `app-claude-PID.scope` | `app-claude-work-PID.scope` |
 | WM_CLASS / Wayland app_id (taskbar grouping, Alt-Tab) | `claude` | `claude-work` |
 | XDG autostart entry ("Start at login") | `~/.config/autostart/claude.desktop` | `…/claude-work.desktop` |
 
-The cowork VM-service socket (`$XDG_RUNTIME_DIR/cowork-vm-service.sock`) is **shared** across all profiles. The cowork-svc daemon is a stateless process spawner - per-profile isolation comes from the spawned `claude` CLI inheriting `CLAUDE_CONFIG_DIR=~/.claude-NAME` and using the per-profile `--plugin-dir` (which derives from Electron's `app.getPath("userData")`). One daemon serves them all.
+Cowork runs on the official native VM backend bundled in the package. Per-profile isolation comes from the spawned `claude` CLI inheriting `CLAUDE_CONFIG_DIR=~/.claude-NAME` and using the per-profile `--plugin-dir` (which derives from Electron's `app.getPath("userData")`), so each profile's sessions stay separate.
 
 Plugins, MCP servers, login state, and chat history from one profile are **not** visible in another. This is by design - profiles are independent installs, not views into shared state.
 
@@ -803,7 +807,7 @@ Phone → Anthropic API → SSE → Claude Desktop → Ditto agent (via cowork-s
   └── Ditto has access to all SDK MCP servers (Gmail, Drive, Chrome, etc.)
 ```
 
-On Windows/Mac, dispatch runs inside a VM. On Linux, [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service) handles it natively with several adaptations (stripping VM-only tool restrictions, path mapping, local `present_files` interception). See the [Dispatch Support](https://github.com/patrickjaja/claude-cowork-service#dispatch-support) section in claude-cowork-service for full technical details.
+Dispatch runs inside the Cowork VM backend on every platform. On Linux the official build provides this backend natively (bundled in the package; requires `/dev/kvm`), so dispatched tasks execute in the same sandboxed VM as Cowork sessions.
 
 
 ## Known Limitations
@@ -849,7 +853,7 @@ attach to the same id and survive across sessions.
 - **Sandboxes / containers without a reachable user-systemd** (bwrap, distrobox, restricted Flatpaks): the launcher auto-detects when `$XDG_RUNTIME_DIR/systemd/private` is missing and skips the scope wrap. Portal identity may not resolve in these environments; the app still starts. If the socket exists but is still unreachable (SELinux, bind-mount filters), force the bypass with `--no-systemd-scope` or `CLAUDE_DISABLE_SYSTEMD_SCOPE=1`. See [#89](https://github.com/patrickjaja/claude-desktop-bin/issues/89).
 
 ## Cleanup
-- **Clear stale Cowork sessions** (stuck "setting up workspace", or the model replaying old errors): remove the sessions dir and restart. Default profile uses `~/.config/Claude/`; with an `enterprise.json` (3p) it's `~/.config/Claude-3p/`, and named profiles use `~/.config/Claude-<profile>/`.
+- **Clear stale Cowork sessions** (stuck "setting up workspace", or the model replaying old errors): remove the sessions dir and restart. Default profile uses `~/.config/Claude/`; with an `managed-settings.json` (3p) it's `~/.config/Claude-3p/`, and named profiles use `~/.config/Claude-<profile>/`.
   ```bash
   rm -rf ~/.config/Claude/local-agent-mode-sessions/
   ```

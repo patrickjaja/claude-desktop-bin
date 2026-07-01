@@ -8,6 +8,7 @@ on:
 permissions:
   issues: write
   contents: write
+  actions: write   # to dispatch build-and-release.yml on a new version (auto-PR path)
 
 jobs:
   check-version:
@@ -15,33 +16,37 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Query latest upstream version
+      # ----------------------------------------------------------------
+      # Poll the official Linux .deb apt repository (NOT the old Windows
+      # win32/x64/.latest endpoint). The shared helper GPG-verifies the
+      # signed Release, validates the Packages index against it, and prints
+      # the highest version across amd64+arm64.
+      # ----------------------------------------------------------------
+      - name: Query latest upstream version (apt Packages, GPG-verified)
         id: upstream
         run: |
-          LATEST_JSON=$(wget -q -O - "https://downloads.claude.ai/releases/win32/x64/.latest") || {
-            echo "::warning::Failed to query Claude version API"
+          if ! VERSION=$(bash .github/scripts/apt-fetch-verify.sh poll 2>/tmp/poll.err); then
+            echo "::warning::Failed to query/verify the apt repository"
+            cat /tmp/poll.err >&2 || true
             exit 0
-          }
-
-          VERSION=$(echo "$LATEST_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['version'])")
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          echo "Upstream version: ${VERSION}"
+          fi
+          VERSION=$(echo "$VERSION" | tr -d '[:space:]')
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Upstream version (apt): ${VERSION}"
 
       - name: Get current tracked version
         id: tracked
         if: steps.upstream.outputs.version
         run: |
-          # Read from .upstream-version (committed to repo, tracks which Claude
-          # Desktop version our patches & docs were last validated against).
-          # Bump + commit this file once a version has been handled - even a
-          # trivial build bump with no public release - to silence the issue.
+          # .upstream-version tracks which Claude Desktop version our patches &
+          # docs were last validated against. Bump + commit it once a version is
+          # handled - even a trivial build bump - to silence the issue.
           if [ -f .upstream-version ]; then
-            CURRENT=$(cat .upstream-version | tr -d '[:space:]')
+            CURRENT=$(tr -d '[:space:]' < .upstream-version)
           else
             CURRENT=""
           fi
-
-          echo "version=${CURRENT}" >> $GITHUB_OUTPUT
+          echo "version=${CURRENT}" >> "$GITHUB_OUTPUT"
           echo "Current tracked version: ${CURRENT}"
 
       - name: Ensure new-version label exists
@@ -70,7 +75,7 @@ jobs:
             --json number \
             --jq 'length')
 
-          echo "count=${ISSUE_COUNT}" >> $GITHUB_OUTPUT
+          echo "count=${ISSUE_COUNT}" >> "$GITHUB_OUTPUT"
           echo "Open issues for v${UPSTREAM}: ${ISSUE_COUNT}"
 
       - name: Render issue body from template
@@ -121,6 +126,36 @@ jobs:
 
           echo "::notice::Created issue for new version v${UPSTREAM}"
 
+      # ----------------------------------------------------------------
+      # AUTO-PR path: on a newly detected version, kick off build-and-release
+      # in auto-PR mode. That run downloads + patches the official .deb,
+      # bumps .upstream-version + the Nix hash, and opens a PR (it does NOT
+      # publish a release - that stays behind a human merge + the existing
+      # workflow_dispatch release path). We dispatch only once per version by
+      # gating on the same "no open issue yet" condition used above, so the
+      # 2-hourly cron doesn't spawn duplicate runs.
+      # ----------------------------------------------------------------
+      - name: Trigger auto-PR build for the new version
+        if: |
+          steps.upstream.outputs.version &&
+          steps.tracked.outputs.version != steps.upstream.outputs.version &&
+          steps.existing.outputs.count == '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPSTREAM: ${{ steps.upstream.outputs.version }}
+          REPO: ${{ github.repository }}
+        run: |
+          if gh workflow run build-and-release.yml \
+              --repo "${REPO}" \
+              --ref master \
+              -f auto_pr=true \
+              -f deb_version="${UPSTREAM}" 2>/tmp/dispatch.err; then
+            echo "::notice::Dispatched auto-PR build for v${UPSTREAM}"
+          else
+            echo "::warning::Could not dispatch auto-PR build (continuing; issue still filed)"
+            cat /tmp/dispatch.err >&2 || true
+          fi
+
       - name: Update version badge on gh-pages
         if: steps.upstream.outputs.version && steps.tracked.outputs.version
         env:
@@ -133,7 +168,7 @@ jobs:
             MESSAGE="v${TRACKED} (latest)"
           else
             COLOR="red"
-            MESSAGE="v${TRACKED} ← v${UPSTREAM} available"
+            MESSAGE="v${TRACKED} <- v${UPSTREAM} available"
           fi
 
           REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"

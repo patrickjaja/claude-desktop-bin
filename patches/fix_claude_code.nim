@@ -11,29 +11,26 @@ proc apply*(input: string): string =
   result = input
   var failed = false
 
-  # Patch 1: getHostPlatform() - Add Linux support
-  # Uses backreference \2 in pattern to match same arch var
-  let platformPattern =
-    re"""(getHostPlatform\(\)\{const (\w+)=process\.arch;if\(process\.platform==="darwin"\)return \2==="arm64"\?"darwin-arm64":"darwin-x64";if\(process\.platform==="win32"\)return)(.+?)(;throw new Error\()"""
-
-  let m1 = result.find(platformPattern)
-  if m1.isSome:
-    let m = m1.get
-    let archVar = m.captures[1]
-    let win32Return = m.captures[2]
-    let linuxCheck =
-      "if(process.platform===\"linux\")return " & archVar &
-      "===\"arm64\"?\"linux-arm64\":\"linux-x64\";"
-    let replacement =
-      m.captures[0] & win32Return & ";" & linuxCheck & "throw new Error("
-    result =
-      result[0 ..< m.matchBounds.a] & replacement & result[m.matchBounds.b + 1 .. ^1]
-    echo "  [OK] getHostPlatform(): 1 match(es)"
-  elif "getHostPlatform(){" in result and
-      "if(process.platform===\"linux\")return" in result and "\"linux-x64\"" in result:
-    echo "  [OK] getHostPlatform(): already patched"
+  # Patch 1: getHostPlatform() Linux support — now a REGRESSION GUARD.
+  #
+  # The Windows MSIX's getHostPlatform() only handled darwin/win32 and threw on
+  # Linux, so we injected a linux branch. The official Linux .deb UPSTREAMED it:
+  # v1.17377 natively ships
+  #   getHostPlatform(){const e=process.arch;
+  #     if(process.platform==="darwin")return e==="arm64"?"darwin-arm64":"darwin-x64";
+  #     if(process.platform==="win32")return e==="arm64"?"win32-arm64":"win32-x64";
+  #     if(process.platform==="linux")return e==="arm64"?"linux-arm64":"linux-x64";
+  #     throw new Error(`Unsupported platform: ...
+  # Re-injecting a linux branch now would append a SECOND, dead one (the old
+  # find-pattern's `.+?` even swallowed the native branch). So per CLAUDE.md Rule 6
+  # we assert the native Linux branch is PRESENT and fail loud if a future bump
+  # ever removes it (which would break Claude Code's platform resolution on Linux).
+  let nativeLinuxHostPlatform =
+    re"""getHostPlatform\(\)\{const (\w+)=process\.arch;.*?if\(process\.platform==="linux"\)return \1==="arm64"\?"linux-arm64":"linux-x64""""
+  if result.find(nativeLinuxHostPlatform).isSome:
+    echo "  [OK] getHostPlatform(): native Linux branch present (linux-arm64/linux-x64) — regression guard satisfied"
   else:
-    echo "  [FAIL] getHostPlatform(): 0 matches, expected >= 1"
+    echo "  [FAIL] getHostPlatform(): native Linux branch NOT found — upstream may have dropped Linux support; re-audit Patch 1"
     failed = true
 
   # Patch 2: getBinaryPathIfReady() - Find claude binary on Linux

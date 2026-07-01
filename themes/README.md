@@ -358,10 +358,10 @@ To inspect the actual HTML structure and CSS classes used by each renderer windo
 extract the app bundle:
 
 ```bash
-# Place Claude.msix in the project root, then:
+# Crack the official .deb (the build script leaves it in ./tmp/), then extract app.asar:
 mkdir -p /tmp/claude-inspect
-7z x -o/tmp/claude-inspect Claude.msix -y
-asar extract /tmp/claude-inspect/app/resources/app.asar /tmp/claude-inspect/app
+dpkg-deb -x ./tmp/claude-desktop_*_amd64.deb /tmp/claude-inspect/deb
+asar extract /tmp/claude-inspect/deb/usr/lib/claude-desktop/resources/app.asar /tmp/claude-inspect/app
 ```
 
 ```bash

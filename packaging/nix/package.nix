@@ -25,7 +25,14 @@
 # To enable explicitly: python3.withPackages (ps: [ ps.pygobject3 ]) in systemPackages.
 # Claude Code CLI — required for Cowork, Dispatch, and Code integration
 , claude-code ? null    # auto-resolved by callPackage if in nixpkgs
-# Other optional
+# Cowork agent workspace VM (also requires /dev/kvm + kvm group membership).
+# NOTE: putting qemu on PATH is necessary but NOT sufficient on NixOS: the app's
+# capability probe searches for OVMF UEFI firmware at fixed /usr/share/... paths
+# (see fix_cowork_firmware_paths_linux), which NixOS does not populate. Full NixOS
+# Cowork support additionally needs the firmware exposed at one of those paths
+# (e.g. via an activation-script symlink into /usr/share/edk2/x64/) — tracked as a
+# known limitation. virtiofsd is bundled in the app payload.
+, qemu ? null           # provides qemu-system-x86_64 for the Cowork VM
 , socat ? null          # faster Quick Entry toggle (~2ms vs ~25ms python3)
 , nodejs ? null         # third-party MCP servers
 # Extra PATH entries for binaries not packaged in Nix (e.g. npm global, nvm)
@@ -34,8 +41,15 @@
 
 let
   # Updated automatically by CI (build-and-release.yml) on each release.
-  version = "1.17282.0";
-  hash = "sha256-PgUKQR5gJjS6L9hNQSjOt1hRPkTFCgzn5mNeolnvENM="; # TODO: update hash after CI builds release tarball
+  version = "1.17377.0";
+  hash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="; # TODO: CI updates this hash after building the release tarball
+  # The release tarball now also ships the official Electron runtime under
+  # electron/ (extracted from Anthropic's Linux .deb). On NixOS, however, that
+  # glibc-linked binary won't run without autoPatchelf + a runtime closure, so we
+  # keep using the nixpkgs `electron` derivation (idiomatic, sandbox-correct) and
+  # consume ONLY the patched app/ payload from the tarball. Pin `electron` to the
+  # major version the app expects (Electron 42; see the tarball's electron/version)
+  # via an override at call site if your nixpkgs default diverges.
 in
 stdenvNoCC.mkDerivation {
   pname = "claude-desktop-bin";
@@ -50,24 +64,42 @@ stdenvNoCC.mkDerivation {
 
   nativeBuildInputs = [ makeWrapper copyDesktopItems ];
 
-  # "name" becomes the .desktop filename (claude.desktop), matching APP_ID in
-  # the launcher for the systemd-scope / cgroup portal identity. startupWMClass
-  # must match the app's *live* app_id, which is "claude-desktop" - Chromium's
+  # "name" becomes the .desktop filename. It is "claude-desktop" so the installed
+  # file is claude-desktop.desktop, matching the app's *live* app_id - Chromium's
   # GetXdgAppId() reads the app's desktopName ("claude-desktop.desktop" in
   # app.asar package.json), strips ".desktop", and ignores the binary basename
-  # / --class / argv[0]. The binary rename below is kept only as a cosmetic
-  # argv[0] / scope hint; it does NOT set WM_CLASS. See issue #148.
+  # / --class / argv[0]. On native Wayland there is no WM_CLASS, so KWin/GNOME
+  # match the window to its .desktop by app_id; if the basename doesn't equal the
+  # app_id the dock icon is generic and Alt+Tab shows a duplicate (issue #148).
+  # startupWMClass=claude-desktop fixes the X11/XWayland path. The binary rename
+  # below is kept only as a cosmetic argv[0] / scope hint; it does NOT set
+  # WM_CLASS. Content mirrors the official Claude Desktop .deb.
   desktopItems = [
     (makeDesktopItem {
-      name = "claude";
+      name = "claude-desktop";
       desktopName = "Claude";
-      comment = "Claude AI Desktop Application";
-      exec = "claude-desktop %u";
+      genericName = "AI Assistant";
+      comment = "Desktop application for Claude.ai";
+      keywords = [ "AI" "Chat" "Assistant" "Claude" "Code" "LLM" ];
+      exec = "claude-desktop %U";
       icon = "claude-desktop";
-      categories = [ "Office" "Utility" "Chat" ];
+      categories = [ "Utility" "Development" ];
       mimeTypes = [ "x-scheme-handler/claude" ];
+      startupNotify = true;
       startupWMClass = "claude-desktop";
       terminal = false;
+      # second-instance just focuses mainWindow; suppress GNOME's "New Window" item
+      singleMainWindow = true;
+      actions = {
+        NewChat = {
+          name = "New chat";
+          exec = "claude-desktop claude://claude.ai/new";
+        };
+        NewCode = {
+          name = "New Claude Code session";
+          exec = "claude-desktop claude://code/new";
+        };
+      };
     })
   ];
 
@@ -112,6 +144,7 @@ stdenvNoCC.mkDerivation {
       ${lib.optionalString (gnome-screenshot != null) "--prefix PATH : ${gnome-screenshot}/bin"} \
       ${lib.optionalString (glib != null) "--prefix PATH : ${glib}/bin"} \
       ${lib.optionalString (nodejs != null) "--prefix PATH : ${nodejs}/bin"} \
+      ${lib.optionalString (qemu != null) "--prefix PATH : ${qemu}/bin"} \
       ${lib.optionalString (claude-code != null && extraSessionPaths == []) "--prefix PATH : ${claude-code}/bin"} \
       ${lib.concatMapStringsSep " \\\n      " (p:
         let path = if builtins.isString p then p else "${p}/bin";

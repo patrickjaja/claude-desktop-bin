@@ -1,13 +1,13 @@
 ---
 name: linux
-description: Linux compatibility reference for the claude-desktop-bin project (patching the upstream Claude Desktop msix for Linux). Use when working on Linux support, session managers, distros, Computer Use input/screenshot backends, glibc floors, Wayland/X11, multi-profile, or any patch in patches/*.nim. Loads the distro/session matrix, the input + screenshot cascades, native-binary glibc floors, and known Linux gotchas.
-when_to_use: When the user mentions Linux compatibility, X11, Wayland, wlroots, GNOME, KDE, XWayland, a distro (Arch/Ubuntu/Debian/Fedora/RHEL/NixOS/Jetson), xdotool/ydotool/grim/spectacle, glibc, node-pty, kwin-portal-bridge, app_id/WM_CLASS, profiles, or edits files under patches/ or scripts/.
+description: Linux compatibility reference for the claude-desktop-bin project (repackaging Anthropic's official Claude Desktop Linux .deb and patching its app.asar for the distros Anthropic does not ship). Use when working on Linux support, session managers, distros, Computer Use input/screenshot backends, glibc floors, Wayland/X11, multi-profile, or any patch in patches/*.nim. Loads the distro/session matrix, the input + screenshot cascades, native-binary glibc floors, and known Linux gotchas.
+when_to_use: When the user mentions Linux compatibility, X11, Wayland, wlroots, GNOME, KDE, XWayland, a distro (Arch/Ubuntu/Debian/Fedora/RHEL/NixOS/Jetson), xdotool/ydotool/grim/spectacle, glibc, kwin-portal-bridge, app_id/WM_CLASS, profiles, or edits files under patches/ or scripts/.
 paths: patches/**, scripts/**, js/**, baseline/PLATFORM_GATE_BASELINE.md, wayland.md
 ---
 
 # Linux compatibility - claude-desktop-bin
 
-Patches a remotely-managed upstream `Claude.msix` (Windows Electron app) to run on Linux. **Linux only** - never add macOS/Windows code. Minified JS identifiers change every upstream release, so patterns must use `[\w$]+` wildcards anchored on stable strings (feature names, log messages, `process.platform==="darwin"`). For a clean unpatched bundle to test patterns against, see `/fresh-upstream`.
+Repackages Anthropic's **official Claude Desktop Linux `.deb`** (bundles Electron 42.5.1 + a native Cowork VM backend) for the distros Anthropic does not ship, patching its `app.asar` to add Linux value-adds (Computer Use, themes, multi-profile, Quick Entry) and Linux fixes. **Linux only** - never add macOS/Windows code. Minified JS identifiers change every upstream release, so patterns must use `[\w$]+` wildcards anchored on stable strings (feature names, log messages, `process.platform==="darwin"`). For a clean unpatched bundle to test patterns against, see `/fresh-upstream`.
 
 ## Support matrix (must validate every change against ALL rows)
 
@@ -23,12 +23,14 @@ Patches a remotely-managed upstream `Claude.msix` (Windows Electron app) to run 
 |---|---|---|---|
 | Arch | AUR | 2.41 | x86_64, aarch64 |
 | Ubuntu 22.04+ | deb | 2.35 | amd64, arm64 |
-| Debian 11+ | deb | 2.31 | amd64, arm64 |
+| Debian 12+ | deb | 2.36 | amd64, arm64 |
 | Fedora 40+ | rpm | 2.39 | x86_64, aarch64 |
 | RHEL 9+ | rpm | 2.34 | x86_64, aarch64 |
 | NixOS | flake | 2.40 | x86_64, aarch64 |
 | Jetson (JetPack 6) | deb | 2.35 | aarch64 |
 | Any (glibc) | AppImage | varies | x86_64, aarch64 |
+
+**glibc floor is 2.34** (RHEL 9 / Ubuntu 22.04). Debian 11 (bullseye, glibc 2.31) is **no longer supported** - the official Linux `.deb` we repackage targets newer glibc.
 
 ## Session detection (`scripts/claude-desktop-launcher.sh`)
 - `is_wayland=true` iff `$WAYLAND_DISPLAY` set; else X11. Both unset → hard error.
@@ -50,11 +52,11 @@ The cascade logic lives in checked-in JS under `js/`, embedded into `patches/fix
 ## Native binaries & glibc floors (CI enforces via `objdump -T | grep GLIBC_`)
 | Binary | Floor | Why | CI base |
 |---|---|---|---|
-| node-pty | 2.31 (Debian 11) | must run on all distros | `node:20-bullseye` |
 | kwin-portal-bridge | 2.39 (Ubuntu Noble) | KWin 6.6+ only on Noble+/Fedora 40+ | `ubuntu:noble` + native cross |
 
-- node-pty rebuilt for Linux + cross-compiled x86_64→arm64 via `scripts/rebuild-pty-for-arch.sh` (Docker + QEMU binfmt; rebuilds `pty.node` + `spawn-helper`; verifies ELF arch). Broken `pty.node` = terminal/cowork spawn fails.
-- New native binary → pick floor = its minimum viable distro; bump `.electron-shasums` workflow if Electron pinning involved.
+- **node-pty is no longer rebuilt by us.** The official Linux `.deb` ships a pre-built `pty.node` + `spawn-helper` for x86_64 and arm64 inside `app.asar.unpacked`; our repackage preserves them (`asar pack` keeps the unpacked dir). There is no `rebuild-pty-for-arch.sh` and no Electron pin (`.electron-version`/`.electron-shasums` are gone) - Electron 42.5.1 is bundled in the official `.deb`.
+- **kwin-portal-bridge is ours** (Computer Use on KDE Wayland). Built for x86_64 + arm64 by CI.
+- New native binary → pick floor = its minimum viable distro; CI verifies it via `objdump -T | grep GLIBC_`.
 
 ## Multi-profile / window identity (`scripts/claude-desktop-launcher.sh`)
 - Per-profile Electron binary at `~/.local/lib/claude-desktop/<APP_ID>-<name>` via **hardlink → reflink → copy** (never symlink - Electron derives identity from `realpath(/proc/self/exe)`, kernel resolves symlinks first).
@@ -82,5 +84,5 @@ The cascade logic lives in checked-in JS under `js/`, embedded into `patches/fix
 1. Every change must work across all 5 session types and all distro/arch rows - think through each, especially Wayland fragmentation (GNOME ≠ KDE ≠ wlroots).
 2. New input/screenshot work → edit `js/cu_linux_executor.js` (+ `executor_linux.js` for KDE), keep diagnostics lines.
 3. Fixed user-level paths → prefer `app.getPath("userData")` (auto-isolates per profile) over `~/.config/Claude`.
-4. New native module → builds for x86_64 AND aarch64, pick a glibc floor, CI verifies.
+4. New native binary we ship (e.g. kwin-portal-bridge) → builds for x86_64 AND aarch64, pick a glibc floor, CI verifies. (We do NOT rebuild node-pty - it comes pre-built in the official `.deb`.)
 5. Verify JS syntax after any patch: `node --check ./tmp/app.asar.contents/.vite/build/index.js`.

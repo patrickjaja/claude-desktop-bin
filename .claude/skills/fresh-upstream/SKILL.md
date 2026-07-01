@@ -1,15 +1,15 @@
 ---
 name: fresh-upstream
-description: For claude-desktop-bin - wipe any existing extracted Claude Desktop bundles and extract a fresh, CLEAN, UNPATCHED copy of the latest upstream Claude.msix into ./tmp/ for patch analysis. Downloads the latest msix if missing or stale, then extracts via 7z + asar (NOT the build script, which applies patches).
+description: For claude-desktop-bin - wipe any existing extracted Claude Desktop bundles and extract a fresh, CLEAN, UNPATCHED copy of the latest official Claude Desktop Linux .deb into ./tmp/ for patch analysis. Fetches + GPG/SHA256-verifies the latest .deb if missing or stale, then extracts app.asar via asar (NOT the build script, which applies patches).
 disable-model-invocation: true
-allowed-tools: Bash(rm -rf *), Bash(mkdir -p *), Bash(7z *), Bash(asar *), Bash(wget *), Bash(node --check *), Bash(ls *), Bash(cat *), Bash(stat *)
+allowed-tools: Bash(rm -rf *), Bash(mkdir -p *), Bash(ar *), Bash(tar *), Bash(dpkg-deb *), Bash(asar *), Bash(node --check *), Bash(ls *), Bash(cat *), Bash(stat *), Bash(.github/scripts/apt-fetch-verify.sh *), Bash(sha256sum *)
 ---
 
 # Fresh upstream extract (clean, unpatched)
 
 Goal: a pristine unpatched bundle in `./tmp/` so patch work compares against the true upstream. Run from `/home/patrickjaja/development/claude-desktop-bin`. `./tmp/` is gitignored.
 
-**Critical:** `scripts/build-patched-tarball.sh` runs `apply_patches.py` - its output is PATCHED. For a clean baseline use the manual `7z`+`asar` flow below.
+**Critical:** `scripts/build-patched-tarball.sh` runs `apply_patches.py` - its output is PATCHED. For a clean baseline use the manual fetch + `asar` flow below.
 
 ## Steps
 
@@ -19,37 +19,40 @@ Goal: a pristine unpatched bundle in `./tmp/` so patch work compares against the
    cat .upstream-version
    ```
 
-2. **Resolve latest upstream** version + download URL:
+2. **Resolve latest upstream** version (GPG + SHA256-verified via the canonical fetcher):
    ```bash
-   LATEST_JSON=$(wget -q -O - "https://downloads.claude.ai/releases/win32/x64/.latest")
-   LATEST_VERSION=$(echo "$LATEST_JSON" | python3 -c "import sys,json;print(json.load(sys.stdin)['version'])")
-   LATEST_HASH=$(echo "$LATEST_JSON" | python3 -c "import sys,json;print(json.load(sys.stdin)['hash'])")
-   echo "upstream latest: $LATEST_VERSION (hash $LATEST_HASH)"
+   LATEST_VERSION=$(.github/scripts/apt-fetch-verify.sh poll)
+   echo "upstream latest: $LATEST_VERSION"
    ```
    Report latest vs `.upstream-version` so the user sees whether this is a new version.
 
-3. **Download msix if missing or stale.** If `./Claude.msix` is absent, re-download. If it exists, verify it's the latest (compare size/age, or just trust if present and the user didn't ask for newest) - re-download when in doubt:
+3. **Download + verify the official .deb if missing or stale.** `apt-fetch-verify.sh download`
+   resolves the highest amd64 version, downloads the `.deb` into `./tmp/`, and verifies its SHA256
+   against the signed Packages index (which is itself verified against the GPG-signed Release):
    ```bash
-   wget -O ./Claude.msix "https://downloads.claude.ai/releases/win32/x64/${LATEST_VERSION}/Claude-${LATEST_HASH}.msix"
+   mkdir -p ./tmp
+   DEB=$(.github/scripts/apt-fetch-verify.sh download amd64 ./tmp)
+   echo "verified .deb: $DEB"
    ```
-   (~150MB.) If the download fails, stop and report the URL for manual fetch.
+   (~150MB.) If the download or verification fails, stop and report - do NOT trust an unverified `.deb`.
 
 4. **Wipe old extracted bundles** (project-local only - never touch ~/.config/Claude):
    ```bash
-   rm -rf ./tmp ./extract ./build/work 2>/dev/null || true
+   rm -rf ./tmp/extract ./tmp/app.asar.contents ./extract ./build/work 2>/dev/null || true
    ```
-   Leave `./Claude.msix` in place (just refreshed) and leave `./build/` packages alone unless the user asked for a full clean.
+   Leave the freshly downloaded `./tmp/claude-desktop_*_amd64.deb` in place and leave `./build/`
+   packages alone unless the user asked for a full clean.
 
-5. **Extract clean, unpatched** to `./tmp/`:
+5. **Extract clean, unpatched** to `./tmp/`. Crack the `.deb` (`dpkg-deb -x`, or `ar` + `tar` if
+   `dpkg-deb` is unavailable), then `asar extract` the app.asar:
    ```bash
-   mkdir -p ./tmp/extract
-   7z x -o./tmp/extract ./Claude.msix -y >/dev/null
-   asar extract ./tmp/extract/app/resources/app.asar ./tmp/app.asar.contents
+   dpkg-deb -x "$DEB" ./tmp/extract
+   asar extract ./tmp/extract/usr/lib/claude-desktop/resources/app.asar ./tmp/app.asar.contents
    ```
    - Unpatched main bundle: `./tmp/app.asar.contents/.vite/build/index.js`
    - Renderer bundles: `./tmp/app.asar.contents/.vite/renderer/*/assets/*.js`
-   - ion-dist (3P-config SPA): `./tmp/extract/app/resources/ion-dist/`
-   - i18n: `./tmp/extract/app/resources/*.json`
+   - ion-dist (3P-config SPA): `./tmp/extract/usr/lib/claude-desktop/resources/ion-dist/`
+   - i18n: `./tmp/extract/usr/lib/claude-desktop/resources/*.json`
 
 6. **Sanity check** and report:
    ```bash
@@ -60,5 +63,6 @@ Goal: a pristine unpatched bundle in `./tmp/` so patch work compares against the
 
 ## Notes
 - This does NOT patch, build, or bump anything - it only stages a clean bundle.
-- Distinguish "clean unpatched" (this skill, manual 7z/asar) from "patched build" (`./scripts/build-local.sh`).
+- Distinguish "clean unpatched" (this skill, manual .deb crack + asar) from "patched build" (`./scripts/build-local.sh`).
+- The official `.deb` bundles Electron 42.5.1 and prebuilt node-pty for both arches - we do not self-manage either.
 - Stale extracts have different minified names → always re-extract before patch debugging if `./tmp` is older than today.

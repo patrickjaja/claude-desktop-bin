@@ -464,9 +464,9 @@ Claude Desktop creates 4 additional MCP servers **dynamically per cowork/dispatc
 | `bash` | `Jdt` | Run bash commands in workspace context |
 | `web_fetch` | `Xdt` | Fetch web resources |
 
-**Bash tool description (Edn function):** The tool description is constructed dynamically via string concatenation: `"Run a shell command in the session's isolated Linux workspace. Your connected folders are mounted under /sessions/" + t.vmProcessName + "/mnt/ - ..."`. On macOS/Windows (VM-based), this is accurate. On Linux (native Go backend), there is no VM or `/sessions/` mount - `fix_cowork_sandbox_refs.nim` (Patch A) replaces both string halves with: *"Run a shell command on the host Linux system. There is no VM or sandbox - commands execute directly on the user's computer."* The dynamic concatenation (`+ t.vmProcessName +`) is preserved but made inert.
+**Bash tool description (Edn function):** The tool description is constructed dynamically via string concatenation: `"Run a shell command in the session's isolated Linux workspace. Your connected folders are mounted under /sessions/" + t.vmProcessName + "/mnt/ - ..."`. This is now accurate on Linux too: the official `.deb` runs Cowork in a real VM (the bundled QEMU/OVMF backend), so shell commands do execute in an isolated Linux workspace with `/sessions/.../mnt/` mounts. The old `fix_cowork_sandbox_refs.nim` (Patch A) - which rewrote this to "no VM, runs on the host" for the MSIX-era native Go backend - was **removed** in the `.deb` pivot; the upstream text is correct as-is.
 
-**System prompt sandbox references:** The upstream cowork system prompt tells the model: *"Claude runs in a lightweight Linux VM (Ubuntu 22) on the user's computer. This VM provides a secure sandbox..."* and *"Shell commands run in an isolated Linux environment."* On Linux, `fix_cowork_sandbox_refs.nim` (Patches B-D) replaces these with host-accurate text. Without this patch, the model hallucinates that it's in "an isolated Linux sandbox (Ubuntu 22)" even though `uname -a` returns the host kernel.
+**System prompt sandbox references:** The upstream cowork system prompt tells the model it runs in "a lightweight Linux VM (Ubuntu 22) ... secure sandbox". On the official `.deb` this is true (Cowork runs in the bundled VM), so the old host-accurate rewrite (`fix_cowork_sandbox_refs.nim` Patches B-D) was **removed** in the pivot - the upstream sandbox text now matches reality.
 
 ### SDK Server Architecture
 
@@ -649,8 +649,8 @@ Uses `createDarwinExecutor()` -> `@ant/claude-swift` native module for screen ca
 - **Visualize (Imagine)**: Enabled on Linux via `fix_imagine_linux.nim` - forces GrowthBook flag `3444158716`. No platform gate. Renders SVG/HTML inline in cowork sessions.
 - **Radar**: Not yet activatable - server disabled at MCP level, session creation in renderer code. No platform gate. Future feature.
 - **MCP Registry / Plugins / Scheduled Tasks**: Cross-platform, work on Linux.
-- **Integrated Terminal (node-pty)**: Upstream ships only Windows PE32+ binaries. Build script (`build-patched-tarball.sh`) rebuilds node-pty from source against Electron headers via `@electron/rebuild`. Enables the integrated terminal panel and `read_terminal` MCP tool on Linux.
-- **Cowork sandbox descriptions**: Upstream system prompts and tool descriptions tell the model it runs in "a lightweight Linux VM (Ubuntu 22)" with "an isolated sandbox". On Linux with the native Go backend there is no VM - `fix_cowork_sandbox_refs.nim` replaces these with accurate host-system descriptions.
+- **Integrated Terminal (node-pty)**: The official `.deb` bundles a pre-built `node-pty` (`pty.node` + `spawn-helper`) for x86_64 and arm64, which the repackage preserves. Enables the integrated terminal panel and `read_terminal` MCP tool on Linux with no source rebuild.
+- **Cowork sandbox descriptions**: Upstream system prompts and tool descriptions tell the model it runs in "a lightweight Linux VM (Ubuntu 22)" with "an isolated sandbox". On the official `.deb` this is accurate (Cowork runs in the bundled VM backend), so the old `fix_cowork_sandbox_refs.nim` rewrite was removed in the pivot.
 
 ## Operon IPC System (v1.1617.0)
 

@@ -8,8 +8,10 @@ Summary:        Claude AI Desktop Application for Linux
 
 License:        Proprietary
 URL:            https://claude.ai
-Source0:        claude-desktop-%{pkg_version}-linux.tar.gz
-Source1:        electron.zip
+# The tarball already bundles the Electron runtime (electron/) and patched app
+# (app/), both extracted from the official Claude Desktop Linux .deb. There is no
+# separate Electron zip source anymore.
+Source0:        %{pkg_source}
 
 ExclusiveArch:  x86_64 aarch64
 
@@ -47,6 +49,11 @@ Suggests:       hyprland
 Suggests:       socat
 # MCP servers requiring system Node.js
 Suggests:       nodejs
+# Cowork agent workspace VM (requires /dev/kvm + user in the kvm group).
+# qemu-system-x86 provides qemu-system-x86_64; edk2-ovmf provides the OVMF
+# UEFI firmware at /usr/share/edk2/ovmf/OVMF_CODE.fd. virtiofsd is bundled.
+Suggests:       qemu-system-x86
+Suggests:       edk2-ovmf
 
 %description
 Claude is an AI assistant created by Anthropic to be helpful,
@@ -57,20 +64,17 @@ code generation, document understanding, and system tray integration.
 Note: This is an unofficial Linux port. Requires an Anthropic account.
 
 %prep
-# Extract tarball
+# Extract tarball (contains both electron/ runtime and app/ patched payload)
 mkdir -p tarball
 tar -xzf %{SOURCE0} -C tarball
-
-# Extract Electron
-mkdir -p electron
-unzip -q %{SOURCE1} -d electron
 
 %install
 rm -rf %{buildroot}
 
-# Install Electron + app
+# Install the bundled Electron runtime (from the tarball's electron/ dir) + app
 mkdir -p %{buildroot}/usr/lib/claude-desktop
-cp -a electron/* %{buildroot}/usr/lib/claude-desktop/
+cp -a tarball/electron/* %{buildroot}/usr/lib/claude-desktop/
+mkdir -p %{buildroot}/usr/lib/claude-desktop/resources
 cp -a tarball/app/* %{buildroot}/usr/lib/claude-desktop/resources/
 
 # Rename the Electron binary to "claude". NOTE: this does NOT set the window
@@ -79,32 +83,52 @@ cp -a tarball/app/* %{buildroot}/usr/lib/claude-desktop/resources/
 # ("claude-desktop.desktop" in app.asar package.json), strips ".desktop", and
 # ignores the binary basename / --class. The rename is kept only as a cosmetic
 # argv[0] / systemd-scope identity hint matching APP_ID="claude". StartupWMClass
-# below must equal the real app_id.
-mv %{buildroot}/usr/lib/claude-desktop/electron \
-   %{buildroot}/usr/lib/claude-desktop/claude
+# below must equal the real app_id. (The .deb names the binary "claude-desktop".)
+if [ -f %{buildroot}/usr/lib/claude-desktop/claude-desktop ]; then
+    mv %{buildroot}/usr/lib/claude-desktop/claude-desktop \
+       %{buildroot}/usr/lib/claude-desktop/claude
+elif [ -f %{buildroot}/usr/lib/claude-desktop/electron ]; then
+    mv %{buildroot}/usr/lib/claude-desktop/electron \
+       %{buildroot}/usr/lib/claude-desktop/claude
+fi
 
 # Install launcher (full launcher from tarball with Wayland/X11 detection,
-# GPU fallback, SingletonLock cleanup, cowork socket cleanup, and logging)
+# GPU fallback, SingletonLock cleanup, and logging)
 mkdir -p %{buildroot}/usr/bin
 install -m755 tarball/launcher/claude-desktop %{buildroot}/usr/bin/claude-desktop
 
 # Install desktop file.
-# Filename matches APP_ID in the launcher ("claude") so xdg-desktop-portal can
-# resolve our systemd-scope / cgroup identity. StartupWMClass, however, must
-# equal the live window app_id "claude-desktop" (from the app's desktopName,
-# not the binary) or GNOME/KDE can't bind the dock icon - see issue #148.
+# Filename is "claude-desktop.desktop" to match the live window app_id
+# "claude-desktop" (Chromium's GetXdgAppId() reads the app's desktopName
+# "claude-desktop.desktop" from app.asar, strips ".desktop"). On native Wayland
+# there is no WM_CLASS, so KWin/GNOME match by app_id; a mismatched basename gives
+# a generic icon + Alt+Tab duplicate (issue #148). StartupWMClass fixes X11.
+# Content mirrors the official Claude Desktop .deb.
 mkdir -p %{buildroot}/usr/share/applications
-cat > %{buildroot}/usr/share/applications/claude.desktop << 'DESKTOP'
+cat > %{buildroot}/usr/share/applications/claude-desktop.desktop << 'DESKTOP'
 [Desktop Entry]
 Name=Claude
-Comment=Claude AI Desktop Application
-Exec=claude-desktop %u
+Comment=Desktop application for Claude.ai
+GenericName=AI Assistant
+Keywords=AI;Chat;Assistant;Claude;Code;LLM;
+Exec=claude-desktop %U
 Icon=claude-desktop
 Type=Application
-Terminal=false
-Categories=Office;Utility;Chat;
-MimeType=x-scheme-handler/claude;
+StartupNotify=true
 StartupWMClass=claude-desktop
+# second-instance just focuses mainWindow; suppress GNOME's default "New Window" item
+SingleMainWindow=true
+Categories=Utility;Development;
+MimeType=x-scheme-handler/claude;
+Actions=NewChat;NewCode;
+
+[Desktop Action NewChat]
+Name=New chat
+Exec=claude-desktop claude://claude.ai/new
+
+[Desktop Action NewCode]
+Name=New Claude Code session
+Exec=claude-desktop claude://code/new
 DESKTOP
 
 # Install icon
@@ -120,6 +144,28 @@ if [ -f /usr/lib/claude-desktop/chrome-sandbox ]; then
     chown root:root /usr/lib/claude-desktop/chrome-sandbox
     chmod 4755 /usr/lib/claude-desktop/chrome-sandbox
 fi
+# AppArmor userns profile (mirrors the official .deb). Most RPM distros use
+# SELinux, where /etc/apparmor.d/abi/4.0 is absent and this is a no-op; it only
+# fires on AppArmor 4.0 systems (e.g. openSUSE) where Chromium's namespace
+# sandbox needs the unconfined-userns allowlist.
+if [ -f /etc/apparmor.d/abi/4.0 ]; then
+    PROFILE="/etc/apparmor.d/claude-desktop"
+    rm -f "$PROFILE"
+    cat > "$PROFILE" <<PROF
+abi <abi/4.0>,
+include <tunables/global>
+
+profile claude-desktop /usr/lib/claude-desktop/claude flags=(unconfined) {
+  userns,
+
+  include if exists <local/claude-desktop>
+}
+PROF
+    chmod 0644 "$PROFILE"
+    if command -v aa-enabled &>/dev/null && aa-enabled --quiet 2>/dev/null; then
+        apparmor_parser -r -W -T "$PROFILE" || true
+    fi
+fi
 if command -v update-desktop-database &>/dev/null; then
     update-desktop-database /usr/share/applications || true
 fi
@@ -133,6 +179,13 @@ if [ -f "$REPO_FILE" ] && ! grep -q '^metadata_expire=' "$REPO_FILE"; then
 fi
 
 %postun
+# Remove the AppArmor profile on full uninstall ($1 == 0), not on upgrade.
+if [ "$1" = "0" ] && [ -f /etc/apparmor.d/claude-desktop ]; then
+    if command -v aa-enabled &>/dev/null && aa-enabled --quiet 2>/dev/null; then
+        apparmor_parser -R /etc/apparmor.d/claude-desktop || true
+    fi
+    rm -f /etc/apparmor.d/claude-desktop
+fi
 if command -v update-desktop-database &>/dev/null; then
     update-desktop-database /usr/share/applications || true
 fi
@@ -143,5 +196,5 @@ fi
 %files
 /usr/lib/claude-desktop/
 /usr/bin/claude-desktop
-/usr/share/applications/claude.desktop
+/usr/share/applications/claude-desktop.desktop
 /usr/share/icons/hicolor/256x256/apps/claude-desktop.png

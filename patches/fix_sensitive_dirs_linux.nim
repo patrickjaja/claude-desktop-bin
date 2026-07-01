@@ -54,23 +54,36 @@ proc apply*(input: string): string =
     # Regex breakdown:
     #   ("PowerShell"\)\]:\[\]) - group 0: last win32 path + win32-array close
     #                             + ternary empty-fallback ":[]"
-    #   (\])                     - group 1: the outer sensitive-dirs array close
-    let pattern = re2"""("PowerShell"\)\]:\[\])(\])"""
+    #   (\];)                    - group 1: the outer sensitive-dirs array close
+    #                             FOLLOWED BY ';'
+    #
+    # DISAMBIGUATION (important): the bare `"PowerShell")]:[]]` shape occurs TWICE
+    # in v1.17377 — once at the intended sensitive-dirs array (`Xdn`), and once at
+    # an unrelated per-home-root array (`eLn=[...flatMap(A=>[j.join(A,...)])]`). The
+    # intended site is uniquely followed by `];function ...` (statement end), while
+    # the unrelated `eLn` site is followed by `]),...flatMap` (expression continues).
+    # nim's string.replace is GLOBAL, so anchoring only on `]` would inject the
+    # Linux dirs into BOTH — polluting `eLn` (which holds only absolute j.join()
+    # paths) with 3 bare relative strings. Requiring the trailing `;` restricts the
+    # match to the correct sensitive-dirs array. EXPECT EXACTLY ONE match.
+    let pattern = re2"""("PowerShell"\)\]:\[\])(\];)"""
 
     var count = 0
     result = result.replace(
       pattern,
       proc(m: RegexMatch2, s: string): string =
         inc count
-        # Reconstruct: win32 fallback + Linux spread + outer array close
+        # Reconstruct: win32 fallback + Linux spread + outer array close + ';'
         s[m.group(0)] & LINUX_DIRS_SPREAD & s[m.group(1)],
     )
-    if count > 0:
+    if count == 1:
       echo &"  [OK] Linux sensitive dirs injected: {count} match(es)"
       patchesApplied += 1
-    else:
+    elif count == 0:
       echo "  [FAIL] Could not find sensitive-dirs array closing pattern"
       echo "  [HINT] Search for '.ssh' near '.aws' and '.gnupg' in the target file"
+    else:
+      echo &"  [FAIL] Expected exactly 1 sensitive-dirs match, got {count} — anchor now matches an unintended array; re-audit (see disambiguation note above)"
 
   if patchesApplied < EXPECTED_PATCHES:
     echo &"  [FAIL] Only {patchesApplied}/{EXPECTED_PATCHES} patches applied"

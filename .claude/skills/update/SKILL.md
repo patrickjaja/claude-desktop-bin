@@ -1,12 +1,12 @@
 ---
 name: update
-description: For claude-desktop-bin - handle a new upstream Claude Desktop version end-to-end: build, fix failing patches, diff old vs new JS for new platform gates, audit feature flags + ion-dist + platform gates, check the claude-cowork-service cross-dependency, update baseline docs + CHANGELOG, bump .upstream-version, then commit. Mirrors issue #145 / UPDATE-PROMPT-CC-INPUT-MANUAL.md.
+description: For claude-desktop-bin - handle a new upstream Claude Desktop version end-to-end: build, fix failing patches, diff old vs new JS for new platform gates, audit feature flags + ion-dist + platform gates, update baseline docs + CHANGELOG, bump .upstream-version, then commit. Mirrors issue #145 / UPDATE-PROMPT-CC-INPUT-MANUAL.md.
 disable-model-invocation: true
 ---
 
 # Update to a new upstream Claude Desktop version
 
-Run from `/home/patrickjaja/development/claude-desktop-bin`. Upstream `Claude.msix` is remotely managed and re-minifies every release; patches use `[\w$]+` wildcards on stable string anchors. Step 1 runs `/fresh-upstream` for a clean extract; Step 9 ends with `/deploy` to release. `$ARGUMENTS` may name a target version.
+Run from `/home/patrickjaja/development/claude-desktop-bin`. The official Linux `.deb` is remotely managed and re-minifies every release; patches use `[\w$]+` wildcards on stable string anchors. Step 1 runs `/fresh-upstream` for a clean extract; Step 9 ends with `/deploy` to release. `$ARGUMENTS` may name a target version.
 
 Use sequential thinking and delegate independent analysis (diff, flag audit, ion-dist, platform gates) to parallel sub-agents where useful; you coordinate and edit.
 
@@ -17,10 +17,10 @@ git status                  # must be clean before starting
 rm -rf build/ extract/      # old artifacts
 rm -f chrome-native-host.exe cowork-svc.exe smol-bin.vhdx
 ```
-Note current `.upstream-version` and `.electron-version`.
+Note current `.upstream-version`.
 
 ## Step 1 - build & fix patches
-Run the build for this OS (Arch here). It auto-downloads the latest msix, applies patches, packages:
+Run the build for this OS (Arch here). It auto-downloads the latest official `.deb`, applies patches, packages:
 ```bash
 ./scripts/build-local.sh
 # Ubuntu/Debian: SKIP_SMOKE_TEST=1 ./scripts/build-ubuntu-local.sh
@@ -64,8 +64,8 @@ Read `baseline/ION.md`. Confirm ion-dist exists in new resources; compare bundle
 ## Step 6 - platform-gate re-audit
 Read `baseline/PLATFORM_GATE_BASELINE.md`. Re-count darwin/win32/linux gates; reclassify any new ones PATCHED/NATIVE/STUB/PORTABLE. Any PORTABLE = a new Linux-support opportunity. Update the doc. (Prompt 5.)
 
-## Step 7 - cross-dependency: claude-cowork-service
-Check `/home/patrickjaja/development/claude-cowork-service`. Did the cowork RPC protocol gain methods, spawn params, or event types? Compare against `COWORK_RPC_PROTOCOL.md`. If Desktop's socket path / framing / spawn args changed, the daemon may need a matching update. See `/architecture` and `/audit`.
+## Step 7 - Cowork backend
+Cowork now runs on the `.deb`'s bundled native VM backend (cowork-linux-helper + virtiofsd + smol-bin + QEMU/OVMF; requires `/dev/kvm`). The old `claude-cowork-service` Go daemon is deprecated and out of scope - no cross-dependency to check.
 
 ## Step 8 - docs
 Update only what changed:
@@ -77,7 +77,6 @@ Update only what changed:
 ```bash
 echo "<NEW_VERSION>" > .upstream-version    # closes the "new version detected" issue, greens the README badge
 ```
-If `.electron-version` changed: also run `./scripts/update-electron-shasums.sh` and commit `.electron-shasums`.
 Then commit + push to `master` directly (per global CLAUDE.md), only when the user says to. After merge, release with `/deploy` (or `/deploy force` for patch-only changes where upstream version didn't move).
 
 ## Guardrails

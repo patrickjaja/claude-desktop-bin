@@ -6,7 +6,7 @@
   <title>Claude Desktop for Linux</title>
   <meta name="description" content="Unofficial pre-patched Linux packages for Claude Desktop. Chat, Code, Cowork, Computer Use - on every distro, every architecture.">
   <meta property="og:title" content="Claude Desktop for Linux">
-  <meta property="og:description" content="47 patches, every distro. Arch, Ubuntu, Fedora, NixOS, AppImage - x86_64 and ARM64. Enterprise 3P inference (Vertex, Bedrock, Foundry, LiteLLM gateway) via enterprise.json.">
+  <meta property="og:description" content="47 patches, every distro. Arch, Ubuntu, Fedora, NixOS, AppImage - x86_64 and ARM64. Enterprise 3P inference (Vertex, Bedrock, Foundry, LiteLLM gateway) via managed-settings.json.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://patrickjaja.github.io/claude-desktop-bin/">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -717,7 +717,7 @@ chmod +x Claude_Desktop-x86_64.AppImage
           <td><span class="check">&#10003;</span></td>
         </tr>
         <tr>
-          <td>Debian 11+</td>
+          <td>Debian 12+</td>
           <td>.deb (APT)</td>
           <td><span class="check">&#10003;</span></td>
           <td><span class="check">&#10003;</span></td>
@@ -793,30 +793,20 @@ chmod +x Claude_Desktop-x86_64.AppImage
 
 <!-- COWORK -->
 <section id="cowork" class="fade-in">
-  <div class="section-label">Companion</div>
-  <h2>Cowork Service</h2>
-  <p>Native Linux backend for Claude Desktop's Cowork feature. Reverse-engineered protocol, pure Go, zero dependencies.</p>
+  <div class="section-label">Agentic workspace</div>
+  <h2>Cowork</h2>
+  <p>Claude Desktop's agentic workspace - delegate a goal to a sandboxed Claude Code agent that reads, edits, and creates files and returns a deliverable, with live artifacts and concurrent sessions.</p>
 
   <div class="cowork-box">
     <div class="cowork-mode">
-      <div class="badge badge-default">Default</div>
-      <h3>Native Mode</h3>
-      <p>Commands run directly on the host. No VM overhead, instant startup, full access to your development environment.</p>
+      <div class="badge badge-default">Bundled</div>
+      <h3>Official native backend</h3>
+      <p>Cowork runs on the native VM backend Anthropic ships in the official Linux build (cowork-linux-helper + virtiofsd + smol-bin + QEMU/OVMF). Our repackage preserves it - there is nothing extra to install.</p>
     </div>
     <div class="cowork-mode">
-      <div class="badge badge-exp">Experimental</div>
-      <h3>KVM Mode</h3>
-      <p>Sessions run inside a QEMU/KVM virtual machine. Full isolation matching the macOS and Windows sandboxed model.</p>
-    </div>
-  </div>
-
-  <div style="margin-top: 1.25rem;">
-    <div class="install-block">
-      <button class="copy-btn" data-copy="curl -fsSL https://raw.githubusercontent.com/patrickjaja/claude-cowork-service/main/scripts/install.sh | bash">Copy</button>
-      <pre>curl -fsSL https://raw.githubusercontent.com/patrickjaja/claude-cowork-service/main/scripts/install.sh | bash</pre>
-    </div>
-    <div class="install-note">
-      <a href="https://github.com/patrickjaja/claude-cowork-service">View on GitHub</a> - also available via APT, DNF, and AUR.
+      <div class="badge badge-default">Requirement</div>
+      <h3>/dev/kvm</h3>
+      <p>The native VM backend needs hardware virtualization. Make sure <code>/dev/kvm</code> is available on the host (most desktops and laptops have it).</p>
     </div>
   </div>
 </section>
@@ -825,7 +815,7 @@ chmod +x Claude_Desktop-x86_64.AppImage
 <section id="enterprise" class="fade-in">
   <div class="section-label">Enterprise</div>
   <h2>Bring your own inference</h2>
-  <p>Run Claude Desktop entirely on your own backend - no personal claude.ai login required. Point Chat, Code, and Cowork at <strong>Vertex AI</strong>, <strong>Bedrock</strong>, <strong>Azure AI Foundry</strong>, or any <strong>Anthropic-compatible gateway</strong> (LiteLLM, Portkey, in-house proxies) through a single <code>/etc/claude-desktop/enterprise.json</code>. Deployable fleet-wide via MDM, GPO, or a dropped JSON file - and it works on Linux today.</p>
+  <p>Run Claude Desktop entirely on your own backend - no personal claude.ai login required. Point Chat, Code, and Cowork at <strong>Vertex AI</strong>, <strong>Bedrock</strong>, <strong>Azure AI Foundry</strong>, or any <strong>Anthropic-compatible gateway</strong> (LiteLLM, Portkey, in-house proxies) through a single <code>/etc/claude-desktop/managed-settings.json</code>. Deployable fleet-wide via MDM, GPO, or a dropped JSON file - and it works on Linux today.</p>
 
   <div class="cowork-box">
     <div class="cowork-mode">
@@ -856,7 +846,7 @@ chmod +x Claude_Desktop-x86_64.AppImage
   "coworkTabEnabled": true,
   "isClaudeCodeForDesktopEnabled": true
 }'>Copy</button>
-    <pre>// /etc/claude-desktop/enterprise.json
+    <pre>// /etc/claude-desktop/managed-settings.json
 {
   "inferenceProvider": "gateway",
   "inferenceGatewayBaseUrl": "http://127.0.0.1:4000",

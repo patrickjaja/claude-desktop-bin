@@ -1,8 +1,8 @@
 # Project skills
 
-[Claude Code skills](https://code.claude.com/docs/en/skills) for working on **claude-desktop-bin** (the Linux-patched Claude Desktop) and its sibling **claude-cowork-service** (the native Linux Cowork backend). Each skill is a folder with a `SKILL.md` (YAML frontmatter + instructions). They load automatically because they live in `.claude/skills/` under the repo - no install step. Edits take effect live (no restart).
+[Claude Code skills](https://code.claude.com/docs/en/skills) for working on **claude-desktop-bin** (the Linux-patched repackage of Anthropic's official Claude Desktop Linux `.deb`). Each skill is a folder with a `SKILL.md` (YAML frontmatter + instructions). They load automatically because they live in `.claude/skills/` under the repo - no install step. Edits take effect live (no restart).
 
-These are project-scoped on purpose: they encode *this* project's quirks (a remotely-managed upstream `Claude.msix` that re-minifies every release, a wide distro/session-manager matrix, a two-mode cowork daemon). They're committed so the knowledge is shared and survives across machines and contributors.
+These are project-scoped on purpose: they encode *this* project's quirks (a remotely-managed official Linux `.deb` that re-minifies every release, a wide distro/session-manager matrix, Cowork on the `.deb`'s bundled native VM backend). They're committed so the knowledge is shared and survives across machines and contributors.
 
 ## What a skill actually does
 
@@ -23,7 +23,7 @@ A skill is more than a saved prompt:
 |---|---|---|
 | `/linux` | auto (also on `patches/`,`scripts/`,`js/` edits) | working on Linux compatibility |
 | `/architecture` | auto / manual | you need the big picture of either project |
-| `/3p` | auto (also on enterprise/ion-dist patch edits) | working on enterprise.json, an inference gateway, or the Claude-3p deployment |
+| `/3p` | auto (also on enterprise/ion-dist patch edits) | working on managed-settings.json, an inference gateway, or the Claude-3p deployment |
 | `/audit` | manual | you want a full project review |
 | `/deploy` | manual | you want to ship a release |
 | `/update` | manual | a new upstream Claude Desktop version dropped |
@@ -46,20 +46,20 @@ fresh-upstream ──▶ update ──▶ deploy        new-version pipeline
 - `audit` finds drift → `/update`; defers deep log work → `/debug`.
 - `debug` bottoms out at a patch/upstream cause → `/fresh-upstream` + `/update`.
 - `deploy` redirects version/patch work → `/update` (it only fires the pipeline).
-- `/linux` ↔ `/architecture` link each other (complementary references); `/debug` cites both because, being manual-only, it won't auto-pull them and genuinely needs the CU cascade + native-vs-KVM context.
+- `/linux` ↔ `/architecture` link each other (complementary references); `/debug` cites both because, being manual-only, it won't auto-pull them and genuinely needs the CU cascade + Cowork backend context.
 
 ### `/linux` - Linux compatibility reference
 **What:** Loads the distro/session-manager support matrix, the Computer Use input + screenshot cascades (sourced from `js/cu_linux_executor.js`), native-binary glibc floors, multi-profile/window-identity rules, and the catalogue of known Linux gotchas mapped to their patches.
 **When:** Any Linux-compat work - Wayland/X11, a specific distro, input/screenshot backends, glibc, node-pty, profiles. It auto-injects when you edit patch/script/js files, so you usually don't invoke it by hand.
 **Why:** The hard part of this project is the combinatorial matrix (5 session types × 8 distros × arch). This keeps those edge cases in front of Claude instead of rediscovered each time.
 
-### `/architecture` - what the projects are
-**What:** Explains the purpose and user-facing features of both repos, the native vs KVM cowork backends, the RPC/socket wiring between the app and the daemon, and each side's USPs.
-**When:** Onboarding, writing docs/READMEs, or any time you're reasoning about how the Electron app and the daemon fit together.
-**Why:** Grounds explanations in the real design (patches + protocol) rather than guesses.
+### `/architecture` - what the project is
+**What:** Explains the purpose and user-facing features of the repo, how the official `.deb` and our patches fit together, the `.deb`'s bundled native Cowork VM backend, and our Linux-only value-adds.
+**When:** Onboarding, writing docs/READMEs, or any time you're reasoning about how the official build and our patches fit together.
+**Why:** Grounds explanations in the real design (official build + patches) rather than guesses.
 
 ### `/audit` - orchestrated full review
-**What:** Makes Claude the coordinator of a sub-agent team that reviews, in parallel: patches vs the current upstream (still needed? new gaps? did surrounding code move?), docs accuracy, the Linux matrix, cross-project cowork comms (**native and KVM**), and runtime logs - then synthesizes one report with ranked solutions. Pre-flights a fresh extract first. Read-only: it proposes, it doesn't apply.
+**What:** Makes Claude the coordinator of a sub-agent team that reviews, in parallel: patches vs the current official `.deb` (still needed? new gaps? did surrounding code move?), docs accuracy, the Linux matrix, and runtime logs - then synthesizes one report with ranked solutions. Pre-flights a fresh extract first. Read-only: it proposes, it doesn't apply.
 **When:** Periodically, or when you suspect drift after upstream churn.
 **Why:** Heavier but thorough; the right tool when "is everything still correct?" matters.
 
@@ -69,17 +69,17 @@ fresh-upstream ──▶ update ──▶ deploy        new-version pipeline
 **Why:** Manual-only and one command, with the force toggle made explicit.
 
 ### `/update` - handle a new upstream version
-**What:** The end-to-end workflow from [issue #145](https://github.com/patrickjaja/claude-desktop-bin/issues/145): build → fix failing patches → diff old/new JS for new platform gates → feature-flag + ion-dist + platform-gate audits → check the claude-cowork-service cross-dependency → update baseline docs + CHANGELOG → bump `.upstream-version` → commit. Self-contained (overlaps the `update-prompt.md` docs by design).
+**What:** The end-to-end workflow from [issue #145](https://github.com/patrickjaja/claude-desktop-bin/issues/145): build → fix failing patches → diff old/new JS for new platform gates → feature-flag + ion-dist + platform-gate audits → update baseline docs + CHANGELOG → bump `.upstream-version` → commit. Self-contained (overlaps the `update-prompt.md` docs by design).
 **When:** A new Claude Desktop version is detected.
 **Why:** Turns the most error-prone recurring task into a guided, strict checklist (every sub-patch must pass or fail loudly).
 
 ### `/fresh-upstream` - clean unpatched extract
-**What:** Wipes old extract dirs, downloads the latest `Claude.msix` if missing/stale, and extracts a **clean, unpatched** bundle into `./tmp/` via `7z` + `asar` - deliberately *not* the build script, which applies patches.
+**What:** Wipes old extract dirs, fetches + GPG/SHA256-verifies the latest official `.deb` if missing/stale, and extracts a **clean, unpatched** bundle into `./tmp/` by cracking the `.deb` (`dpkg-deb -x`) + `asar extract` - deliberately *not* the build script, which applies patches.
 **When:** Before patch debugging or an audit, so you compare against true upstream (stale extracts have different minified names → wrong conclusions).
 **Why:** A reliable pristine baseline in one step.
 
 ### `/debug` - collect evidence, then diagnose
-**What:** `/debug <what's broken>` pulls the newest `local-agent-mode-sessions/.../audit.jsonl` (your last prompt + the model's tool calls/errors - the source of truth for Cowork/Dispatch runs), greps whichever `~/.config/Claude/logs/` files exist, optionally runs `cowork-svc-linux -debug`, then asks you for anything else the specific issue needs before forming a hypothesis.
+**What:** `/debug <what's broken>` pulls the newest `local-agent-mode-sessions/.../audit.jsonl` (your last prompt + the model's tool calls/errors - the source of truth for Cowork/Dispatch runs), greps whichever `~/.config/Claude/logs/` files exist (including the bundled backend's `cowork_vm_node.log`), then asks you for anything else the specific issue needs before forming a hypothesis.
 **When:** A feature misbehaves and you want it grounded in real logs, not speculation.
 **Why:** Encodes the dispatch/cowork debug workflow from `CLAUDE.md` so the right evidence is gathered every time.
 

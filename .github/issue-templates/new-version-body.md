@@ -24,7 +24,7 @@
    /update {{UPSTREAM}}
    ```
 
-That's it. The skill drives the whole release: it re-builds against the new upstream msix, fixes any patches the re-minify broke, then runs the analysis (new platform gates, feature flags, ion-dist, platform-gate re-audit, `claude-cowork-service` cross-dependency), updates the docs, bumps `.upstream-version`, and ends with `/deploy`.
+That's it. The skill drives the whole release: it re-builds against the new upstream `.deb`, fixes any patches the re-minify broke, then runs the analysis (new platform gates, feature flags, ion-dist, platform-gate re-audit), updates the docs, bumps `.upstream-version`, and ends with `/deploy`.
 
 **What you're checking for, in one line:** did anything new arrive that should be made Linux-compatible, and does existing Linux functionality still work? The skill surfaces both - you decide what (if anything) needs a new patch.
 

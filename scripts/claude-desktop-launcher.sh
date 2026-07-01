@@ -23,19 +23,29 @@
 
 set -euo pipefail
 
-# Application id for the cgroup/scope side of portal identity:
-#   - .desktop filename (minus the .desktop suffix): claude.desktop
-#   - Bundled Electron binary basename (cosmetic argv[0] only)
-#   - systemd --user scope name (app-claude-PID.scope → cgroup portal identity)
+# APP_ID is the bundled Electron binary basename only - cosmetic (argv[0] /
+# /proc/self/exe). It is intentionally NOT the .desktop filename (see DESKTOP_ID
+# below) and NOT the systemd scope name anymore (the scope now uses DESKTOP_ID so
+# xdg-desktop-portal's cgroup→.desktop resolution finds the renamed file; see the
+# Launch section).
 #
-# IMPORTANT: this is NOT the window's WM_CLASS / Wayland app_id. That value is
-# "claude-desktop" (verified via xprop/wmctrl) and comes from Chromium's
-# GetXdgAppId(), which reads the app's desktopName ("claude-desktop.desktop" in
-# app.asar package.json) and ignores the binary basename / --class / argv[0].
-# Hence StartupWMClass in every .desktop we write is "claude-desktop", not
-# APP_ID - GNOME/KDE match windows to .desktop entries by StartupWMClass first,
-# so a mismatch loses the dock icon (issue #148).
+# IMPORTANT: APP_ID is NOT the window's WM_CLASS / Wayland app_id either. That
+# value is "claude-desktop" (verified via xprop/wmctrl) and comes from
+# Chromium's GetXdgAppId(), which reads the app's desktopName
+# ("claude-desktop.desktop" in app.asar package.json) and ignores the binary
+# basename / --class / argv[0].
 APP_ID='claude'
+
+# The .desktop filename is a SEPARATE identity (DESKTOP_ID), computed below once
+# the profile is known. As of issue #148 the default-profile launcher ships as
+# "claude-desktop.desktop" so the filename equals the window's Wayland app_id
+# ("claude-desktop"). On native Wayland there is no WM_CLASS, so GNOME/KDE match
+# the window to its .desktop entry by app_id == .desktop filename; the old
+# "claude.desktop" never matched and the dock/Alt-Tab icon fell back to a generic
+# one. StartupWMClass (also "claude-desktop", set in every .desktop we write)
+# covers X11/XWayland. So now BOTH match keys agree: filename == app_id (Wayland)
+# and StartupWMClass == app_id (X11). See the DESKTOP_ID assignment after profile
+# resolution below.
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -155,6 +165,11 @@ fi
 # computed early because subcommands like --diagnose reference it before the
 # launch flow's SingletonLock cleanup block runs.
 config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/Claude${profile_suffix}"
+
+# .desktop filename identity (see the DESKTOP_ID note in the APP_ID header).
+# Default profile → "claude-desktop"; named profile → "claude-desktop-<name>".
+# Distinct from APP_ID (the cosmetic binary/scope basename, still "claude").
+DESKTOP_ID="claude-desktop${profile_suffix}"
 
 # ---------------------------------------------------------------------------
 # URL handler profile routing (SSO callback dispatch)
@@ -387,7 +402,7 @@ _profile_paths() {
     local name="$1"
     echo "$HOME/.local/lib/claude-desktop/${APP_ID}-${name}"
     echo "$HOME/.local/bin/claude-desktop-${name}"
-    echo "$HOME/.local/share/applications/${APP_ID}-${name}.desktop"
+    echo "$HOME/.local/share/applications/claude-desktop-${name}.desktop"
     echo "${XDG_CONFIG_HOME:-$HOME/.config}/Claude-${name}"
 }
 
@@ -508,7 +523,7 @@ _refresh_profile_binary_if_stale() {
 # ---------------------------------------------------------------------------
 # AppImage desktop integration (protocol handler + app menu entry)
 # ---------------------------------------------------------------------------
-_APPIMAGE_DESKTOP_FILE="$HOME/.local/share/applications/${APP_ID}.desktop"
+_APPIMAGE_DESKTOP_FILE="$HOME/.local/share/applications/${DESKTOP_ID}.desktop"
 _APPIMAGE_ICON_DIR="$HOME/.local/share/icons/hicolor/256x256/apps"
 
 _appimage_integrate() {
@@ -531,10 +546,10 @@ _appimage_integrate() {
         return 1
     fi
 
-    if [[ -f "/usr/share/applications/${APP_ID}.desktop" ]]; then
+    if [[ -f "/usr/share/applications/${DESKTOP_ID}.desktop" ]]; then
         log "AppImage integrate: system .desktop exists - skipping"
         if [[ "$quiet" != "quiet" ]]; then
-            echo "System package already provides ${APP_ID}.desktop - AppImage integration skipped."
+            echo "System package already provides ${DESKTOP_ID}.desktop - AppImage integration skipped."
             echo "(The system package's protocol handler takes priority.)"
         fi
         return 0
@@ -559,17 +574,34 @@ _appimage_integrate() {
 
     mkdir -p "$(dirname "$_APPIMAGE_DESKTOP_FILE")"
 
+    # Content aligned to the official .deb's .desktop (issue #148), adapted for
+    # AppImage: Exec= and the Action Exec lines point at the AppImage path
+    # instead of /usr/bin/claude-desktop. We keep %u (not the official %U) on the
+    # main Exec= so it matches $desired_exec in the up-to-date check above;
+    # the launcher handles a single claude:// URL either way.
     cat > "$_APPIMAGE_DESKTOP_FILE" <<DESKTOP_EOF
 [Desktop Entry]
 Name=Claude
-Comment=Claude AI Desktop Application
+Comment=Desktop application for Claude.ai
+GenericName=AI Assistant
+Keywords=AI;Chat;Assistant;Claude;Code;LLM;
 ${desired_exec}
 Icon=claude-desktop
 Type=Application
-Terminal=false
-Categories=Office;Utility;Chat;
-MimeType=x-scheme-handler/claude;
+StartupNotify=true
 StartupWMClass=claude-desktop
+SingleMainWindow=true
+Categories=Utility;Development;
+MimeType=x-scheme-handler/claude;
+Actions=NewChat;NewCode;
+
+[Desktop Action NewChat]
+Name=New chat
+Exec=${appimage_path} claude://claude.ai/new
+
+[Desktop Action NewCode]
+Name=New Claude Code session
+Exec=${appimage_path} claude://code/new
 DESKTOP_EOF
 
     local appimage_icon=""
@@ -592,7 +624,7 @@ DESKTOP_EOF
     fi
 
     if command -v xdg-mime &>/dev/null; then
-        xdg-mime default "${APP_ID}.desktop" x-scheme-handler/claude 2>/dev/null || true
+        xdg-mime default "${DESKTOP_ID}.desktop" x-scheme-handler/claude 2>/dev/null || true
     fi
 
     log "AppImage integrate: registered ${_APPIMAGE_DESKTOP_FILE} -> ${appimage_path}"
@@ -669,7 +701,7 @@ _create_profile() {
 
     local electron_bin_path="$HOME/.local/lib/claude-desktop/${APP_ID}-${name}"
     local launcher_link="$HOME/.local/bin/claude-desktop-${name}"
-    local desktop_file="$HOME/.local/share/applications/${APP_ID}-${name}.desktop"
+    local desktop_file="$HOME/.local/share/applications/claude-desktop-${name}.desktop"
 
     if [[ -e "$electron_bin_path" || -e "$launcher_link" || -e "$desktop_file" ]]; then
         echo >&2 "claude-desktop: profile '$name' already exists. Use --delete-profile=$name first to recreate."
@@ -707,11 +739,13 @@ _create_profile() {
 
     ln -s "$launcher_path" "$launcher_link"
 
-    # Try to find an existing system .desktop to inherit Icon=, etc.
+    # Try to find the default-profile system .desktop to inherit Icon=, etc.
+    # The installed default file is "claude-desktop.desktop" (issue #148), not
+    # "${APP_ID}.desktop" - APP_ID is now only the binary/scope basename.
     local source_desktop=""
     for c in \
-        "/usr/share/applications/${APP_ID}.desktop" \
-        "$HOME/.local/share/applications/${APP_ID}.desktop"; do
+        "/usr/share/applications/claude-desktop.desktop" \
+        "$HOME/.local/share/applications/claude-desktop.desktop"; do
         if [[ -f "$c" ]]; then
             source_desktop="$c"
             break
@@ -725,17 +759,29 @@ _create_profile() {
     local exec_line="Exec=${launcher_path} --profile=${name} %u"
 
     if [[ -n "$source_desktop" ]]; then
-        # Rewrite Name, Exec, StartupWMClass; drop MimeType= so the
-        # claude:// scheme remains owned by the system .desktop. The launcher
-        # routes incoming URLs to the right profile via the auth marker; if
-        # named profiles also claimed the scheme, xdg-mime ordering would
-        # short-circuit our routing for whichever entry got picked first.
-        awk -v name="$name" -v appid="$APP_ID" -v execline="$exec_line" '
-            BEGIN { FS=OFS="=" }
-            /^Name=/           { print "Name=Claude (" name ")"; next }
-            /^Exec=/           { print execline; next }
-            /^StartupWMClass=/ { print "StartupWMClass=" appid "-" name; next }
-            /^MimeType=/       { next }
+        # Rewrite Name and Exec; drop MimeType= so the claude:// scheme remains
+        # owned by the system .desktop. The launcher routes incoming URLs to the
+        # right profile via the auth marker; if named profiles also claimed the
+        # scheme, xdg-mime ordering would short-circuit our routing for whichever
+        # entry got picked first. Also strip the Actions= key and every [Desktop
+        # Action ...] block: their Exec= lines hardcode the default `claude-desktop`
+        # binary, so a named profile's right-click "New chat" would open in the
+        # default profile. Simpler to drop them than to rewrite each per-action Exec.
+        #
+        # StartupWMClass is left as the inherited "claude-desktop" on purpose: the
+        # window's live app_id is "claude-desktop" for every profile (the shared
+        # app.asar desktopName wins), so a per-profile "claude-<name>" WMClass
+        # would never match the window. A distinct per-profile app_id needs a
+        # per-profile desktopName override (out of scope for #148).
+        awk -v name="$name" -v execline="$exec_line" '
+            BEGIN { FS=OFS="="; drop=0 }
+            /^\[Desktop Action / { drop=1; next }   # drop the whole action block
+            /^\[Desktop Entry\]/ { drop=0 }
+            drop { next }
+            /^Name=/     { print "Name=Claude (" name ")"; next }
+            /^Exec=/     { print execline; next }
+            /^MimeType=/ { next }
+            /^Actions=/  { next }
             { print }
         ' "$source_desktop" > "$desktop_file"
     else
@@ -745,9 +791,9 @@ Name=Claude ($name)
 ${exec_line}
 Terminal=false
 Type=Application
-Icon=${APP_ID}
-StartupWMClass=${APP_ID}-${name}
-Categories=Network;InstantMessaging;
+Icon=claude-desktop
+StartupWMClass=claude-desktop
+Categories=Utility;Development;
 EOF
     fi
 
@@ -781,7 +827,7 @@ _delete_profile() {
 
     local electron_link="$HOME/.local/lib/claude-desktop/${APP_ID}-${name}"
     local launcher_link="$HOME/.local/bin/claude-desktop-${name}"
-    local desktop_file="$HOME/.local/share/applications/${APP_ID}-${name}.desktop"
+    local desktop_file="$HOME/.local/share/applications/claude-desktop-${name}.desktop"
 
     local removed=0
     for f in "$electron_link" "$launcher_link" "$desktop_file"; do
@@ -873,7 +919,12 @@ _diagnose() {
     echo "APP_ID = $APP_ID"
     echo "CLAUDE_PROFILE = ${CLAUDE_PROFILE:-(unset → default)}"
     echo "config_dir = $config_dir"
-    local desktop_file="/usr/share/applications/${APP_ID}.desktop"
+    echo "DESKTOP_ID = $DESKTOP_ID"
+    # The system-installed default .desktop is the portal-identity anchor that
+    # the systemd scope (app-claude-...scope) resolves back to. It is always the
+    # default "claude-desktop.desktop" (issue #148); named-profile .desktop files
+    # live user-local under ~/.local/share/applications/claude-desktop-<name>.desktop.
+    local desktop_file="/usr/share/applications/claude-desktop.desktop"
     if [[ -f $desktop_file ]]; then
         echo ".desktop file: $desktop_file (found)"
     else
@@ -938,6 +989,57 @@ _diagnose() {
             echo 'claude-desktop hotkey slot: NOT INSTALLED'
             echo '(run: claude-desktop --install-gnome-hotkey)'
         fi
+    fi
+    echo
+    echo '--- Cowork VM capability (replicates the app probe) ---'
+    # Mirrors the native Cowork backend's capability probe. If any of qemuPath /
+    # firmwarePath / virtiofsdPath / kvm is missing, the app reports "VM not
+    # supported" and the workspace Download does nothing. The resource base is
+    # our fix_locale_paths layout: <app.asar dir>/locales.
+    local _res_base
+    _res_base="$(dirname "$APP_ASAR")/locales"
+    local _arch _qemu_bin
+    case "$(uname -m)" in
+        aarch64|arm64) _arch=arm64; _qemu_bin=qemu-system-aarch64 ;;
+        *)             _arch=x64;   _qemu_bin=qemu-system-x86_64 ;;
+    esac
+    echo "PATH (as diagnose sees it) = ${PATH:-(empty!)}"
+    # qemuPath: first on PATH that is executable
+    local _qemu_path=''
+    if command -v "$_qemu_bin" &>/dev/null; then _qemu_path="$(command -v "$_qemu_bin")"; fi
+    echo "qemuPath = ${_qemu_path:-NOT FOUND on PATH ($_qemu_bin)}"
+    # firmwarePath: first readable OVMF/AAVMF CODE candidate (must match app's boi list)
+    local _fw='' _c
+    local _fw_candidates
+    if [[ $_arch == arm64 ]]; then
+        _fw_candidates=(/usr/share/AAVMF/AAVMF_CODE.fd)
+    else
+        _fw_candidates=(/usr/share/edk2/ovmf/OVMF_CODE.fd /usr/share/edk2/x64/OVMF_CODE.4m.fd /usr/share/edk2/x64/OVMF_CODE.fd /usr/share/OVMF/OVMF_CODE_4M.fd /usr/share/OVMF/OVMF_CODE.fd)
+    fi
+    for _c in "${_fw_candidates[@]}"; do
+        if [[ -r $_c ]]; then _fw="$_c"; break; fi
+    done
+    echo "firmwarePath = ${_fw:-NOT FOUND (install edk2-ovmf / ovmf)}"
+    if [[ -n $_fw ]]; then
+        local _vars="${_fw/OVMF_CODE/OVMF_VARS}"; _vars="${_vars/AAVMF_CODE/AAVMF_VARS}"
+        echo "  -> derived VARS = $_vars ($([[ -r $_vars ]] && echo present || echo MISSING))"
+    fi
+    # virtiofsdPath: system candidates, else bundled
+    local _vfs=''
+    for _c in /usr/libexec/virtiofsd /usr/lib/virtiofsd /usr/lib/qemu/virtiofsd /usr/bin/virtiofsd "$_res_base/virtiofsd"; do
+        if [[ -r $_c ]]; then _vfs="$_c"; break; fi
+    done
+    echo "virtiofsdPath = ${_vfs:-NOT FOUND}"
+    # helper + smol image (our resources/locales layout)
+    echo "helperBinaryPath = $([[ -x $_res_base/cowork-linux-helper ]] && echo "$_res_base/cowork-linux-helper" || echo MISSING)"
+    echo "smolBinPath = $([[ -r $_res_base/smol-bin.$_arch.img ]] && echo "$_res_base/smol-bin.$_arch.img" || echo MISSING)"
+    # kvm + vsock (app checks R_OK|W_OK)
+    echo "/dev/kvm = $([[ -r /dev/kvm && -w /dev/kvm ]] && echo ok || { [[ -e /dev/kvm ]] && echo 'NO PERMISSION (add user to kvm group + relogin)' || echo 'MISSING (enable virtualization in BIOS)'; })"
+    echo "/dev/vhost-vsock = $([[ -r /dev/vhost-vsock && -w /dev/vhost-vsock ]] && echo ok || { [[ -e /dev/vhost-vsock ]] && echo 'NO PERMISSION' || echo 'MISSING (sudo modprobe vhost_vsock)'; })"
+    if [[ -n $_qemu_path && -n $_fw && -n $_vfs && -r /dev/kvm && -w /dev/kvm && -r /dev/vhost-vsock && -w /dev/vhost-vsock ]]; then
+        echo "=> capability probe SHOULD pass (Cowork supported)"
+    else
+        echo "=> capability probe WOULD FAIL - fix the NOT-FOUND/MISSING item(s) above"
     fi
     echo
     echo '--- Recent launcher log (last 10 lines) ---'
@@ -1379,23 +1481,48 @@ fi
 log "Launching: $ELECTRON_BIN $APP_ASAR ${ELECTRON_ARGS[*]} $*"
 
 # Launch inside a named systemd user scope. The scope name (cgroup,
-# app-${APP_ID}-PID.scope) is the identity signal xdg-desktop-portal uses to
-# resolve us back to claude.desktop. It is independent of the window app_id /
-# X11 WM_CLASS ("claude-desktop", from the app's desktopName) - the dock-icon
-# match uses StartupWMClass instead (see APP_ID header / issue #148).
+# app-${DESKTOP_ID}-PID.scope) is the identity signal xdg-desktop-portal uses to
+# resolve us back to our .desktop. By the freedesktop convention the middle
+# token is the application id == .desktop basename, so it must be DESKTOP_ID
+# ("claude-desktop"), NOT APP_ID ("claude") - otherwise the portal would look
+# for the now-renamed "claude.desktop" and fail to identify us (issue #148).
+# This is separate from the window app_id / X11 WM_CLASS ("claude-desktop", from
+# the app's desktopName); that dock-icon match uses StartupWMClass / the .desktop
+# filename instead. APP_ID remains only the cosmetic Electron binary basename.
 # Fall back to direct exec in environments without user systemd (rare).
 # Three gates: explicit opt-out, binary present, runtime dir set, and the
 # user-systemd private socket actually reachable. The last check matters in
 # sandboxes (bwrap, distrobox, some container setups) where `systemd-run`
 # exists but the socket is filtered: without the probe we would `exec` into
 # systemd-run and die there, with no fallback. See issue #89.
+# Guarantee a usable PATH inside the Electron process. When Claude is launched
+# from a .desktop file (GNOME/XFCE/KDE menu), the systemd --user scope can start
+# with an EMPTY PATH - the display-manager-spawned graphical session and the
+# systemd user manager often carry no PATH. That breaks any feature that resolves
+# a binary via $PATH; in particular the native Cowork VM backend probes for
+# `qemu-system-x86_64` by walking process.env.PATH, so an empty PATH makes Cowork
+# report "VM not supported" and the workspace Download button do nothing - even
+# though qemu is installed. (Terminal launches are unaffected: they inherit the
+# shell's PATH.) We therefore export an explicit PATH that always includes the
+# standard system bindirs (where qemu/virtiofsd live), appended to whatever the
+# launcher inherited, and propagate it into the scope with --setenv.
+_claude_path="${PATH:-}"
+for _d in /usr/local/bin /usr/bin /bin /usr/local/sbin /usr/sbin /sbin; do
+    case ":${_claude_path}:" in
+        *":${_d}:"*) : ;;                       # already present
+        *) _claude_path="${_claude_path:+${_claude_path}:}${_d}" ;;
+    esac
+done
+export PATH="$_claude_path"
+
 if [[ "${CLAUDE_DISABLE_SYSTEMD_SCOPE:-}" != '1' ]] \
     && command -v systemd-run &>/dev/null \
     && [[ -n "${XDG_RUNTIME_DIR:-}" ]] \
     && [[ -S "${XDG_RUNTIME_DIR}/systemd/private" ]]; then
     exec systemd-run --user --scope --quiet \
-        --unit="app-${APP_ID}${profile_suffix}-$$.scope" \
+        --unit="app-${DESKTOP_ID}-$$.scope" \
         --description='Claude Desktop' \
+        --setenv="PATH=${_claude_path}" \
         -- "$ELECTRON_BIN" "$APP_ASAR" "${ELECTRON_ARGS[@]}" "$@"
 fi
 log 'systemd user scope unavailable (binary missing, socket unreachable, or CLAUDE_DISABLE_SYSTEMD_SCOPE=1): launching without scope; xdg-desktop-portal may fail to identify the app'

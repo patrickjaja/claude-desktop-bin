@@ -1,6 +1,6 @@
 ---
 name: debug
-description: Debug a problem in claude-desktop-bin / claude-cowork-service by pulling the right local evidence - the most recent local-agent-mode session transcript (your last prompt + the model's tool calls/errors), the Claude Desktop logs, cowork-svc debug output - and asking you for anything else worth collecting for the specific issue. Invoke as "/debug <short description of what's broken>".
+description: Debug a problem in claude-desktop-bin by pulling the right local evidence - the most recent local-agent-mode session transcript (your last prompt + the model's tool calls/errors) and the Claude Desktop logs - and asking you for anything else worth collecting for the specific issue. Invoke as "/debug <short description of what's broken>".
 disable-model-invocation: true
 argument-hint: "<what is broken>"
 ---
@@ -9,14 +9,14 @@ argument-hint: "<what is broken>"
 
 The issue to debug: **$ARGUMENTS**
 
-You are debugging the patched Claude Desktop and/or the cowork daemon. Gather the relevant local evidence below (skip what's clearly irrelevant to "$ARGUMENTS"), form a hypothesis, then ask the user for anything you can't collect yourself. Read `/architecture` for how the pieces fit and `/linux` for session/CU specifics if relevant.
+You are debugging the patched Claude Desktop. Cowork runs on the `.deb`'s bundled native VM backend (the old `claude-cowork-service` daemon is deprecated). Gather the relevant local evidence below (skip what's clearly irrelevant to "$ARGUMENTS"), form a hypothesis, then ask the user for anything you can't collect yourself. Read `/architecture` for how the pieces fit and `/linux` for session/CU specifics if relevant.
 
 ## 0. Resolve the config/log dir FIRST (1p vs 3p) - or you read stale evidence
 The runtime dir is **conditional**: a 3p/enterprise deployment relocates everything to `~/.config/Claude-3p/`.
 Resolve it once and use `$CFG` everywhere below.
 ```bash
 # 3p (inference-gateway / Bedrock / managed) -> Claude-3p ; otherwise -> Claude
-if [ -f /etc/claude-desktop/enterprise.json ]; then CFG=~/.config/Claude-3p; else CFG=~/.config/Claude; fi
+if [ -f /etc/claude-desktop/managed-settings.json ]; then CFG=~/.config/Claude-3p; else CFG=~/.config/Claude; fi
 # sanity-check against the running process (named profiles add a further -<profile> suffix):
 pgrep -af claude | grep -o -- '--user-data-dir=[^ ]*' | head -1
 echo "using CFG=$CFG"
@@ -60,7 +60,7 @@ If "$ARGUMENTS" is about dispatch/cowork/skills not working, this transcript usu
 ls -la "$CFG"/logs/ 2>/dev/null
 rg -i -a 'error|exception|fatal|denied|ENOENT|EACCES' "$CFG"/logs/ 2>/dev/null | tail -40
 ```
-Known logs (presence varies): `main.log` (Electron main), `cowork_vm_node.log` (Cowork sessions), `mcp.log` + `mcp-server-*.log`, `claude.ai-web.log` (BrowserView), plus others like `ssh.log`, `unknown-window.log`. Tail the one(s) relevant to "$ARGUMENTS". Also check crash reports: `ls -la "$CFG"/crash* 2>/dev/null`. (`$CFG` resolved in step 0 - `Claude-3p` under enterprise.json, else `Claude`.)
+Known logs (presence varies): `main.log` (Electron main), `cowork_vm_node.log` (Cowork sessions), `mcp.log` + `mcp-server-*.log`, `claude.ai-web.log` (BrowserView), plus others like `ssh.log`, `unknown-window.log`. Tail the one(s) relevant to "$ARGUMENTS". Also check crash reports: `ls -la "$CFG"/crash* 2>/dev/null`. (`$CFG` resolved in step 0 - `Claude-3p` under managed-settings.json, else `Claude`.)
 
 ### Dispatch-specific (if relevant)
 ```bash
@@ -68,29 +68,21 @@ grep -a 'DISPATCH-FWD.*PASSING\|DISPATCH-TRANSFORM\|DISPATCH-WRITE' "$CFG"/logs/
 grep -a 'Permission.*denied' "$CFG"/logs/main.log | tail -10
 ```
 
-## 3. cowork-svc daemon (if Cowork/Dispatch backend is implicated)
-Quick state, then optional verbose run:
+## 3. Cowork backend (if Cowork/Dispatch is implicated)
+Cowork runs on the `.deb`'s bundled native VM backend (cowork-linux-helper + virtiofsd + smol-bin + QEMU/OVMF; requires `/dev/kvm`). The old `claude-cowork-service` Go daemon is deprecated - there is no separate socket/systemd unit to poke. The backend's Electron-side lifecycle log is `cowork_vm_node.log`:
 ```bash
-pgrep -a cowork-svc; ls -la "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"/cowork-*service.sock 2>/dev/null
-systemctl --user status claude-cowork 2>/dev/null | head -15
+grep -a 'Using Claude VM spawn\|Spawn succeeded\|vmStarted\|disallowedTools\|virtualization_not_available' \
+  "$CFG"/logs/cowork_vm_node.log 2>/dev/null | tail -20
 ```
-For a live debug session (verbose RPC):
-```bash
-systemctl --user stop claude-cowork 2>/dev/null || pkill cowork-svc
-rm -f "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"/cowork-vm-service.sock
-nohup cowork-svc-linux -debug > /tmp/cowork-debug.log 2>&1 &
-# reproduce the issue in the app, then:
-grep -E 'DISPATCH-DEBUG|disallowedTools|injecting --brief|spawn|RPC' /tmp/cowork-debug.log | tail -40
-```
-(`COWORK_LOG_FULL=1` disables the ~160-char line truncation.) Note native vs KVM (`COWORK_VM_BACKEND`) - behavior differs (see `/architecture`).
+If Cowork won't start, confirm the host has `/dev/kvm` + `/dev/vhost-vsock` (the backend hard-requires both).
 
 ## 4. Ask the user for what you can't collect
 Based on "$ARGUMENTS", use `AskUserQuestion` to request anything missing - only ask for what the task actually needs. Examples to consider:
 - Exact repro steps + which feature (Chat/Code/Cowork/Dispatch/Computer Use/3P/Quick Entry).
 - Session/distro: output of `claude-desktop --diagnose` and the `[claude-cu] diagnostics:` lines from terminal (for Computer Use / Wayland issues).
-- Whether to run the verbose `cowork-svc-linux -debug` capture (step 3) and reproduce now.
+- Whether to reproduce the issue now while tailing `cowork_vm_node.log` (step 3).
 - A screenshot / the exact error text shown in the UI.
-- For stale-state bugs: permission to clear `"$CFG"/local-agent-mode-sessions/` (the model can otherwise "remember" past errors; `$CFG` = `Claude-3p` under enterprise.json, else `Claude`).
+- For stale-state bugs: permission to clear `"$CFG"/local-agent-mode-sessions/` (the model can otherwise "remember" past errors; `$CFG` = `Claude-3p` under managed-settings.json, else `Claude`).
 
 ## 5. Diagnose
-State the hypothesis grounded in the evidence (cite the log line / audit record / file:line). If it's a patch/upstream issue, point at the patch and suggest `/fresh-upstream` + `/update`. If it's a protocol drift, point at `COWORK_RPC_PROTOCOL.md` vs the daemon. Propose the fix; apply only if the user asks. Cross-reference memory (`~/.claude/projects/-home-patrickjaja-development-claude-desktop-bin/memory/`, e.g. dispatch-linux-debug, cowork-crash-debug) for prior findings before concluding.
+State the hypothesis grounded in the evidence (cite the log line / audit record / file:line). If it's a patch/upstream issue, point at the patch and suggest `/fresh-upstream` + `/update`. Propose the fix; apply only if the user asks. Cross-reference memory (`~/.claude/projects/-home-patrickjaja-development-claude-desktop-bin/memory/`, e.g. dispatch-linux-debug, cowork-crash-debug) for prior findings before concluding.

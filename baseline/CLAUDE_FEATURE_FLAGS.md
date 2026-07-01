@@ -651,11 +651,11 @@ Note: `chillingSlothLocal` and `ccdPlugins` overrides are defensive - both are a
 
 ### Cowork on Linux (experimental)
 
-As of v1.1.2685, Cowork uses a decoupled architecture with a TypeScript VM client that communicates with an external service over a socket. This makes Linux support feasible:
+As of the official Linux `.deb`, Cowork runs on Anthropic's **native Linux VM backend** bundled in the package (cowork-linux-helper + virtiofsd + smol-bin + QEMU/OVMF; requires `/dev/kvm`). The MSIX-era wiring is gone:
 
-- **`fix_cowork_linux.nim`** patches the VM client loader to include Linux (not just `win32`)
-- The Named Pipe path is replaced with a Unix domain socket on Linux
-- **`claude-cowork-service`** (separate Go daemon at `/home/patrickjaja/development/claude-cowork-service`) provides native execution backend — 18 RPC methods, process spawning, path remapping
+- **`fix_cowork_linux.nim` and the rest of the cowork-wiring cluster were removed** in the `.deb` pivot - the official build ships the VM client loader with native Linux support
+- **`claude-cowork-service`** (the separate Go daemon) is **deprecated** and no longer used; Cowork now works through the official native backend
+- The only remaining Cowork patch is **`fix_cowork_firmware_paths_linux.nim`** (adds non-Debian OVMF firmware paths to the VM capability probe)
 - `chillingSlothFeat`, `chillingSlothLocal`, `yukonSilver`, `yukonSilverGems`, and `ccdPlugins` are all overridden to `{status:"supported"}` in the SIA merger
 
 Without the daemon running, Cowork will show connection errors naturally in the UI.

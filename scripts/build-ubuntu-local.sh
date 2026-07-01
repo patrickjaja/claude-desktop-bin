@@ -1,17 +1,21 @@
 #!/bin/bash
 #
-# Local build script for Ubuntu/Debian — builds an installable .deb from source
+# Local build script for Ubuntu/Debian — builds an installable .deb.
 #
-# This script downloads the latest Claude Desktop for Windows,
-# applies Linux patches, and builds a .deb package for Ubuntu/Debian.
+# NOTE: build-local.sh is now cross-distro (it ingests the official Linux .deb and
+# can target any packaging). This wrapper is kept for muscle memory; it ingests the
+# same official .deb and produces an installable .deb via packaging/debian/build-deb.sh.
 #
-# Usage: ./scripts/build-ubuntu-local.sh [--install]
+# Usage: ./scripts/build-ubuntu-local.sh [--deb PATH | --version X] [--install] [--smoke-test]
 #
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 BUILD_DIR="$PROJECT_DIR/build"
+
+APT_BASE="${CLAUDE_DESKTOP_APT_URL:-https://downloads.claude.ai/claude-desktop/apt/stable}"
+APT_PACKAGES_URL="$APT_BASE/dists/stable/main/binary-amd64/Packages"
 
 # Colors for output
 RED='\033[0;31m'
@@ -26,47 +30,47 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 # Parse arguments
 INSTALL_AFTER_BUILD=false
 SKIP_SMOKE_TEST="${SKIP_SMOKE_TEST:-1}"
-for arg in "$@"; do
-    case $arg in
-        --install|-i)
-            INSTALL_AFTER_BUILD=true
-            shift
-            ;;
-        --smoke-test)
-            SKIP_SMOKE_TEST=0
-            shift
-            ;;
+DEB_PATH=""
+DEB_VERSION=""
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --install|-i) INSTALL_AFTER_BUILD=true; shift ;;
+        --smoke-test) SKIP_SMOKE_TEST=0; shift ;;
+        --deb)        DEB_PATH="$2"; shift 2 ;;
+        --version)    DEB_VERSION="$2"; shift 2 ;;
         --help|-h)
-            echo "Usage: $0 [OPTIONS]"
+            echo "Usage: $0 [--deb PATH | --version X] [--install] [--smoke-test]"
             echo ""
             echo "Options:"
+            echo "  --deb <PATH>     Use a local official .deb instead of downloading"
+            echo "  --version <X>    Download a specific version from the apt repo"
             echo "  --install, -i    Install the .deb after building"
             echo "  --smoke-test     Run Electron smoke test (skipped by default)"
             echo "  --help, -h       Show this help message"
             echo ""
             echo "This script:"
-            echo "  1. Downloads Claude Desktop for Windows (if not present)"
+            echo "  1. Resolves the official Claude Desktop Linux .deb (local, pinned, or latest)"
             echo "  2. Applies Linux patches using build-patched-tarball.sh"
             echo "  3. Builds a .deb package using packaging/debian/build-deb.sh"
             echo "  4. Optionally installs it with apt"
             exit 0
             ;;
+        *) echo "Unknown option: $1"; exit 1 ;;
     esac
 done
 
-# Check dependencies
+# Check dependencies. ar (binutils) cracks the upstream .deb; dpkg-deb builds ours.
 log_info "Checking build dependencies..."
 MISSING_DEPS=()
-for dep in wget 7z asar python3 dpkg-deb unzip; do
+for dep in curl ar tar asar python3 dpkg-deb; do
     if ! command -v "$dep" &> /dev/null; then
         MISSING_DEPS+=("$dep")
     fi
 done
-
 if [ ${#MISSING_DEPS[@]} -ne 0 ]; then
     log_error "Missing dependencies: ${MISSING_DEPS[*]}"
     echo "Install them with:"
-    echo "  sudo apt install p7zip-full wget dpkg-dev unzip imagemagick fakeroot"
+    echo "  sudo apt install binutils tar curl dpkg-dev fakeroot"
     echo "  npm install -g @electron/asar  (if asar is missing)"
     exit 1
 fi
@@ -76,64 +80,26 @@ log_info "Setting up build directory..."
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
 
-# Download latest msix (same logic as build-local.sh)
-MSIX_FILE="$BUILD_DIR/Claude.msix"
-LOCAL_MSIX="$PROJECT_DIR/Claude.msix"
-
-log_info "Querying Claude Desktop version API..."
-LATEST_JSON=$(wget -q -O - "https://downloads.claude.ai/releases/win32/x64/.latest")
-if [ -z "$LATEST_JSON" ]; then
-    log_error "Failed to query version API"
-    exit 1
-fi
-LATEST_VERSION=$(echo "$LATEST_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['version'])")
-LATEST_HASH=$(echo "$LATEST_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['hash'])")
-DOWNLOAD_URL="https://downloads.claude.ai/releases/win32/x64/${LATEST_VERSION}/Claude-${LATEST_HASH}.msix"
-
-if [ -f "$LOCAL_MSIX" ]; then
-    LOCAL_VERSION=$("$SCRIPT_DIR/extract-version.sh" "$LOCAL_MSIX" 2>/dev/null || echo "unknown")
-    if [ "$LOCAL_VERSION" = "$LATEST_VERSION" ]; then
-        log_info "Local msix is already latest (v$LATEST_VERSION), reusing"
-        cp "$LOCAL_MSIX" "$MSIX_FILE"
-    else
-        log_info "Local msix is v$LOCAL_VERSION, latest is v$LATEST_VERSION — downloading update"
-        wget -O "$MSIX_FILE" \
-            -U "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
-            "$DOWNLOAD_URL" 2>&1
-
-        if [ ! -f "$MSIX_FILE" ] || [ ! -s "$MSIX_FILE" ]; then
-            log_error "Download failed."
-            log_info "You can manually download from: https://claude.ai/download"
-            log_info "Then place the msix in $PROJECT_DIR/Claude.msix and re-run"
-            exit 1
-        fi
-        cp "$MSIX_FILE" "$LOCAL_MSIX"
-        log_info "Download complete, local msix updated"
-    fi
+# Resolve the .deb source for the ingest (local / pinned / latest).
+DEB_ARG=""
+if [ -n "$DEB_PATH" ]; then
+    [ -f "$DEB_PATH" ] || { log_error "--deb file not found: $DEB_PATH"; exit 1; }
+    log_info "Using local .deb: $DEB_PATH"
+    DEB_ARG="$DEB_PATH"
+elif [ -n "$DEB_VERSION" ]; then
+    log_info "Will fetch version $DEB_VERSION from apt repo"
+    export CLAUDE_DESKTOP_WANT_VERSION="$DEB_VERSION"
+    DEB_ARG="$APT_PACKAGES_URL"
 else
-    log_info "Downloading Claude Desktop for Windows (msix)..."
-    log_info "Latest version: $LATEST_VERSION"
-    log_info "Download URL: $DOWNLOAD_URL"
-
-    wget -O "$MSIX_FILE" \
-        -U "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
-        "$DOWNLOAD_URL" 2>&1
-
-    if [ ! -f "$MSIX_FILE" ] || [ ! -s "$MSIX_FILE" ]; then
-        log_error "Download failed."
-        log_info "You can manually download from: https://claude.ai/download"
-        log_info "Then place the msix in $PROJECT_DIR/Claude.msix and re-run"
-        exit 1
-    fi
-    cp "$MSIX_FILE" "$LOCAL_MSIX"
-    log_info "Download complete"
+    DEB_ARG="$APT_PACKAGES_URL"
 fi
 
 # Build the patched tarball (shared with all distros)
-log_info "Building patched tarball..."
-SKIP_SMOKE_TEST="$SKIP_SMOKE_TEST" "$SCRIPT_DIR/build-patched-tarball.sh" "$MSIX_FILE" "$BUILD_DIR"
+log_info "Building patched tarball from official .deb..."
+SKIP_SMOKE_TEST="$SKIP_SMOKE_TEST" "$SCRIPT_DIR/build-patched-tarball.sh" "$DEB_ARG" "$BUILD_DIR"
 
 # Read build info
+# shellcheck disable=SC1091
 source "$BUILD_DIR/build-info.txt"
 log_info "Built version: $VERSION"
 log_info "Tarball: $TARBALL"
@@ -146,7 +112,6 @@ mkdir -p "$DEB_OUTPUT"
 
 # Find the built .deb
 DEB_FILE=$(find "$DEB_OUTPUT" -name "*.deb" -type f | head -1)
-
 if [ -z "$DEB_FILE" ]; then
     log_error "Build failed - no .deb file found"
     exit 1
@@ -155,7 +120,6 @@ fi
 # Copy .deb to build dir for easy access
 cp "$DEB_FILE" "$BUILD_DIR/"
 DEB_FILE="$BUILD_DIR/$(basename "$DEB_FILE")"
-
 log_info ".deb built successfully: $DEB_FILE"
 
 # Install if requested
