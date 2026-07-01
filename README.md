@@ -66,6 +66,8 @@ sudo pacman -S --needed qemu-system-aarch64 edk2-aarch64 virtiofsd  # aarch64
 # then join the kvm group (once, needs re-login): sudo usermod -aG kvm "$USER"
 ```
 
+> **Arch Linux ARM / EndeavourOS ARM / Manjaro ARM (native aarch64 host, e.g. Raspberry Pi 5):** `edk2-aarch64` is `arch=any` on archlinux.org but Arch Linux ARM's repos don't carry it, so `pacman -S edk2-aarch64` fails with `target not found` even after `-Syu` ([ALARM forum #16140](https://archlinuxarm.org/forum/viewtopic.php?t=16140)). Since the package is architecture-independent, grab it from the x86_64 Arch mirrors and install locally: `curl -O https://geo.mirror.pkgbuild.com/extra/os/x86_64/edk2-aarch64-<version>-any.pkg.tar.zst && sudo pacman -U ./edk2-aarch64-*.pkg.tar.zst` (check [archlinux.org/packages/extra/any/edk2-aarch64](https://archlinux.org/packages/extra/any/edk2-aarch64/) for the current version/filename).
+
 **Computer Use** - pick the line for your session (`echo $XDG_SESSION_TYPE`, `echo $XDG_CURRENT_DESKTOP`):
 
 ```bash
@@ -375,6 +377,7 @@ The Claude Code CLI that Cowork/Dispatch drive is managed by the app itself - no
 > # Fedora/RHEL:   sudo dnf install qemu-system-x86 edk2-ovmf      # arm64: qemu-system-aarch64 edk2-aarch64
 > # Debian/Ubuntu: sudo apt install qemu-system-x86 ovmf           # arm64: qemu-system-arm qemu-efi-aarch64
 > ```
+> On Arch Linux ARM / EndeavourOS ARM / Manjaro ARM (native aarch64 hosts), `edk2-aarch64` is missing from the ALARM repos even though it's `arch=any` upstream - see the Arch install section above for the manual-download workaround.
 
 If the workspace shows "Download failed" and clicking Download does nothing, it's almost always missing `kvm` group membership (or, on AppImage/Nix, missing firmware). **CoworkSpaces** are stored locally per account under `~/.config/Claude/local-agent-mode-sessions/` (see [Known Limitations](#known-limitations)).
 
