@@ -48,7 +48,7 @@ Everything else - Chat, Claude Code, Cowork, Browser Tools, 3P/enterprise infere
 
 ## Installation
 
-Pick your distro below. Each section lists the optional dependencies for that distro (Cowork, Computer Use) and when you need them. If you want Cowork, also see [Cowork setup](#cowork-setup-needs-devkvm) for the one-time `kvm` group step.
+Pick your distro below. Each section lists the optional dependencies for that distro (Cowork, Computer Use) and when you need them.
 
 ### Arch Linux / Manjaro (AUR)
 ```bash
@@ -56,7 +56,9 @@ yay -S claude-desktop-bin
 ```
 Updates arrive through your AUR helper (e.g. `yay -Syu`).
 
-**Optional deps.** pacman does **not** auto-install `optdepends`, so copy the line for what you want. **Cowork** (agent workspace VM):
+**Optional deps** (pacman does **not** auto-install `optdepends` - run the line you want).
+
+**Cowork** (agent workspace VM):
 
 ```bash
 sudo pacman -S --needed qemu-system-x86 edk2-ovmf virtiofsd     # x86_64
@@ -91,7 +93,14 @@ sudo apt install claude-desktop-bin
 ```
 Updates are automatic via `sudo apt update && sudo apt upgrade`.
 
-**Optional deps.** **Cowork**'s VM deps (`qemu-system-x86`, `ovmf`, `virtiofsd`; arm64: `qemu-system-arm`, `qemu-efi-aarch64`, `virtiofsd`) are `Recommends`, so `apt` pulls them in by default - this mirrors Anthropic's official `.deb` (skip with `--no-install-recommends`). Then join the `kvm` group once (`sudo usermod -aG kvm "$USER"`, needs re-login).
+**Optional deps.**
+
+**Cowork** (agent workspace VM). Auto-installed by `apt` (`Recommends`, mirroring Anthropic's official `.deb`); run manually only if you skipped recommends:
+
+```bash
+sudo apt install qemu-system-x86 ovmf virtiofsd        # arm64: qemu-system-arm qemu-efi-aarch64 virtiofsd
+# then join the kvm group (once, needs re-login): sudo usermod -aG kvm "$USER"
+```
 
 **Computer Use** (`Suggests`, not auto-installed) - pick the line for your session (`echo $XDG_SESSION_TYPE`, `echo $XDG_CURRENT_DESKTOP`):
 
@@ -126,7 +135,14 @@ sudo dnf install claude-desktop-bin
 ```
 Updates are automatic via `sudo dnf upgrade`.
 
-**Optional deps.** **Cowork**'s VM deps (`qemu-system-x86` / `qemu-system-aarch64`, `edk2-ovmf` / `edk2-aarch64`, `virtiofsd`; RHEL uses `qemu-kvm`) are weak deps, so `dnf` pulls them in by default (skip with `--setopt=install_weak_deps=False`). Then join the `kvm` group once (`sudo usermod -aG kvm "$USER"`, needs re-login).
+**Optional deps.**
+
+**Cowork** (agent workspace VM). Auto-installed by `dnf` (weak deps); run manually only if you disabled them:
+
+```bash
+sudo dnf install qemu-system-x86 edk2-ovmf virtiofsd   # arm64: qemu-system-aarch64 edk2-aarch64 · RHEL: qemu-kvm instead of qemu-system-x86
+# then join the kvm group (once, needs re-login): sudo usermod -aG kvm "$USER"
+```
 
 **Computer Use** (`Suggests`, not auto-installed) - pick the line for your session (`echo $XDG_SESSION_TYPE`, `echo $XDG_CURRENT_DESKTOP`):
 
