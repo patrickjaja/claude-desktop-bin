@@ -15,7 +15,7 @@
 
 Anthropic publishes an official Claude Desktop [Linux `.deb`](https://code.claude.com/docs/en/desktop-linux) (Ubuntu 22.04+ / Debian 12+, amd64 + arm64). This project takes that official build, repackages it for **Arch/AUR, Fedora/RHEL, NixOS, and AppImage** (and offers its own Debian/Ubuntu `.deb`), and layers on four Linux-only value-adds the official build lacks:
 
-- [**Computer Use**](#computer-use) - desktop automation (screenshot, click, type, scroll, teach mode). Not in the official Linux beta - **our own implementation.**
+- [**Computer Use**](#computer-use) - desktop automation (screenshot, click, type, scroll, teach mode).
 - [**Custom Themes**](#custom-themes) - 7 built-in dual light/dark themes with custom loading spinners, or roll your own.
 - [**Multiple Profiles**](#multiple-profiles) - run several instances side by side, each logged in to a different account with fully isolated state.
 - [**Quick Entry**](#quick-entry) - global hotkey popup (Ctrl+Alt+Space), multi-monitor and Wayland-aware.
@@ -342,7 +342,7 @@ Install QEMU + UEFI firmware and grant `/dev/kvm` access (needed once):
 sudo usermod -aG kvm "$USER"   # then log out and back in
 ```
 
-If the workspace shows "Download failed" and clicking Download does nothing, it's almost always missing firmware (`edk2-ovmf`/`ovmf`) or missing `kvm` group membership. Cowork also needs the Claude Code CLI installed. **CoworkSpaces** are stored locally per account under `~/.config/Claude/local-agent-mode-sessions/` and are local-only on every platform (no claude.ai account-sync - upstream behavior by design).
+If the workspace shows "Download failed" and clicking Download does nothing, it's almost always missing firmware (`edk2-ovmf`/`ovmf`) or missing `kvm` group membership. Cowork also needs the Claude Code CLI installed. **CoworkSpaces** are stored locally per account under `~/.config/Claude/local-agent-mode-sessions/` (see [Known Limitations](#known-limitations)).
 
 > **Note — Cowork does not work inside a nested VM.** Because Cowork boots its own lightweight VM (the bundled backend downloads/builds a rootfs and starts it via QEMU/KVM), it needs real, stable access to `/dev/kvm`. Running Claude Desktop inside a hypervisor guest (VirtualBox, VMware, etc.) means Cowork would have to launch a VM *inside* a VM (nested virtualization), which most desktop hypervisors do not support reliably — VirtualBox in particular can hard-crash the entire guest when the nested VM starts. The app itself installs and runs fine in a VM; only the Cowork feature requires a bare-metal host (or a cloud instance with nested virtualization properly enabled).
 
