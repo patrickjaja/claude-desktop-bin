@@ -20,7 +20,7 @@ Anthropic publishes an official Claude Desktop [Linux `.deb`](https://code.claud
 - [**Multiple Profiles**](#multiple-profiles) - run several instances side by side, each logged in to a different account with fully isolated state.
 - [**Quick Entry**](#quick-entry) - global hotkey popup (Ctrl+Alt+Space), multi-monitor and Wayland-aware.
 
-Everything else - Chat, Claude Code, Cowork, Browser Tools, 3P/enterprise inference - is the **official upstream build working natively on Linux**, preserved through the repackage. On top of that we ship a batch of **Linux fixes** for problems reported by real users: Cowork "Download failed" on Arch/Fedora, MCP servers failing, false memory-pressure warnings, exit hangs, white screens on some GPUs, plus enabling upstream features that are gated off or macOS-only on Linux (Dispatch, Browser Tools, "Open in editor", and more). See the [Patches](#patches) table for the full list. As Anthropic ships these fixes natively, we retire the matching patch - so this set shrinks over time as the official build catches up.
+Everything else - Chat, Claude Code, Cowork, Browser Tools, 3P/enterprise inference - is the **official upstream build working natively on Linux**, preserved through the repackage. On top of that we ship a batch of **Linux fixes** for rough edges reported by real users - things like Cowork "Download failed" on Arch/Fedora, MCP servers failing, and features that upstream still gates off on Linux. See the [Patches](#patches) table for the full list. As Anthropic ships these fixes natively, we retire the matching patch - so this set shrinks over time as the official build catches up.
 
 > **If you run Ubuntu 22.04+ / Debian 12+,** Anthropic's [official `.deb`](https://code.claude.com/docs/en/desktop-linux) installs the base app directly. Use this project if you're on Arch/Fedora/RHEL/Nix/AppImage, or if you want the four value-adds and Linux fixes above.
 
@@ -404,7 +404,6 @@ Each patch is a self-contained `patches/*.nim` file compiled to a native binary.
 | `fix_cowork_font.nim` | Applies the user's chat font preference to the Cowork tab (avoids default Serif) | Prepended dom-ready IIFE, no regex |
 | `fix_cross_device_rename.nim` | EXDEV fallback for cross-filesystem file moves | Uses `.rename(` literal |
 | `fix_detected_projects_linux.nim` | Enables detected projects with Linux IDE paths (VSCode, Cursor, Zed) | `rg -o 'detectedProjects.{0,50}' index.js` |
-| `fix_dispatch_linux.nim` | Enables Dispatch - forces bridge init, bypasses platform gate, forwards responses natively | `rg -o 'sessions-bridge.*init' index.js` |
 | `fix_dock_bounce.nim` | Suppresses taskbar attention-stealing on KDE/Wayland | Prepended IIFE, no regex |
 | `fix_imagine_linux.nim` | Enables Imagine/Visualize - forces GrowthBook flag for inline SVG/HTML rendering | `rg -o '3444158716' index.js` |
 | `fix_ion_dist_linux.nim` | Adds Linux org-plugins mount path + platform ternary to the ion-dist 3P config SPA | `rg -o 'mountPath.{0,80}' ion-dist/assets/v1/*.js` |

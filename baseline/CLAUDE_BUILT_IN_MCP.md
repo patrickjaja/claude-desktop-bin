@@ -195,11 +195,11 @@ Browser interaction (30-second timeout each):
 |-------|-------|
 | Server name | `"terminal"` (constant `gCr`) |
 | Factory | `ECr()` via `getTerminalServerDef` |
-| Platform | **All** (macOS, Windows, Linux) - upstream uses `pj` (darwin\|\|win32 only), but `fix_dispatch_linux.nim` patches it to include Linux |
-| Gating | `t.sessionType === "ccd"` AND `!t.isSSH` AND `pj` platform check AND server flag `397125142` |
+| Platform | **All** (macOS, Windows, Linux) - upstream **dropped** the old `pj` (darwin\|\|win32) platform gate; `isEnabled` is now `sessionType==="ccd"&&!isSSH` with no platform check |
+| Gating | `t.sessionType === "ccd"` AND `!t.isSSH` AND server flag `397125142` (no platform gate as of v1.17377) |
 | Session types | **CCD only** - NOT available in Cowork sessions. The `sessionType==="ccd"` check is hardcoded in `isEnabled` |
-| Backend | `node-pty` - spawns a PTY shell, streams output to xterm.js terminal panel in the UI |
-| Linux status | **Works** - `pj` patched by `fix_dispatch_linux.nim`, node-pty rebuilt from source by `build-patched-tarball.sh` |
+| Backend | `node-pty` - spawns a PTY shell, streams output to xterm.js terminal panel in the UI. node-pty ships pre-built for Linux in the official `.deb` |
+| Linux status | **Works natively** - no platform gate remains; the old `fix_dispatch_linux.nim` `pj` patch is removed (patch deleted; Dispatch/terminal upstream-native on Linux) |
 
 | Tool | Description |
 |------|-------------|
@@ -407,7 +407,7 @@ Claude Desktop creates 4 additional MCP servers **dynamically per cowork/dispatc
 | `list_code_workspaces` | `Gdt` | List available code workspaces. Gated by flag `3723845789` |
 | `list_projects` | `Kdt` | List available projects |
 
-**Important:** `mcp__dispatch__send_message` is **NOT** a replacement for the built-in `SendUserMessage` CLI tool - they serve completely different purposes. `send_message` sends a follow-up message **to another session** (inter-session communication, takes `{session_id, message}`). `SendUserMessage` sends a response **to the human user** (renders on phone, takes `{message, attachments?}`). Since `SendUserMessage` is broken ([anthropics/claude-code#35076](https://github.com/anthropics/claude-code/issues/35076) - still open as of 2026-03-27, confirmed on v2.1.85), there is **no native tool** for the model to send user-facing responses. Patch I in `fix_dispatch_linux.py` compensates by transforming plain text assistant messages into synthetic `SendUserMessage` tool_use blocks, which the sessions API renders on phone.
+**Important:** `mcp__dispatch__send_message` is **NOT** a replacement for the built-in `SendUserMessage` CLI tool - they serve completely different purposes. `send_message` sends a follow-up message **to another session** (inter-session communication, takes `{session_id, message}`). `SendUserMessage` sends a response **to the human user** (renders on phone, takes `{message, attachments?}`). Historically `SendUserMessage` was broken ([anthropics/claude-code#35076](https://github.com/anthropics/claude-code/issues/35076), confirmed on v2.1.85) and an older `fix_dispatch_linux` sub-patch ("Patch I") compensated by transforming plain-text assistant messages into synthetic `SendUserMessage` tool_use blocks. **That is no longer needed:** the bundled Claude Code is now v2.1.197 and Dispatch responses render on phone natively (live-tested v1.17377). The entire `fix_dispatch_linux` patch has been removed - Dispatch is upstream-native on Linux.
 
 ### 14. Cowork
 
@@ -644,7 +644,7 @@ Uses `createDarwinExecutor()` -> `@ant/claude-swift` native module for screen ca
 
 - **Claude in Chrome**: Works on Linux via `fix_browser_tools_linux.py` - redirects native host binary to Claude Code's `~/.claude/chrome/chrome-native-host` and installs NativeMessagingHosts manifests for 6 Linux browsers (Chrome, Chromium, Brave, Edge, Vivaldi, Opera). Requires Claude Code CLI and the [Claude in Chrome](https://chromewebstore.google.com/detail/claude-code/fcoeoabgfenejglbffodgkkbkcdhcgfn) extension.
 - **Office Add-in**: Removed as MCP server in v1.8555.2 - moved to IPC bridge. Previously platform-gated to macOS/Windows; patched to enable on Linux via `fix_office_addin_linux.nim`.
-- **Terminal (`read_terminal`)**: CCD sessions only - `isEnabled` checks `sessionType==="ccd"` (hardcoded, not patchable without changing session semantics). NOT available in Cowork sessions. In Cowork, the model uses `mcp__workspace__bash` instead which runs directly on the host. Platform gate `pj` patched by `fix_dispatch_linux.nim`. node-pty rebuilt by build script.
+- **Terminal (`read_terminal`)**: CCD sessions only - `isEnabled` is `sessionType==="ccd"&&!isSSH` (hardcoded, not patchable without changing session semantics). NOT available in Cowork sessions. In Cowork, the model uses `mcp__workspace__bash` instead which runs directly on the host. **No platform gate** - upstream dropped the old `pj` (darwin\|\|win32) check, so it works on Linux natively (the `fix_dispatch_linux` patch that used to flip `pj` is removed). node-pty ships pre-built for Linux in the official `.deb`.
 - **Computer Use**: Works on Linux via `fix_computer_use_linux.nim` - uses xdotool/scrot + Electron built-in APIs (clipboard, screen, desktopCapturer) instead of `@ant/claude-swift`. Available in Cowork and Code sessions.
 - **Visualize (Imagine)**: Enabled on Linux via `fix_imagine_linux.nim` - forces GrowthBook flag `3444158716`. No platform gate. Renders SVG/HTML inline in cowork sessions.
 - **Radar**: Not yet activatable - server disabled at MCP level, session creation in renderer code. No platform gate. Future feature.

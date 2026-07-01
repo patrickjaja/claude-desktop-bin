@@ -4,6 +4,12 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 
 ## 2026-07-01
 
+### Removed `fix_dispatch_linux` (Dispatch is upstream-native on Linux)
+
+Dispatch (phone->desktop task orchestration) now works on the official Linux `.deb` with no patch - live-tested by sending a task from phone to desktop and receiving the rendered response on v1.17377.1. Over several releases upstream shipped everything the patch used to force: the sessions-bridge inits on Linux, the mobile remote-session-control path runs, the platform label returns "Linux", and the terminal MCP server's old `pj` (darwin||win32) gate was dropped entirely. The patch was deleted; docs (README patch table, `PLATFORM_GATE_BASELINE.md`, `CLAUDE_FEATURE_FLAGS.md`, `CLAUDE_BUILT_IN_MCP.md`) updated to note the upstreamed behavior.
+
+Also re-audited the remaining 47 patches against a fresh unpatched v1.17377 bundle. Every other patch either still mutates the bundle (the bug/gate it fixes is still present) or is already a regression guard - so no further patches were redundant. Dispatch was the only one.
+
 ### Pivot: repackage the official Claude Desktop Linux `.deb`
 
 Anthropic shipped an official Claude Desktop Linux beta ([docs](https://code.claude.com/docs/en/desktop-linux)). This project now repackages that official `.deb` instead of the Windows MSIX, and the sibling `claude-cowork-service` daemon is deprecated.

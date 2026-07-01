@@ -204,7 +204,7 @@ Calls the merger, validates the result against a Zod schema, and sends it to the
 |---------|---------|----------|
 | `162211072` | Prompt suggestions enable | No |
 | `286376943` | Plugin skills for system prompt — gates `getPluginSkillsForSystemPrompt` (**new in v1.2278.0**) | No |
-| `397125142` | Terminal server — gated: `sessionType==="ccd"` AND `r6e` AND this flag. CCD only, NOT cowork. `r6e` patched by `fix_dispatch_linux.nim`; flag itself not patched (enabled server-side) | No |
+| `397125142` | Terminal server — gated: `sessionType==="ccd"&&!isSSH` AND this flag. CCD only, NOT cowork. Upstream **dropped** the old `pj`/`r6e` platform gate, so no patch needed (was `fix_dispatch_linux.nim`, now removed); flag enabled server-side | No |
 | `714014285` | CLAUDE_CODE_ENABLE_FINE_GRAINED_TOOL_STREAMING | No |
 | `763725229` | Developer menu label/visibility | No |
 | `720735283` | Marketplace migration | No |
@@ -215,7 +215,7 @@ Calls the merger, validates the result against a Zod schema, and sends it to the
 | `1942781881` | Prompt suggestions in sessions | No |
 | `2051942385` | CIC can-use-tool | No |
 | `2067027393` | canLaunchCodeSession | No |
-| `2216414644` | Remote session control (Dispatch mobile) | **Yes** — bypassed in `fix_dispatch_linux.nim` |
+| `2216414644` | Remote session control (Dispatch mobile) | No — was bypassed in `fix_dispatch_linux.nim`; **patch removed** (Dispatch is upstream-native on Linux as of v1.17377, live-tested) |
 | `2246535838` | Local MCP server prefix (`local:`) | No |
 | `2339084909` | VM monitoring fallback (non-heartbeat) | No |
 | `2340532315` | Plugin sync on session start | No |
@@ -230,14 +230,14 @@ Calls the merger, validates the result against a Zod schema, and sends it to the
 | `2940196192` | coworkArtifacts — persistent HTML artifact storage in cowork sessions | **Yes** — forced ON in `enable_local_agent_mode.nim` (4 call sites) |
 | `3444158716` | Cowork resources MCP ("visualize" — show_widget tool) | No |
 | `1143815894` | hostLoopMode — non-VM cowork (bare SDK loop, no cowork service spawn) | **No** — must NOT be forced ON; doing so bypasses the cowork service, breaking skills/plugins |
-| `3558849738` | Dispatch/Spaces feature (RBe constant) | **Yes** — forced ON in `fix_dispatch_linux.nim` |
-| `3572572142` | Sessions-bridge init (Dispatch) | **Yes** — forced ON in `fix_dispatch_linux.nim` |
+| `3558849738` | Dispatch/Spaces feature (RBe constant) | No — was forced ON in `fix_dispatch_linux.nim`; **patch removed** (defaults ON upstream on Linux) |
+| `3572572142` | Sessions-bridge init (Dispatch) | No — was forced ON in `fix_dispatch_linux.nim`; **patch removed** (inits natively on Linux) |
 | `3691521536` | Stealth updater — nudge updates when no active sessions | No |
 | `3723845789` | Additional Cowork tools | No |
 | `4116586025` | louderPenguin / Code tab master gate | No (overridden at merger level) |
 | `4153934152` | CLAUDE_CODE_SKIP_PRECOMPACT_LOAD | No |
 | `4160352601` | VM heartbeat monitoring | No |
-| `4201169164` | **Remote orchestrator** (codename "manta") — **removed from GrowthBook** in v1.1.9669; `Hhn()` now returns hardcoded `false` (`Qhn=!1`). Code still exists but is disabled. | Indirectly — sessions-bridge gate forced ON in `fix_dispatch_linux.nim` |
+| `4201169164` | **Remote orchestrator** (codename "manta") — **removed from GrowthBook** in v1.1.9669; `Hhn()` now returns hardcoded `false` (`Qhn=!1`). Code still exists but is disabled. | No — `fix_dispatch_linux.nim` removed (Dispatch upstream-native) |
 
 #### New Boolean Flags in v1.8089.0
 
@@ -660,17 +660,19 @@ As of the official Linux `.deb`, Cowork runs on Anthropic's **native Linux VM ba
 
 Without the daemon running, Cowork will show connection errors naturally in the UI.
 
-### Dispatch on Linux (fix_dispatch_linux.nim)
+### Dispatch on Linux (upstream-native — patch removed)
 
 Dispatch is a remote task orchestration feature that lets you send tasks from your phone to your desktop. It's built on top of the Cowork sessions infrastructure and uses Anthropic's "environments bridge" API.
 
 **Architecture:** Desktop registers with `POST /v1/environments/bridge`, then long-polls `GET /v1/environments/{id}/work/poll` for incoming work from the mobile client. All traffic routes through Anthropic's servers over TLS — no inbound ports needed.
 
-**What we patch:**
-1. **Sessions-bridge init gate** (GrowthBook flags `3572572142` + `4201169164`) — The bridge only initializes when the combined gate `h = f || p` is true (`f` from flag `3572572142`, `p` from flag `4201169164`). On Linux neither flag fires. We force `h=!0` (true).
-2. **Remote session control** (GrowthBook flag `2216414644`) — Messages with `channel:"mobile"` throw unless this flag is on. We replace `!Hn("2216414644")` with `!1` at both call sites.
-3. **Platform label** (`bhe()`) — Returns "Unsupported Platform" for Linux. We add `case"linux":return"Linux"`.
-4. **Telemetry gate** — `hi||vs` (darwin||win32) silently drops telemetry on Linux. We extend to include Linux.
+**Status (v1.17377):** `fix_dispatch_linux.nim` has been **removed**. Dispatch works on Linux with no patch — live-tested by sending a task from phone to desktop and receiving the rendered response. Over several releases upstream shipped every piece the patch used to force. For the historical record, the patch used to change:
+1. **Sessions-bridge init gate** (flags `3572572142` + `4201169164`) — forced the combined init gate ON; now inits on Linux natively.
+2. **Remote session control** (flag `2216414644`) — bypassed the `channel:"mobile"` throw; now permitted on Linux.
+3. **Platform label** — added `case"linux":return"Linux"`; upstream now returns "Linux" via a ternary.
+4. **Telemetry gate** — extended the darwin||win32 gate to Linux; upstream dropped the platform gate entirely.
+
+If a future release breaks phone→desktop Dispatch on Linux, re-check these four before re-introducing a patch.
 
 **Note on `operon` (Nest):** Completely removed in v1.6608.0. Previously required VM infrastructure (120+ IPC endpoints across 31 sub-interfaces). See [Operon Tool Inventory](#operon-tool-inventory-v11062) below for the historical model-facing toolset.
 
