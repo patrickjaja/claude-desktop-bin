@@ -40,6 +40,7 @@ Thumbs.db
 PKGBUILD
 build
 extract
+dist-local
 
 # Extracted app source (debug artifacts)
 /index.js
