@@ -56,10 +56,26 @@ yay -S claude-desktop-bin
 ```
 Updates arrive through your AUR helper (e.g. `yay -Syu`).
 
-> **Optional deps.** pacman does **not** auto-install `optdepends`, so enable the extras you want by hand:
-> - **Cowork** (VM): `sudo pacman -S --needed qemu-system-x86 edk2-ovmf virtiofsd` (aarch64: `qemu-system-aarch64 edk2-aarch64 virtiofsd`).
-> - **Computer Use**: X11 `xdotool scrot imagemagick wmctrl` · Wayland/Sway/Hyprland `ydotool grim jq` (+`hyprland`) · GNOME also `glib2 gnome-screenshot python-gobject gst-plugin-pipewire` · KDE none (the bundled [`kwin-portal-bridge`](https://github.com/patrickjaja/kwin-portal-bridge) handles it). Wayland needs `ydotool` v1.0+ running - see [Computer Use dependencies](docs/computer-use-dependencies.md).
-> - Also `nodejs` (system MCP servers), `sqlite` (project detection), `claude-code`.
+**Optional deps.** pacman does **not** auto-install `optdepends`, so copy the line for what you want. **Cowork** (agent workspace VM):
+
+```bash
+sudo pacman -S --needed qemu-system-x86 edk2-ovmf virtiofsd     # x86_64
+sudo pacman -S --needed qemu-system-aarch64 edk2-aarch64 virtiofsd  # aarch64
+```
+
+**Computer Use** - pick the line for your session (`echo $XDG_SESSION_TYPE`, `echo $XDG_CURRENT_DESKTOP`):
+
+```bash
+# X11 / XWayland
+sudo pacman -S --needed xdotool scrot imagemagick wmctrl
+# Wayland - Sway / Hyprland
+sudo pacman -S --needed ydotool grim jq            # Hyprland: also hyprland
+# Wayland - GNOME
+sudo pacman -S --needed ydotool xdotool glib2 gnome-screenshot imagemagick python-gobject gst-plugin-pipewire
+# Wayland - KDE Plasma: nothing to install - the bundled kwin-portal-bridge handles it
+```
+
+Sway/Hyprland/GNOME also need `ydotool` v1.0+ running (`sudo systemctl enable --now ydotool`); KDE does not. Also optional: `nodejs` (system MCP servers), `sqlite` (project detection), `claude-code`. Full matrix + notes: [Computer Use dependencies](docs/computer-use-dependencies.md).
 
 ### Debian / Ubuntu (APT Repository)
 
@@ -74,9 +90,21 @@ sudo apt install claude-desktop-bin
 ```
 Updates are automatic via `sudo apt update && sudo apt upgrade`.
 
-> **Optional deps.**
-> - **Cowork** (VM): `qemu-system-x86`, `ovmf`, `virtiofsd` (arm64: `qemu-system-arm`, `qemu-efi-aarch64`, `virtiofsd`) are `Recommends`, so `apt` pulls them in by default - this mirrors Anthropic's official `.deb` (skip with `--no-install-recommends`).
-> - **Computer Use** (`Suggests`, not auto-installed): X11 `xdotool scrot imagemagick wmctrl` · Wayland/Sway/Hyprland `ydotool grim jq` (+`hyprland`) · GNOME also `libglib2.0-bin gnome-screenshot python3-gi gstreamer1.0-pipewire`. Ubuntu/Debian ship an **incompatible `ydotool` v0.1.8** - Wayland needs v1.0+ built via the [setup script](docs/computer-use-dependencies.md#ydotool-setup). Full matrix + notes: [Computer Use dependencies](docs/computer-use-dependencies.md).
+**Optional deps.** **Cowork**'s VM deps (`qemu-system-x86`, `ovmf`, `virtiofsd`; arm64: `qemu-system-arm`, `qemu-efi-aarch64`, `virtiofsd`) are `Recommends`, so `apt` pulls them in by default - this mirrors Anthropic's official `.deb` (skip with `--no-install-recommends`).
+
+**Computer Use** (`Suggests`, not auto-installed) - pick the line for your session (`echo $XDG_SESSION_TYPE`, `echo $XDG_CURRENT_DESKTOP`):
+
+```bash
+# X11 / XWayland
+sudo apt install xdotool scrot imagemagick wmctrl
+# Wayland - Sway / Hyprland
+sudo apt install ydotool grim jq              # Hyprland: also hyprland
+# Wayland - GNOME
+sudo apt install ydotool xdotool libglib2.0-bin gnome-screenshot imagemagick python3-gi gstreamer1.0-pipewire
+# Wayland - KDE Plasma: nothing to install - the bundled kwin-portal-bridge handles it
+```
+
+Sway/Hyprland/GNOME also need `ydotool` **v1.0+** running (KDE does not), but Ubuntu/Debian ship an **incompatible v0.1.8** - build v1.0+ via the [setup script](docs/computer-use-dependencies.md#ydotool-setup). Full matrix + notes: [Computer Use dependencies](docs/computer-use-dependencies.md).
 
 <details>
 <summary>Manual .deb install (without APT repo)</summary>
@@ -97,9 +125,21 @@ sudo dnf install claude-desktop-bin
 ```
 Updates are automatic via `sudo dnf upgrade`.
 
-> **Optional deps.**
-> - **Cowork** (VM): `qemu-system-x86` / `qemu-system-aarch64`, `edk2-ovmf` / `edk2-aarch64`, `virtiofsd` (RHEL uses `qemu-kvm`) are weak deps, so `dnf` pulls them in by default (skip with `--setopt=install_weak_deps=False`).
-> - **Computer Use** (`Suggests`, not auto-installed): X11 `xdotool scrot ImageMagick wmctrl` · Wayland/Sway/Hyprland `ydotool grim jq` (+`hyprland`) · GNOME also `glib2 gnome-screenshot python3-gobject pipewire-gstreamer`. Wayland needs `ydotool` v1.0+ running (`sudo dnf install ydotool && sudo systemctl enable --now ydotool`). Full matrix + notes: [Computer Use dependencies](docs/computer-use-dependencies.md).
+**Optional deps.** **Cowork**'s VM deps (`qemu-system-x86` / `qemu-system-aarch64`, `edk2-ovmf` / `edk2-aarch64`, `virtiofsd`; RHEL uses `qemu-kvm`) are weak deps, so `dnf` pulls them in by default (skip with `--setopt=install_weak_deps=False`).
+
+**Computer Use** (`Suggests`, not auto-installed) - pick the line for your session (`echo $XDG_SESSION_TYPE`, `echo $XDG_CURRENT_DESKTOP`):
+
+```bash
+# X11 / XWayland
+sudo dnf install xdotool scrot ImageMagick wmctrl
+# Wayland - Sway / Hyprland
+sudo dnf install ydotool grim jq              # Hyprland: also hyprland
+# Wayland - GNOME
+sudo dnf install ydotool xdotool glib2 gnome-screenshot ImageMagick python3-gobject pipewire-gstreamer
+# Wayland - KDE Plasma: nothing to install - the bundled kwin-portal-bridge handles it
+```
+
+Sway/Hyprland/GNOME also need `ydotool` v1.0+ running (`sudo systemctl enable --now ydotool`); KDE does not. Full matrix + notes: [Computer Use dependencies](docs/computer-use-dependencies.md).
 
 <details>
 <summary>Manual .rpm install (without DNF repo)</summary>
