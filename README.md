@@ -49,7 +49,12 @@ Everything else - Chat, Claude Code, Cowork, Browser Tools, 3P/enterprise infere
 
 ## Installation
 
-> After installing, see [Computer Use dependencies](#computer-use-dependencies) and [Cowork setup](#cowork-setup-needs-devkvm) to enable those features.
+Pick your distro below. The `.deb`, `.rpm`, and AUR packages **recommend the Cowork VM dependencies** (QEMU + OVMF firmware + virtiofsd), so `apt`/`dnf` pull them in by default - this mirrors Anthropic's own official `.deb`. [Cowork](#cowork-setup-needs-devkvm) runs its agent workspace in a KVM VM; two things a package can't do for you:
+
+- **Join the `kvm` group** (once, for `/dev/kvm` access): `sudo usermod -aG kvm "$USER"` then log out and back in.
+- **Install the Claude Code CLI** (needed for Cowork/Dispatch): `npm i -g @anthropic-ai/claude-code` - see [Cowork setup](#cowork-setup-needs-devkvm).
+
+[Computer Use](#computer-use) tools stay optional too - install the packages for your session from [Computer Use dependencies](#computer-use-dependencies) when you want it. (AppImage and Nix can't auto-install system packages; install QEMU + OVMF yourself - see [Cowork setup](#cowork-setup-needs-devkvm).)
 
 ### Arch Linux / Manjaro (AUR)
 ```bash
@@ -333,32 +338,29 @@ This binds the key directly via `gsettings`, bypassing the portal. See [wayland.
 
 Cowork (and Dispatch) run on the **official native Cowork VM backend** bundled inside the package (cowork-linux-helper + virtiofsd + smol-bin + QEMU/OVMF) - the same backend Anthropic ships in the official Linux build. There's no separate daemon to install; sessions run in a lightweight VM with `$HOME` shared in, which requires **`/dev/kvm`** on the host.
 
-Install QEMU + UEFI firmware and grant `/dev/kvm` access (needed once):
+**QEMU + OVMF firmware + virtiofsd are recommended dependencies** of the `.deb` / `.rpm` / AUR packages (matching Anthropic's official `.deb`), so a normal `apt`/`dnf` install pulls them by default. Two steps remain (needed once):
 
 ```bash
-# Arch:          sudo pacman -S --needed qemu-base edk2-ovmf
-# Fedora/RHEL:   sudo dnf install qemu-system-x86 edk2-ovmf
-# Debian/Ubuntu: sudo apt install qemu-system-x86 ovmf   # arm64: also qemu-efi-aarch64
-sudo usermod -aG kvm "$USER"   # then log out and back in
+sudo usermod -aG kvm "$USER"        # /dev/kvm access - then log out and back in
+npm i -g @anthropic-ai/claude-code  # Cowork/Dispatch drive the Claude Code CLI
 ```
 
-If the workspace shows "Download failed" and clicking Download does nothing, it's almost always missing firmware (`edk2-ovmf`/`ovmf`) or missing `kvm` group membership. Cowork also needs the Claude Code CLI installed. **CoworkSpaces** are stored locally per account under `~/.config/Claude/local-agent-mode-sessions/` (see [Known Limitations](#known-limitations)).
+> **AppImage, Nix, or source builds** don't pull system packages - install QEMU + UEFI firmware yourself first (firmware package name differs on arm64):
+> ```bash
+> # Arch:          sudo pacman -S --needed qemu-base edk2-ovmf     # arm64: edk2-aarch64 instead of edk2-ovmf
+> # Fedora/RHEL:   sudo dnf install qemu-system-x86 edk2-ovmf      # arm64: qemu-system-aarch64 edk2-aarch64
+> # Debian/Ubuntu: sudo apt install qemu-system-x86 ovmf           # arm64: qemu-system-arm qemu-efi-aarch64
+> ```
+
+If the workspace shows "Download failed" and clicking Download does nothing, it's almost always missing `kvm` group membership (or, on AppImage/Nix, missing firmware). **CoworkSpaces** are stored locally per account under `~/.config/Claude/local-agent-mode-sessions/` (see [Known Limitations](#known-limitations)).
 
 > **Note — Cowork does not work inside a nested VM.** Because Cowork boots its own lightweight VM (the bundled backend downloads/builds a rootfs and starts it via QEMU/KVM), it needs real, stable access to `/dev/kvm`. Running Claude Desktop inside a hypervisor guest (VirtualBox, VMware, etc.) means Cowork would have to launch a VM *inside* a VM (nested virtualization), which most desktop hypervisors do not support reliably — VirtualBox in particular can hard-crash the entire guest when the nested VM starts. The app itself installs and runs fine in a VM; only the Cowork feature requires a bare-metal host (or a cloud instance with nested virtualization properly enabled).
 
 ## Third-Party / Enterprise Inference
 
-**Run Claude Desktop entirely on your own inference backend - no personal claude.ai login required.** Point it at **Bedrock** (AWS), **Vertex AI** (Google Cloud), **Azure AI Foundry** (Microsoft), or any **Anthropic-compatible gateway** (LiteLLM, Portkey, in-house proxies) via a single `/etc/claude-desktop/managed-settings.json`. Chat, Code, and Cowork all work in 3P mode on Linux.
+**Run Claude Desktop entirely on your own inference backend - no personal claude.ai login required.** Point it at **Bedrock** (AWS), **Vertex AI** (Google Cloud), **Azure AI Foundry** (Microsoft), or any **Anthropic-compatible gateway** (LiteLLM, Portkey, in-house proxies) via a single `/etc/claude-desktop/managed-settings.json`, which the official Linux build reads natively. Chat, Code, and Cowork all work in 3P mode on Linux.
 
-The official Linux build reads `/etc/claude-desktop/managed-settings.json` **natively** (top-level key `managedMcpServers`; also `inferenceProvider`, `deploymentMode`, `betaFeaturesEnabled`, …). Two Linux-only frontend patches remain ([`fix_ion_dist_linux.nim`](patches/fix_ion_dist_linux.nim)): a `mountPath` entry for the Linux org-plugins directory and a platform ternary fix.
-
-> **Migrating from `enterprise.json`?** Rename the file - `sudo mv /etc/claude-desktop/enterprise.json /etc/claude-desktop/managed-settings.json` - the schema and keys are unchanged.
-
-**Enable the tabs you want** by adding `"betaFeaturesEnabled": true`, `"chatTabEnabled": true`, `"coworkTabEnabled": true`, and `"isClaudeCodeForDesktopEnabled": true`. The in-app **Developer → Configure Third-Party Inference** window manages connection settings, credentials, model lists, sandbox restrictions, MCP servers, and org-plugin directories, and exports to `.mobileconfig` / `.reg` / plain JSON.
-
-> **Switching back to personal (1P):** deployment mode is **sticky** - the first 3P launch persists `"deploymentMode": "3p"` to `~/.config/Claude-3p/claude_desktop_config.json`, so deleting `managed-settings.json` leaves the app stuck in 3P mode. Launch once with `claude-desktop --boot-1p-once`, or set that key to `"1p"`.
-
-The official 3P docs cover only macOS and Windows. See **[docs/third-party-inference.md](docs/third-party-inference.md)** for a Linux-specific guide with a [5-minute LiteLLM quickstart](docs/third-party-inference.md#5-minute-local-quickstart-litellm-container), worked Vertex AI / gateway examples, and the [maximum `managed-settings.json`](docs/third-party-inference.md#maximum-managed-settingsjson-every-key). Key reference: [official configuration docs](https://claude.com/docs/cowork/3p/configuration) · [enterprise config](https://support.claude.com/en/articles/12622667-enterprise-configuration-for-claude-desktop) · [3P plugins/skills notes](https://support.claude.com/en/articles/14680753-extend-claude-cowork-with-third-party-platforms).
+The official 3P docs cover only macOS and Windows. **[docs/third-party-inference.md](docs/third-party-inference.md)** is the Linux guide: a [5-minute LiteLLM quickstart](docs/third-party-inference.md#5-minute-local-quickstart-litellm-container), worked Vertex AI / gateway / Bedrock examples, the [maximum `managed-settings.json`](docs/third-party-inference.md#maximum-managed-settingsjson-every-key), the [`enterprise.json` → `managed-settings.json` migration](docs/third-party-inference.md), and [switching back to personal (1P)](docs/third-party-inference.md#common-gotchas).
 
 ## Patches
 
@@ -441,23 +443,18 @@ Flags this project adds on top of the official build (run `claude-desktop --help
 
 ## Environment Variables
 
+`claude-desktop` reads a handful of env vars at launch (all optional). The ones people reach for most:
+
 | Variable | Values | Description |
 |----------|--------|-------------|
-| `CLAUDE_PROFILE` | name | Select a profile by name. Inherited by Electron and Claude Code so per-profile sockets and config dirs are picked up everywhere |
-| `CLAUDE_PROFILE_QUIET` | `1` | Suppress the "no per-profile WM identity" hint when `CLAUDE_PROFILE` is set without a matching `--create-profile` |
-| `CLAUDE_CONFIG_DIR` | path | Override Claude Code's config dir. Auto-set by the launcher when `CLAUDE_PROFILE` is active |
 | `CLAUDE_DISABLE_GPU` | `1`, `full` | Fix white screen on some GPU/driver combos ([#13](https://github.com/patrickjaja/claude-desktop-bin/issues/13)). `1` disables compositing only, `full` disables GPU entirely |
+| `CLAUDE_PROFILE` | name | Select a [profile](#multiple-profiles) by name (also `claude-desktop-NAME` / `--profile=NAME`) |
+| `CLAUDE_NATIVE_TITLEBAR` | `1` | Restore the native window frame instead of the integrated titlebar (same as `--native-titlebar`) |
 | `CLAUDE_USE_XWAYLAND` | `1` | Force XWayland instead of native Wayland |
-| `CLAUDE_ENABLE_VULKAN` | `1` | Keep Vulkan enabled on native Wayland. Default off: Chromium (Electron 42) refuses to pair Vulkan with `--ozone-platform=wayland`, causing a silent no-window startup. Only affects Wayland |
-| `CLAUDE_MENU_BAR` | `auto`, `visible`, `hidden` | Menu bar visibility (default: `auto`, toggle with Alt) |
-| `CLAUDE_DEV_TOOLS` | `detach` | Open Chromium DevTools on launch |
-| `CLAUDE_ELECTRON` | path | Override Electron binary path |
-| `CLAUDE_APP_ASAR` | path | Override app.asar path |
-| `CLAUDE_NATIVE_TITLEBAR` | `1` | Restore the native window frame (default: integrated titlebar). Equivalent to `--native-titlebar`. See [#100](https://github.com/patrickjaja/claude-desktop-bin/pull/100) |
-| `CLAUDE_DISABLE_SYSTEMD_SCOPE` | `1` | Skip the `systemd-run --user --scope` wrapper. Use in sandboxes (bwrap, distrobox) where the systemd private socket is unreachable. Equivalent to `--no-systemd-scope`. See [#89](https://github.com/patrickjaja/claude-desktop-bin/issues/89) |
-| `ELECTRON_ENABLE_LOGGING` | `1` | Log Electron main process to stderr |
 
 Set permanently in `~/.bashrc` / `~/.zshrc`, or pass per-launch: `CLAUDE_DISABLE_GPU=1 claude-desktop`
+
+**Full list** (profile/config dirs, Vulkan, menu bar, DevTools, systemd-scope, Electron overrides, …) → **[docs/environment-variables.md](docs/environment-variables.md)**.
 
 ## Debugging
 

@@ -171,7 +171,7 @@ JSON
 sudo chmod 644 /etc/claude-desktop/managed-settings.json
 ```
 
-> **Surface toggles** (all `scopes:["3p"]`): `chatTabEnabled` brings back the **Chat** tab (the claude.ai web surface), `coworkTabEnabled` the **Cowork** tab, and `betaFeaturesEnabled` unlocks the beta-feature set those live under. `isClaudeCodeForDesktopEnabled` controls the **Code** tab. Omit one to hide that surface. See the [maximum example](#maximum-enterprisejson-every-key) below for the full set.
+> **Surface toggles** (all `scopes:["3p"]`): `chatTabEnabled` brings back the **Chat** tab (the claude.ai web surface), `coworkTabEnabled` the **Cowork** tab, and `betaFeaturesEnabled` unlocks the beta-feature set those live under. `isClaudeCodeForDesktopEnabled` controls the **Code** tab. Omit one to hide that surface. See the [maximum example](#maximum-managed-settingsjson-every-key) below for the full set.
 
 **4. Restart and verify** (see [Verifying it worked](#verifying-it-worked) for the full log signature):
 

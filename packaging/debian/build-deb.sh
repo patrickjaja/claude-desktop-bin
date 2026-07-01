@@ -40,6 +40,18 @@ case "$DEB_ARCH" in
         ;;
 esac
 
+# Cowork runs its agent workspace in a lightweight KVM VM, which needs QEMU +
+# UEFI firmware + virtiofsd on the host. These mirror the official Claude
+# Desktop .deb's own Recommends (soft, so apt pulls them by default but they
+# never block install on minimal/headless/KVM-less hosts). The official .deb is
+# amd64 (qemu-system-x86, ovmf, virtiofsd); on arm64 the QEMU + firmware names
+# differ (qemu-system-arm ships qemu-system-aarch64; qemu-efi-aarch64 is the
+# AAVMF firmware). /dev/kvm access still needs the user in the "kvm" group.
+case "$DEB_ARCH" in
+    amd64) COWORK_RECOMMENDS="qemu-system-x86, ovmf, virtiofsd" ;;
+    arm64) COWORK_RECOMMENDS="qemu-system-arm, qemu-efi-aarch64, virtiofsd" ;;
+esac
+
 # Parse positional arguments
 TARBALL_PATH="${1:-}"
 OUTPUT_DIR="${2:-}"
@@ -176,8 +188,8 @@ Priority: optional
 Architecture: ${DEB_ARCH}
 Installed-Size: ${INSTALLED_SIZE}
 Depends: libgtk-3-0, libnotify4, libnss3, xdg-utils, libatspi2.0-0, libdrm2, libgbm1, libxcb-dri3-0, libsecret-1-0, libc6 (>= 2.34), libxtst6, libuuid1, xdg-desktop-portal
-Recommends: libasound2t64 | libasound2 | pulseaudio, libayatana-appindicator3-1 | libappindicator3-1, ca-certificates, sqlite3
-Suggests: xdotool, scrot, imagemagick, wmctrl, socat, hyprland, ydotool, grim, jq, kde-spectacle, libglib2.0-bin, python3-gi, gstreamer1.0-pipewire, gnome-screenshot, nodejs, qemu-system-x86, ovmf, qemu-efi-aarch64
+Recommends: libasound2t64 | libasound2 | pulseaudio, libayatana-appindicator3-1 | libappindicator3-1, ca-certificates, sqlite3, ${COWORK_RECOMMENDS}
+Suggests: xdotool, scrot, imagemagick, wmctrl, socat, hyprland, ydotool, grim, jq, kde-spectacle, libglib2.0-bin, python3-gi, gstreamer1.0-pipewire, gnome-screenshot, nodejs
 Maintainer: Claude Desktop Linux Community <claude-desktop-linux@users.noreply.github.com>
 Homepage: https://claude.ai
 Description: Claude AI Desktop Application

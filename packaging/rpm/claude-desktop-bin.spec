@@ -24,6 +24,33 @@ Requires:       libdrm
 Requires:       mesa-libgbm
 Requires:       alsa-lib
 Requires:       libnotify
+# Cowork agent workspace VM. Cowork runs the agent workspace in a lightweight
+# KVM VM, which needs QEMU + UEFI firmware + virtiofsd on the host. Kept soft
+# (Recommends) to mirror the official Claude Desktop .deb, which lists these in
+# Recommends too — so dnf pulls them by default but they never block install on
+# minimal/headless/KVM-less hosts. /dev/kvm access still needs the user in the
+# `kvm` group (not a package's job).
+#
+# QEMU package name differs between Fedora and RHEL: Fedora splits per-arch
+# (qemu-system-x86 / qemu-system-aarch64); RHEL ships the emulator in qemu-kvm
+# (the Fedora names don't exist there). Firmware names are identical on both.
+%if 0%{?rhel}
+Recommends:     qemu-kvm
+%else
+%ifarch x86_64
+Recommends:     qemu-system-x86
+%endif
+%ifarch aarch64
+Recommends:     qemu-system-aarch64
+%endif
+%endif
+%ifarch x86_64
+Recommends:     edk2-ovmf
+%endif
+%ifarch aarch64
+Recommends:     edk2-aarch64
+%endif
+Recommends:     virtiofsd
 # Project detection (detectedProjects source) — without it, periodic ENOENT
 # errors spam ~/.config/Claude/logs/main.log and detected-projects features
 # don't surface. Soft dep so the app still installs without it.
@@ -49,11 +76,6 @@ Suggests:       hyprland
 Suggests:       socat
 # MCP servers requiring system Node.js
 Suggests:       nodejs
-# Cowork agent workspace VM (requires /dev/kvm + user in the kvm group).
-# qemu-system-x86 provides qemu-system-x86_64; edk2-ovmf provides the OVMF
-# UEFI firmware at /usr/share/edk2/ovmf/OVMF_CODE.fd. virtiofsd is bundled.
-Suggests:       qemu-system-x86
-Suggests:       edk2-ovmf
 
 %description
 Claude is an AI assistant created by Anthropic to be helpful,

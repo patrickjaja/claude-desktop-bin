@@ -1,0 +1,32 @@
+# Environment Variables
+
+These environment variables tune `claude-desktop` at launch. All are optional; with none set, `claude-desktop` just launches the default profile.
+
+| Variable | Values | Description |
+|----------|--------|-------------|
+| `CLAUDE_PROFILE` | name | Select a [profile](../README.md#multiple-profiles) by name. Inherited by Electron and Claude Code so per-profile sockets and config dirs are picked up everywhere |
+| `CLAUDE_PROFILE_QUIET` | `1` | Suppress the "no per-profile WM identity" hint when `CLAUDE_PROFILE` is set without a matching `--create-profile` |
+| `CLAUDE_CONFIG_DIR` | path | Override Claude Code's config dir. Auto-set by the launcher when `CLAUDE_PROFILE` is active |
+| `CLAUDE_DISABLE_GPU` | `1`, `full` | Fix white screen on some GPU/driver combos ([#13](https://github.com/patrickjaja/claude-desktop-bin/issues/13)). `1` disables compositing only, `full` disables GPU entirely |
+| `CLAUDE_USE_XWAYLAND` | `1` | Force XWayland instead of native Wayland |
+| `CLAUDE_ENABLE_VULKAN` | `1` | Keep Vulkan enabled on native Wayland. Default off: Chromium (Electron 42) refuses to pair Vulkan with `--ozone-platform=wayland`, causing a silent no-window startup. Only affects Wayland |
+| `CLAUDE_MENU_BAR` | `auto`, `visible`, `hidden` | Menu bar visibility (default: `auto`, toggle with Alt) |
+| `CLAUDE_DEV_TOOLS` | `detach` | Open Chromium DevTools on launch |
+| `CLAUDE_ELECTRON` | path | Override Electron binary path |
+| `CLAUDE_APP_ASAR` | path | Override app.asar path |
+| `CLAUDE_NATIVE_TITLEBAR` | `1` | Restore the native window frame (default: integrated titlebar). Equivalent to `--native-titlebar`. See [#100](https://github.com/patrickjaja/claude-desktop-bin/pull/100) |
+| `CLAUDE_DISABLE_SYSTEMD_SCOPE` | `1` | Skip the `systemd-run --user --scope` wrapper. Use in sandboxes (bwrap, distrobox) where the systemd private socket is unreachable. Equivalent to `--no-systemd-scope`. See [#89](https://github.com/patrickjaja/claude-desktop-bin/issues/89) |
+| `ELECTRON_ENABLE_LOGGING` | `1` | Log Electron main process to stderr |
+
+Set permanently in `~/.bashrc` / `~/.zshrc`, or pass per-launch: `CLAUDE_DISABLE_GPU=1 claude-desktop`
+
+## Feature-specific variables
+
+A few variables belong to specific features and are documented alongside them:
+
+- `COWORK_SCREENSHOT_CMD` - override Computer Use screenshot auto-detection. See [Computer Use dependencies](../README.md#computer-use-dependencies).
+
+## See also
+
+- [Command-line flags](../README.md#command-line-flags) - launch flags this project adds on top of the official build (several have env-var equivalents above).
+- [Debugging](../README.md#debugging) - how to combine `CLAUDE_DEV_TOOLS` + `ELECTRON_ENABLE_LOGGING` for verbose logs.

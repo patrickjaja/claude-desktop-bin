@@ -10,8 +10,8 @@ Rules-Requires-Root: no
 Package: claude-desktop-bin
 Architecture: amd64
 Depends: ${shlibs:Depends}, ${misc:Depends}, electron | electron-bin | electron33
-Recommends: libnotify-bin, sqlite3
-Suggests: xdotool, scrot, imagemagick, wmctrl, socat, hyprland, ydotool, grim, jq, kde-spectacle, libglib2.0-bin, python3-gi, gstreamer1.0-pipewire, gnome-screenshot, nodejs, qemu-system-x86, ovmf
+Recommends: libnotify-bin, sqlite3, qemu-system-x86, ovmf, virtiofsd
+Suggests: xdotool, scrot, imagemagick, wmctrl, socat, hyprland, ydotool, grim, jq, kde-spectacle, libglib2.0-bin, python3-gi, gstreamer1.0-pipewire, gnome-screenshot, nodejs
 Description: Claude AI Desktop Application
  Claude is an AI assistant created by Anthropic to be helpful,
  harmless, and honest. This desktop application provides native
@@ -52,6 +52,13 @@ Description: Claude AI Desktop Application
  Other optional dependencies:
   * socat - Faster Quick Entry toggle via socket (~2ms vs ~25ms python3 — not required)
   * nodejs - For third-party MCP servers requiring system Node.js
+ .
+ Cowork (agent workspace VM) uses qemu-system-x86, ovmf, and virtiofsd,
+ recommended (soft) to match the official Claude Desktop .deb: apt pulls them
+ by default but they never block install on minimal/KVM-less hosts. The
+ workspace runs in a lightweight KVM VM, so using Cowork additionally needs the
+ user in the "kvm" group and the Claude Code CLI installed
+ (npm i -g @anthropic-ai/claude-code) — neither of which a package can set up.
  .
  Note: This is an unofficial Linux port of the official Claude
  Desktop application. Requires an Anthropic account to use.
