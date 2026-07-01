@@ -58,7 +58,7 @@ Updates arrive through your AUR helper (e.g. `yay -Syu`).
 
 > **Optional deps.** pacman does **not** auto-install `optdepends`, so enable the extras you want by hand:
 > - **Cowork** (VM): `sudo pacman -S --needed qemu-system-x86 edk2-ovmf virtiofsd` (aarch64: `qemu-system-aarch64 edk2-aarch64 virtiofsd`).
-> - **Computer Use**: X11 `xdotool scrot imagemagick wmctrl` · Wayland/Sway/Hyprland `ydotool grim jq` (+`hyprland`) · GNOME also `glib2 gnome-screenshot python-gobject gst-plugin-pipewire` · KDE none (bundled bridge). Wayland needs `ydotool` v1.0+ running - see [Computer Use dependencies](docs/computer-use-dependencies.md).
+> - **Computer Use**: X11 `xdotool scrot imagemagick wmctrl` · Wayland/Sway/Hyprland `ydotool grim jq` (+`hyprland`) · GNOME also `glib2 gnome-screenshot python-gobject gst-plugin-pipewire` · KDE none (the bundled [`kwin-portal-bridge`](https://github.com/patrickjaja/kwin-portal-bridge) handles it). Wayland needs `ydotool` v1.0+ running - see [Computer Use dependencies](docs/computer-use-dependencies.md).
 > - Also `nodejs` (system MCP servers), `sqlite` (project detection), `claude-code`.
 
 ### Debian / Ubuntu (APT Repository)
