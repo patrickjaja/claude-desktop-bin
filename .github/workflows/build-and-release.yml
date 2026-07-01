@@ -26,9 +26,14 @@ on:
         type: string
         default: ''
 
+# Serialize release runs: all workflow_dispatch runs share ONE group with
+# cancel-in-progress off, so a second dispatch (e.g. version-check auto-release
+# firing while a manual /deploy is in flight) QUEUES instead of racing the
+# first run's release/AUR-push/master-commit section. PR validation keeps the
+# per-branch group with cancellation (new push supersedes the old validation).
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
-  cancel-in-progress: true
+  group: ${{ github.event_name == 'workflow_dispatch' && format('{0}-release-train', github.workflow) || format('{0}-{1}', github.workflow, github.head_ref || github.run_id) }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
 
 # ──────────────────────────────────────────────────────────────────────
 # Job graph (fan-out / fan-in):
