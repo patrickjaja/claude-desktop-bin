@@ -20,9 +20,9 @@ Anthropic publishes an official Claude Desktop [Linux `.deb`](https://code.claud
 - [**Multiple Profiles**](#multiple-profiles) - run several instances side by side, each logged in to a different account with fully isolated state.
 - [**Quick Entry**](#quick-entry) - global hotkey popup (Ctrl+Alt+Space), multi-monitor and Wayland-aware.
 
-Everything else - Chat, Claude Code, Cowork, Browser Tools, 3P/enterprise inference - is the **official upstream build working natively on Linux**; we just preserve it through the repackage and fix the rough edges (see [Patches](#patches)).
+Everything else - Chat, Claude Code, Cowork, Browser Tools, 3P/enterprise inference - is the **official upstream build working natively on Linux**, preserved through the repackage. On top of that we ship a batch of **Linux fixes** for problems reported by real users: Cowork "Download failed" on Arch/Fedora, MCP servers failing, false memory-pressure warnings, exit hangs, white screens on some GPUs, plus enabling upstream features that are gated off or macOS-only on Linux (Dispatch, Browser Tools, "Open in editor", and more). See the [Patches](#patches) table for the full list. As Anthropic ships these fixes natively, we retire the matching patch - so this set shrinks over time as the official build catches up.
 
-> **If you run Ubuntu 22.04+ / Debian 12+ and only want the base app,** Anthropic's [official `.deb`](https://code.claude.com/docs/en/desktop-linux) works directly - you don't need this project. Use this if you're on Arch/Fedora/RHEL/Nix/AppImage, or if you want Computer Use, themes, profiles, or Quick Entry.
+> **If you run Ubuntu 22.04+ / Debian 12+,** Anthropic's [official `.deb`](https://code.claude.com/docs/en/desktop-linux) installs the base app directly. Use this project if you're on Arch/Fedora/RHEL/Nix/AppImage, or if you want the four value-adds and Linux fixes above.
 
 <details>
 <summary><b>Table of contents</b></summary>
