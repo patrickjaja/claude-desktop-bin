@@ -48,7 +48,7 @@ Everything else - Chat, Claude Code, Cowork, Browser Tools, 3P/enterprise infere
 
 ## Installation
 
-Pick your distro below. Each section notes the optional dependencies for that distro. One setup step is common to all of them and only matters if you use [Cowork](#cowork-setup-needs-devkvm) (its agent workspace runs in a KVM VM): join the `kvm` group (`sudo usermod -aG kvm "$USER"`, then re-login). The Claude Code CLI that Cowork/Dispatch drive is auto-downloaded and checksum-verified by the app - you don't need to install it yourself. [Computer Use](#computer-use) tools are always optional - each section lists them, and [Computer Use dependencies](docs/computer-use-dependencies.md) has the full matrix + `ydotool` setup.
+Pick your distro below. Each section lists the optional dependencies for that distro (Cowork, Computer Use) and when you need them. If you want Cowork, also see [Cowork setup](#cowork-setup-needs-devkvm) for the one-time `kvm` group step.
 
 ### Arch Linux / Manjaro (AUR)
 ```bash
@@ -61,6 +61,7 @@ Updates arrive through your AUR helper (e.g. `yay -Syu`).
 ```bash
 sudo pacman -S --needed qemu-system-x86 edk2-ovmf virtiofsd     # x86_64
 sudo pacman -S --needed qemu-system-aarch64 edk2-aarch64 virtiofsd  # aarch64
+# then join the kvm group (once, needs re-login): sudo usermod -aG kvm "$USER"
 ```
 
 **Computer Use** - pick the line for your session (`echo $XDG_SESSION_TYPE`, `echo $XDG_CURRENT_DESKTOP`):
@@ -90,7 +91,7 @@ sudo apt install claude-desktop-bin
 ```
 Updates are automatic via `sudo apt update && sudo apt upgrade`.
 
-**Optional deps.** **Cowork**'s VM deps (`qemu-system-x86`, `ovmf`, `virtiofsd`; arm64: `qemu-system-arm`, `qemu-efi-aarch64`, `virtiofsd`) are `Recommends`, so `apt` pulls them in by default - this mirrors Anthropic's official `.deb` (skip with `--no-install-recommends`).
+**Optional deps.** **Cowork**'s VM deps (`qemu-system-x86`, `ovmf`, `virtiofsd`; arm64: `qemu-system-arm`, `qemu-efi-aarch64`, `virtiofsd`) are `Recommends`, so `apt` pulls them in by default - this mirrors Anthropic's official `.deb` (skip with `--no-install-recommends`). Then join the `kvm` group once (`sudo usermod -aG kvm "$USER"`, needs re-login).
 
 **Computer Use** (`Suggests`, not auto-installed) - pick the line for your session (`echo $XDG_SESSION_TYPE`, `echo $XDG_CURRENT_DESKTOP`):
 
@@ -125,7 +126,7 @@ sudo dnf install claude-desktop-bin
 ```
 Updates are automatic via `sudo dnf upgrade`.
 
-**Optional deps.** **Cowork**'s VM deps (`qemu-system-x86` / `qemu-system-aarch64`, `edk2-ovmf` / `edk2-aarch64`, `virtiofsd`; RHEL uses `qemu-kvm`) are weak deps, so `dnf` pulls them in by default (skip with `--setopt=install_weak_deps=False`).
+**Optional deps.** **Cowork**'s VM deps (`qemu-system-x86` / `qemu-system-aarch64`, `edk2-ovmf` / `edk2-aarch64`, `virtiofsd`; RHEL uses `qemu-kvm`) are weak deps, so `dnf` pulls them in by default (skip with `--setopt=install_weak_deps=False`). Then join the `kvm` group once (`sudo usermod -aG kvm "$USER"`, needs re-login).
 
 **Computer Use** (`Suggests`, not auto-installed) - pick the line for your session (`echo $XDG_SESSION_TYPE`, `echo $XDG_CURRENT_DESKTOP`):
 
@@ -350,7 +351,7 @@ Cowork (and Dispatch) run on the **official native Cowork VM backend** bundled i
 sudo usermod -aG kvm "$USER"        # /dev/kvm access - then log out and back in
 ```
 
-Cowork/Dispatch drive the Claude Code CLI, but you no longer need to install it yourself: the app auto-downloads a checksum-verified CLI matching its required version. To pin your own binary instead, set `CLAUDE_CODE_LOCAL_BINARY=/path/to/claude` (`npm i -g @anthropic-ai/claude-code`).
+The Claude Code CLI that Cowork/Dispatch drive is managed by the app itself - nothing to install. To pin your own binary, set `CLAUDE_CODE_LOCAL_BINARY=/path/to/claude`.
 
 > **AppImage, Nix, or source builds** don't pull system packages - install QEMU + UEFI firmware yourself first (firmware package name differs on arm64):
 > ```bash
