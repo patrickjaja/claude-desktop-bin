@@ -1700,7 +1700,7 @@ jobs:
             git push origin master
           }
 
-      - name: Update Nix package hash
+      - name: Update Nix package hash + .upstream-version
         env:
           VERSION: ${{ needs.check-version.outputs.version }}
           NIX_HASH: ${{ steps.nix-hash.outputs.released_nix_hash }}
@@ -1708,9 +1708,15 @@ jobs:
           sed -i -E "s|version = \"[^\"]+\"|version = \"$VERSION\"|" packaging/nix/package.nix
           sed -i -E "s|hash = \"sha256-[^\"]+\"|hash = \"$NIX_HASH\"|" packaging/nix/package.nix
 
-          git add packaging/nix/package.nix
+          # Record the released version as the one our patches/docs are validated
+          # against. Without this, version-check.yml keeps re-detecting a "new"
+          # version (it compares the apt index against .upstream-version) after a
+          # release that skipped the auto-PR path (e.g. an upstream .N rebuild).
+          echo "${VERSION}" > .upstream-version
+
+          git add packaging/nix/package.nix .upstream-version
           git diff --staged --quiet || {
-            git commit -m "Update Nix package hash for v${VERSION}"
+            git commit -m "Update Nix package hash + .upstream-version for v${VERSION}"
             git reset --hard HEAD
             git clean -fdx --exclude=aur-repo
             git pull --rebase origin master
