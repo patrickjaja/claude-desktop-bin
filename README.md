@@ -28,15 +28,15 @@ Everything else - Chat, Claude Code, Cowork, Browser Tools, 3P/enterprise infere
 <summary><b>Table of contents</b></summary>
 
 - [Installation](#installation)
-- [What works on Linux](#what-works-on-linux)
-- [Optional Dependencies](#optional-dependencies)
 - [Computer Use](#computer-use)
+- [Computer Use dependencies](#computer-use-dependencies)
 - [Custom Themes](#custom-themes)
 - [Multiple Profiles](#multiple-profiles)
 - [Quick Entry](#quick-entry)
 - [Cowork setup (needs /dev/kvm)](#cowork-setup-needs-devkvm)
 - [Third-Party / Enterprise Inference](#third-party--enterprise-inference)
 - [Patches](#patches)
+- [Command-line flags](#command-line-flags)
 - [Environment Variables](#environment-variables)
 - [Debugging](#debugging)
 - [Known Limitations](#known-limitations)
@@ -49,7 +49,7 @@ Everything else - Chat, Claude Code, Cowork, Browser Tools, 3P/enterprise infere
 
 ## Installation
 
-> After installing, see [Optional Dependencies](#optional-dependencies) to enable Computer Use, Cowork, and more.
+> After installing, see [Computer Use dependencies](#computer-use-dependencies) and [Cowork setup](#cowork-setup-needs-devkvm) to enable those features.
 
 ### Arch Linux / Manjaro (AUR)
 ```bash
@@ -124,7 +124,7 @@ nix profile install github:patrickjaja/claude-desktop-bin
 
 > **Note:** Update by running `nix flake update` to pull the latest version. `nix run` always fetches the latest.
 
-> **Computer Use / Dispatch on Nix:** pass optional dependencies via `.override { … }`, and if nixpkgs ships an older Claude Code (< 2.1.86) point at your own with `extraSessionPaths = [ "/path/to/dir/with/claude" ]`. See [Optional Dependencies](#optional-dependencies).
+> **Computer Use / Dispatch on Nix:** pass optional dependencies via `.override { … }`, and if nixpkgs ships an older Claude Code (< 2.1.86) point at your own with `extraSessionPaths = [ "/path/to/dir/with/claude" ]`. See [Computer Use dependencies](#computer-use-dependencies).
 
 ### AppImage (Any Distro)
 
@@ -169,34 +169,22 @@ curl -fsSL https://patrickjaja.github.io/claude-desktop-bin/gpg-key.asc | gpg --
 # The printed fingerprint must match the value above.
 ```
 
-## What works on Linux
+## Computer Use
 
-The official upstream build handles these natively; this repackage preserves them and patches the Linux rough edges. For usage, see [Anthropic's Claude Desktop docs](https://code.claude.com/docs/en/desktop-linux).
+**Our exclusive feature - not part of the official Linux beta.** Claude Desktop's built-in Computer Use MCP server exposes 27 tools for desktop automation (screenshot, click, type, scroll, drag, clipboard, and more). The **learn tools** (`learn_application`, `learn_screen_region`) generate interactive overlay tutorials that walk through any application's UI step by step.
 
-- **Chat** - the main conversational Claude Desktop UI (x86_64 and ARM64, X11 and Wayland).
-- **Claude Code** - auto-detects a system-installed `claude` CLI ([setup](https://code.claude.com/docs/en/setup)); Code tab, integrated terminal, git worktrees, and agent sessions.
-- **Cowork** - agentic workspace running on the official native Cowork VM backend bundled in the package. **Requires `/dev/kvm`** - see [Cowork setup](#cowork-setup-needs-devkvm).
-- **Dispatch** - phone→desktop task orchestration. Runs inside the same bundled Cowork VM backend (needs `/dev/kvm`).
-- **Browser Tools** - Chrome automation via the [Claude in Chrome](https://chromewebstore.google.com/detail/claude-code/fcoeoabgfenejglbffodgkkbkcdhcgfn) extension (requires the Claude Code CLI).
-- **Third-Party / Enterprise inference** - Bedrock, Vertex AI, Azure AI Foundry, or any Anthropic-compatible gateway. See [below](#third-party--enterprise-inference).
-- **Hardware Buddy (Nibblet)** - BLE companion device (App menu → Developer → Open Hardware Buddy…; requires `bluez` and the flag forced on by `fix_buddy_ble_linux`).
-- **MCP servers** and **custom themes/appearance** all work.
+Example prompt: *"Can you use computer use MCP to explain me the PhpStorm application?"*
 
-Our own additions on top - [Computer Use](#computer-use), [Custom Themes](#custom-themes), [Multiple Profiles](#multiple-profiles), and [Quick Entry](#quick-entry) - are documented in full below.
+**How it works on Linux:** upstream Computer Use is macOS-only - gated behind `process.platform==="darwin"`, macOS TCC permissions, and a native Swift executor. The patch ([fix_computer_use_linux.nim](patches/fix_computer_use_linux.nim)) removes the platform gates, routes both upstream executor factories to an injected Linux executor, bypasses TCC with a no-op `{granted: true}`, and auto-detects your session type to use the right tools (xdotool/ydotool, grim/spectacle/scrot/portal, plus `kwin-portal-bridge` on KDE Wayland). Install the packages for your session from [Computer Use dependencies](#computer-use-dependencies) below.
 
-## Optional Dependencies
+**Notes:**
+- **Primary monitor only.** Screenshots, clicks, and the teach overlay target the primary display; use `switch_display` to target another for screenshots/clicks (teach overlay stays on primary).
+- **App discovery** for the teach overlay scans `.desktop` files from `/usr/share/applications`, `~/.local/share/applications`, and Flatpak dirs, registering each with multiple name variants for flexible matching.
+- **Teach overlay** stays interactive but blocks clicks to apps behind it during a tour (Electron's `setIgnoreMouseEvents` is [broken on X11](https://github.com/electron/electron/issues/16777)).
 
-Claude Desktop works without these - features degrade gracefully when tools are missing.
+See [CLAUDE_BUILT_IN_MCP.md](baseline/CLAUDE_BUILT_IN_MCP.md#14-computer-use) for the full tool reference.
 
-| Feature | What you need | Notes |
-|---------|---------------|-------|
-| **Computer Use** | Session-specific tools (table below) | Install manually for your session type; the app auto-detects which tools to call at runtime |
-| **Cowork & Dispatch** | `/dev/kvm` + QEMU + OVMF | Official native VM backend, bundled. See [Cowork setup](#cowork-setup-needs-devkvm) |
-| **Claude Code CLI** | [`claude`](https://code.claude.com/docs/en/setup) | Required for Code, Cowork, Dispatch, and Browser Tools |
-| **Browser Tools** | [Claude in Chrome extension](https://chromewebstore.google.com/detail/claude-code/fcoeoabgfenejglbffodgkkbkcdhcgfn) | Uses Claude Code's native host (`~/.claude/chrome/chrome-native-host`) |
-| **Custom MCP Servers** | `nodejs` | Only for third-party MCP servers that require system Node.js |
-
-### Computer Use packages
+## Computer Use dependencies
 
 Check your session type (`echo $XDG_SESSION_TYPE`) and desktop (`echo $XDG_CURRENT_DESKTOP`), then install the matching packages. At runtime the app auto-detects your compositor and calls the correct tools.
 
@@ -223,7 +211,7 @@ sudo pacman -S ydotool && sudo systemctl enable --now ydotool   # Arch
 sudo dnf install ydotool && sudo systemctl enable --now ydotool  # Fedora
 ```
 
-**Ubuntu / Debian** ship v0.1.8 which is **incompatible** - build v1.0.4 with the setup script:
+**Ubuntu / Debian** still ship the **incompatible** v0.1.8 (Ubuntu 22.04/24.04/25.10) or nothing in main (Debian 13 trixie; v1.x is backports-only) - build v1.0.4 with the setup script:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/patrickjaja/claude-desktop-bin/master/scripts/setup-ydotool.sh | sudo bash
 ```
@@ -231,21 +219,6 @@ curl -fsSL https://raw.githubusercontent.com/patrickjaja/claude-desktop-bin/mast
 Restart Claude Desktop after setup.
 
 > **Nix:** pass Computer Use deps via `claude-desktop.override { xdotool = pkgs.xdotool; scrot = pkgs.scrot; ydotool = pkgs.ydotool; grim = pkgs.grim; … }`. On NixOS the bundled `kwin-portal-bridge` won't run (glibc linker mismatch) - use the `ydotool`/`spectacle` fallback tools instead.
-
-## Computer Use
-
-**Our exclusive feature - not part of the official Linux beta.** Claude Desktop's built-in Computer Use MCP server exposes 27 tools for desktop automation (screenshot, click, type, scroll, drag, clipboard, and more). The **learn tools** (`learn_application`, `learn_screen_region`) generate interactive overlay tutorials that walk through any application's UI step by step.
-
-Example prompt: *"Can you use computer use MCP to explain me the PhpStorm application?"*
-
-**How it works on Linux:** upstream Computer Use is macOS-only - gated behind `process.platform==="darwin"`, macOS TCC permissions, and a native Swift executor. The patch ([fix_computer_use_linux.nim](patches/fix_computer_use_linux.nim)) removes the platform gates, routes both upstream executor factories to an injected Linux executor, bypasses TCC with a no-op `{granted: true}`, and auto-detects your session type to use the right tools (xdotool/ydotool, grim/spectacle/scrot/portal, plus `kwin-portal-bridge` on KDE Wayland). Install the packages for your session from [Optional Dependencies](#optional-dependencies).
-
-**Notes:**
-- **Primary monitor only.** Screenshots, clicks, and the teach overlay target the primary display; use `switch_display` to target another for screenshots/clicks (teach overlay stays on primary).
-- **App discovery** for the teach overlay scans `.desktop` files from `/usr/share/applications`, `~/.local/share/applications`, and Flatpak dirs, registering each with multiple name variants for flexible matching.
-- **Teach overlay** stays interactive but blocks clicks to apps behind it during a tour (Electron's `setIgnoreMouseEvents` is [broken on X11](https://github.com/electron/electron/issues/16777)).
-
-See [CLAUDE_BUILT_IN_MCP.md](baseline/CLAUDE_BUILT_IN_MCP.md#14-computer-use) for the full tool reference.
 
 ## Custom Themes
 
@@ -332,15 +305,12 @@ Sequential SSO into any number of profiles is reliable. Two edge cases misroute 
 
 **Opening shared-artifact links:** a `claude://cowork/shared-artifact?uuid=…` link opens Claude Desktop when clicked as a real hyperlink. Pasting it into a browser address bar won't work (the omnibox treats unknown schemes as a search - a browser security gate). To open a copied link: `xdg-open 'claude://cowork/shared-artifact?uuid=…'`.
 
-### Limitations
+### Notes
 
-- **~200 MB disk per profile on cross-filesystem installs.** `--create-profile` materialises a real, independently-named binary (not a symlink) so Electron derives a distinct WM_CLASS / Wayland `app_id` from `/proc/self/exe` - the same reason Chrome ships `google-chrome-stable` and `-beta` as separate copies. It tries hardlink → reflink (btrfs/xfs CoW) → plain copy in order; only the copy fallback costs disk. Sibling files (`libffmpeg.so`, `.pak`, `locales/`, …) are shared symlinks.
-- **Auto-refresh after package upgrades.** An upgrade replaces the system binary while the per-profile copy keeps pointing at the old one; the launcher detects this on every named-profile launch and re-materialises automatically (prints `refreshing stale per-profile binary` on stderr). Force-refresh: delete and re-create the profile.
-- **MCP servers and plugins do not cross profiles.**
-- **Concurrent SSO race** as noted above - sequential SSO is reliable.
-- **Quick Entry GNOME hotkey is global, not per-profile** - `--install-gnome-hotkey` targets the default profile's socket. For a per-profile hotkey, bind `claude-desktop --profile=NAME --toggle` by hand.
-- **`--profile=NAME` without `--create-profile`** isolates state but not WM identity (window joins the default taskbar entry). Suppress the hint with `CLAUDE_PROFILE_QUIET=1`.
-- **Wayland portal identity on NixOS** may not resolve (no `systemd-run --scope`); use `--install-gnome-hotkey`.
+- **Disk cost.** A named profile needs a real, independently-named binary (not a symlink) so Electron can derive a distinct WM_CLASS / Wayland `app_id` from `/proc/self/exe`. The launcher tries hardlink → reflink (btrfs/xfs CoW) → plain copy in order, so only cross-filesystem installs on a non-CoW disk actually pay the ~200 MB; sibling files (`libffmpeg.so`, `.pak`, `locales/`, …) are always shared symlinks. Package upgrades that leave the copy stale are re-materialised automatically on the next launch.
+- **`--profile=NAME` without `--create-profile`** isolates state but not WM identity (window joins the default taskbar entry; suppress the hint with `CLAUDE_PROFILE_QUIET=1`).
+- **[Quick Entry](#quick-entry) hotkey is not per-profile** - `--install-gnome-hotkey` targets the default profile; for a named one, bind `claude-desktop --profile=NAME --toggle` by hand.
+- **NixOS** may not resolve Wayland portal identity (no `systemd-run --scope`); use `--install-gnome-hotkey`.
 
 ## Quick Entry
 
@@ -452,6 +422,23 @@ Each patch is a self-contained `patches/*.nim` file compiled to a native binary.
 | `fix_window_bounds.nim` | Fixes BrowserView bounds on maximize/snap, Quick Entry blur | Injected IIFE, minimal regex |
 | `fix_claude_code.nim` | Detects the system-installed `claude` binary and wires it into Code status | `rg -o 'async getStatus\(\)\{.{0,200}' index.js` |
 | `fix_startup_settings.nim` | Per-profile "Start at login" XDG autostart handling for named profiles (the base toggle is upstreamed) | `rg -o 'isStartupOnLoginEnabled.{0,50}' index.js` |
+
+## Command-line flags
+
+Flags this project adds on top of the official build (run `claude-desktop --help` for the full list). All are optional; without any, `claude-desktop` just launches the default profile.
+
+| Flag | Description |
+|------|-------------|
+| `--profile=NAME` | Launch (or target a subcommand at) a named [profile](#multiple-profiles). Also selectable via a `claude-desktop-NAME` shortcut or `CLAUDE_PROFILE=NAME` |
+| `--create-profile=NAME` | Create a [profile](#multiple-profiles) (user-local binary, launcher, and menu entry; own login/logs/config) |
+| `--delete-profile=NAME` | Remove a profile's entry points (user data preserved) |
+| `--list-profiles` | List installed profiles |
+| `--toggle` | Toggle the [Quick Entry](#quick-entry) overlay (bind to a global shortcut) |
+| `--install-gnome-hotkey [ACCEL]` | Bind the Quick Entry hotkey on GNOME, where the portal doesn't (default `Ctrl+Alt+Space`); `--uninstall-gnome-hotkey` removes it |
+| `--native-titlebar` | Use the native window frame instead of the integrated titlebar (same as `CLAUDE_NATIVE_TITLEBAR=1`) |
+| `--no-systemd-scope` | Skip the `systemd --user --scope` wrapper for this launch (same as `CLAUDE_DISABLE_SYSTEMD_SCOPE=1`) |
+| `--diagnose` | Print session type, portal status, and hotkey state for issue reports |
+| `--integrate` / `--unintegrate` | Register / remove the `claude://` handler and menu entry (AppImage only; happens automatically on launch) |
 
 ## Environment Variables
 
