@@ -24,7 +24,7 @@ Set permanently in `~/.bashrc` / `~/.zshrc`, or pass per-launch: `CLAUDE_DISABLE
 
 A few variables belong to specific features and are documented alongside them:
 
-- `COWORK_SCREENSHOT_CMD` - override Computer Use screenshot auto-detection. See [Computer Use dependencies](../README.md#computer-use-dependencies).
+- `COWORK_SCREENSHOT_CMD` - override Computer Use screenshot auto-detection. See [Computer Use dependencies](computer-use-dependencies.md#custom-screenshot-command).
 
 ## See also
 

@@ -29,7 +29,6 @@ Everything else - Chat, Claude Code, Cowork, Browser Tools, 3P/enterprise infere
 
 - [Installation](#installation)
 - [Computer Use](#computer-use)
-- [Computer Use dependencies](#computer-use-dependencies)
 - [Custom Themes](#custom-themes)
 - [Multiple Profiles](#multiple-profiles)
 - [Quick Entry](#quick-entry)
@@ -49,18 +48,18 @@ Everything else - Chat, Claude Code, Cowork, Browser Tools, 3P/enterprise infere
 
 ## Installation
 
-Pick your distro below. The `.deb`, `.rpm`, and AUR packages **recommend the Cowork VM dependencies** (QEMU + OVMF firmware + virtiofsd), so `apt`/`dnf` pull them in by default - this mirrors Anthropic's own official `.deb`. [Cowork](#cowork-setup-needs-devkvm) runs its agent workspace in a KVM VM; two things a package can't do for you:
-
-- **Join the `kvm` group** (once, for `/dev/kvm` access): `sudo usermod -aG kvm "$USER"` then log out and back in.
-- **Install the Claude Code CLI** (needed for Cowork/Dispatch): `npm i -g @anthropic-ai/claude-code` - see [Cowork setup](#cowork-setup-needs-devkvm).
-
-[Computer Use](#computer-use) tools stay optional too - install the packages for your session from [Computer Use dependencies](#computer-use-dependencies) when you want it. (AppImage and Nix can't auto-install system packages; install QEMU + OVMF yourself - see [Cowork setup](#cowork-setup-needs-devkvm).)
+Pick your distro below. Each section notes the optional dependencies for that distro. Two setup steps are common to all of them and only matter if you use [Cowork](#cowork-setup-needs-devkvm) (its agent workspace runs in a KVM VM): join the `kvm` group (`sudo usermod -aG kvm "$USER"`, then re-login) and install the Claude Code CLI (`npm i -g @anthropic-ai/claude-code`). [Computer Use](#computer-use) tools are always optional - each section lists them, and [Computer Use dependencies](docs/computer-use-dependencies.md) has the full matrix + `ydotool` setup.
 
 ### Arch Linux / Manjaro (AUR)
 ```bash
 yay -S claude-desktop-bin
 ```
 Updates arrive through your AUR helper (e.g. `yay -Syu`).
+
+> **Optional deps.** pacman does **not** auto-install `optdepends`, so enable the extras you want by hand:
+> - **Cowork** (VM): `sudo pacman -S --needed qemu-system-x86 edk2-ovmf virtiofsd` (aarch64: `qemu-system-aarch64 edk2-aarch64 virtiofsd`).
+> - **Computer Use**: X11 `xdotool scrot imagemagick wmctrl` · Wayland/Sway/Hyprland `ydotool grim jq` (+`hyprland`) · GNOME also `glib2 gnome-screenshot python-gobject gst-plugin-pipewire` · KDE none (bundled bridge). Wayland needs `ydotool` v1.0+ running - see [Computer Use dependencies](docs/computer-use-dependencies.md).
+> - Also `nodejs` (system MCP servers), `sqlite` (project detection), `claude-code`.
 
 ### Debian / Ubuntu (APT Repository)
 
@@ -74,6 +73,10 @@ curl -fsSL https://patrickjaja.github.io/claude-desktop-bin/install.sh | sudo ba
 sudo apt install claude-desktop-bin
 ```
 Updates are automatic via `sudo apt update && sudo apt upgrade`.
+
+> **Optional deps.**
+> - **Cowork** (VM): `qemu-system-x86`, `ovmf`, `virtiofsd` (arm64: `qemu-system-arm`, `qemu-efi-aarch64`, `virtiofsd`) are `Recommends`, so `apt` pulls them in by default - this mirrors Anthropic's official `.deb` (skip with `--no-install-recommends`).
+> - **Computer Use** (`Suggests`, not auto-installed): X11 `xdotool scrot imagemagick wmctrl` · Wayland/Sway/Hyprland `ydotool grim jq` (+`hyprland`) · GNOME also `libglib2.0-bin gnome-screenshot python3-gi gstreamer1.0-pipewire`. Ubuntu/Debian ship an **incompatible `ydotool` v0.1.8** - Wayland needs v1.0+ built via the [setup script](docs/computer-use-dependencies.md#ydotool-setup). Full matrix + notes: [Computer Use dependencies](docs/computer-use-dependencies.md).
 
 <details>
 <summary>Manual .deb install (without APT repo)</summary>
@@ -93,6 +96,10 @@ curl -fsSL https://patrickjaja.github.io/claude-desktop-bin/install-rpm.sh | sud
 sudo dnf install claude-desktop-bin
 ```
 Updates are automatic via `sudo dnf upgrade`.
+
+> **Optional deps.**
+> - **Cowork** (VM): `qemu-system-x86` / `qemu-system-aarch64`, `edk2-ovmf` / `edk2-aarch64`, `virtiofsd` (RHEL uses `qemu-kvm`) are weak deps, so `dnf` pulls them in by default (skip with `--setopt=install_weak_deps=False`).
+> - **Computer Use** (`Suggests`, not auto-installed): X11 `xdotool scrot ImageMagick wmctrl` · Wayland/Sway/Hyprland `ydotool grim jq` (+`hyprland`) · GNOME also `glib2 gnome-screenshot python3-gobject pipewire-gstreamer`. Wayland needs `ydotool` v1.0+ running (`sudo dnf install ydotool && sudo systemctl enable --now ydotool`). Full matrix + notes: [Computer Use dependencies](docs/computer-use-dependencies.md).
 
 <details>
 <summary>Manual .rpm install (without DNF repo)</summary>
@@ -129,7 +136,7 @@ nix profile install github:patrickjaja/claude-desktop-bin
 
 > **Note:** Update by running `nix flake update` to pull the latest version. `nix run` always fetches the latest.
 
-> **Computer Use / Dispatch on Nix:** pass optional dependencies via `.override { … }`, and if nixpkgs ships an older Claude Code (< 2.1.86) point at your own with `extraSessionPaths = [ "/path/to/dir/with/claude" ]`. See [Computer Use dependencies](#computer-use-dependencies).
+> **Optional deps on Nix.** Nix can't auto-install system packages, so pass the ones you want via `.override { … }`: **Cowork** needs `qemu` (plus OVMF firmware exposed at a probed path - see the NixOS limitation in [`packaging/nix/package.nix`](packaging/nix/package.nix)); **Computer Use** takes `xdotool`, `scrot`, `ydotool`, `grim`, etc. (see [Computer Use dependencies](docs/computer-use-dependencies.md)). If nixpkgs ships an older Claude Code (< 2.1.86), point at your own with `extraSessionPaths = [ "/path/to/dir/with/claude" ]`.
 
 ### AppImage (Any Distro)
 
@@ -145,6 +152,8 @@ chmod +x Claude_Desktop-*-x86_64.AppImage
 ```
 
 > **Update:** AppImage supports delta updates via [appimagetool](https://github.com/AppImageCommunity/AppImageUpdate) - only changed blocks are downloaded (`appimageupdatetool Claude_Desktop-*.AppImage`, or `--appimage-update` from within). Compatible with [AppImageLauncher](https://github.com/TheAssassin/AppImageLauncher) and [Gear Lever](https://github.com/mijorus/gearlever). Use `--integrate` / `--unintegrate` / `--diagnose` to manage the protocol handler.
+>
+> **Optional deps.** The AppImage bundles nothing extra, so install what you need from your host's repos. **Cowork** (VM): Arch `qemu-system-x86 edk2-ovmf virtiofsd` · Fedora `qemu-system-x86 edk2-ovmf virtiofsd` · Debian/Ubuntu `qemu-system-x86 ovmf virtiofsd` (arm64 firmware differs - see [Cowork setup](#cowork-setup-needs-devkvm)). **Computer Use**: per [Computer Use dependencies](docs/computer-use-dependencies.md).
 
 ### From Source
 ```bash
@@ -154,6 +163,8 @@ cd claude-desktop-bin
 ```
 
 > **Note:** Source builds do not receive automatic updates. Pull and rebuild to update.
+>
+> **Optional deps.** A source build installs the native package for your distro, so the optional deps are the same as that distro's section above (e.g. on Arch, install the Cowork/Computer Use packages by hand since pacman doesn't pull `optdepends`).
 
 ### ARM64 / aarch64 (Raspberry Pi 5, NVIDIA DGX Spark, Jetson, etc.)
 
@@ -180,50 +191,14 @@ curl -fsSL https://patrickjaja.github.io/claude-desktop-bin/gpg-key.asc | gpg --
 
 Example prompt: *"Can you use computer use MCP to explain me the PhpStorm application?"*
 
-**How it works on Linux:** upstream Computer Use is macOS-only - gated behind `process.platform==="darwin"`, macOS TCC permissions, and a native Swift executor. The patch ([fix_computer_use_linux.nim](patches/fix_computer_use_linux.nim)) removes the platform gates, routes both upstream executor factories to an injected Linux executor, bypasses TCC with a no-op `{granted: true}`, and auto-detects your session type to use the right tools (xdotool/ydotool, grim/spectacle/scrot/portal, plus `kwin-portal-bridge` on KDE Wayland). Install the packages for your session from [Computer Use dependencies](#computer-use-dependencies) below.
+**How it works on Linux:** upstream Computer Use is macOS-only - gated behind `process.platform==="darwin"`, macOS TCC permissions, and a native Swift executor. The patch ([fix_computer_use_linux.nim](patches/fix_computer_use_linux.nim)) removes the platform gates, routes both upstream executor factories to an injected Linux executor, bypasses TCC with a no-op `{granted: true}`, and auto-detects your session type to use the right tools (xdotool/ydotool, grim/spectacle/scrot/portal, plus `kwin-portal-bridge` on KDE Wayland). Install the packages for your session from your distro's [Installation](#installation) section, or see [Computer Use dependencies](docs/computer-use-dependencies.md) for the full matrix and `ydotool` setup.
 
 **Notes:**
 - **Primary monitor only.** Screenshots, clicks, and the teach overlay target the primary display; use `switch_display` to target another for screenshots/clicks (teach overlay stays on primary).
 - **App discovery** for the teach overlay scans `.desktop` files from `/usr/share/applications`, `~/.local/share/applications`, and Flatpak dirs, registering each with multiple name variants for flexible matching.
 - **Teach overlay** stays interactive but blocks clicks to apps behind it during a tour (Electron's `setIgnoreMouseEvents` is [broken on X11](https://github.com/electron/electron/issues/16777)).
 
-See [CLAUDE_BUILT_IN_MCP.md](baseline/CLAUDE_BUILT_IN_MCP.md#14-computer-use) for the full tool reference.
-
-## Computer Use dependencies
-
-Check your session type (`echo $XDG_SESSION_TYPE`) and desktop (`echo $XDG_CURRENT_DESKTOP`), then install the matching packages. At runtime the app auto-detects your compositor and calls the correct tools.
-
-| Distro | X11 / XWayland | Wayland - Sway/Hyprland | Wayland - GNOME | Wayland - KDE Plasma |
-|--------|----------------|-------------------------|-----------------|----------------------|
-| **Arch** | `xdotool scrot imagemagick wmctrl` | `ydotool grim jq` (+`hyprland` on Hyprland) | `ydotool xdotool glib2 gnome-screenshot imagemagick python-gobject gst-plugin-pipewire` | *none - bundled bridge* |
-| **Debian/Ubuntu** | `xdotool scrot imagemagick wmctrl` | `ydotool grim jq` (+`hyprland`) | `ydotool xdotool libglib2.0-bin gnome-screenshot imagemagick python3-gi gstreamer1.0-pipewire` | *none - bundled bridge* |
-| **Fedora/RHEL** | `xdotool scrot ImageMagick wmctrl` | `ydotool grim jq` (+`hyprland`) | `ydotool xdotool glib2 gnome-screenshot ImageMagick python3-gobject pipewire-gstreamer` | *none - bundled bridge* |
-
-> **KDE Plasma Wayland:** the bundled [`kwin-portal-bridge`](https://github.com/patrickjaja/kwin-portal-bridge) handles input, screenshots, clipboard, and display info natively via XDG portals - no extra packages. One consent prompt per session. Falls back to `ydotool` + `spectacle` if unavailable.
->
-> **GNOME 46+** (Ubuntu 25.10+, Fedora 40+): screenshots use the XDG ScreenCast portal with PipeWire restore tokens - one permission dialog, then silent (needs `python-gobject`/`python3-gi` + `gst-plugin-pipewire`). Falls back to `gnome-screenshot` / `gdbus`. Set flat mouse accel for accurate clicks: `gsettings set org.gnome.desktop.peripherals.mouse accel-profile flat`.
->
-> **Custom screenshot command:** set `COWORK_SCREENSHOT_CMD` to override auto-detection. Placeholders: `{FILE}`, `{X}`, `{Y}`, `{W}`, `{H}`. Example: `COWORK_SCREENSHOT_CMD='spectacle -b -n -r -o {FILE}'`
-
-<a id="ydotool-setup-wayland"></a>
-### ydotool setup (Wayland - GNOME, Sway, Hyprland)
-
-Computer Use needs `ydotool` **v1.0+** and the `ydotoold` daemon for input on GNOME, Sway, and Hyprland Wayland. KDE Plasma does not need it.
-
-**Arch / Fedora** ship v1.x in the repos:
-```bash
-sudo pacman -S ydotool && sudo systemctl enable --now ydotool   # Arch
-sudo dnf install ydotool && sudo systemctl enable --now ydotool  # Fedora
-```
-
-**Ubuntu / Debian** still ship the **incompatible** v0.1.8 (Ubuntu 22.04/24.04/25.10) or nothing in main (Debian 13 trixie; v1.x is backports-only) - build v1.0.4 with the setup script:
-```bash
-curl -fsSL https://raw.githubusercontent.com/patrickjaja/claude-desktop-bin/master/scripts/setup-ydotool.sh | sudo bash
-```
-
-Restart Claude Desktop after setup.
-
-> **Nix:** pass Computer Use deps via `claude-desktop.override { xdotool = pkgs.xdotool; scrot = pkgs.scrot; ydotool = pkgs.ydotool; grim = pkgs.grim; … }`. On NixOS the bundled `kwin-portal-bridge` won't run (glibc linker mismatch) - use the `ydotool`/`spectacle` fallback tools instead.
+See [CLAUDE_BUILT_IN_MCP.md](baseline/CLAUDE_BUILT_IN_MCP.md#14-computer-use) for the full tool reference. Install the packages for your session from your distro's [Installation](#installation) section; [docs/computer-use-dependencies.md](docs/computer-use-dependencies.md) has the full matrix, the KDE/GNOME portal behavior notes, `COWORK_SCREENSHOT_CMD`, and `ydotool` v1.0+ setup.
 
 ## Custom Themes
 
