@@ -547,12 +547,7 @@ jobs:
 
               echo '=== Installing build dependencies ==='
               pacman -Syu --noconfirm
-              pacman -S --noconfirm python nodejs npm git imagemagick xorg-server-xvfb shellcheck nim nimble binutils tar zstd xz gnupg
-              # Electron runtime shared libraries — required by the smoke test,
-              # which launches the bundled Electron binary. base-devel ships none
-              # of these, so without them the app aborts with exit 127
-              # (e.g. 'libnspr4.so: cannot open shared object file').
-              pacman -S --noconfirm nss nspr gtk3 alsa-lib libxss libnotify at-spi2-core mesa libcups
+              pacman -S --noconfirm python nodejs npm git imagemagick shellcheck nim nimble binutils tar zstd xz gnupg
 
               echo '=== Installing Nim regex package ==='
               nimble install -y regex
@@ -570,7 +565,13 @@ jobs:
               echo '=== Running ingest+patch script (build-patched-tarball.sh) ==='
               # Local .deb already SHA-verified in check-version; GPG verify of a
               # signed Release does not apply to a local file, so disable it here.
-              ${BRIDGE_ENV} CLAUDE_GPG_VERIFY=0 \
+              # Skip the smoke test here — it launches the bundled Electron out of
+              # the raw tarball, which needs the host's Electron runtime libs
+              # (nss/gtk3/alsa-lib) that base-devel doesn't ship. The real
+              # smoke test runs in test-pkgbuild, which pacman -U's the built
+              # package so its declared depends() are resolved exactly as a user
+              # would get them.
+              ${BRIDGE_ENV} CLAUDE_GPG_VERIFY=0 SKIP_SMOKE_TEST=1 \
                 bash /input/scripts/build-patched-tarball.sh /input/claude.deb /output
 
               echo '=== Build completed ==='
@@ -1212,26 +1213,72 @@ jobs:
 
               # Run namcap on the built package to catch dependency issues
               PKG=$(ls "$BUILD_DIR"/*.pkg.tar.zst 2>/dev/null | head -1)
-              if [ -n "$PKG" ]; then
-                echo ""
-                echo "=== namcap package lint ==="
-                # namcap returns 0 even with warnings; grep for errors
-                NAMCAP_OUT=$(namcap "$PKG" 2>&1 || true)
-                echo "$NAMCAP_OUT"
-
-                # Fail only on namcap errors (E:), not warnings (W:)
-                # W: lines about implicitly satisfied deps, unstripped ELF, etc. are expected
-                # for packages that bundle Electron binaries
-                if echo "$NAMCAP_OUT" | grep -qE "^claude-desktop-bin E:.*dependency"; then
-                  echo "::error::namcap detected dependency errors in the built package"
-                  exit 1
-                fi
-
-                echo "namcap passed (no dependency errors)"
-              else
+              if [ -z "$PKG" ]; then
                 echo "::error::makepkg produced no package file"
                 exit 1
               fi
+              echo ""
+              echo "=== namcap package lint ==="
+              # namcap returns 0 even with warnings; grep for errors
+              NAMCAP_OUT=$(namcap "$PKG" 2>&1 || true)
+              echo "$NAMCAP_OUT"
+
+              # Fail only on namcap errors (E:), not warnings (W:)
+              # W: lines about implicitly satisfied deps, unstripped ELF, etc. are expected
+              # for packages that bundle Electron binaries
+              if echo "$NAMCAP_OUT" | grep -qE "^claude-desktop-bin E:.*dependency"; then
+                echo "::error::namcap detected dependency errors in the built package"
+                exit 1
+              fi
+              echo "namcap passed (no dependency errors)"
+
+              # ── Install + launch smoke test ──────────────────────────────
+              # This is the real pre-release gate: does the package actually
+              # install and start on a clean Arch system? pacman -U resolves the
+              # PKGBUILD depends() (alsa-lib gtk3 nss ...) exactly as a user
+              # would get them — so a missing/wrong dependency FAILS here rather
+              # than shipping to AUR. Then we launch the installed binary under
+              # xvfb and confirm it survives startup (a missing Electron runtime
+              # lib would abort with exit 127).
+              echo ""
+              echo "=== Installing built package (resolves depends() via pacman) ==="
+              pacman -U --noconfirm "$PKG"
+
+              echo ""
+              echo "=== Launch smoke test (installed /usr/bin/claude-desktop under xvfb) ==="
+              pacman -S --noconfirm xorg-server-xvfb
+
+              # The launcher falls back to a direct exec when user-systemd is
+              # absent (containers) and forwards extra args to Electron. We pass
+              # --no-sandbox explicitly: Docker blocks the user-namespace syscalls
+              # Chromium\x27s sandbox needs, so without it the app aborts in CI.
+              # (A real install keeps the sandbox — chrome-sandbox is shipped
+              # SUID-root and the launcher does not add this flag on a normal X11
+              # desktop.)
+              set +e
+              STDERR_LOG=$(mktemp)
+              xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
+                claude-desktop --no-sandbox 2>"$STDERR_LOG" &
+              APP_PID=$!
+              ELAPSED=0
+              CRASHED=0
+              while [ $ELAPSED -lt 15 ]; do
+                if ! kill -0 "$APP_PID" 2>/dev/null; then
+                  wait "$APP_PID"; EC=$?
+                  echo "::error::Installed app exited early after ${ELAPSED}s (exit $EC)"
+                  CRASHED=1
+                  break
+                fi
+                sleep 1; ELAPSED=$((ELAPSED + 1))
+              done
+              echo "--- launcher/electron stderr ---"
+              cat "$STDERR_LOG"
+              echo "--------------------------------"
+              kill "$APP_PID" 2>/dev/null; wait "$APP_PID" 2>/dev/null
+              if [ "$CRASHED" = 1 ]; then
+                exit 1
+              fi
+              echo "Install + launch smoke test passed — package installs and starts cleanly"
             '
 
   # ================================================================
