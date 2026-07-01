@@ -48,7 +48,7 @@ Everything else - Chat, Claude Code, Cowork, Browser Tools, 3P/enterprise infere
 
 ## Installation
 
-Pick your distro below. Each section notes the optional dependencies for that distro. Two setup steps are common to all of them and only matter if you use [Cowork](#cowork-setup-needs-devkvm) (its agent workspace runs in a KVM VM): join the `kvm` group (`sudo usermod -aG kvm "$USER"`, then re-login) and install the Claude Code CLI (`npm i -g @anthropic-ai/claude-code`). [Computer Use](#computer-use) tools are always optional - each section lists them, and [Computer Use dependencies](docs/computer-use-dependencies.md) has the full matrix + `ydotool` setup.
+Pick your distro below. Each section notes the optional dependencies for that distro. One setup step is common to all of them and only matters if you use [Cowork](#cowork-setup-needs-devkvm) (its agent workspace runs in a KVM VM): join the `kvm` group (`sudo usermod -aG kvm "$USER"`, then re-login). The Claude Code CLI that Cowork/Dispatch drive is auto-downloaded and checksum-verified by the app - you don't need to install it yourself. [Computer Use](#computer-use) tools are always optional - each section lists them, and [Computer Use dependencies](docs/computer-use-dependencies.md) has the full matrix + `ydotool` setup.
 
 ### Arch Linux / Manjaro (AUR)
 ```bash
@@ -344,12 +344,13 @@ This binds the key directly via `gsettings`, bypassing the portal. See [wayland.
 
 Cowork (and Dispatch) run on the **official native Cowork VM backend** bundled inside the package (cowork-linux-helper + virtiofsd + smol-bin + QEMU/OVMF) - the same backend Anthropic ships in the official Linux build. There's no separate daemon to install; sessions run in a lightweight VM with `$HOME` shared in, which requires **`/dev/kvm`** on the host.
 
-**QEMU + OVMF firmware + virtiofsd are recommended dependencies** of the `.deb` / `.rpm` / AUR packages (matching Anthropic's official `.deb`), so a normal `apt`/`dnf` install pulls them by default. Two steps remain (needed once):
+**QEMU + OVMF firmware + virtiofsd are recommended dependencies** of the `.deb` / `.rpm` / AUR packages (matching Anthropic's official `.deb`), so a normal `apt`/`dnf` install pulls them by default. One step remains (needed once):
 
 ```bash
 sudo usermod -aG kvm "$USER"        # /dev/kvm access - then log out and back in
-npm i -g @anthropic-ai/claude-code  # Cowork/Dispatch drive the Claude Code CLI
 ```
+
+Cowork/Dispatch drive the Claude Code CLI, but you no longer need to install it yourself: the app auto-downloads a checksum-verified CLI matching its required version. To pin your own binary instead, set `CLAUDE_CODE_LOCAL_BINARY=/path/to/claude` (`npm i -g @anthropic-ai/claude-code`).
 
 > **AppImage, Nix, or source builds** don't pull system packages - install QEMU + UEFI firmware yourself first (firmware package name differs on arm64):
 > ```bash
@@ -427,7 +428,6 @@ Each patch is a self-contained `patches/*.nim` file compiled to a native binary.
 | `fix_updater_state_linux.nim` | Adds version fields to idle updater state to prevent TypeError | `rg -o 'status:"idle".{0,50}' index.js` |
 | `fix_utility_process_kill.nim` | SIGKILL fallback when UtilityProcess doesn't exit gracefully | `rg -o 'Killing utiltiy proccess' index.js` |
 | `fix_window_bounds.nim` | Fixes BrowserView bounds on maximize/snap, Quick Entry blur | Injected IIFE, minimal regex |
-| `fix_claude_code.nim` | Detects the system-installed `claude` binary and wires it into Code status | `rg -o 'async getStatus\(\)\{.{0,200}' index.js` |
 | `fix_startup_settings.nim` | Per-profile "Start at login" XDG autostart handling for named profiles (the base toggle is upstreamed) | `rg -o 'isStartupOnLoginEnabled.{0,50}' index.js` |
 
 ## Command-line flags

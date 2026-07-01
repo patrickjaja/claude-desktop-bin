@@ -19,7 +19,7 @@ depends=('alsa-lib' 'gtk3' 'nss')
 # access still needs the user in the `kvm` group.
 optdepends=('nodejs: System Node.js for MCP extensions that require specific versions (Electron bundles Node.js as fallback)'
             'sqlite: Project detection (detectedProjects) — without it, periodic ENOENT errors spam logs/main.log'
-            'claude-code: Claude Code CLI for agentic coding features, and required for Cowork/Dispatch (npm i -g @anthropic-ai/claude-code)'
+            'claude-code: optional pinned Claude Code CLI. NOT required — the app auto-downloads a checksum-verified CLI matching its required version. To force a system binary set CLAUDE_CODE_LOCAL_BINARY=/path/to/claude (npm i -g @anthropic-ai/claude-code)'
             'virtiofsd: Cowork agent workspace VM — shares $HOME into the guest'
             'xdotool: Computer Use input (X11), cursor reading + XWayland fallback (Wayland), Quick Entry positioning'
             'scrot: Computer Use screenshots (X11)'
