@@ -4,6 +4,10 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 
 ## 2026-07-01
 
+### Removed two no-op regression guards (`fix_disable_autoupdate`, `fix_terminal_shell_linux`)
+
+Both patches had become pure no-ops - they mutated nothing and only asserted upstreamed behavior - so they were deleted rather than kept as empty guards. `fix_disable_autoupdate` used to inject a Linux short-circuit into the Squirrel `isInstalled` check; the official `.deb` now bails out of the update manager unless `forceInstalled` (false on our repackaged app), so auto-update is already off. `fix_terminal_shell_linux` used to rewrite a hardcoded `powershell.exe` default into a `$SHELL → /bin/bash → /bin/sh` ternary; the official `.deb` ships a proper POSIX shell resolver and the `powershell.exe` default is gone. Verified against a fresh unpatched v1.17377.1 bundle: both ran to exit 0 with zero byte changes. `PLATFORM_GATE_BASELINE.md` updated.
+
 ### Removed `fix_claude_code` (Claude Code binary resolution is upstream-native on Linux)
 
 The `fix_claude_code` patch was deleted after verifying against a fresh unpatched v1.17377.1 bundle that the official `.deb` resolves and downloads the Claude Code CLI natively on Linux. Its two mutating sub-patches did more harm than good: `getBinaryPathIfReady()`/`getStatus()` searched `/usr/bin/claude`, `~/.local/bin/claude`, `/usr/local/bin/claude`, then `which claude`, and preferred that over the app's own managed binary - bypassing `requiredVersion` + checksum verification. Anyone with a stale or wrong-major-version `claude` on `PATH` (e.g. a global npm install) got it silently substituted, a source of bug reports rather than a fix.
