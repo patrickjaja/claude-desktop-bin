@@ -56,9 +56,9 @@ yay -S claude-desktop-bin
 ```
 Updates arrive through your AUR helper (e.g. `yay -Syu`).
 
-**Optional deps** (pacman does **not** auto-install `optdepends` - run the line you want).
+**Optional deps.**
 
-**Cowork** (agent workspace VM):
+**Cowork** (agent workspace VM). Not auto-installed (pacman skips `optdepends`); run the line for your arch:
 
 ```bash
 sudo pacman -S --needed qemu-system-x86 edk2-ovmf virtiofsd     # x86_64
