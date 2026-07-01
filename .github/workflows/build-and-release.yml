@@ -1607,6 +1607,25 @@ jobs:
 
           echo "Verified: SHA256 matches (${ACTUAL_SHA})"
 
+      - name: Refresh base-tag tarballs on patch releases
+        if: needs.check-version.outputs.pkgrel != '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.check-version.outputs.version }}
+          REPO: ${{ github.repository }}
+        run: |
+          # package.nix fetches the tarball from the BASE tag (v${VERSION}, no
+          # pkgrel suffix). On a pkgrel bump the new assets land only on the
+          # v${VERSION}-N tag, so without this step Nix users would silently
+          # keep getting the previous build. Clobber the base-tag tarballs with
+          # the freshly built ones; the nix-hash step below then computes the
+          # matching new hash for package.nix.
+          gh release upload "v${VERSION}" \
+            "release-files/claude-desktop-${VERSION}-linux.tar.gz" \
+            "release-files/claude-desktop-${VERSION}-linux-aarch64.tar.gz" \
+            --repo "$REPO" --clobber
+          echo "Refreshed base-tag (v${VERSION}) tarballs for Nix"
+
       - name: Compute Nix hash from released tarball
         id: nix-hash
         env:
@@ -1614,7 +1633,8 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           # package.nix always uses v${version} (base version, no pkgrel suffix).
-          # Compute the hash from that exact URL so it matches what users fetch.
+          # Compute the hash from that exact URL so it matches what users fetch
+          # (on pkgrel bumps the step above refreshed those base-tag assets).
           NIX_URL="https://github.com/${REPO}/releases/download/v${VERSION}/claude-desktop-${VERSION}-linux.tar.gz"
 
           echo "Fetching tarball from Nix fetchurl URL: ${NIX_URL}"
