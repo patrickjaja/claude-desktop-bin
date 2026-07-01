@@ -4,6 +4,10 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 
 ## 2026-07-01
 
+### README: documented Arch Linux ARM's missing `edk2-aarch64` package (#170)
+
+Arch Linux ARM (and derivatives like EndeavourOS ARM, Manjaro ARM) doesn't carry `edk2-aarch64` in its repos, even though the package is `arch=any` upstream on archlinux.org - so `pacman -S edk2-aarch64` fails with `target not found` on native aarch64 hosts (e.g. Raspberry Pi 5), even after a full `-Syu`. Since the package is architecture-independent, the workaround is to grab it directly from an x86_64 Arch mirror and install it locally with `pacman -U`. Added this note (with the manual-install command) to both Arch Cowork-deps sections in the README.
+
 ### Removed two no-op regression guards (`fix_disable_autoupdate`, `fix_terminal_shell_linux`)
 
 Both patches had become pure no-ops - they mutated nothing and only asserted upstreamed behavior - so they were deleted rather than kept as empty guards. `fix_disable_autoupdate` used to inject a Linux short-circuit into the Squirrel `isInstalled` check; the official `.deb` now bails out of the update manager unless `forceInstalled` (false on our repackaged app), so auto-update is already off. `fix_terminal_shell_linux` used to rewrite a hardcoded `powershell.exe` default into a `$SHELL → /bin/bash → /bin/sh` ternary; the official `.deb` ships a proper POSIX shell resolver and the `powershell.exe` default is gone. Verified against a fresh unpatched v1.17377.1 bundle: both ran to exit 0 with zero byte changes. `PLATFORM_GATE_BASELINE.md` updated.
