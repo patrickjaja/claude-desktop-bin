@@ -58,7 +58,7 @@ These files embed assumptions about upstream internals and **must be challenged 
 | `baseline/ION.md` | ion-dist SPA bundle stats, patched patterns, config key schema | Run ion-dist checks (Prompt 4 in update-prompt.md) |
 | `baseline/PLATFORM_GATE_BASELINE.md` | darwin/win32 conditional counts, gate classifications (PATCHED/NATIVE/STUB/PORTABLE) | Run platform gate re-audit (Prompt 5 in update-prompt.md) |
 | `CHANGELOG.md` | Version-specific notes | Add new entry for each release. **One entry per day** - merge multiple changes into a single dated `##` section with subsections. **Keep notes informative, simple, and straight** - state what changed and the conclusion; don't dump verification minutiae, raw diffs, byte counts, or every minified identifier. The CHANGELOG is a reader's summary, not a debug log. |
-| `.upstream-version` | The Claude Desktop version our patches & docs were last validated against | **Bump + commit to the new version once a version is handled** — even a trivial build bump with no public release. `version-check.yml` compares the highest `Version:` in the official apt Packages index against this file; until they match, the "new version detected" issue is (re)created every 2h. |
+| `.upstream-version` | The Claude Desktop version our patches & docs were last validated against | **Normally bumped automatically**: the release job commits it on every successful release (including the auto-release runs dispatched by `version-check.yml`). Bump + commit manually only when handling a version fully by hand — even a trivial build bump with no public release. `version-check.yml` compares the highest `Version:` in the official apt Packages index against this file; a mismatch with no open tracking issue triggers a new auto-release attempt. |
 
 **Rule of thumb:** If a doc references a specific minified name, it will be wrong after the next upstream release. Use `\w+` wildcards in patches; in docs, always note the version the names apply to.
 
@@ -70,9 +70,13 @@ These files embed assumptions about upstream internals and **must be challenged 
 
 ## Update Workflow
 
-When a new Claude Desktop version drops, follow [update-prompt.md](update-prompt.md) — it has copy-paste prompts for:
+**Upstream bumps are handled automatically by default.** Since we repackage the official Linux `.deb` (Anthropic maintains 1p Linux support), most releases need zero manual work: `version-check.yml` (2-hourly) detects a new version, opens a tracking issue, and dispatches `build-and-release.yml` in release mode. The patch strictness rules make that run the arbiter — every sub-patch must apply or the build fails loud. Green run → packages published, AUR pushed, README versions + Nix hash + `.upstream-version` committed, tracking issue auto-closed. Red run → a comment lands on the tracking issue; **that comment is the signal for manual work**.
 
-1. **Prompt 1:** Build & fix patches (download official `.deb`, run build, fix failures)
+Caveat: a green build proves the patches *applied*, not that runtime behavior is correct — a wildcard regex can in principle match a wrong site after a re-minify, and remote claude.ai code can change behavior without any desktop release (issue #173 was exactly that). The safety net is the strict counts + positive end-state assertions + smoke test; spot-check a real install after notable bumps.
+
+**Manual path (only when the auto-release fails, or for a deep audit):** run the `/update <version>` skill, or follow [update-prompt.md](update-prompt.md) — copy-paste prompts for:
+
+1. **Prompt 1:** Build & fix patches (download official `.deb`, run build, fix failures). For each failing patch, decide first: pattern moved (fix regex) vs **feature upstreamed (remove the patch or convert to a regression guard — the expected direction over time)**.
 2. **Prompt 2:** Diff & discover new changes (compare old vs new JS bundles)
 3. **Prompt 3:** Feature flag audit (catch new/changed flags)
 
@@ -96,7 +100,7 @@ All local build scripts skip the Electron smoke test by default. Pass
 `--smoke-test` to opt in, or set `SKIP_SMOKE_TEST=0` in the environment.
 CI runs the smoke test automatically.
 
-See also: [validate_and_fix_claude-setup-x64.md](validate_and_fix_claude-setup-x64.md) for step-by-step patch debugging, and [UPDATE-PROMPT-CC-INPUT-MANUAL.md](UPDATE-PROMPT-CC-INPUT-MANUAL.md) for the one-liner to kick off the process.
+See also: [UPDATE-PROMPT-CC-INPUT-MANUAL.md](UPDATE-PROMPT-CC-INPUT-MANUAL.md) for the one-liner to kick off the process. (Step-by-step patch debugging is covered in the "Debugging Patch Failures" section below and in update-prompt.md; the formerly linked validate_and_fix_claude-setup-x64.md was an MSIX-era local scratch file, never tracked in git.)
 
 ## Debugging Patch Failures
 

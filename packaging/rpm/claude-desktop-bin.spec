@@ -24,6 +24,12 @@ Requires:       libdrm
 Requires:       mesa-libgbm
 Requires:       alsa-lib
 Requires:       libnotify
+# libsecret is dlopened by Chromium's os_crypt for keyring credential storage —
+# rpm's automatic soname scan does NOT catch dlopen, so it must be explicit.
+# xdg-utils (xdg-open) and xdg-desktop-portal mirror the official .deb's Depends.
+Requires:       libsecret
+Requires:       xdg-utils
+Requires:       xdg-desktop-portal
 # Cowork agent workspace VM. Cowork runs the agent workspace in a lightweight
 # KVM VM, which needs QEMU + UEFI firmware + virtiofsd on the host. Kept soft
 # (Recommends) to mirror the official Claude Desktop .deb, which lists these in
@@ -76,6 +82,11 @@ Suggests:       hyprland
 Suggests:       socat
 # MCP servers requiring system Node.js
 Suggests:       nodejs
+# Credential storage backend for libsecret. Suggests (not Recommends) because
+# Fedora/RHEL GNOME ships gnome-keyring and KDE ships kwallet already — rpm weak
+# deps have no "A | B" alternation like dpkg, and Recommends would force
+# gnome-keyring onto KDE installs.
+Suggests:       gnome-keyring
 
 %description
 Claude is an AI assistant created by Anthropic to be helpful,
@@ -118,6 +129,11 @@ fi
 # GPU fallback, SingletonLock cleanup, and logging)
 mkdir -p %{buildroot}/usr/bin
 install -m755 tarball/launcher/claude-desktop %{buildroot}/usr/bin/claude-desktop
+
+# Upstream license notice (tarball root, from the official .deb's usr/share/doc;
+# placed there by build-patched-tarball.sh). Hard requirement — a missing file
+# means an outdated (pre-2026-07) tarball; rebuild it first.
+install -Dm644 tarball/copyright %{buildroot}/usr/share/licenses/%{name}/copyright
 
 # Install desktop file.
 # Filename is "claude-desktop.desktop" to match the live window app_id
@@ -216,6 +232,8 @@ if command -v gtk-update-icon-cache &>/dev/null; then
 fi
 
 %files
+# Upstream license notice, installed in %%install from the tarball root.
+%license /usr/share/licenses/%{name}/copyright
 /usr/lib/claude-desktop/
 /usr/bin/claude-desktop
 /usr/share/applications/claude-desktop.desktop

@@ -127,15 +127,18 @@ jobs:
           echo "::notice::Created issue for new version v${UPSTREAM}"
 
       # ----------------------------------------------------------------
-      # AUTO-PR path: on a newly detected version, kick off build-and-release
-      # in auto-PR mode. That run downloads + patches the official .deb,
-      # bumps .upstream-version + the Nix hash, and opens a PR (it does NOT
-      # publish a release - that stays behind a human merge + the existing
-      # workflow_dispatch release path). We dispatch only once per version by
-      # gating on the same "no open issue yet" condition used above, so the
-      # 2-hourly cron doesn't spawn duplicate runs.
+      # AUTO-RELEASE path: on a newly detected version, kick off a full
+      # release run. Patches are strict (every sub-patch must apply or the
+      # build fails loud), so a green run means the new version is handled:
+      # it publishes the release, pushes AUR, and commits README versions +
+      # Nix hash + .upstream-version back to master. On failure the run
+      # comments on the tracking issue created above - that is the signal
+      # for a human to run the /update skill (fix or remove patches).
+      # We dispatch only once per version by gating on the same "no open
+      # issue yet" condition used above, so the 2-hourly cron doesn't spawn
+      # duplicate runs while a release attempt is in flight or has failed.
       # ----------------------------------------------------------------
-      - name: Trigger auto-PR build for the new version
+      - name: Trigger auto-release build for the new version
         if: |
           steps.upstream.outputs.version &&
           steps.tracked.outputs.version != steps.upstream.outputs.version &&
@@ -148,11 +151,10 @@ jobs:
           if gh workflow run build-and-release.yml \
               --repo "${REPO}" \
               --ref master \
-              -f auto_pr=true \
               -f deb_version="${UPSTREAM}" 2>/tmp/dispatch.err; then
-            echo "::notice::Dispatched auto-PR build for v${UPSTREAM}"
+            echo "::notice::Dispatched auto-release build for v${UPSTREAM}"
           else
-            echo "::warning::Could not dispatch auto-PR build (continuing; issue still filed)"
+            echo "::warning::Could not dispatch auto-release build (continuing; issue still filed)"
             cat /tmp/dispatch.err >&2 || true
           fi
 

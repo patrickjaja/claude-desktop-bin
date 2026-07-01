@@ -9,7 +9,21 @@ pkgdesc="Claude Desktop - Linux (unofficial, repackaged from the official Linux 
 arch=('x86_64' 'aarch64')
 url="https://github.com/patrickjaja/claude-desktop-bin"
 license=('custom:Claude')
-depends=('alsa-lib' 'gtk3' 'nss')
+# Grounded in `objdump -p | grep NEEDED` of every ELF we ship (Electron 42 main
+# binary, chrome_crashpad_handler, bundled virtiofsd, node-pty pty.node) plus
+# the official .deb's control Depends. Notes:
+# - libcap-ng + libseccomp: linked by the BUNDLED virtiofsd the official .deb
+#   ships at resources/virtiofsd (we ship it under resources/locales/).
+# - libsecret: dlopened by Chromium's os_crypt for keyring credential storage
+#   (not in NEEDED, but genuinely required — upstream declares libsecret-1-0).
+# - libnotify, libdrm, xdg-utils, xdg-desktop-portal: mirror upstream Depends.
+# - systemd-libs (libudev) and gcc-libs (libstdc++ for pty.node) are linked but
+#   missing from most third-party Electron PKGBUILDs.
+depends=('alsa-lib' 'at-spi2-core' 'cairo' 'dbus' 'expat' 'gcc-libs' 'glib2'
+         'glibc' 'gtk3' 'hicolor-icon-theme' 'libcap-ng' 'libcups' 'libdrm'
+         'libnotify' 'libseccomp' 'libsecret' 'libx11' 'libxcb' 'libxcomposite'
+         'libxdamage' 'libxext' 'libxfixes' 'libxkbcommon' 'libxrandr' 'mesa'
+         'nspr' 'nss' 'pango' 'systemd-libs' 'xdg-desktop-portal' 'xdg-utils')
 # Cowork's VM deps (QEMU + UEFI firmware + virtiofsd) mirror the official Claude
 # Desktop .deb's Recommends — kept soft (optdepends), so we stay close to
 # upstream and don't force ~400 MB of QEMU on Chat/Code-only installs. The
@@ -33,7 +47,9 @@ optdepends=('nodejs: System Node.js for MCP extensions that require specific ver
             'gst-plugin-pipewire: Portal screenshot PipeWire frame capture on GNOME Wayland 46+'
             'gnome-screenshot: Computer Use screenshot fallback (GNOME)'
             'hyprland: Quick Entry cursor positioning on Hyprland Wayland (hyprctl)'
-            'socat: Faster Quick Entry toggle via socket (~2ms vs ~25ms python3 — not required)')
+            'socat: Faster Quick Entry toggle via socket (~2ms vs ~25ms python3 — not required)'
+            'gnome-keyring: credential storage backend for libsecret (KDE users: kwallet works too — upstream Recommends gnome-keyring | kwalletd)'
+            'xdg-desktop-portal-gtk: portal backend for DEs without their own (GNOME/KDE ship xdg-desktop-portal-gnome/-kde) — file dialogs, screen sharing')
 optdepends_x86_64=('qemu-system-x86: Cowork agent workspace VM (needs /dev/kvm + user in kvm group)'
                    'edk2-ovmf: Cowork agent workspace VM UEFI firmware (OVMF)')
 optdepends_aarch64=('qemu-system-aarch64: Cowork agent workspace VM (needs /dev/kvm + user in kvm group)'
@@ -47,7 +63,7 @@ source_x86_64=("claude-desktop-${pkgver}-${pkgrel}-linux.tar.gz::{{DOWNLOAD_URL}
 sha256sums_x86_64=('{{SHA256SUM}}')
 source_aarch64=("claude-desktop-${pkgver}-${pkgrel}-linux-aarch64.tar.gz::{{DOWNLOAD_URL_AARCH64}}")
 sha256sums_aarch64=('{{SHA256SUM_AARCH64}}')
-options=('!strip')
+options=('!strip' '!emptydirs')
 
 package() {
     cd "$srcdir"
@@ -129,6 +145,10 @@ EOF
         install -Dm644 "$srcdir/icons/claude-desktop.png" \
             "$pkgdir/usr/share/icons/hicolor/256x256/apps/claude-desktop.png"
     fi
+
+    # Upstream license notice (the official .deb's usr/share/doc copyright file,
+    # placed at the tarball root by scripts/build-patched-tarball.sh).
+    install -Dm644 "$srcdir/copyright" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
 }
 
 # vim: set ts=4 sw=4 et:

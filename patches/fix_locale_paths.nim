@@ -65,9 +65,13 @@ when isMainModule:
   else:
     echo "  [OK] No changes made (already patched)"
 
-  # index.pre.js (the early bootstrap bundle) is handled by the SEPARATE patch
-  # fix_locale_paths_pre.nim, which the orchestrator runs against the staged
-  # index.pre.js as its own target. It is NOT patched here: the orchestrator stages
-  # each target into an isolated tmpfs copy, so index.pre.js is never a sibling of
-  # the staged index.js — a sibling patch here is a guaranteed no-op (the mechanism
-  # that shipped the enterprise bootstrap patch broken in v1.15200.0).
+  # index.pre.js (the early bootstrap bundle) currently has NO locale-path code
+  # (zero process.resourcesPath references) - nothing to patch there. A latent
+  # no-op guard for it (fix_locale_paths_pre.nim) existed and was removed
+  # 2026-07-02 under the delete-pure-no-op-guards policy. If upstream ever moves
+  # locale resolution into the bootstrap, add a NEW patch with its own
+  # `@patch-target: .../index.pre.js` header - do NOT patch it from here: the
+  # orchestrator stages each target into an isolated tmpfs copy, so index.pre.js
+  # is never a sibling of the staged index.js and a sibling patch is a guaranteed
+  # silent no-op (the mechanism that shipped the enterprise bootstrap patch
+  # broken in v1.15200.0).

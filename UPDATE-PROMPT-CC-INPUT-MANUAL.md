@@ -1,5 +1,7 @@
 Check @update-prompt.md - it describes how to update patches and docs when a new Claude Desktop version drops.
 
+Note: new versions are normally released AUTOMATICALLY by CI (version-check.yml dispatches a release run; green = released + .upstream-version bumped + tracking issue closed). You only need this manual flow when that auto-release run FAILED - check the failed run's log first, it names the exact patch that broke. For each failing patch decide: pattern moved (fix the regex) vs feature natively implemented upstream (remove the patch or convert to a regression guard - the expected direction, upstream has 1p Linux support).
+
 Quick start - run the build to see if patches still apply (auto-downloads the latest official Linux `.deb`):
 
     rm -rf build/ tmp/

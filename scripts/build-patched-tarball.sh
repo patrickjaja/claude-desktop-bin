@@ -278,7 +278,7 @@ log_info "Extracting app.asar..."
 ( cd "$APP_DIR" && asar extract app.asar app.asar.contents )
 
 # i18n: the .deb ships locale JSONs directly under resources/. Mirror them into the
-# asar contents where the app expects resources/i18n/*.json (same as the msix flow).
+# asar contents where the app expects resources/i18n/*.json.
 log_info "Copying i18n files..."
 mkdir -p "$APP_DIR/app.asar.contents/resources/i18n"
 if ls "$RES_DIR"/*.json 1> /dev/null 2>&1; then
@@ -484,6 +484,17 @@ else
     fi
 fi
 
+# Upstream license notice: the official .deb ships it at
+# usr/share/doc/claude-desktop/copyright. Put it at the tarball root so every
+# packager (PKGBUILD, deb, rpm, appimage, nix) can install it as the package's
+# license file. Hard requirement — if upstream ever drops it, investigate.
+COPYRIGHT_SRC="$DATA_DIR/usr/share/doc/claude-desktop/copyright"
+if [ ! -f "$COPYRIGHT_SRC" ]; then
+    log_error "Upstream copyright file not found at $COPYRIGHT_SRC — the official .deb layout changed; re-audit"
+    exit 1
+fi
+cp "$COPYRIGHT_SRC" "$TARBALL_DIR/copyright"
+
 # Create the tarball. amd64 → no suffix; arm64 → -aarch64 (matches PKGBUILD/Nix/release naming).
 case "$DEB_ARCH" in
     arm64)  TARBALL_FILE="$OUTPUT_DIR/claude-desktop-${VERSION}-linux-aarch64.tar.gz" ;;
@@ -491,7 +502,7 @@ case "$DEB_ARCH" in
     *)      TARBALL_FILE="$OUTPUT_DIR/claude-desktop-${VERSION}-linux-${DEB_ARCH}.tar.gz" ;;
 esac
 log_info "Creating tarball: $TARBALL_FILE"
-( cd "$TARBALL_DIR" && tar -czf "$TARBALL_FILE" app/ electron/ icons/ launcher/ )
+( cd "$TARBALL_DIR" && tar -czf "$TARBALL_FILE" app/ electron/ icons/ launcher/ copyright )
 
 # Calculate SHA256
 SHA256=$(sha256sum "$TARBALL_FILE" | cut -d' ' -f1)

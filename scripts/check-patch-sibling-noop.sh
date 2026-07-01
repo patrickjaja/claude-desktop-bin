@@ -18,7 +18,7 @@
 #
 # The CORRECT way to patch a second file is to give it its OWN patch file with its
 # own `@patch-target:` header (the orchestrator groups by target and stages each
-# independently). See fix_enterprise_config_linux_pre.nim / fix_locale_paths_pre.nim.
+# independently). See fix_enterprise_config_linux_pre.nim.
 #
 # This guard greps for the dead-code shape and fails the build if it reappears.
 

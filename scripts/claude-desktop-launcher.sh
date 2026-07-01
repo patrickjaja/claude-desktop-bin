@@ -1443,38 +1443,6 @@ if [[ -L "$lock_file" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Cowork socket cleanup (DISABLED)
-# ---------------------------------------------------------------------------
-# The intent was to clear stale cowork-vm-service sockets left by a crashed
-# daemon. In practice the age-based fallback (used when socat is missing)
-# deletes live sockets of healthy long-running services — a running daemon
-# whose socket file is older than 24h is normal, not stale. Removing the
-# filesystem entry leaves the kernel socket listening but makes new
-# connect() calls return ENOENT.
-#
-# Left commented-out pending a proper health check (e.g. a Python
-# connect-probe) rather than age-based heuristics.
-
-# cowork_sock="${XDG_RUNTIME_DIR:-/tmp}/cowork-vm-service.sock"
-#
-# if [[ -S "$cowork_sock" ]]; then
-#     stale=false
-#     if command -v socat &>/dev/null; then
-#         if ! socat -u OPEN:/dev/null UNIX-CONNECT:"$cowork_sock" 2>/dev/null; then
-#             stale=true
-#         fi
-#     else
-#         if [[ -n $(find "$cowork_sock" -mmin +1440 2>/dev/null) ]]; then
-#             stale=true
-#         fi
-#     fi
-#     if [[ $stale == true ]]; then
-#         rm -f "$cowork_sock"
-#         log 'Removed stale cowork-vm-service socket'
-#     fi
-# fi
-
-# ---------------------------------------------------------------------------
 # Launch
 # ---------------------------------------------------------------------------
 

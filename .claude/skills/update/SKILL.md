@@ -6,6 +6,8 @@ disable-model-invocation: true
 
 # Update to a new upstream Claude Desktop version
 
+**When to run this:** normally you don't. CI auto-releases new upstream versions (version-check.yml dispatches build-and-release.yml; green run = released + `.upstream-version` bumped + tracking issue closed). Run this skill when the **auto-release failed** (a comment on the "new version detected" issue links the failed run) or when you want a deep audit of a bump. On a patch failure, decide FIRST: did the re-minify just move the anchor (fix the regex), or did upstream natively implement what we patch (remove the patch or convert it to a regression guard — the expected direction, since Anthropic maintains 1p Linux support)?
+
 Run from `/home/patrickjaja/development/claude-desktop-bin`. The official Linux `.deb` is remotely managed and re-minifies every release; patches use `[\w$]+` wildcards on stable string anchors. Step 1 runs `/fresh-upstream` for a clean extract; Step 9 ends with `/deploy` to release. `$ARGUMENTS` may name a target version.
 
 Use sequential thinking and delegate independent analysis (diff, flag audit, ion-dist, platform gates) to parallel sub-agents where useful; you coordinate and edit.
@@ -15,9 +17,8 @@ Use sequential thinking and delegate independent analysis (diff, flag audit, ion
 cd /home/patrickjaja/development/claude-desktop-bin
 git status                  # must be clean before starting
 rm -rf build/ extract/      # old artifacts
-rm -f chrome-native-host.exe cowork-svc.exe smol-bin.vhdx
 ```
-Note current `.upstream-version`.
+Note current `.upstream-version`. If you're here because the auto-release failed, read the failed run's log first — it names exactly which patch (and which sub-patch counter) failed.
 
 ## Step 1 - build & fix patches
 Run the build for this OS (Arch here). It auto-downloads the latest official `.deb`, applies patches, packages:

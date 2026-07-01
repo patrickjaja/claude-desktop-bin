@@ -27,28 +27,25 @@
 #   3o consolidateMemoryV2 GrowthBook flag 1824824999
 #   3p coworkOnboarding GrowthBook flag 2114777685
 #   4  preferences defaults (quietPenguinEnabled / louderPenguinEnabled)
-#   5  HTTP header platform spoof
-#   5b User-Agent header spoof
-#   6  getSystemInfo IPC platform spoof
-#   8  navigator spoof injected after "use strict" (navigator.platform=Win32 +
-#      Windows userAgentFallback) — this is what the claude.ai SPA actually reads
-#      for platform detection (Ctrl vs ⌘ shortcuts, etc.)
 #
-# (There is no patch 7. A former "mainView.js window.process.platform spoof"
-# existed but was VESTIGIAL: it was added for keyboard-shortcut detection, which
-# patch 8's navigator.platform spoof already covers. It also never actually ran —
-# it located mainView.js via `filePath.parentDir/"mainView.js"`, but the orchestrator
-# stages each @patch-target into an isolated tmpfs copy, so the sibling mainView.js
-# was never present and the sub-patch silently self-passed. Removed in favour of the
-# navigator spoof. If a window.process.platform spoof is ever genuinely needed, add
-# it to fix_process_argv_renderer.nim, which legitimately targets mainView.js.)
+# (Patches 5/5b/6/8 — the MSIX-era platform spoofs — were REMOVED 2026-07-01 for
+# issue #173. They told claude.ai we were macOS in HTTP headers (5:
+# anthropic-client-os-platform=darwin, 5b: Macintosh User-Agent) but Windows via
+# IPC and the renderer main world (6: getSystemInfo platform=win32, 8:
+# navigator.platform=Win32 + Windows userAgentFallback). The official Linux .deb
+# reports "linux" natively and claude.ai supports Linux natively; the leftover
+# spoofs made the renderer's client-side platform check see Windows, so its
+# Cowork gate showed "Cowork is not currently supported on Windows" on Linux.
+# There is also no patch 7 — a former vestigial mainView.js window.process.platform
+# spoof, removed earlier; if one is ever genuinely needed again, add it to
+# fix_process_argv_renderer.nim, which legitimately targets mainView.js.)
 #
 # This patch targets index.js only.
 
 import std/[os, strformat, strutils]
 import std/nre
 
-const EXPECTED_PATCHES = 23
+const EXPECTED_PATCHES = 20
 
 proc apply*(input: string): string =
   result = input
@@ -447,82 +444,19 @@ proc apply*(input: string): string =
     echo "  [FAIL] Required patterns did not match"
     quit(1)
 
-  # Patch 5: Spoof platform as "darwin" in HTTP headers.
-  # v1.17282.0 refactored the header builder: the old
-  #   const A=X.app.getVersion(),PLAT=Y.platform,VER=Y.getSystemVersion()
-  # const-tuple became an inline array literal inside aso():
-  #   [...Object.entries(...),["anthropic-client-os-platform",ho.platform],
-  #    ["anthropic-client-os-version",ho.getSystemVersion()]]
-  # Anchor on the stable header-name string literal and spoof the .platform read.
-  let headerPattern = re"""(\["anthropic-client-os-platform",)([\w$]+)(\.platform\])"""
-  var count5 = 0
-  result = result.replace(
-    headerPattern,
-    proc(m: RegexMatch): string =
-      inc count5
-      if count5 > 1:
-        return m.match
-      let osMod = m.captures[1]
-      m.captures[0] & "process.platform===\"linux\"?\"darwin\":" & osMod & m.captures[2],
-  )
-  if count5 >= 1:
-    echo &"  [OK] HTTP header platform spoof: {count5} match(es)"
+  # Guard for the removed platform spoofs (5/6): the real platform must reach
+  # claude.ai unspoofed. Assert the header builder still sends the raw
+  # `.platform` read (so a stale pre-built binary or a merge resurrection of the
+  # spoof fails loud), per CLAUDE.md Rule 6 (positive end-state assertion).
+  let headerUnspoofed = re"""\["anthropic-client-os-platform",[\w$]+\.platform\]"""
+  if result.find(headerUnspoofed).isSome:
+    echo "  [OK] platform reporting: anthropic-client-os-platform sends the real platform (spoofs removed for issue #173)"
     inc patchesApplied
-  elif "[\"anthropic-client-os-platform\",process.platform===\"linux\"?\"darwin\":" in
-      result:
-    echo "  [OK] HTTP header platform spoof: already patched"
-    inc patchesApplied
-  else:
-    echo "  [FAIL] HTTP header platform spoof: 0 matches"
+  elif "anthropic-client-os-platform" notin result:
+    echo "  [FAIL] platform reporting: anthropic-client-os-platform header GONE — upstream refactored the header builder; re-audit"
     quit(1)
-
-  # Patch 5b: Spoof User-Agent header
-  let uaPattern = re"(let )([\w$]+)(=)([\w$]+)(;)([\w$]+\.set\(""user-agent"",)\2(\))"
-  var count5b = 0
-  result = result.replace(
-    uaPattern,
-    proc(m: RegexMatch): string =
-      inc count5b
-      if count5b > 1:
-        return m.match
-      let varName = m.captures[1]
-      let orig = m.captures[3]
-      m.captures[0] & varName & m.captures[2] & orig & m.captures[4] &
-        "if(process.platform===\"linux\"){" & varName & "=" & varName &
-        ".replace(/X11; Linux [^)]+/g,\"Macintosh; Intel Mac OS X 10_15_7\")}" &
-        m.captures[5] & varName & m.captures[6],
-  )
-  if count5b >= 1:
-    echo &"  [OK] User-Agent header spoof: {count5b} match(es)"
-    inc patchesApplied
-  elif "Macintosh; Intel Mac OS X 10_15_7" in result:
-    echo "  [OK] User-Agent header spoof: already patched"
-    inc patchesApplied
   else:
-    echo "  [FAIL] User-Agent header spoof: 0 matches"
-    quit(1)
-
-  # Patch 6: Spoof platform in getSystemInfo IPC response
-  let sysinfoPattern =
-    re"(platform:)process\.platform(,arch:process\.arch,total_memory:[\w$]+\.totalmem\(\))"
-  var count6 = 0
-  result = result.replace(
-    sysinfoPattern,
-    proc(m: RegexMatch): string =
-      inc count6
-      if count6 > 1:
-        return m.match
-      m.captures[0] & "(process.platform===\"linux\"?\"win32\":process.platform)" &
-        m.captures[1],
-  )
-  if count6 >= 1:
-    echo &"  [OK] getSystemInfo platform spoof: {count6} match(es)"
-    inc patchesApplied
-  elif "platform:(process.platform===\"linux\"?\"win32\":process.platform)" in result:
-    echo "  [OK] getSystemInfo platform spoof: already patched"
-    inc patchesApplied
-  else:
-    echo "  [FAIL] getSystemInfo platform spoof: 0 matches"
+    echo "  [FAIL] platform reporting: anthropic-client-os-platform header present but not the raw `.platform` read — a spoof or refactor is in place; re-audit"
     quit(1)
 
   # Write back if changed
@@ -547,46 +481,15 @@ when isMainModule:
   var input = readFile(filePath)
   var output = apply(input)
 
+  # Former Patch 8 (navigator.platform=Win32 + Windows userAgentFallback in the
+  # renderer main world) was removed for issue #173. Assert the spoof is really
+  # gone from the output — its marker resurfacing would mean a stale pre-patched
+  # input or a bad merge, and would break Cowork on Linux again.
+  if "__nav_spoof_applied" in output:
+    echo "  [FAIL] navigator spoof marker (__nav_spoof_applied) still present — input was patched by an old build; use a fresh upstream extract"
+    quit(1)
+
   if output != input:
     writeFile(filePath, output)
-
-  # Patch 8: Spoof navigator.platform and navigator.userAgent in renderer main world.
-  # (There is no longer a mainView.js "window.process.platform" sub-patch — see the
-  # note below. This is the only mainModule-level sub-patch, hence EXPECTED_MAINMODULE = 1.)
-  const EXPECTED_MAINMODULE = 1
-  var mainModuleApplied = 0
-  let navigatorMarker = "__nav_spoof_applied"
-  # Re-read in case apply() changed it
-  var content = readFile(filePath)
-
-  if navigatorMarker in content:
-    echo "  [OK] navigator spoof: already applied"
-    inc mainModuleApplied
-  else:
-    let navSpoofJs =
-      "if(process.platform===\"linux\"){" & "const __nav_spoof_applied=!0;" &
-      "const __oUA=require(\"electron\").app.userAgentFallback||\"\";" &
-      "require(\"electron\").app.userAgentFallback=" &
-      "__oUA.replace(/X11; Linux [^)]+/g,\"Windows NT 10.0; Win64; x64\");" &
-      "const __navJS=\"try{Object.defineProperty(navigator,\\\"platform\\\",{get:()=>\\\"Win32\\\",configurable:!0})}catch(e){}\";" &
-      "require(\"electron\").app.on(\"web-contents-created\",(ev,wc)=>{" &
-      "wc.on(\"did-navigate\",()=>{wc.executeJavaScript(__navJS).catch(()=>{})});" &
-      "wc.on(\"dom-ready\",()=>{wc.executeJavaScript(__navJS).catch(()=>{})})" & "})" &
-      "}"
-    let strictPrefix = "\"use strict\";"
-    if content.startsWith(strictPrefix):
-      content = strictPrefix & navSpoofJs & content[strictPrefix.len .. ^1]
-      writeFile(filePath, content)
-      echo "  [OK] navigator spoof: injected in index.js (userAgent + platform)"
-      inc mainModuleApplied
-    else:
-      echo "  [FAIL] navigator spoof: could not find 'use strict' prefix at start of index.js."
-      quit(1)
-
-  # Strictness check (mainModule-level sub-patches only; apply() already hard-failed
-  # on any of patches 1-6/3x/4/5/5b/6).
-  if mainModuleApplied < EXPECTED_MAINMODULE:
-    echo &"  [FAIL] Only {mainModuleApplied}/{EXPECTED_MAINMODULE} mainModule patches applied"
-    quit(1)
 
   echo &"  [PASS] {EXPECTED_PATCHES}/{EXPECTED_PATCHES} patches applied"

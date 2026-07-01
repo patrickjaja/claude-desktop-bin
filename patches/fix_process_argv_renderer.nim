@@ -37,26 +37,6 @@ proc apply*(input: string): string =
     echo "  [OK] process.argv: added " & varName & ".argv=[] (before exposeInMainWorld)"
     return result
 
-  # Fallback 1: after platform spoof
-  let spoofPattern = re2"""([\w$]+)(\.platform="win32"\})"""
-  if input.find(spoofPattern, m):
-    let varName = input[m.group(0)]
-    let insert = varName & ".argv=[];"
-    let pos = m.boundaries.b + 1 # exclusive end of full match
-    result = input[0 ..< pos] & insert & input[pos .. ^1]
-    echo "  [OK] process.argv: added " & varName & ".argv=[] (after platform spoof)"
-    return result
-
-  # Fallback 2: after <var>.version=...appVersion;
-  let versionPattern = re2"""([\w$]+)(\.version=[\w$]+\(\)\.appVersion;)"""
-  if input.find(versionPattern, m):
-    let varName = input[m.group(0)]
-    let insert = varName & ".argv=[];"
-    let pos = m.boundaries.b + 1 # exclusive end of full match
-    result = input[0 ..< pos] & insert & input[pos .. ^1]
-    echo "  [OK] process.argv: added " & varName & ".argv=[] (after version)"
-    return result
-
   echo "  [FAIL] process.argv: could not find insertion point"
   quit(1)
 

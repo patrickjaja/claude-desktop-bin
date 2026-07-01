@@ -7,28 +7,34 @@
 
 ---
 
-## How to pick this up
+## What happens automatically
+
+An **automatic release run** for `{{UPSTREAM}}` has been dispatched ([Build & Release](https://github.com/{{REPO}}/actions/workflows/build-and-release.yml)). Since we repackage Anthropic's official Linux `.deb` (1p Linux support), most upstream bumps need no manual work - the pipeline downloads the new `.deb`, applies all patches (every sub-patch must apply or the build fails loud), validates, smoke-tests, publishes the release, and bumps `.upstream-version`.
+
+- **If it succeeds:** this issue is closed automatically with a comment. Nothing to do.
+- **If it fails:** a comment appears below with a link to the failed run. That's the signal for manual work - see below.
+
+## If the automatic release failed
+
+The two likely causes, per CLAUDE.md's Patch Strictness Rules:
+
+1. **Upstream's re-minify moved a patch anchor** → fix the regex (`[\w$]+` wildcards + capture/replace).
+2. **Upstream natively implemented something we patch** → remove the patch, or convert it to a regression guard. This is the expected direction over time: Anthropic maintains 1p Linux support now, so our patch set should shrink, not grow.
+
+To pick it up:
 
 1. Clone this repo and `cd` into it:
    ```
    git clone https://github.com/{{REPO}}.git && cd claude-desktop-bin
    ```
-2. Start **Claude Code** in the project (`claude`).
-3. Add the sibling daemon repo so the skill can check the cowork RPC cross-dependency:
-   ```
-   /add-dir ../claude-cowork-service
-   ```
-   (clone [claude-cowork-service](https://github.com/patrickjaja/claude-cowork-service) next to this repo first if you don't have it).
-4. Run the update skill from inside this project:
+2. Start **Claude Code** in the project (`claude`) and run the update skill:
    ```
    /update {{UPSTREAM}}
    ```
 
-That's it. The skill drives the whole release: it re-builds against the new upstream `.deb`, fixes any patches the re-minify broke, then runs the analysis (new platform gates, feature flags, ion-dist, platform-gate re-audit), updates the docs, bumps `.upstream-version`, and ends with `/deploy`.
+The skill drives the whole flow: rebuilds against the new upstream `.deb`, fixes or removes broken patches, runs the analysis (new platform gates, feature flags, ion-dist), updates the docs, bumps `.upstream-version`, and ends with `/deploy`.
 
-**What you're checking for, in one line:** did anything new arrive that should be made Linux-compatible, and does existing Linux functionality still work? The skill surfaces both - you decide what (if anything) needs a new patch.
-
-Closing this issue: bumping `.upstream-version` to `{{UPSTREAM}}` (the skill does this) is what closes it and greens the README badge. `version-check.yml` recreates the issue every 2h until upstream `.latest` matches that file.
+Closing this issue: a successful release run closes it automatically (the release job bumps `.upstream-version`, which also stops the 2-hourly re-detection). If you handled the update fully manually, bump `.upstream-version` and close the issue yourself.
 
 ---
 

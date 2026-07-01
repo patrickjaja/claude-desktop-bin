@@ -3,28 +3,25 @@
 #
 # Patch Claude Desktop to use correct tray icon on Linux.
 #
-# On Windows, the app checks nativeTheme.shouldUseDarkColors to select the
-# appropriate icon (light icon for dark theme, dark icon for light theme).
-# On Linux, it always uses TrayIconTemplate.png (dark icon).
-#
-# Linux system trays are almost universally dark (GNOME, KDE, etc.), so we
-# always need TrayIconTemplate-Dark.png (the light icon) regardless of the
-# desktop theme setting.
-#
-# v1.13576.0: upstream refactored the icon selection from a win32-only
-# ternary (`isWin?e=...:e="TrayIconTemplate.png"`) into a `switch` on a
-# build-time constant icon-type ("ico"/"template-image"/"png"):
+# The official Linux .deb has native Linux tray-icon logic: a `switch` on a
+# build-time icon-type constant ("ico"/"template-image"/"png"; "png" on Linux
+# builds), whose png case picks the icon per desktop environment and theme:
 #
 #   let e;switch(G1r){
 #     case"ico": e=ELEC.nativeTheme.shouldUseDarkColors?"Tray-Win32-Dark.ico":"Tray-Win32.ico";break;
 #     case"template-image": e="TrayIconTemplate.png";break;
-#     case"png": e=ELEC.nativeTheme.shouldUseDarkColors?"TrayIconTemplate-Dark.png":"TrayIconTemplate.png";break
+#     case"png": e=ere()==="gnome"||ELEC.nativeTheme.shouldUseDarkColors?"TrayIconLinux-Dark.png":"TrayIconLinux.png";break
 #   }const t=...
 #
-# On Windows builds `G1r==="ico"`, so the switch picks `Tray-Win32.ico`,
-# which doesn't exist in the Linux package. Rather than rewrite each case,
-# we inject a Linux override right after the switch closes that forces the
-# light icon (`TrayIconTemplate-Dark.png`) regardless of which case ran.
+# That heuristic is wrong for us: it only forces the dark icon on GNOME, and
+# otherwise follows nativeTheme. But Linux system trays are almost universally
+# dark (KDE, Xfce, status-notifier hosts, ...) regardless of the app/desktop
+# theme, so on a light theme outside GNOME upstream picks the dark-on-dark
+# TrayIconLinux.png and the icon is invisible. We deliberately OVERRIDE the
+# native heuristic: inject a statement right after the switch that forces
+# TrayIconLinux-Dark.png (the light glyph) on Linux regardless of which case
+# ran. (Minified names like G1r/ere change every release - the regex uses
+# [\w$]+ wildcards; the icon files ship in the official .deb.)
 
 import std/[os, strutils]
 import std/nre

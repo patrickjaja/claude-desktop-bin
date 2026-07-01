@@ -634,20 +634,16 @@ These dispatch-era flags were removed from GrowthBook boolean calls (code may st
 
 ### enable_local_agent_mode.nim
 
-**Patch 1 - Individual functions:** Remove `process.platform!=="darwin"` gate from the quietPenguin inner function. Note: chillingSlothFeat uses a darwin||win32 variable check (`P3`) - only 1 match now instead of 2, handled gracefully by the `elif len(matches) == 1` branch. Also inject Linux early-return in yukonSilver (`TVA()` in v1.8555.2) to bypass its platform gate (though upstream now has native Linux support too - our patch is defensive).
+**Patch 1 - Individual functions:** Remove the `process.platform!=="darwin"` (or compound darwin/win32) gate from the remaining platform-gated feature function(s) (only quietPenguin as of v1.17377; the count varies per release and the patch accepts >=1 match). **Patch 1b (yukonSilver) is a pure regression guard** - upstream's official Linux `.deb` has native Cowork support (linux->"unix" VM-bundle key + `eo.files[e_A("linux")][arch]` gated on the real `are()` KVM probe), so nothing is injected; the guard fails the build loud if that native path ever disappears.
 
-**Patch 3 - SIA merger override:** Append to the `SIA` return object:
+**Patch 3 - merger override (7 keys as of 2026-07-01):** Append to the async merger's return object:
 ```javascript
-,quietPenguin:{status:"supported"},louderPenguin:{status:"supported"},chillingSlothFeat:{status:"supported"},chillingSlothLocal:{status:"supported"},chillingSlothPool:{status:"supported"},yukonSilver:{status:"supported"},yukonSilverGems:{status:"supported"},ccdPlugins:{status:"supported"},computerUse:{status:"supported"},coworkKappa:{status:"supported"},coworkArtifacts:{status:"supported"},markTaskComplete:{status:"supported"}
+,quietPenguin:{status:"supported"},louderPenguin:{status:"supported"},chillingSlothFeat:{status:"supported"},chillingSlothLocal:{status:"supported"},chillingSlothPool:{status:"supported"},ccdPlugins:{status:"supported"},computerUse:{status:"supported"}
 ```
 
-This bypasses the PM() gate by overriding at the merger level (12 total overrides). The spread order ensures our values win:
-```
-...Np()           -> quietPenguin: {status:"unavailable"}  (from PM)
-...our overrides  -> quietPenguin: {status:"supported"}    (wins)
-```
+The spread order ensures our values win over the static registry. **Deliberately NOT overridden:** `yukonSilver` / `yukonSilverGems` / `coworkKappa` / `coworkArtifacts` status objects - those must reflect upstream's native VM-capability probe (`are()`: /dev/kvm, OVMF, qemu, virtiofsd); force-marking them would mask a real unavailable state and turn the honest "install QEMU" message into a generic VM-spawn failure. The GrowthBook flag force-flips are separate and kept: `coworkKappa` `123929380` (3b), `coworkArtifacts` `2940196192` (3c), `chillingSlothPool` `1992087837` (3d), plus the 3f-3p set. `markTaskComplete` (former Patch 3e, flag `3732274605`) was removed upstream in v1.17282.0 and the sub-patch was deleted.
 
-Note: `chillingSlothLocal` and `ccdPlugins` overrides are defensive - both are already `{status:"supported"}`, but the overrides protect against future gating. `yukonSilverGemsCache` is NOT overridden but inherits support from the `TVA()` (yukonSilver) function patch in Patch 1b. `coworkKappa` is overridden to `{status:"supported"}` AND its GrowthBook flag `123929380` is forced ON (Patch 3b). `coworkArtifacts` is overridden AND its GrowthBook flag `2940196192` is forced ON (Patch 3c). `chillingSlothPool` is overridden AND its GrowthBook flag `1992087837` is forced ON (Patch 3d). `markTaskComplete` was overridden AND its GrowthBook flag `3732274605` forced ON (Patch 3e) — **but the feature was removed upstream in v1.17282.0**, so this override/force-ON now targets a non-existent feature and flag (a harmless no-op; the patch was intentionally left unchanged). No new force-ON entries were needed for v1.17282.0 — none of the new features (`chillingSlothSshShell`, `coworkWatchRecord`, `spaceMemoryBridge`) is mandatory for Linux Cowork/Code, and `coworkWatchRecord` is a macOS-only screen/watch-record feature that must NOT be force-enabled on Linux.
+**Platform spoofs removed (2026-07-02, issue #173):** former sub-patches 5 (HTTP header `anthropic-client-os-platform: darwin`), 5b (Macintosh User-Agent), 6 (`getSystemInfo` IPC -> `win32`) and 8 (`navigator.platform="Win32"` + Windows userAgentFallback) are GONE. They were MSIX-era workarounds; against the official Linux `.deb` they made the remote claude.ai renderer see Windows and block Cowork ("Cowork is not currently supported on Windows"). The app now reports `linux` everywhere, guarded by a positive assertion that the header builder sends the raw `.platform` read. **The GrowthBook force-flips stay regardless:** a live post-fix session's `/api/desktop/features` payload (disk cache `~/.config/Claude/fcache`) serves all 200 features as `null` with zero rules ("0 changed" vs the spoofed-era cache), so honest platform reporting unlocks nothing server-side - without the flips, every gated lookup returns null and the features switch off.
 
 ### Cowork on Linux (experimental)
 
@@ -656,9 +652,7 @@ As of the official Linux `.deb`, Cowork runs on Anthropic's **native Linux VM ba
 - **`fix_cowork_linux.nim` and the rest of the cowork-wiring cluster were removed** in the `.deb` pivot - the official build ships the VM client loader with native Linux support
 - **`claude-cowork-service`** (the separate Go daemon) is **deprecated** and no longer used; Cowork now works through the official native backend
 - The only remaining Cowork patch is **`fix_cowork_firmware_paths_linux.nim`** (adds non-Debian OVMF firmware paths to the VM capability probe)
-- `chillingSlothFeat`, `chillingSlothLocal`, `yukonSilver`, `yukonSilverGems`, and `ccdPlugins` are all overridden to `{status:"supported"}` in the SIA merger
-
-Without the daemon running, Cowork will show connection errors naturally in the UI.
+- `yukonSilver` / `yukonSilverGems` are **NOT overridden** - their status comes from upstream's native VM-capability probe, so a KVM-less or QEMU-less host honestly reports Cowork unavailable (with the actionable reason) instead of failing at VM spawn
 
 ### Dispatch on Linux (upstream-native — patch removed)
 

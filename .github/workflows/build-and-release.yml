@@ -8,7 +8,7 @@ on:
       - 'docs/**'
       - 'LICENSE'
       - '.gitignore'
-  workflow_dispatch:  # Manual trigger for releases (version-check.yml notifies of new versions)
+  workflow_dispatch:  # Release trigger (dispatched automatically by version-check.yml on a new upstream version, or manually)
     inputs:
       force_rebuild:
         description: 'Force rebuild & release even if upstream version unchanged (bumps pkgrel for patch/feature updates)'
@@ -16,7 +16,7 @@ on:
         type: boolean
         default: false
       auto_pr:
-        description: 'Auto-PR mode: build the official .deb, then open a PR bumping .upstream-version + Nix hash instead of publishing a release (used by version-check.yml on a new version).'
+        description: 'Auto-PR mode: build the official .deb, then open a PR bumping .upstream-version + Nix hash instead of publishing a release (manual conservative alternative; the auto-release path dispatched by version-check.yml does NOT set this).'
         required: false
         type: boolean
         default: false
@@ -57,8 +57,12 @@ concurrency:
 #
 # On pull_request: all validation jobs run, release/deploy/PR jobs are skipped.
 # On workflow_dispatch (default): full pipeline including release and deploy.
+#   This is the AUTO-RELEASE path - version-check.yml dispatches it on a new
+#   upstream version. Green run = released unattended (+ closes the tracking
+#   issue via close-version-issue); red run = notify-version-issue-failure
+#   comments on the tracking issue so a human runs the /update skill.
 # On workflow_dispatch with auto_pr=true: build + validate, then open a PR; no
-#   release is published (human merge gates the release path).
+#   release is published (manual conservative alternative to auto-release).
 # ──────────────────────────────────────────────────────────────────────
 
 jobs:
@@ -85,10 +89,9 @@ jobs:
 
       # ----------------------------------------------------------------
       # Query Anthropic's official Linux .deb apt repo, GPG-verify the signed
-      # Release, and resolve + download the .deb(s). This REPLACES the old
-      # Windows-MSIX download + self-managed Electron pin. Electron, node-pty,
+      # Release, and resolve + download the .deb(s). Electron, node-pty,
       # chrome-sandbox, etc. all ship inside the .deb, so there is nothing to
-      # pin or cross-rebuild here anymore.
+      # pin or cross-rebuild here.
       # ----------------------------------------------------------------
       - name: Resolve upstream version from apt (GPG-verified)
         id: version
@@ -1923,3 +1926,75 @@ jobs:
             || echo "::warning::gh pr create failed (branch pushed; open the PR manually)"
 
           echo "::notice::Opened auto-PR for v${VERSION} on branch ${BRANCH}"
+
+  # ================================================================
+  # Version-issue bookkeeping for the AUTO-RELEASE flow.
+  # version-check.yml opens a "new-version" tracking issue, then
+  # dispatches this workflow in release mode. Green run -> close the
+  # issue (fully unattended update). Red run -> comment on the issue:
+  # that comment is the human's signal to run the /update skill (fix
+  # broken patch anchors, or remove/convert patches upstream fixed).
+  # Both jobs only touch an open new-version issue matching the built
+  # version, so manual dispatches behave sensibly too.
+  # ================================================================
+  close-version-issue:
+    needs: [check-version, release, deploy-pages]
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.auto_pr != 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Close matching new-version issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.check-version.outputs.version }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          NUMBERS=$(gh issue list --repo "$REPO" --label "new-version" --state open \
+            --search "New Claude Desktop v${VERSION}" --json number --jq '.[].number')
+          if [ -z "$NUMBERS" ]; then
+            echo "No open new-version issue for v${VERSION} - nothing to close."
+            exit 0
+          fi
+          for N in $NUMBERS; do
+            gh issue close "$N" --repo "$REPO" --comment \
+              "v${VERSION} was released automatically: all patches applied cleanly against the new upstream .deb, validation + smoke test passed, packages published, and \`.upstream-version\` was bumped by the release job. No manual action was needed. ([run](${RUN_URL}))"
+            echo "Closed issue #${N}"
+          done
+
+  notify-version-issue-failure:
+    needs: [check-version, build-tarball, build-aarch64-tarball, lint-scripts, package-appimage, package-deb, package-rpm, test-nix, generate-pkgbuild, test-pkgbuild, release, deploy-rpm-repo, deploy-pages]
+    if: failure() && github.event_name == 'workflow_dispatch' && github.event.inputs.auto_pr != 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Comment on matching new-version issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.check-version.outputs.version || github.event.inputs.deb_version }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$VERSION" ]; then
+            echo "No version resolved - skipping issue comment."
+            exit 0
+          fi
+          NUMBERS=$(gh issue list --repo "$REPO" --label "new-version" --state open \
+            --search "New Claude Desktop v${VERSION}" --json number --jq '.[].number')
+          if [ -z "$NUMBERS" ]; then
+            echo "No open new-version issue for v${VERSION} - nothing to comment on."
+            exit 0
+          fi
+          {
+            echo "**Automatic release of v${VERSION} FAILED** - manual attention needed. ([failed run](${RUN_URL}))"
+            echo ""
+            echo "Most likely cause: the upstream re-minify moved a patch anchor (fix the regex), or upstream natively implemented something we patch (then remove the patch or convert it to a regression guard - see CLAUDE.md, Patch Strictness Rules). Run the \`/update ${VERSION}\` skill in a Claude Code session in this repo, or follow the prompt in the issue body above."
+            echo ""
+            echo "The 2-hourly version check will NOT retry while this issue stays open; a successful release run closes it automatically."
+          } > /tmp/failure-comment.md
+          for N in $NUMBERS; do
+            gh issue comment "$N" --repo "$REPO" --body-file /tmp/failure-comment.md
+            echo "Commented on issue #${N}"
+          done

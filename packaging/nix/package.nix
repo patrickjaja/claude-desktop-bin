@@ -157,6 +157,13 @@ stdenvNoCC.mkDerivation {
       cp icons/claude-desktop.png $out/share/icons/hicolor/256x256/apps/claude-desktop.png
     fi
 
+    # Upstream license notice (tarball root, from the official .deb's
+    # usr/share/doc). Guarded: pre-2026-07 release tarballs lack it, and the
+    # flake may still pin one of those.
+    if [ -f copyright ]; then
+      install -Dm644 copyright $out/share/licenses/claude-desktop/copyright
+    fi
+
     runHook postInstall
   '';
 

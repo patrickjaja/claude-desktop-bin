@@ -59,10 +59,14 @@ proc apply*(input: string): string =
   # differs (aavmf-aarch64-code.bin), which has the same "-code.bin" VARS-replace
   # problem as its x86_64 firmware and is left as the same known gap.
 
-  # Additional virtiofsd system-path candidates. The app already checks
-  # /usr/libexec/virtiofsd (Fedora/RHEL/openSUSE) and /usr/bin/virtiofsd, and
-  # falls back to the bundled copy. We add Arch's /usr/lib/virtiofsd so a system
-  # virtiofsd is preferred there too. (All current distros ship the Rust binary.)
+  # Additional virtiofsd system-path candidates. The app checks
+  # /usr/libexec/virtiofsd (Fedora/RHEL/openSUSE) and /usr/bin/virtiofsd. NOTE
+  # (verified v1.17377.1): the BUNDLED resources/virtiofsd is only used as a
+  # fallback on Ubuntu 22.x (`os-release id==="ubuntu" && versionId.startsWith
+  # ("22.")`), where apt has no standalone Rust virtiofsd - on every other
+  # distro a missing system virtiofsd means "unsupported". So a system virtiofsd
+  # (our optdepends/Recommends) is REQUIRED outside Ubuntu 22.04, and we add
+  # Arch's /usr/lib/virtiofsd so the probe finds it there.
   const extraVirtiofsd =
     "\"/usr/lib/virtiofsd\"," & # Arch (virtiofsd pkg)
     "\"/usr/lib/qemu/virtiofsd\"," # some distros

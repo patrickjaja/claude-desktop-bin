@@ -124,6 +124,15 @@ log_info "Installing launcher..."
 mkdir -p "$APPDIR/usr/bin"
 install -m755 "$WORK_DIR/tarball/launcher/claude-desktop" "$APPDIR/usr/bin/claude-desktop"
 
+# Upstream license notice (tarball root, from the official .deb's usr/share/doc).
+# Warn-only: pre-2026-07 release tarballs lack it.
+if [ -f "$WORK_DIR/tarball/copyright" ]; then
+    install -Dm644 "$WORK_DIR/tarball/copyright" \
+        "$APPDIR/usr/share/doc/claude-desktop/copyright"
+else
+    log_warn "tarball has no copyright file (old tarball?) — AppImage ships without usr/share/doc/claude-desktop/copyright"
+fi
+
 # Create AppRun (delegates to full launcher with AppImage-specific path overrides)
 log_info "Creating AppRun..."
 cat > "$APPDIR/AppRun" << 'EOF'

@@ -422,7 +422,7 @@ Each patch is a self-contained `patches/*.nim` file compiled to a native binary.
 
 | Patch | Purpose | Debug pattern |
 |-------|---------|---------------|
-| `enable_local_agent_mode.nim` | Forces Local Agent Mode / Code / plugin feature flags on and spoofs the client-OS platform header. Does **not** force-mark Cowork VM features - those reflect the native VM-capability probe | `rg -o 'status:"supported".{0,40}' index.js`; `rg -o 'anthropic-client-os-platform.{0,40}' index.js` |
+| `enable_local_agent_mode.nim` | Forces Local Agent Mode / Code / plugin feature flags on. Reports the **real** platform (`linux`) to claude.ai - the MSIX-era platform spoofs were removed in issue #173 because they made the renderer see Windows and block Cowork. Does **not** force-mark Cowork VM features - those reflect the native VM-capability probe | `rg -o 'status:"supported".{0,40}' index.js`; `rg -o 'anthropic-client-os-platform.{0,40}' index.js` |
 | `fix_0_node_host.nim` | Repoints 4 sidecar runtime paths off `process.resourcesPath+"app.asar"`. Needed because **we** relocate `app.asar` (`fix_locale_paths` / our install layout); on the stock `.deb` these paths are correct - our move breaks them, so remote MCP fails without this (issue #140) | `rg -o 'process\.resourcesPath,"app.asar"' index.js` |
 | `fix_app_quit.nim` | Uses `app.exit(0)` to prevent hang on exit | `rg -o '.{0,50}app\.quit.{0,50}' index.js` |
 | `fix_asar_folder_drop.nim` | Prevents app.asar being misdetected as a folder drop on launch ([#24](https://github.com/patrickjaja/claude-desktop-bin/issues/24)) | `rg -o 'filter.*\.asar' index.js` |
@@ -446,7 +446,7 @@ Each patch is a self-contained `patches/*.nim` file compiled to a native binary.
 | `fix_renderer_gone_suppressed_log.nim` | Logs main-webview renderer deaths upstream silently swallows (OOM SIGKILL left no trace) ([#128](https://github.com/patrickjaja/claude-desktop-bin/issues/128)) | `rg -o 'render process gone \(suppressed\).{0,60}' index.js` |
 | `fix_sensitive_dirs_linux.nim` | Adds Linux entries (`.local/share/keyrings`, `.pki`, `.config/autostart`) to the sandbox sensitive-directories block list | `rg -o '\.gnupg.{0,80}' index.js` |
 | `fix_tray_dbus.nim` | Prevents DBus race conditions with mutex and cleanup delay | `rg -o 'menuBarEnabled.*function' index.js` |
-| `fix_tray_icon_theme.nim` | Theme-aware tray icon (light/dark) | `rg -o 'nativeTheme.{0,50}tray' index.js` |
+| `fix_tray_icon_theme.nim` | Forces the light tray glyph (`TrayIconLinux-Dark.png`) on Linux - upstream's native heuristic only does so on GNOME/dark themes, but Linux trays are dark regardless of theme | `rg -o 'TrayIconLinux.{0,60}' index.js` |
 | `fix_updater_state_linux.nim` | Adds version fields to idle updater state to prevent TypeError | `rg -o 'status:"idle".{0,50}' index.js` |
 | `fix_utility_process_kill.nim` | SIGKILL fallback when UtilityProcess doesn't exit gracefully | `rg -o 'Killing utiltiy proccess' index.js` |
 | `fix_window_bounds.nim` | Fixes BrowserView bounds on maximize/snap, Quick Entry blur | Injected IIFE, minimal regex |

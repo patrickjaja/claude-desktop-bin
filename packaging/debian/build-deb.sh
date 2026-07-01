@@ -174,6 +174,16 @@ if [ -f "$WORK_DIR/tarball/icons/claude-desktop.png" ]; then
         "$DEB_ROOT/usr/share/icons/hicolor/256x256/apps/claude-desktop.png"
 fi
 
+# Debian policy: ship a copyright file under usr/share/doc/<pkg>/. The tarball
+# carries the upstream notice at its root (extracted from the official .deb by
+# build-patched-tarball.sh). Warn-only: pre-2026-07 release tarballs lack it.
+if [ -f "$WORK_DIR/tarball/copyright" ]; then
+    install -Dm644 "$WORK_DIR/tarball/copyright" \
+        "$DEB_ROOT/usr/share/doc/claude-desktop-bin/copyright"
+else
+    log_warn "tarball has no copyright file (old tarball?) — package ships without usr/share/doc/claude-desktop-bin/copyright"
+fi
+
 # Calculate installed size (in KB)
 INSTALLED_SIZE=$(du -sk "$DEB_ROOT" | cut -f1)
 
@@ -187,8 +197,8 @@ Section: utils
 Priority: optional
 Architecture: ${DEB_ARCH}
 Installed-Size: ${INSTALLED_SIZE}
-Depends: libgtk-3-0, libnotify4, libnss3, xdg-utils, libatspi2.0-0, libdrm2, libgbm1, libxcb-dri3-0, libsecret-1-0, libc6 (>= 2.34), libxtst6, libuuid1, xdg-desktop-portal
-Recommends: libasound2t64 | libasound2 | pulseaudio, libayatana-appindicator3-1 | libappindicator3-1, ca-certificates, sqlite3, ${COWORK_RECOMMENDS}
+Depends: libgtk-3-0, libnotify4, libnss3, xdg-utils, libatspi2.0-0, libdrm2, libgbm1, libxcb-dri3-0, libsecret-1-0, kde-cli-tools | kde-runtime | trash-cli | libglib2.0-bin | gvfs, libc6 (>= 2.34), libxtst6, libuuid1, xdg-desktop-portal, xdg-desktop-portal-gtk | xdg-desktop-portal-gnome | xdg-desktop-portal-kde
+Recommends: libasound2t64 | libasound2 | pulseaudio, libayatana-appindicator3-1 | libappindicator3-1, ca-certificates, gnome-keyring | kwalletd6 | kwalletd5, sqlite3, ${COWORK_RECOMMENDS}
 Suggests: xdotool, scrot, imagemagick, wmctrl, socat, hyprland, ydotool, grim, jq, kde-spectacle, libglib2.0-bin, python3-gi, gstreamer1.0-pipewire, gnome-screenshot, nodejs
 Maintainer: Claude Desktop Linux Community <claude-desktop-linux@users.noreply.github.com>
 Homepage: https://claude.ai
