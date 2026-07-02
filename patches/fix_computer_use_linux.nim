@@ -621,8 +621,9 @@ proc apply*(input: string): string =
     #        return A!==void 0?A:HiA()&&sr("chicagoEnabled")}      <- this patch
     #   bue(){if(!rt(rAn))return wS();...}                          <- Patch 12
     #   dq(){...&&!sr("chicagoEnabled")}                            <- untouched:
-    #        IRA.has() is false on linux, so the "stub/settings" nudge path
-    #        stays off and tool calls flow to our executor.
+    #        Patch 2 adds "linux" to IRA, so IRA.has() is TRUE here; dq() is
+    #        harmless anyway because Patch 6 injects the Linux dispatch at the
+    #        top of handleToolCall, before the if(dq()) stub path is reached.
     # YiA() is a build-time dev override (`const aAn=void 0` in prod), so the
     # injected Linux branch keeps the old semantics: bypass the platform set +
     # GrowthBook gate, respect the chicagoEnabled pref (default ON when unset).

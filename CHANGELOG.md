@@ -4,6 +4,16 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 
 ## 2026-07-03
 
+### Full 45-patch + distro-gap audit vs v1.18286.0: all patches valid, three hygiene fixes
+
+A five-agent audit re-verified every patch 1:1 against a fresh v1.18286.0 extract (semantic match sites, upstreaming checks, guard validity) plus a four-surface Debian-bias sweep (hardcoded paths, Cowork VM probes, updater, desktop integration) against the Arch/Fedora/RHEL/NixOS/AppImage matrix. Result: no patch is obsolete or matching a wrong site; the bump was a pure re-minify; no new distro gaps introduced. Verified our own .deb postinst does not inherit upstream's dormant apt self-update repo. Two known latent items logged, not fixed (no user reports): MCPB signature verify hardcodes `-CApath /etc/ssl/certs` (only affects Fedora/RHEL minimal images without the compat symlink), and the missing-QEMU error hint says `sudo apt install` on every distro.
+
+Hygiene fixes from the audit:
+
+- **`fix_cross_device_rename`**: the "already patched" guard was unreachable - re-running the patch on patched output would double-wrap all 19 rename sites instead of no-opping. Added a lookahead that skips already-wrapped calls; verified twice-apply is now a clean no-op (marker count stays 19).
+- **`fix_computer_use_linux`**: corrected a stale Patch 11 comment (Patch 2 adds "linux" to the CU platform set, so `dq()`'s `IRA.has()` is true on Linux; the stub path stays unreachable because Patch 6 dispatches before it).
+- **`baseline/ION.md`**: CSS bundle count row updated to 27 (v1.18286.0); removed a stale "possibly new this bump" tag.
+
 ### Upstream bump v1.17377.2 -> v1.18286.0: three patches re-anchored after the auto-release failed
 
 The 2-hourly version check dispatched an auto-release for v1.18286.0 and it failed (tracking issue #176). The bump is a full re-minify plus a few small refactors; three patches needed work:

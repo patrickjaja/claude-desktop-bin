@@ -17,11 +17,14 @@ import regex
 proc apply*(input: string): string =
   # Replace each await <mod>.rename(x,y) call with an inline EXDEV-safe
   # fallback. The (?<!try\{) lookbehind skips rename calls already inside
-  # a try block with their own EXDEV handler.
+  # a try block with their own EXDEV handler. The (?!\.catch\(async e=>...)
+  # lookahead skips calls we already wrapped, so re-running the patch on
+  # patched output is a no-op instead of double-wrapping every site.
   #
   # Before: await ur.rename(x,y)
   # After:  await ur.rename(x,y).catch(async e=>{if(e.code==="EXDEV"){await ur.copyFile(x,y);await ur.unlink(x)}else throw e})
-  let renamePattern = re2"""(?<!try\{)await ([\w$]+)\.rename\(([\w$]+),([\w$]+)\)"""
+  let renamePattern =
+    re2"""(?<!try\{)await ([\w$]+)\.rename\(([\w$]+),([\w$]+)\)(?!\.catch\(async e=>\{if\(e\.code==="EXDEV")"""
   var count = 0
   result = input.replace(
     renamePattern,

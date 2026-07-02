@@ -10,7 +10,7 @@ The `ion-dist/` directory is a standalone React SPA bundled inside `locales/ion-
 |--------|-------|
 | Total size | 100 MB (v1.18286.0; was 99 MB in v1.17282.0, 97 MB in v1.15962.0, 96 MB in v1.15200.0, 96 MB in v1.14271.0, 95 MB in v1.13576.0, 94 MB in v1.12603.0, 93 MB in v1.11847.5, 92 MB in v1.11187.4, 90 MB in v1.10628.0, 88 MB in v1.9659.4) |
 | JS chunks | 780 JS total, 1010 files total (v1.18286.0; was 783 JS / 1011 files in v1.17282.0, 758 JS / 984 files in v1.15962.0, 747 JS / 973 files in v1.15200.0, 728 JS / 954 files in v1.14271.0, 730 JS / 956 files in v1.13576.0, 730 JS / 979 files in v1.12603.0, 715 JS / 961 files in v1.11847.5, 706 JS / 950 files in v1.11187.4) |
-| CSS | 26 files (v1.17282.0; was 25 in v1.15962.0, 25 in v1.15200.0, 25 in v1.14271.0, 25 in v1.13576.0, 25 in v1.12603.0, 23 in v1.11847.5, 21 before v1.11187.4) |
+| CSS | 27 files (v1.18286.0; was 26 in v1.17282.0, 25 in v1.15962.0, 25 in v1.15200.0, 25 in v1.14271.0, 25 in v1.13576.0, 25 in v1.12603.0, 23 in v1.11847.5, 21 before v1.11187.4) |
 | Fonts | 31 woff2 + 21 ttf + 20 woff |
 | Images | 38 PNG, 19 SVG, 17 GIF (v1.12603.0; was 37 PNG / 19 SVG / 17 GIF in v1.11847.5) |
 | Audio | 25 MP3, 1 WebM, 1 MOV |
@@ -117,7 +117,7 @@ The 3P config supports these key categories (defined in the SPA's Zod schema):
 
 - **Connection:** `inferenceProvider`, `deploymentOrganizationUuid`, `disableDeploymentModeChooser`
 - **Provider credentials:** Vertex (`inferenceVertex*`), Bedrock (`inferenceBedrock*`), Foundry (`inferenceFoundry*`), Gateway (`inferenceGateway*`)
-- **Credential helper:** `inferenceCredentialHelper`, `inferenceCredentialHelperTtlSec`, `inferenceCredentialHelperTimeoutSec`, `inferenceCredentialKind`, `inferenceCustomHeaders`, `inferenceCredentialHelperSilentRefreshEnabled`, `inferenceSessionLifetimeSec` (both observed in the config chunk in v1.17282.0; possibly new this bump)
+- **Credential helper:** `inferenceCredentialHelper`, `inferenceCredentialHelperTtlSec`, `inferenceCredentialHelperTimeoutSec`, `inferenceCredentialKind`, `inferenceCustomHeaders`, `inferenceCredentialHelperSilentRefreshEnabled`, `inferenceSessionLifetimeSec` (first observed in v1.17282.0; still present and still the newest keys as of v1.18286.0)
 - **Models:** `inferenceModels` (supports `1m` context variant)
 - **Sandbox:** `disabledBuiltinTools`, `allowedWorkspaceFolders`, `coworkEgressAllowedHosts`, `isClaudeCodeForDesktopEnabled`
 - **Connectors:** `managedMcpServers`, `isLocalDevMcpEnabled`, `isDesktopExtensionEnabled`, `isDesktopExtensionDirectoryEnabled`, `isDesktopExtensionSignatureRequired`

@@ -338,13 +338,15 @@ See [CLAUDE_FEATURE_FLAGS.md](baseline/CLAUDE_FEATURE_FLAGS.md) for the full ref
 
 Runtime logs are at `~/.config/Claude/logs/`.
 
-**3p/enterprise deployments use a different dir.** If `/etc/claude-desktop/managed-settings.json` **exists**
-(inference-gateway / Bedrock / managed mode), the live logs and state are under **`~/.config/Claude-3p/logs/`**
+**3p/enterprise deployments use a different dir.** If `/etc/claude-desktop/managed-settings.json` sets an
+**`inferenceProvider`** (gateway / Bedrock / Vertex - the actual 3p switch; the file merely existing with
+only `managedMcpServers` stays 1p), the live logs and state are under **`~/.config/Claude-3p/logs/`**
 instead - upstream relocates Electron userData with a `-3p` suffix. Reading the wrong dir gives stale/1p
-evidence. So: **check for `/etc/claude-desktop/managed-settings.json` first** and substitute `Claude-3p` for
-`Claude` in every path below when it's present (named profiles add a further `-<profile>` suffix). When in
-doubt, confirm the running process: `pgrep -af claude` and read its `--user-data-dir` / `--database=...Crashpad`
-arg. See the `/3p` skill for the full behavior.
+evidence. So: **check `/etc/claude-desktop/managed-settings.json` for `inferenceProvider` first** (or grep
+main.log for `3P mode active`) and substitute `Claude-3p` for `Claude` in every path below when it's active
+(named profiles add a further `-<profile>` suffix). When in doubt, confirm the running process:
+`pgrep -af claude` and read its `--user-data-dir` / `--database=...Crashpad` arg. See the `/3p` skill for
+the full behavior.
 
 | Log File | Description |
 |----------|-------------|
