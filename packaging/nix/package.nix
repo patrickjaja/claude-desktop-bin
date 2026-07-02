@@ -34,8 +34,10 @@
 # bundled copy on Ubuntu 22.x (os-release gate), and NixOS can't exec it anyway
 # (foreign ld-linux interpreter). The CLAUDE_* env vars are honored by our
 # fix_cowork_firmware_paths_linux patch from release 1.18286.0 on; on older
-# pinned tarballs they are ignored and the /usr/share symlink workaround from
-# the README applies instead.
+# pinned tarballs they are ignored and the workarounds are: add `pkgs.virtiofsd`
+# to `environment.systemPackages` (the probe checks the resulting
+# /run/current-system/sw/bin/virtiofsd, PR #178) and expose OVMF at a probed
+# /usr/share path via systemd.tmpfiles / an activation-script symlink.
 , qemu ? null           # provides qemu-system-x86_64 for the Cowork VM
 , virtiofsd ? null      # system virtiofsd (bundled one is Ubuntu-22-only)
 , OVMF ? null           # UEFI firmware; OVMF.fd output must ship CODE+VARS pair

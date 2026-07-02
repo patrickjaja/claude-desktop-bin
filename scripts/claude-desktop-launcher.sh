@@ -1027,23 +1027,29 @@ _diagnose() {
         local _vars="${_fw/OVMF_CODE/OVMF_VARS}"; _vars="${_vars/AAVMF_CODE/AAVMF_VARS}"
         echo "  -> derived VARS = $_vars ($([[ -r $_vars ]] && echo present || echo MISSING))"
     fi
-    # virtiofsdPath: CLAUDE_VIRTIOFSD_PATH override first, then system paths.
-    # The bundled copy under resources/locales counts ONLY on Ubuntu 22.x - the
-    # app gates its bundled-virtiofsd fallback on os-release id=ubuntu &&
-    # version 22.* (jammy's apt has no standalone virtiofsd package). Listing it
-    # unconditionally here made --diagnose report "SHOULD pass" on systems where
-    # the real probe returns virtiofsdPath=null (issue #177, NixOS).
+    # virtiofsdPath: CLAUDE_VIRTIOFSD_PATH override first, then system paths
+    # (incl. NixOS /run/current-system/sw/bin - PR #178). The bundled copy under
+    # resources/locales counts ONLY on Ubuntu 22.x - the app gates its bundled
+    # fallback on os-release id=ubuntu && version 22.* (jammy's apt has no
+    # standalone virtiofsd package; the bundled candidate is probed with X_OK).
+    # Listing it unconditionally here made --diagnose report "SHOULD pass" on
+    # systems where the real probe returns virtiofsdPath=null (issue #177, NixOS).
     local _vfs=''
     local _vfs_candidates=()
     [[ -n ${CLAUDE_VIRTIOFSD_PATH:-} ]] && _vfs_candidates+=("$CLAUDE_VIRTIOFSD_PATH")
-    _vfs_candidates+=(/usr/libexec/virtiofsd /usr/lib/virtiofsd /usr/lib/qemu/virtiofsd /usr/bin/virtiofsd)
-    if [[ "$(. /etc/os-release 2>/dev/null && echo "${ID:-} ${VERSION_ID:-}")" == 'ubuntu 22.'* ]]; then
-        _vfs_candidates+=("$_res_base/virtiofsd")
-    fi
+    _vfs_candidates+=(/usr/libexec/virtiofsd /usr/lib/virtiofsd /usr/lib/qemu/virtiofsd /run/current-system/sw/bin/virtiofsd /usr/bin/virtiofsd)
     for _c in "${_vfs_candidates[@]}"; do
         if [[ -r $_c ]]; then _vfs="$_c"; break; fi
     done
+    local _is_ubuntu22=''
+    [[ "$( { . /etc/os-release 2>/dev/null || . /usr/lib/os-release 2>/dev/null; } && echo "${ID:-} ${VERSION_ID:-}")" == 'ubuntu 22.'* ]] && _is_ubuntu22=1
+    if [[ -z $_vfs && -n $_is_ubuntu22 && -x "$_res_base/virtiofsd" ]]; then
+        _vfs="$_res_base/virtiofsd"
+    fi
     echo "virtiofsdPath = ${_vfs:-NOT FOUND (install a system virtiofsd or set CLAUDE_VIRTIOFSD_PATH; the bundled copy only counts on Ubuntu 22.x)}"
+    if [[ -z $_vfs && -r "$_res_base/virtiofsd" ]]; then
+        echo "  (bundled $_res_base/virtiofsd exists but is IGNORED by the app - only used as a fallback on Ubuntu 22.x)"
+    fi
     # helper + smol image (our resources/locales layout)
     echo "helperBinaryPath = $([[ -x $_res_base/cowork-linux-helper ]] && echo "$_res_base/cowork-linux-helper" || echo MISSING)"
     echo "smolBinPath = $([[ -r $_res_base/smol-bin.$_arch.img ]] && echo "$_res_base/smol-bin.$_arch.img" || echo MISSING)"

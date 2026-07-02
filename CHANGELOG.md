@@ -23,6 +23,8 @@ On NixOS the in-app probe failed on **virtiofsd** while `claude-desktop --diagno
 
 The Nix package now resolves `virtiofsd` and `OVMF` from nixpkgs automatically (like `qemu`) and wires them via those env vars - Cowork on NixOS needs no tmpfiles symlink hacks from this release on. README and package.nix notes corrected: they previously claimed "virtiofsd is bundled" and omitted the system-virtiofsd requirement entirely; the Cowork setup section now documents it for all non-Ubuntu-22 distros, plus the new env overrides.
 
+Independently root-caused and fixed in parallel by @boommasterxd (PRs #178 and #179, merged) - both analyses agreed on the Ubuntu-22-gate root cause and the diagnose bug. Merged from his PRs on top of the above: the `/run/current-system/sw/bin/virtiofsd` probe candidate (covers NixOS installs that bypass our Nix wrapper, e.g. AppImage, via `pkgs.virtiofsd` in `environment.systemPackages`), the `--diagnose` hint line when the bundled virtiofsd exists but is correctly ignored, and the stronger `enable_local_agent_mode` Patch 3n regression guard (asserts `resolveSshControllerForMcp` stays unconditional instead of only checking the removed flag ID is absent).
+
 ## 2026-07-02
 
 ### M365 local connector: OAuth browser now opens reliably on KDE (and everywhere else) (#139)

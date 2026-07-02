@@ -79,9 +79,17 @@ proc apply*(input: string): string =
   # distro a missing system virtiofsd means "unsupported". So a system virtiofsd
   # (our optdepends/Recommends) is REQUIRED outside Ubuntu 22.04, and we add
   # Arch's /usr/lib/virtiofsd so the probe finds it there.
+  #
+  # NixOS (issue #177): there is no FHS /usr/lib or /usr/bin at all, so NONE of
+  # the candidates above ever exist - a system `virtiofsd` package only lands
+  # at /run/current-system/sw/bin/virtiofsd (the systemPackages profile bin
+  # dir) or a Nix store path (unstable, can't be hardcoded). We add the former
+  # so NixOS users who put `pkgs.virtiofsd` in environment.systemPackages
+  # resolve, same pattern as Arch's /usr/lib/virtiofsd.
   const extraVirtiofsd =
     "\"/usr/lib/virtiofsd\"," & # Arch (virtiofsd pkg)
-    "\"/usr/lib/qemu/virtiofsd\"," # some distros
+    "\"/usr/lib/qemu/virtiofsd\"," & # some distros
+    "\"/run/current-system/sw/bin/virtiofsd\"," # NixOS (environment.systemPackages)
 
   # Env-var override candidates, prepended so an explicit override always wins.
   # Conditional spread = no-op when the env var is unset.

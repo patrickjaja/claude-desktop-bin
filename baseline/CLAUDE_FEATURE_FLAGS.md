@@ -651,8 +651,9 @@ As of the official Linux `.deb`, Cowork runs on Anthropic's **native Linux VM ba
 
 - **`fix_cowork_linux.nim` and the rest of the cowork-wiring cluster were removed** in the `.deb` pivot - the official build ships the VM client loader with native Linux support
 - **`claude-cowork-service`** (the separate Go daemon) is **deprecated** and no longer used; Cowork now works through the official native backend
-- The only remaining Cowork patch is **`fix_cowork_firmware_paths_linux.nim`** (adds non-Debian OVMF firmware paths to the VM capability probe)
+- The only remaining Cowork patch is **`fix_cowork_firmware_paths_linux.nim`** (adds non-Debian OVMF firmware paths *and* non-Debian `virtiofsd` paths to the VM capability probe)
 - `yukonSilver` / `yukonSilverGems` are **NOT overridden** - their status comes from upstream's native VM-capability probe, so a KVM-less or QEMU-less host honestly reports Cowork unavailable (with the actionable reason) instead of failing at VM spawn
+- **The bundled `resources/virtiofsd` fallback is Ubuntu-22.04-only** (verified v1.17377.2: `Uoi()`'s upstream `os-release id==="ubuntu" && versionId.startsWith("22.")` gate) - on every other distro, incl. Arch/Fedora/NixOS, `virtiofsdPath` resolves to `null` unless a *system* `virtiofsd` exists at one of the probed absolute paths. `claude-desktop --diagnose`'s Cowork replica previously checked the bundled path unconditionally (missing that gate), so it could report a false "SHOULD pass" that disagreed with the real in-app probe on non-Ubuntu-22.04 hosts ([#177](https://github.com/patrickjaja/claude-desktop-bin/issues/177), fixed alongside the new NixOS `/run/current-system/sw/bin/virtiofsd` candidate).
 
 ### Dispatch on Linux (upstream-native — patch removed)
 
