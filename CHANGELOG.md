@@ -14,6 +14,8 @@ The 2-hourly version check dispatched an auto-release for v1.18286.0 and it fail
 
 Audits came back clean: platform-gate counts byte-identical (darwin 78 / win32 128 / linux 12 - no new PORTABLE opportunities, no new Linux blockers), the Cowork VM capability probe is structurally unchanged, resources identical (no new binaries), IPC additions purely additive (Claude Code PR/CLI-status channels, CU remote-lock release, file-preview open-in-default-app), ion-dist patch applies unchanged, GrowthBook +8/-4 with nothing needing forcing. Official docs (code.claude.com/docs/en/desktop-linux) still list Computer Use as not available on Linux - our CU stack remains the only one. Baseline docs updated (CLAUDE_FEATURE_FLAGS.md renames `sM()`/`Yue`/`rt()` + history row, PLATFORM_GATE_BASELINE.md, ION.md).
 
+@boommasterxd independently root-caused and fixed the same three patches in PR #179 (merged) - both analyses agreed on every root cause. Where the approaches differed, the stricter/pref-preserving variant won: his `resolveSshControllerForMcp` regression guard and the `\6` setTimeout backref were adopted; our ternary-anchored CU gate patches (which keep the `chicagoEnabled` user pref working for tool listing) and the toggle-respecting Buddy anchor were kept.
+
 ### NixOS Cowork "requires QEMU" while --diagnose passes: root-caused, diagnose false-positive fixed, env overrides added (#177)
 
 On NixOS the in-app probe failed on **virtiofsd** while `claude-desktop --diagnose` claimed the capability probe "SHOULD pass". Two distinct bugs:

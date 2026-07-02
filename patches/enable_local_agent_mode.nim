@@ -23,10 +23,9 @@
 #   3k canLaunchCodeSession GrowthBook flag 2067027393
 #   3l canSaveSkill GrowthBook flag 3246569822
 #   3m suggestSkillsEnabled GrowthBook flag 245679952
-#   3n (removed upstream v1.18286.0: sshRemotePassthrough flag 1496676413 no longer
-#      exists - the SSH remote MCP/plugin passthrough went unconditional:
-#      createSpawnFunction lost the flag argument and resolveSshControllerForMcp
-#      now returns the controller whenever an sshConfig is present)
+#   3n sshRemotePassthrough (regression guard since v1.18286.0: flag 1496676413
+#      upstreamed - the SSH remote MCP/plugin passthrough went unconditional;
+#      the guard asserts resolveSshControllerForMcp stays gate-free)
 #   3o consolidateMemoryV2 GrowthBook flag 1824824999
 #   3p coworkOnboarding GrowthBook flag 2114777685
 #   4  preferences defaults (quietPenguinEnabled / louderPenguinEnabled)
@@ -48,7 +47,7 @@
 import std/[os, strformat, strutils]
 import std/nre
 
-const EXPECTED_PATCHES = 19
+const EXPECTED_PATCHES = 20
 
 proc apply*(input: string): string =
   result = input
@@ -383,11 +382,30 @@ proc apply*(input: string): string =
     echo "  [FAIL] suggestSkillsEnabled flag 245679952: 0 matches"
     failed = true
 
-  # Patch 3n removed (upstream v1.18286.0): sshRemotePassthrough flag 1496676413
-  # was deleted upstream and the SSH passthrough went unconditional. Guard against
-  # the flag silently returning (which would re-gate the feature OFF for us).
-  if "\"1496676413\"" in result:
-    echo "  [FAIL] sshRemotePassthrough flag 1496676413 reappeared - re-add Patch 3n"
+  # Patch 3n: sshRemotePassthrough flag 1496676413 - now a REGRESSION GUARD.
+  #
+  # Upstream UPSTREAMED this in v1.18286.0: the flag literal "1496676413" is
+  # gone from the bundle entirely, and every call site that used to gate on
+  # `et("1496676413")` now runs unconditionally:
+  #   - `resolveSshControllerForMcp(e){if(!(!e||!et("1496676413")))return Jc(e)}`
+  #     -> `resolveSshControllerForMcp(e){if(e)return jB(e)}` (gate removed)
+  #   - `spawnClaudeCodeProcess=o.createSpawnFunction(e.stderr,et("1496676413"),s,c,a)`
+  #     -> `spawnClaudeCodeProcess=o.createSpawnFunction(e.stderr,s,c,a)` (arg dropped)
+  #   - the `adjustSdkOptions(e){et("1496676413")||(delete e.plugins,delete
+  #     e.mcpServers)}` class method (which stripped plugins/MCP off SSH
+  #     sessions when the flag was off) is gone from the SSH backend class.
+  # SSH remote plugin/MCP forwarding is now unconditional - exactly what this
+  # sub-patch used to force. Per CLAUDE.md Rule 6, assert the upstreamed
+  # end-state (unconditional resolveSshControllerForMcp) instead of forcing a
+  # flag that no longer exists; FAIL loud if upstream ever re-gates it.
+  # (Contributed in PR #179 by @boommasterxd.)
+  let sshResolverUnconditional =
+    re"""resolveSshControllerForMcp\([\w$]+\)\{if\([\w$]+\)return [\w$]+\([\w$]+\)\}"""
+  if result.find(sshResolverUnconditional).isSome:
+    echo "  [OK] sshRemotePassthrough: native unconditional SSH plugin/MCP forwarding present (resolveSshControllerForMcp has no flag gate) - regression guard satisfied"
+    inc patchesApplied
+  else:
+    echo "  [FAIL] sshRemotePassthrough: resolveSshControllerForMcp no longer unconditional - upstream may have re-gated SSH plugin/MCP forwarding; re-audit Patch 3n"
     failed = true
 
   # Patch 3o: Enable consolidate-memory skill v2 - flag 1824824999

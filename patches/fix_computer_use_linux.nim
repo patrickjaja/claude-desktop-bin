@@ -314,8 +314,10 @@ proc apply*(input: string): string =
       # v1.18286.0 added an abort timeout between the AbortController and the
       # options object: `,I=setTimeout(()=>u.abort(),PXi)` - matched optionally
       # and non-capturing so the AbortController capture index (5) stays stable.
+      # The \6 backref pins the setTimeout's abort target to the AbortController
+      # var captured just before it (hardening from PR #179 by @boommasterxd).
       let seedPat =
-        re"""async\(([\w$]+),[\w$]+\)=>\{[\s\S]{0,4000}?;[\w$]+\(\)\}\}const ([\w$]+)=([\w$]+)\|\|\(([\w$]+)=([\w$]+)\.getLastScreenshotDims\)==null\?void 0:\4\.call\(\5\),([\w$]+)=new AbortController(?:,[\w$]+=setTimeout\(\(\)=>[\w$]+\.abort\(\),[\w$]+\))?,([\w$]+)=\{"""
+        re"""async\(([\w$]+),[\w$]+\)=>\{[\s\S]{0,4000}?;[\w$]+\(\)\}\}const ([\w$]+)=([\w$]+)\|\|\(([\w$]+)=([\w$]+)\.getLastScreenshotDims\)==null\?void 0:\4\.call\(\5\),([\w$]+)=new AbortController(?:,[\w$]+=setTimeout\(\(\)=>\6\.abort\(\),[\w$]+\))?,([\w$]+)=\{"""
       let maybeSeed = content.find(seedPat)
       if maybeSeed.isNone:
         echo "  [FAIL] screenshot intro note: wrapper seed anchor not found"
