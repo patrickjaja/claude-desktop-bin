@@ -311,8 +311,13 @@ proc apply*(input: string): string =
       echo "  [OK] screenshot intro note workaround: already present"
       inc patchesApplied
     else:
+      # v1.18286.0 inserted a watchdog timeout between the AbortController
+      # assignment and the options object literal, e.g.
+      #   u=new AbortController,I=setTimeout(()=>u.abort(),PXi),E={allowedApps:...
+      # (previously: l=new AbortController,u={allowedApps:...}). The optional
+      # non-capturing group below absorbs that intermediate clause when present.
       let seedPat =
-        re"""async\(([\w$]+),[\w$]+\)=>\{[\s\S]{0,4000}?;[\w$]+\(\)\}\}const ([\w$]+)=([\w$]+)\|\|\(([\w$]+)=([\w$]+)\.getLastScreenshotDims\)==null\?void 0:\4\.call\(\5\),([\w$]+)=new AbortController,([\w$]+)=\{"""
+        re"""async\(([\w$]+),[\w$]+\)=>\{[\s\S]{0,4000}?;[\w$]+\(\)\}\}const ([\w$]+)=([\w$]+)\|\|\(([\w$]+)=([\w$]+)\.getLastScreenshotDims\)==null\?void 0:\4\.call\(\5\),([\w$]+)=new AbortController(?:,[\w$]+=setTimeout\(\(\)=>\6\.abort\(\),[\w$]+\))?,([\w$]+)=\{"""
       let maybeSeed = content.find(seedPat)
       if maybeSeed.isNone:
         echo "  [FAIL] screenshot intro note: wrapper seed anchor not found"
@@ -351,8 +356,11 @@ proc apply*(input: string): string =
 
   # ── Patch 6: handleToolCall hybrid dispatch (two-step match) ───────────
   block:
+    # v1.18286.0 changed isEnabled from a plain call (A=>b2t()) to a ternary
+    # dispatching on session type (A=>A.sessionType==="ccd"?wS():bue()); match
+    # any comma-free body instead of a single `name()` call.
     let htcStart =
-      re"""(([\w$]+)=\{isEnabled:[\w$]+=>[\w$]+\(\),handleToolCall:async\(([\w$]+),([\w$]+),([\w$]+)\)=>\{)"""
+      re"""(([\w$]+)=\{isEnabled:[\w$]+=>[^,]+,handleToolCall:async\(([\w$]+),([\w$]+),([\w$]+)\)=>\{)"""
     let maybeHtc = content.find(htcStart)
     if maybeHtc.isNone:
       echo "  [FAIL] handleToolCall pattern: 0 matches"
@@ -609,10 +617,19 @@ proc apply*(input: string): string =
   block:
     # v1.6259: function X(){return Y(Z)?W.has(process.platform)&&A():B()}
     # v1.6608: function X(){return W.has(process.platform)&&A()}
+    # v1.18286.0: the reusable gate function is gone -- the CU tool object now
+    # inlines the check directly in its isEnabled callback:
+    #   b9e={isEnabled:A=>A.sessionType==="ccd"?wS():bue(),handleToolCall:async(A,e,t)=>{...
+    # (previously: L9e={isEnabled:A=>b2t(),handleToolCall:async(A,e,t)=>{...).
+    # Target that object literal directly instead of chasing wS()/bue()'s
+    # internals, so tool *listing* stays forced on Linux regardless of how
+    # those helper functions evolve.
     let patNew =
       re"""(function [\w$]+\(\)\{)return [\w$]+\.has\(process\.platform\)&&[\w$]+\(\)\}"""
     let patOld =
       re"""(function [\w$]+\(\)\{)return [\w$]+\([\w$]+\)\?[\w$]+\.has\(process\.platform\)&&[\w$]+\(\):[\w$]+\(\)\}"""
+    let patToolObject =
+      re"""([\w$]+=\{isEnabled:[\w$]+=>)([^,]+)(,handleToolCall:async\([\w$]+,[\w$]+,[\w$]+\)=>\{)"""
     var n = replaceFirst(
       content,
       patNew,
@@ -634,6 +651,14 @@ proc apply*(input: string): string =
           m.captures[0] & "if(process.platform===\"linux\")return!0;" &
             whole[headerLen ..^ 1],
       )
+    if n == 0:
+      n = replaceFirst(
+        content,
+        patToolObject,
+        proc(m: RegexMatch): string =
+          m.captures[0] & "process.platform===\"linux\"||(" & m.captures[1] & ")" &
+            m.captures[2],
+      )
     if n >= 1:
       echo &"  [OK] isEnabled: force true on Linux ({n} match)"
       inc changes, n
@@ -643,11 +668,22 @@ proc apply*(input: string): string =
 
   # ── Patch 12: bypass GrowthBook gate but respect chicagoEnabled pref ────
   block:
-    let pat =
+    # v1.18286.0 refactored the ternary-shaped gate function into an
+    # early-return form with an extra test-only override var:
+    #   function EO(){return r_A.has(process.platform)?Wq()&&fr("chicagoEnabled"):!1}
+    #   -> function wS(){if(!IRA.has(process.platform))return!1;const A=YiA();
+    #        return A!==void 0?A:HiA()&&sr("chicagoEnabled")}
+    # This function (wS() in v1.18286.0) is the pervasive CU-enabled check
+    # used by isDisabled/noteCuWindowMentions/screenshot capture/etc, so it
+    # still needs its own direct patch (Patch 11 above only covers tool
+    # *listing*, not these other call sites).
+    let patTernary =
       re"""(function [\w$]+\(\)\{)return [\w$]+\.has\(process\.platform\)\?[\w$]+\(\)&&([\w$]+)\("chicagoEnabled"\):!1\}"""
-    let n = replaceFirst(
+    let patEarlyReturn =
+      re"""(function [\w$]+\(\)\{)if\(![\w$]+\.has\(process\.platform\)\)return!1;const ([\w$]+)=[\w$]+\(\);return \2!==void 0\?\2:[\w$]+\(\)&&([\w$]+)\("chicagoEnabled"\)\}"""
+    var n = replaceFirst(
       content,
-      pat,
+      patTernary,
       proc(m: RegexMatch): string =
         let bounds = m.matchBounds
         let whole = content[bounds.a .. bounds.b]
@@ -656,6 +692,18 @@ proc apply*(input: string): string =
         m.captures[0] & "if(process.platform===\"linux\")return(" & prefsReader &
           "(\"chicagoEnabled\")??!0);" & whole[headerLen ..^ 1],
     )
+    if n == 0:
+      n = replaceFirst(
+        content,
+        patEarlyReturn,
+        proc(m: RegexMatch): string =
+          let bounds = m.matchBounds
+          let whole = content[bounds.a .. bounds.b]
+          let headerLen = m.captures[0].len
+          let prefsReader = m.captures[2]
+          m.captures[0] & "if(process.platform===\"linux\")return(" & prefsReader &
+            "(\"chicagoEnabled\")??!0);" & whole[headerLen ..^ 1],
+      )
     if n >= 1:
       echo &"  [OK] rj chicagoEnabled: respect pref, default true ({n} match)"
       inc changes, n

@@ -4,6 +4,16 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 
 ## 2026-07-02
 
+### Bump to v1.18286.0: 4 patches fixed after upstream re-minify + refactor (#176)
+
+The automatic release for v1.18286.0 failed patch application; fixed manually. One flag was fully upstreamed, three patterns needed updates for restructured code:
+
+- **`enable_local_agent_mode` (SSH remote passthrough, flag `1496676413`) - converted to a regression guard.** Upstream removed the flag entirely: `resolveSshControllerForMcp()` now unconditionally forwards plugins/MCP servers to SSH remote sessions instead of gating on the GrowthBook flag, and the old `adjustSdkOptions()` method that stripped them when the flag was off is gone. The sub-patch now asserts the unconditional forwarding is present instead of forcing a flag that no longer exists.
+- **`fix_buddy_ble_linux` (Hardware Buddy flag) - pattern widened.** Upstream inserted a new workspace-preference check (`hardwareBuddyEnabled`) ahead of the GrowthBook flag read; the regex now optionally absorbs that intermediate clause before forcing the combined check on for Linux.
+- **`fix_computer_use_linux` - four sub-patches updated** for a Computer Use refactor: the `isEnabled` gate moved from a standalone function call to an inline session-type ternary (now forced via the tool object literal directly, decoupled from the ternary's internals); a `setTimeout` watchdog was inserted between the screenshot AbortController and its options object (pattern now optionally absorbs it); and the `chicagoEnabled`-respecting "is CU enabled" gate was refactored from a ternary into an early-return form with a test-override variable (pattern updated to match, same default-enabled-on-Linux behavior preserved).
+
+All four fixes verified against a real diff of the previous (v1.17377.2) vs new bundle rather than guesswork. Full build (`build-ubuntu-local.sh`) applies all 47 patches clean, packages, and passes `node --check` on the final packed `app.asar`.
+
 ### M365 local connector: OAuth browser now opens reliably on KDE (and everywhere else) (#139)
 
 The built-in Microsoft 365 connector's sign-in browser failed to open on KDE even after the env-allowlist fix: with `XDG_CURRENT_DESKTOP=KDE` but no `KDE_SESSION_VERSION`, `xdg-open` falls into its KDE3-era `kfmclient exec` fallback, which exits 0 without opening anything - a silent no-op that ends in `LocalAuthSignInCooldownError` after the 300s sign-in ceiling. Fixed twice over:

@@ -66,8 +66,13 @@ proc apply*(input: string): string =
     echo "  [OK] Buddy flag: already patched (skipped)"
     patchesApplied += 1
   else:
+    # v1.18286.0 inserted an extra workspace-preference check between the flag
+    # const and the final enabled-check function, e.g.
+    #   const uCr="2358734848",ICr=()=>cr().workspace.hardwareBuddyEnabled!==!1,gBo=()=>ICr()&&rt(uCr);
+    # (previously: const zur="2358734848",tuo=()=>et(zur);). The optional
+    # non-capturing group below absorbs that intermediate clause when present.
     let flagPattern =
-      re2"(const [\w$]+=""2358734848"",)([\w$]+=\(\)=>)([\w$]+\([\w$]+\))"
+      re2"(const [\w$]+=""2358734848"",(?:[\w$]+=\(\)=>[^,;]+,)?)([\w$]+=\(\)=>)([^,;]+)"
     var countFlag = result.replaceFirst(
       flagPattern,
       proc(m: RegexMatch2, s: string): string =
