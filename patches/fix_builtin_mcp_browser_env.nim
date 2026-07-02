@@ -42,16 +42,26 @@ import std/[os, strutils]
 import regex
 
 # Extra Linux session/display vars to forward into the built-in MCP host env.
+# KDE_SESSION_VERSION is critical on KDE (#139 reopened): with
+# XDG_CURRENT_DESKTOP=KDE but no KDE_SESSION_VERSION, xdg-open's open_kde()
+# falls through to the KDE3-era `kfmclient exec` branch, whose
+# kfmclient_fix_exit_code helper returns 0 unconditionally -- a silent no-op
+# (browser never opens, but the caller sees "success"). With it set, xdg-open
+# uses kde-open5/kde-open (kde-cli-tools, present on every Plasma install) and
+# real failures exit loud (4).
 const EXTRA_VARS =
   ",\"DISPLAY\",\"WAYLAND_DISPLAY\",\"XAUTHORITY\",\"XDG_CURRENT_DESKTOP\"," &
   "\"XDG_SESSION_TYPE\",\"XDG_SESSION_DESKTOP\",\"DESKTOP_SESSION\"," &
   "\"XDG_RUNTIME_DIR\",\"DBUS_SESSION_BUS_ADDRESS\",\"XDG_DATA_HOME\"," &
   "\"XDG_DATA_DIRS\",\"XDG_CONFIG_HOME\",\"XDG_CONFIG_DIRS\",\"BROWSER\"," &
-  "\"KDE_FULL_SESSION\",\"GNOME_DESKTOP_SESSION_ID\""
+  "\"KDE_FULL_SESSION\",\"KDE_SESSION_VERSION\",\"GNOME_DESKTOP_SESSION_ID\""
 
 proc apply*(input: string): string =
-  # Idempotency: if the widened allowlist is already present, treat as success.
-  if "\"USER\",\"DISPLAY\",\"WAYLAND_DISPLAY\"" in input:
+  # Idempotency: positive end-state check -- the widened allowlist INCLUDING
+  # KDE_SESSION_VERSION must be present (an older widened list without it must
+  # NOT count as patched, or KDE stays broken).
+  if "\"USER\",\"DISPLAY\",\"WAYLAND_DISPLAY\"" in input and
+      "\"KDE_SESSION_VERSION\"" in input:
     echo "  [OK] built-in MCP browser env: already patched"
     return input
 

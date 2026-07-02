@@ -4,6 +4,15 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 
 ## 2026-07-02
 
+### M365 local connector: OAuth browser now opens reliably on KDE (and everywhere else) (#139)
+
+The built-in Microsoft 365 connector's sign-in browser failed to open on KDE even after the env-allowlist fix: with `XDG_CURRENT_DESKTOP=KDE` but no `KDE_SESSION_VERSION`, `xdg-open` falls into its KDE3-era `kfmclient exec` fallback, which exits 0 without opening anything - a silent no-op that ends in `LocalAuthSignInCooldownError` after the 300s sign-in ceiling. Fixed twice over:
+
+- **`fix_builtin_mcp_browser_env`**: `KDE_SESSION_VERSION` added to the forwarded vars, so `xdg-open` uses `kde-open5`/`kde-open` (kde-cli-tools, present on every Plasma install) and real failures exit loud instead of lying.
+- **New patch pair `fix_office365_mcp_open_url` + `fix_builtin_mcp_open_url_handler`**: the connector's browser-open is delegated to the Electron main process. The MCP child posts `{type:"open-url", url}` over its existing `parentPort` channel and the host's message handler routes it to `shell.openExternal` (https-only) - the exact mechanism remote OAuth connectors (Atlassian) already use, which is why those worked on KDE all along. Immune to every `xdg-open` quirk; the in-child spawn remains as fallback for standalone (non-utilityProcess) runs.
+
+Also re-verified empirically (remove patch -> browser dead, restore -> works) that upstream v1.17377.2 still strips `DISPLAY` from the MCP host env, so the allowlist patch stays load-bearing; the "official build works on GNOME" report in the issue traces to a cached token, not a working browser launch. Upstream cannot open a sign-in browser for this connector on any Linux DE.
+
 ### Packaging hygiene: complete dependency declarations + license file shipped in every package
 
 Prompted by a community PKGBUILD comparison (thanks marcelvdh), audited our dependency declarations against the actual ELF linkage of every binary we ship (`objdump -p | grep NEEDED` on the Electron main binary, crashpad handler, bundled virtiofsd, and node-pty's `pty.node`) plus the official `.deb`'s control file:
