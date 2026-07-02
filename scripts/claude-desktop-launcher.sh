@@ -1024,12 +1024,33 @@ _diagnose() {
         local _vars="${_fw/OVMF_CODE/OVMF_VARS}"; _vars="${_vars/AAVMF_CODE/AAVMF_VARS}"
         echo "  -> derived VARS = $_vars ($([[ -r $_vars ]] && echo present || echo MISSING))"
     fi
-    # virtiofsdPath: system candidates, else bundled
+    # virtiofsdPath: system candidates, else bundled - but ONLY on Ubuntu 22.x
+    # (verified v1.17377.1/.2: the app's Uoi() only tries the bundled
+    # resources/virtiofsd when os-release id==="ubuntu" && versionId starts
+    # with "22." - on every other distro, incl. NixOS, a missing system
+    # virtiofsd means virtiofsdPath is null. Previously this loop checked the
+    # bundled path unconditionally, so on non-Ubuntu-22.04 hosts with no
+    # system virtiofsd it reported a false "FOUND" and "SHOULD pass" verdict
+    # that disagreed with the real in-app probe (issue #177).
     local _vfs=''
-    for _c in /usr/libexec/virtiofsd /usr/lib/virtiofsd /usr/lib/qemu/virtiofsd /usr/bin/virtiofsd "$_res_base/virtiofsd"; do
+    for _c in /usr/libexec/virtiofsd /usr/lib/virtiofsd /usr/lib/qemu/virtiofsd /run/current-system/sw/bin/virtiofsd /usr/bin/virtiofsd; do
         if [[ -r $_c ]]; then _vfs="$_c"; break; fi
     done
+    local _is_ubuntu2204=''
+    if [[ -z $_vfs ]]; then
+        local _osrel _os_id='' _os_version_id=''
+        _osrel="$(cat /etc/os-release 2>/dev/null || cat /usr/lib/os-release 2>/dev/null || true)"
+        _os_id="$(printf '%s\n' "$_osrel" | sed -n 's/^ID=//p' | tr -d '"' | head -1)"
+        _os_version_id="$(printf '%s\n' "$_osrel" | sed -n 's/^VERSION_ID=//p' | tr -d '"' | head -1)"
+        [[ $_os_id == ubuntu && $_os_version_id == 22.* ]] && _is_ubuntu2204=1
+        if [[ -n $_is_ubuntu2204 && -x "$_res_base/virtiofsd" ]]; then
+            _vfs="$_res_base/virtiofsd"
+        fi
+    fi
     echo "virtiofsdPath = ${_vfs:-NOT FOUND}"
+    if [[ -z $_vfs && -z $_is_ubuntu2204 && -x "$_res_base/virtiofsd" ]]; then
+        echo "  (bundled $_res_base/virtiofsd exists but is IGNORED by the app - only used as a fallback on Ubuntu 22.x)"
+    fi
     # helper + smol image (our resources/locales layout)
     echo "helperBinaryPath = $([[ -x $_res_base/cowork-linux-helper ]] && echo "$_res_base/cowork-linux-helper" || echo MISSING)"
     echo "smolBinPath = $([[ -r $_res_base/smol-bin.$_arch.img ]] && echo "$_res_base/smol-bin.$_arch.img" || echo MISSING)"

@@ -4,6 +4,15 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 
 ## 2026-07-02
 
+### NixOS: `--diagnose` falsely reported Cowork "SHOULD pass" while the app showed "requires QEMU" (#177)
+
+Follow-up to #173. Root cause: the official app's virtiofsd resolver only falls back to the bundled `resources/virtiofsd` on Ubuntu 22.x (an upstream `os-release id==="ubuntu" && versionId.startsWith("22.")` check, verified against v1.17377.2) - everywhere else, including Arch/Fedora/NixOS, it needs a *system* virtiofsd at one of a handful of hardcoded absolute paths, or `virtiofsdPath` resolves to `null`. `claude-desktop --diagnose`'s Cowork replica didn't know about that Ubuntu-only gate and always treated the bundled path as a valid fallback candidate, so on NixOS (which has no system virtiofsd at any of the checked paths) it reported `virtiofsdPath = <bundled path> (found)` and "capability probe SHOULD pass", while the real in-app probe correctly saw a null `virtiofsdPath` and showed "Cowork requires QEMU. Install it with 'sudo apt install qemu-system-x86 ovmf virtiofsd'...".
+
+Fixed both sides:
+- `--diagnose` now replicates the Ubuntu-22.x gate before trusting the bundled fallback, so it can't report a false pass again, and prints a hint when the bundled binary exists but is being correctly ignored.
+- `fix_cowork_firmware_paths_linux.nim` gained a new candidate, `/run/current-system/sw/bin/virtiofsd` - the path a `pkgs.virtiofsd` added to `environment.systemPackages` lands at on NixOS (mirroring the existing Arch `/usr/lib/virtiofsd` candidate).
+- `package.nix`, README, and `CLAUDE_FEATURE_FLAGS.md` updated: NixOS Cowork setup now needs `pkgs.virtiofsd` in `environment.systemPackages`, in addition to the already-documented `qemu` override and OVMF firmware symlink.
+
 ### M365 local connector: OAuth browser now opens reliably on KDE (and everywhere else) (#139)
 
 The built-in Microsoft 365 connector's sign-in browser failed to open on KDE even after the env-allowlist fix: with `XDG_CURRENT_DESKTOP=KDE` but no `KDE_SESSION_VERSION`, `xdg-open` falls into its KDE3-era `kfmclient exec` fallback, which exits 0 without opening anything - a silent no-op that ends in `LocalAuthSignInCooldownError` after the 300s sign-in ceiling. Fixed twice over:

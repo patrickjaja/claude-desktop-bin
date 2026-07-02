@@ -27,11 +27,16 @@
 , claude-code ? null    # auto-resolved by callPackage if in nixpkgs
 # Cowork agent workspace VM (also requires /dev/kvm + kvm group membership).
 # NOTE: putting qemu on PATH is necessary but NOT sufficient on NixOS: the app's
-# capability probe searches for OVMF UEFI firmware at fixed /usr/share/... paths
-# (see fix_cowork_firmware_paths_linux), which NixOS does not populate. Full NixOS
-# Cowork support additionally needs the firmware exposed at one of those paths
-# (e.g. via an activation-script symlink into /usr/share/edk2/x64/) — tracked as a
-# known limitation. virtiofsd is bundled in the app payload.
+# capability probe searches for OVMF UEFI firmware AND virtiofsd at fixed
+# /usr/... paths (see fix_cowork_firmware_paths_linux), which NixOS does not
+# populate. Full NixOS Cowork support additionally needs:
+#   - OVMF firmware exposed at one of those paths (e.g. via an activation-script
+#     symlink into /usr/share/edk2/x64/) — tracked as a known limitation.
+#   - a system `virtiofsd` on the probed candidate list (issue #177). The
+#     BUNDLED app-payload virtiofsd is only used as a fallback on Ubuntu 22.x
+#     (upstream's own hard-coded os-release check) — it is NEVER used on
+#     NixOS. Add `pkgs.virtiofsd` to `environment.systemPackages`; the probe
+#     checks the resulting /run/current-system/sw/bin/virtiofsd.
 , qemu ? null           # provides qemu-system-x86_64 for the Cowork VM
 , socat ? null          # faster Quick Entry toggle (~2ms vs ~25ms python3)
 , nodejs ? null         # third-party MCP servers
