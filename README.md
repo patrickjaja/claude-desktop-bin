@@ -197,7 +197,14 @@ nix profile install github:patrickjaja/claude-desktop-bin
 
 > **Note:** Update by running `nix flake update` to pull the latest version. `nix run` always fetches the latest.
 
-> **Optional deps on Nix.** The flake resolves optional tools from nixpkgs automatically (`callPackage`); use `.override { … }` only to swap or disable one. **Cowork** needs three tools, all wired by default: `qemu` (on the wrapper PATH), a system `virtiofsd` (passed via `CLAUDE_VIRTIOFSD_PATH`), and OVMF firmware (via `CLAUDE_OVMF_CODE_PATH`). The two `CLAUDE_*` env overrides are honored by the app from v1.18286.0 on; if your flake pins an older release, expose the firmware **and virtiofsd** at probed paths instead - adding `pkgs.virtiofsd` to `environment.systemPackages` is enough for virtiofsd (`/run/current-system/sw/bin/virtiofsd` is a probed candidate), or use `systemd.tmpfiles.rules = [ "L+ /usr/libexec/virtiofsd - - - - ${pkgs.virtiofsd}/bin/virtiofsd" ]`. The virtiofsd bundled in the app payload is Ubuntu-22.04-only and is never used on NixOS - see [`packaging/nix/package.nix`](packaging/nix/package.nix). **Computer Use** takes `xdotool`, `scrot`, `ydotool`, `grim`, etc. (see [Computer Use dependencies](docs/computer-use-dependencies.md)). If nixpkgs ships an older Claude Code (< 2.1.86), point at your own with `extraSessionPaths = [ "/path/to/dir/with/claude" ]`.
+> **Optional deps on Nix: wired automatically.** The flake pulls the Cowork tools (`qemu`, `virtiofsd`, OVMF firmware) and the Computer Use tools (`xdotool`, `ydotool`, `grim`, …) from nixpkgs and bakes them into the app's closure - nothing to install. Use `.override { … }` only to swap or drop one (e.g. `qemu = null;` shrinks the closure if you don't need Cowork). Only the host-level steps other distros also need remain, in NixOS form:
+>
+> ```nix
+> users.users.<you>.extraGroups = [ "kvm" ];  # Cowork: /dev/kvm access (once, needs re-login)
+> programs.ydotool.enable = true;             # Computer Use input on Wayland (Sway/Hyprland/GNOME)
+> ```
+>
+> Full Computer Use matrix: [docs/computer-use-dependencies.md](docs/computer-use-dependencies.md). If your flake pins a release older than v1.18286.0, virtiofsd and OVMF need manual exposure - see the notes in [`packaging/nix/package.nix`](packaging/nix/package.nix).
 
 ### AppImage (Any Distro)
 
