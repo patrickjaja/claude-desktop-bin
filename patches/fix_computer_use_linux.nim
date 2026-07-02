@@ -311,8 +311,11 @@ proc apply*(input: string): string =
       echo "  [OK] screenshot intro note workaround: already present"
       inc patchesApplied
     else:
+      # v1.18286.0 added an abort timeout between the AbortController and the
+      # options object: `,I=setTimeout(()=>u.abort(),PXi)` - matched optionally
+      # and non-capturing so the AbortController capture index (5) stays stable.
       let seedPat =
-        re"""async\(([\w$]+),[\w$]+\)=>\{[\s\S]{0,4000}?;[\w$]+\(\)\}\}const ([\w$]+)=([\w$]+)\|\|\(([\w$]+)=([\w$]+)\.getLastScreenshotDims\)==null\?void 0:\4\.call\(\5\),([\w$]+)=new AbortController,([\w$]+)=\{"""
+        re"""async\(([\w$]+),[\w$]+\)=>\{[\s\S]{0,4000}?;[\w$]+\(\)\}\}const ([\w$]+)=([\w$]+)\|\|\(([\w$]+)=([\w$]+)\.getLastScreenshotDims\)==null\?void 0:\4\.call\(\5\),([\w$]+)=new AbortController(?:,[\w$]+=setTimeout\(\(\)=>[\w$]+\.abort\(\),[\w$]+\))?,([\w$]+)=\{"""
       let maybeSeed = content.find(seedPat)
       if maybeSeed.isNone:
         echo "  [FAIL] screenshot intro note: wrapper seed anchor not found"
@@ -351,8 +354,12 @@ proc apply*(input: string): string =
 
   # ── Patch 6: handleToolCall hybrid dispatch (two-step match) ───────────
   block:
+    # isEnabled was a bare call `e=>xS()` through v1.17377; v1.18286.0 made it a
+    # session-type ternary `A=>A.sessionType==="ccd"?wS():bue()`. Accept both
+    # (non-capturing) - the ternary shape is unique to the computer-use tool
+    # object (siblings use `A.sessionType==="ccd"` without call arms).
     let htcStart =
-      re"""(([\w$]+)=\{isEnabled:[\w$]+=>[\w$]+\(\),handleToolCall:async\(([\w$]+),([\w$]+),([\w$]+)\)=>\{)"""
+      re"""(([\w$]+)=\{isEnabled:[\w$]+=>(?:[\w$]+\.sessionType==="ccd"\?[\w$]+\(\):[\w$]+\(\)|[\w$]+\(\)),handleToolCall:async\(([\w$]+),([\w$]+),([\w$]+)\)=>\{)"""
     let maybeHtc = content.find(htcStart)
     if maybeHtc.isNone:
       echo "  [FAIL] handleToolCall pattern: 0 matches"
@@ -605,24 +612,47 @@ proc apply*(input: string): string =
     else:
       echo "  [FAIL] xlr display resolver pattern: 0 matches (teach may appear on wrong monitor)"
 
-  # ── Patch 11: force isEnabled() → true on Linux ──────────────────────────
+  # ── Patch 11: force the primary CU enable gate → true on Linux ──────────
   block:
-    # v1.6259: function X(){return Y(Z)?W.has(process.platform)&&A():B()}
-    # v1.6608: function X(){return W.has(process.platform)&&A()}
+    # v1.18286.0 merged the old isEnabled + rj pair into a gate family:
+    #   wS(){if(!IRA.has(process.platform))return!1;const A=YiA();
+    #        return A!==void 0?A:HiA()&&sr("chicagoEnabled")}      <- this patch
+    #   bue(){if(!rt(rAn))return wS();...}                          <- Patch 12
+    #   dq(){...&&!sr("chicagoEnabled")}                            <- untouched:
+    #        IRA.has() is false on linux, so the "stub/settings" nudge path
+    #        stays off and tool calls flow to our executor.
+    # YiA() is a build-time dev override (`const aAn=void 0` in prod), so the
+    # injected Linux branch keeps the old semantics: bypass the platform set +
+    # GrowthBook gate, respect the chicagoEnabled pref (default ON when unset).
+    let patV18286 =
+      re"""(function [\w$]+\(\)\{)if\(!([\w$]+)\.has\(process\.platform\)\)return!1;const ([\w$]+)=([\w$]+)\(\);return \3!==void 0\?\3:([\w$]+)\(\)&&([\w$]+)\("chicagoEnabled"\)\}"""
+    # <=v1.17377 shapes, kept as fallbacks:
     let patNew =
       re"""(function [\w$]+\(\)\{)return [\w$]+\.has\(process\.platform\)&&[\w$]+\(\)\}"""
     let patOld =
       re"""(function [\w$]+\(\)\{)return [\w$]+\([\w$]+\)\?[\w$]+\.has\(process\.platform\)&&[\w$]+\(\):[\w$]+\(\)\}"""
     var n = replaceFirst(
       content,
-      patNew,
+      patV18286,
       proc(m: RegexMatch): string =
         let bounds = m.matchBounds
         let whole = content[bounds.a .. bounds.b]
         let headerLen = m.captures[0].len
-        m.captures[0] & "if(process.platform===\"linux\")return!0;" &
-          whole[headerLen ..^ 1],
+        let prefsReader = m.captures[5]
+        m.captures[0] & "if(process.platform===\"linux\")return(" & prefsReader &
+          "(\"chicagoEnabled\")??!0);" & whole[headerLen ..^ 1],
     )
+    if n == 0:
+      n = replaceFirst(
+        content,
+        patNew,
+        proc(m: RegexMatch): string =
+          let bounds = m.matchBounds
+          let whole = content[bounds.a .. bounds.b]
+          let headerLen = m.captures[0].len
+          m.captures[0] & "if(process.platform===\"linux\")return!0;" &
+            whole[headerLen ..^ 1],
+      )
     if n == 0:
       n = replaceFirst(
         content,
@@ -641,21 +671,42 @@ proc apply*(input: string): string =
     else:
       echo "  [FAIL] isEnabled pattern: 0 matches (computer-use may not work in cowork/CCD)"
 
-  # ── Patch 12: bypass GrowthBook gate but respect chicagoEnabled pref ────
+  # ── Patch 12: flag-gated pref-ignoring gate (bue) → delegate to wS ──────
   block:
-    let pat =
+    # v1.18286.0: bue(){if(!rt(rAn))return wS();const A=YiA();return A!==void 0
+    # ?A:IRA.has(process.platform)&&HiA()} - behind GrowthBook flag rAn
+    # ("2486083521") it stops consulting wS/chicagoEnabled and re-checks the
+    # platform set, which would flip CU back OFF on Linux if the flag turns on
+    # remotely. Prepend a Linux branch that always delegates to the (already
+    # patched, pref-respecting) wS.
+    let patBue =
+      re"""(function [\w$]+\(\)\{)if\(!([\w$]+)\(([\w$]+)\)\)return ([\w$]+)\(\);const ([\w$]+)=([\w$]+)\(\);return \5!==void 0\?\5:([\w$]+)\.has\(process\.platform\)&&([\w$]+)\(\)\}"""
+    # <=v1.17377 shape (standalone chicagoEnabled ternary), kept as fallback:
+    let patOldChicago =
       re"""(function [\w$]+\(\)\{)return [\w$]+\.has\(process\.platform\)\?[\w$]+\(\)&&([\w$]+)\("chicagoEnabled"\):!1\}"""
-    let n = replaceFirst(
+    var n = replaceFirst(
       content,
-      pat,
+      patBue,
       proc(m: RegexMatch): string =
         let bounds = m.matchBounds
         let whole = content[bounds.a .. bounds.b]
         let headerLen = m.captures[0].len
-        let prefsReader = m.captures[1]
-        m.captures[0] & "if(process.platform===\"linux\")return(" & prefsReader &
-          "(\"chicagoEnabled\")??!0);" & whole[headerLen ..^ 1],
+        let wsName = m.captures[3]
+        m.captures[0] & "if(process.platform===\"linux\")return " & wsName & "();" &
+          whole[headerLen ..^ 1],
     )
+    if n == 0:
+      n = replaceFirst(
+        content,
+        patOldChicago,
+        proc(m: RegexMatch): string =
+          let bounds = m.matchBounds
+          let whole = content[bounds.a .. bounds.b]
+          let headerLen = m.captures[0].len
+          let prefsReader = m.captures[1]
+          m.captures[0] & "if(process.platform===\"linux\")return(" & prefsReader &
+            "(\"chicagoEnabled\")??!0);" & whole[headerLen ..^ 1],
+      )
     if n >= 1:
       echo &"  [OK] rj chicagoEnabled: respect pref, default true ({n} match)"
       inc changes, n

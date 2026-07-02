@@ -197,7 +197,7 @@ nix profile install github:patrickjaja/claude-desktop-bin
 
 > **Note:** Update by running `nix flake update` to pull the latest version. `nix run` always fetches the latest.
 
-> **Optional deps on Nix.** Nix can't auto-install system packages, so pass the ones you want via `.override { … }`: **Cowork** needs `qemu` (plus OVMF firmware exposed at a probed path - see the NixOS limitation in [`packaging/nix/package.nix`](packaging/nix/package.nix)); **Computer Use** takes `xdotool`, `scrot`, `ydotool`, `grim`, etc. (see [Computer Use dependencies](docs/computer-use-dependencies.md)). If nixpkgs ships an older Claude Code (< 2.1.86), point at your own with `extraSessionPaths = [ "/path/to/dir/with/claude" ]`.
+> **Optional deps on Nix.** The flake resolves optional tools from nixpkgs automatically (`callPackage`); use `.override { … }` only to swap or disable one. **Cowork** needs three tools, all wired by default: `qemu` (on the wrapper PATH), a system `virtiofsd` (passed via `CLAUDE_VIRTIOFSD_PATH`), and OVMF firmware (via `CLAUDE_OVMF_CODE_PATH`). The two `CLAUDE_*` env overrides are honored by the app from v1.18286.0 on; if your flake pins an older release, expose the firmware **and virtiofsd** at probed paths instead, e.g. `systemd.tmpfiles.rules = [ "L+ /usr/libexec/virtiofsd - - - - ${pkgs.virtiofsd}/bin/virtiofsd" ]` (the bundled virtiofsd does not count outside Ubuntu 22.x - see [`packaging/nix/package.nix`](packaging/nix/package.nix)). **Computer Use** takes `xdotool`, `scrot`, `ydotool`, `grim`, etc. (see [Computer Use dependencies](docs/computer-use-dependencies.md)). If nixpkgs ships an older Claude Code (< 2.1.86), point at your own with `extraSessionPaths = [ "/path/to/dir/with/claude" ]`.
 
 ### AppImage (Any Distro)
 
@@ -373,15 +373,17 @@ sudo usermod -aG kvm "$USER"        # /dev/kvm access - then log out and back in
 
 The Claude Code CLI that Cowork/Dispatch drive is managed by the app itself - nothing to install. To pin your own binary, set `CLAUDE_CODE_LOCAL_BINARY=/path/to/claude`.
 
-> **AppImage, Nix, or source builds** don't pull system packages - install QEMU + UEFI firmware yourself first (firmware package name differs on arm64):
+> **AppImage, Nix, or source builds** don't pull system packages - install QEMU + UEFI firmware + virtiofsd yourself first (firmware package name differs on arm64):
 > ```bash
-> # Arch:          sudo pacman -S --needed qemu-base edk2-ovmf     # arm64: edk2-aarch64 instead of edk2-ovmf
-> # Fedora/RHEL:   sudo dnf install qemu-system-x86 edk2-ovmf      # arm64: qemu-system-aarch64 edk2-aarch64
-> # Debian/Ubuntu: sudo apt install qemu-system-x86 ovmf           # arm64: qemu-system-arm qemu-efi-aarch64
+> # Arch:          sudo pacman -S --needed qemu-base edk2-ovmf virtiofsd   # arm64: edk2-aarch64 instead of edk2-ovmf
+> # Fedora/RHEL:   sudo dnf install qemu-system-x86 edk2-ovmf virtiofsd    # arm64: qemu-system-aarch64 edk2-aarch64
+> # Debian/Ubuntu: sudo apt install qemu-system-x86 ovmf virtiofsd         # Ubuntu 22.04: no virtiofsd pkg needed (bundled copy is used)
+> #                                                                        # arm64: qemu-system-arm qemu-efi-aarch64
 > ```
+> A **system virtiofsd is required on everything except Ubuntu 22.x** - the app's capability probe only falls back to the bundled `virtiofsd` on jammy (`/etc/os-release` gate). Without it Cowork reports "Cowork requires QEMU …" even when qemu and firmware are present (issue #177). If your distro installs virtiofsd outside the probed paths (`/usr/libexec`, `/usr/lib`, `/usr/lib/qemu`, `/usr/bin`), point the app at it with `CLAUDE_VIRTIOFSD_PATH=/path/to/virtiofsd`; a custom firmware location can likewise be set with `CLAUDE_OVMF_CODE_PATH=/path/to/OVMF_CODE.fd` (its `*_VARS.fd` sibling must sit next to it). The Nix flake wires all three automatically (see the Nix install section).
 > On Arch Linux ARM / EndeavourOS ARM / Manjaro ARM (native aarch64 hosts), `edk2-aarch64` is missing from the ALARM repos even though it's `arch=any` upstream - see the Arch install section above for the manual-download workaround.
 
-If the workspace shows "Download failed" and clicking Download does nothing, it's almost always missing `kvm` group membership (or, on AppImage/Nix, missing firmware). **CoworkSpaces** are stored locally per account under `~/.config/Claude/local-agent-mode-sessions/` (see [Known Limitations](#known-limitations)).
+If the workspace shows "Download failed" and clicking Download does nothing, it's almost always missing `kvm` group membership (or, on AppImage/Nix, missing firmware or system virtiofsd). **CoworkSpaces** are stored locally per account under `~/.config/Claude/local-agent-mode-sessions/` (see [Known Limitations](#known-limitations)).
 
 > **Note — Cowork does not work inside a nested VM.** Because Cowork boots its own lightweight VM (the bundled backend downloads/builds a rootfs and starts it via QEMU/KVM), it needs real, stable access to `/dev/kvm`. Running Claude Desktop inside a hypervisor guest (VirtualBox, VMware, etc.) means Cowork would have to launch a VM *inside* a VM (nested virtualization), which most desktop hypervisors do not support reliably — VirtualBox in particular can hard-crash the entire guest when the nested VM starts. The app itself installs and runs fine in a VM; only the Cowork feature requires a bare-metal host (or a cloud instance with nested virtualization properly enabled).
 
@@ -432,7 +434,7 @@ Each patch is a self-contained `patches/*.nim` file compiled to a native binary.
 | `fix_builtin_mcp_browser_env.nim` | Adds DISPLAY/Wayland/XDG/DBUS/BROWSER/`KDE_SESSION_VERSION` to the built-in MCP env allowlist (upstream's minimal `HOME,LOGNAME,PATH,SHELL,TERM,USER` set has no display vars - fine on macOS, but on Linux an MCP server can't open a browser for OAuth; without `KDE_SESSION_VERSION`, `xdg-open` on KDE no-ops silently via its `kfmclient` fallback) ([#139](https://github.com/patrickjaja/claude-desktop-bin/issues/139)) | `rg -o '"HOME","LOGNAME","PATH","SHELL","TERM","USER".{0,40}' index.js` |
 | `fix_builtin_mcp_open_url_handler.nim` | Parent side of the M365 OAuth browser-open delegation: adds an `open-url` branch (https-only, → `shell.openExternal`) to the built-in MCP host's child-message handler - the same mechanism remote OAuth connectors use ([#139](https://github.com/patrickjaja/claude-desktop-bin/issues/139)) | `rg -o 'msal-cache-get.{0,60}' index.js` |
 | `fix_cli_governor_memavailable.nim` | Computes CliGovernor memory pressure from `/proc/meminfo` `MemAvailable` instead of Electron's `free` - stops false pressure warnings ([#128](https://github.com/patrickjaja/claude-desktop-bin/issues/128)) | `rg -o 'getFreeMemoryRatio.{0,160}' index.js` |
-| `fix_cowork_firmware_paths_linux.nim` | Adds Fedora/RHEL + Arch OVMF firmware paths (and Arch `/usr/lib/virtiofsd`) to the native Cowork VM capability probe - fixes "Download failed" on non-Debian distros | `rg -o 'OVMF_CODE.{0,80}' index.js` |
+| `fix_cowork_firmware_paths_linux.nim` | Adds Fedora/RHEL + Arch OVMF firmware paths (and Arch `/usr/lib/virtiofsd`) to the native Cowork VM capability probe, plus `CLAUDE_OVMF_CODE_PATH`/`CLAUDE_VIRTIOFSD_PATH` env overrides for NixOS and other non-FHS setups (#177) - fixes "Download failed" / "requires QEMU" on non-Debian distros | `rg -o 'OVMF_CODE.{0,80}' index.js` |
 | `fix_cowork_font.nim` | Applies the user's chat font preference to the Cowork tab (avoids default Serif) | Prepended dom-ready IIFE, no regex |
 | `fix_cross_device_rename.nim` | EXDEV fallback for cross-filesystem file moves | Uses `.rename(` literal |
 | `fix_detected_projects_linux.nim` | Enables detected projects with Linux IDE paths (VSCode, Cursor, Zed) | `rg -o 'detectedProjects.{0,50}' index.js` |

@@ -26,13 +26,19 @@
 # Claude Code CLI — required for Cowork, Dispatch, and Code integration
 , claude-code ? null    # auto-resolved by callPackage if in nixpkgs
 # Cowork agent workspace VM (also requires /dev/kvm + kvm group membership).
-# NOTE: putting qemu on PATH is necessary but NOT sufficient on NixOS: the app's
-# capability probe searches for OVMF UEFI firmware at fixed /usr/share/... paths
-# (see fix_cowork_firmware_paths_linux), which NixOS does not populate. Full NixOS
-# Cowork support additionally needs the firmware exposed at one of those paths
-# (e.g. via an activation-script symlink into /usr/share/edk2/x64/) — tracked as a
-# known limitation. virtiofsd is bundled in the app payload.
+# The app's capability probe needs THREE tools (issue #177):
+#   - qemu-system-x86_64 on PATH            -> qemu (--prefix PATH)
+#   - OVMF UEFI CODE+VARS firmware          -> OVMF (CLAUDE_OVMF_CODE_PATH)
+#   - a system virtiofsd                    -> virtiofsd (CLAUDE_VIRTIOFSD_PATH)
+# The bundled resources/locales/virtiofsd does NOT count: the probe only uses the
+# bundled copy on Ubuntu 22.x (os-release gate), and NixOS can't exec it anyway
+# (foreign ld-linux interpreter). The CLAUDE_* env vars are honored by our
+# fix_cowork_firmware_paths_linux patch from release 1.18286.0 on; on older
+# pinned tarballs they are ignored and the /usr/share symlink workaround from
+# the README applies instead.
 , qemu ? null           # provides qemu-system-x86_64 for the Cowork VM
+, virtiofsd ? null      # system virtiofsd (bundled one is Ubuntu-22-only)
+, OVMF ? null           # UEFI firmware; OVMF.fd output must ship CODE+VARS pair
 , socat ? null          # faster Quick Entry toggle (~2ms vs ~25ms python3)
 , nodejs ? null         # third-party MCP servers
 # Extra PATH entries for binaries not packaged in Nix (e.g. npm global, nvm)
@@ -145,6 +151,8 @@ stdenvNoCC.mkDerivation {
       ${lib.optionalString (glib != null) "--prefix PATH : ${glib}/bin"} \
       ${lib.optionalString (nodejs != null) "--prefix PATH : ${nodejs}/bin"} \
       ${lib.optionalString (qemu != null) "--prefix PATH : ${qemu}/bin"} \
+      ${lib.optionalString (virtiofsd != null) "--set-default CLAUDE_VIRTIOFSD_PATH ${virtiofsd}/bin/virtiofsd"} \
+      ${lib.optionalString (OVMF != null) "--set-default CLAUDE_OVMF_CODE_PATH ${OVMF.fd}/FV/${if stdenvNoCC.hostPlatform.isAarch64 then "AAVMF_CODE.fd" else "OVMF_CODE.fd"}"} \
       ${lib.optionalString (claude-code != null && extraSessionPaths == []) "--prefix PATH : ${claude-code}/bin"} \
       ${lib.concatMapStringsSep " \\\n      " (p:
         let path = if builtins.isString p then p else "${p}/bin";

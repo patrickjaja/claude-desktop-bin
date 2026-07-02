@@ -59,19 +59,27 @@ proc apply*(input: string): string =
     echo "  [SKIP] No BuddyBleTransport references (feature not present)"
     return result
 
-  # Patch A: Force the Buddy feature flag on Linux
+  # Patch A: Force the Buddy feature flag on Linux.
+  # v1.18286.0 shape: const X="2358734848",S=()=>cfg().workspace.hardwareBuddyEnabled
+  # !==!1,G=()=>S()&&flag(X)  - upstream added a hardwareBuddyEnabled workspace
+  # setting in front of the GrowthBook flag. We force only the flag half
+  # (G=()=>S()&&(process.platform==="linux"||flag(X))) so the user's
+  # hardwareBuddyEnabled toggle keeps working.
   let alreadyA =
-    "process.platform===\"linux\"||" in result and "\"2358734848\"" in result
+    "\"2358734848\"" in result and
+    result.contains(
+      re2"""=\(\)=>[\w$]+\(\)&&\(process\.platform==="linux"\|\|[\w$]+\([\w$]+\)\)"""
+    )
   if alreadyA:
     echo "  [OK] Buddy flag: already patched (skipped)"
     patchesApplied += 1
   else:
     let flagPattern =
-      re2"(const [\w$]+=""2358734848"",)([\w$]+=\(\)=>)([\w$]+\([\w$]+\))"
+      re2"(const [\w$]+=""2358734848"",[\w$]+=\(\)=>[\w$]+\(\)\.workspace\.hardwareBuddyEnabled!==!1,[\w$]+=\(\)=>[\w$]+\(\)&&)([\w$]+\([\w$]+\))"
     var countFlag = result.replaceFirst(
       flagPattern,
       proc(m: RegexMatch2, s: string): string =
-        s[m.group(0)] & s[m.group(1)] & "process.platform===\"linux\"||" & s[m.group(2)],
+        s[m.group(0)] & "(process.platform===\"linux\"||" & s[m.group(1)] & ")",
     )
     if countFlag >= 1:
       echo &"  [OK] Buddy flag: forced ON for Linux ({countFlag} match)"

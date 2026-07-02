@@ -23,7 +23,10 @@
 #   3k canLaunchCodeSession GrowthBook flag 2067027393
 #   3l canSaveSkill GrowthBook flag 3246569822
 #   3m suggestSkillsEnabled GrowthBook flag 245679952
-#   3n sshRemotePassthrough GrowthBook flag 1496676413
+#   3n (removed upstream v1.18286.0: sshRemotePassthrough flag 1496676413 no longer
+#      exists - the SSH remote MCP/plugin passthrough went unconditional:
+#      createSpawnFunction lost the flag argument and resolveSshControllerForMcp
+#      now returns the controller whenever an sshConfig is present)
 #   3o consolidateMemoryV2 GrowthBook flag 1824824999
 #   3p coworkOnboarding GrowthBook flag 2114777685
 #   4  preferences defaults (quietPenguinEnabled / louderPenguinEnabled)
@@ -45,7 +48,7 @@
 import std/[os, strformat, strutils]
 import std/nre
 
-const EXPECTED_PATCHES = 20
+const EXPECTED_PATCHES = 19
 
 proc apply*(input: string): string =
   result = input
@@ -380,20 +383,11 @@ proc apply*(input: string): string =
     echo "  [FAIL] suggestSkillsEnabled flag 245679952: 0 matches"
     failed = true
 
-  # Patch 3n: Enable SSH remote MCP/plugin passthrough - flag 1496676413
-  let sshPassthroughPattern = re"""[\w$]+\("1496676413"\)"""
-  var sshPassthroughApplied = 0
-  result = result.replace(
-    sshPassthroughPattern,
-    proc(m: RegexMatch): string =
-      inc sshPassthroughApplied
-      "!0",
-  )
-  if sshPassthroughApplied >= 1:
-    echo &"  [OK] sshRemotePassthrough flag 1496676413: forced ON ({sshPassthroughApplied} matches)"
-    inc patchesApplied
-  else:
-    echo "  [FAIL] sshRemotePassthrough flag 1496676413: 0 matches"
+  # Patch 3n removed (upstream v1.18286.0): sshRemotePassthrough flag 1496676413
+  # was deleted upstream and the SSH passthrough went unconditional. Guard against
+  # the flag silently returning (which would re-gate the feature OFF for us).
+  if "\"1496676413\"" in result:
+    echo "  [FAIL] sshRemotePassthrough flag 1496676413 reappeared - re-add Patch 3n"
     failed = true
 
   # Patch 3o: Enable consolidate-memory skill v2 - flag 1824824999

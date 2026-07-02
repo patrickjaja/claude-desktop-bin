@@ -1,6 +1,8 @@
 # Built-in MCP Servers - Claude Desktop v1.13576.0
 
-> **Internal-server roster verified unchanged through v1.13576.0** (2026-06-17). No internal servers added/removed since v1.8555.2. The minified registration names shifted again (full re-minify v1.12603.1 -> v1.13576.0); `registerInternalMcpServer` is still present and the renderer-facing registration fn is still resolvable (the v1.12603.0 name `iAe()` will have shifted - re-anchor on `registerInternalMcpServer` or the server-UUID map). Server-name strings and the tool tables remain accurate. The bundled 3P **Microsoft 365** MCP server (`office365-mcp`) still ships inside `app.asar` (see the dedicated section below).
+> **Internal-server roster verified unchanged through v1.18286.0** (2026-07-03): `registerInternalMcpServer` present (1 call), all server-name literals stable with identical counts vs v1.17377.1 (computer-use, terminal, visualize, Claude Preview, skills, radar, dispatch, cowork, Framebuffer, Window Halo, ccd_session, mcp-registry, Claude in Chrome). No servers added or removed. The tool tables below still describe v1.13576.0 minified names.
+>
+> **Prior roster note (v1.13576.0, 2026-06-17):** No internal servers added/removed since v1.8555.2. The minified registration names shifted again (full re-minify v1.12603.1 -> v1.13576.0); `registerInternalMcpServer` is still present and the renderer-facing registration fn is still resolvable (the v1.12603.0 name `iAe()` will have shifted - re-anchor on `registerInternalMcpServer` or the server-UUID map). Server-name strings and the tool tables remain accurate. The bundled 3P **Microsoft 365** MCP server (`office365-mcp`) still ships inside `app.asar` (see the dedicated section below).
 
 Claude Desktop registers internal MCP servers via a two-layer architecture:
 

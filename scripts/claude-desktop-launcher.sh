@@ -1008,28 +1008,42 @@ _diagnose() {
     local _qemu_path=''
     if command -v "$_qemu_bin" &>/dev/null; then _qemu_path="$(command -v "$_qemu_bin")"; fi
     echo "qemuPath = ${_qemu_path:-NOT FOUND on PATH ($_qemu_bin)}"
-    # firmwarePath: first readable OVMF/AAVMF CODE candidate (must match app's boi list)
+    # firmwarePath: first readable OVMF/AAVMF CODE candidate (must match the
+    # app's patched firmware array: CLAUDE_OVMF_CODE_PATH override first, then
+    # the fixed paths - see fix_cowork_firmware_paths_linux.nim)
     local _fw='' _c
-    local _fw_candidates
+    local _fw_candidates=()
+    [[ -n ${CLAUDE_OVMF_CODE_PATH:-} ]] && _fw_candidates+=("$CLAUDE_OVMF_CODE_PATH")
     if [[ $_arch == arm64 ]]; then
-        _fw_candidates=(/usr/share/AAVMF/AAVMF_CODE.fd)
+        _fw_candidates+=(/usr/share/AAVMF/AAVMF_CODE.fd)
     else
-        _fw_candidates=(/usr/share/edk2/ovmf/OVMF_CODE.fd /usr/share/edk2/x64/OVMF_CODE.4m.fd /usr/share/edk2/x64/OVMF_CODE.fd /usr/share/OVMF/OVMF_CODE_4M.fd /usr/share/OVMF/OVMF_CODE.fd)
+        _fw_candidates+=(/usr/share/edk2/ovmf/OVMF_CODE.fd /usr/share/edk2/x64/OVMF_CODE.4m.fd /usr/share/edk2/x64/OVMF_CODE.fd /usr/share/OVMF/OVMF_CODE_4M.fd /usr/share/OVMF/OVMF_CODE.fd)
     fi
     for _c in "${_fw_candidates[@]}"; do
         if [[ -r $_c ]]; then _fw="$_c"; break; fi
     done
-    echo "firmwarePath = ${_fw:-NOT FOUND (install edk2-ovmf / ovmf)}"
+    echo "firmwarePath = ${_fw:-NOT FOUND (install edk2-ovmf / ovmf, or set CLAUDE_OVMF_CODE_PATH)}"
     if [[ -n $_fw ]]; then
         local _vars="${_fw/OVMF_CODE/OVMF_VARS}"; _vars="${_vars/AAVMF_CODE/AAVMF_VARS}"
         echo "  -> derived VARS = $_vars ($([[ -r $_vars ]] && echo present || echo MISSING))"
     fi
-    # virtiofsdPath: system candidates, else bundled
+    # virtiofsdPath: CLAUDE_VIRTIOFSD_PATH override first, then system paths.
+    # The bundled copy under resources/locales counts ONLY on Ubuntu 22.x - the
+    # app gates its bundled-virtiofsd fallback on os-release id=ubuntu &&
+    # version 22.* (jammy's apt has no standalone virtiofsd package). Listing it
+    # unconditionally here made --diagnose report "SHOULD pass" on systems where
+    # the real probe returns virtiofsdPath=null (issue #177, NixOS).
     local _vfs=''
-    for _c in /usr/libexec/virtiofsd /usr/lib/virtiofsd /usr/lib/qemu/virtiofsd /usr/bin/virtiofsd "$_res_base/virtiofsd"; do
+    local _vfs_candidates=()
+    [[ -n ${CLAUDE_VIRTIOFSD_PATH:-} ]] && _vfs_candidates+=("$CLAUDE_VIRTIOFSD_PATH")
+    _vfs_candidates+=(/usr/libexec/virtiofsd /usr/lib/virtiofsd /usr/lib/qemu/virtiofsd /usr/bin/virtiofsd)
+    if [[ "$(. /etc/os-release 2>/dev/null && echo "${ID:-} ${VERSION_ID:-}")" == 'ubuntu 22.'* ]]; then
+        _vfs_candidates+=("$_res_base/virtiofsd")
+    fi
+    for _c in "${_vfs_candidates[@]}"; do
         if [[ -r $_c ]]; then _vfs="$_c"; break; fi
     done
-    echo "virtiofsdPath = ${_vfs:-NOT FOUND}"
+    echo "virtiofsdPath = ${_vfs:-NOT FOUND (install a system virtiofsd or set CLAUDE_VIRTIOFSD_PATH; the bundled copy only counts on Ubuntu 22.x)}"
     # helper + smol image (our resources/locales layout)
     echo "helperBinaryPath = $([[ -x $_res_base/cowork-linux-helper ]] && echo "$_res_base/cowork-linux-helper" || echo MISSING)"
     echo "smolBinPath = $([[ -r $_res_base/smol-bin.$_arch.img ]] && echo "$_res_base/smol-bin.$_arch.img" || echo MISSING)"

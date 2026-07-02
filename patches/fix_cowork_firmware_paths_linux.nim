@@ -12,7 +12,19 @@
 # NOT the Debian /usr/share/OVMF/OVMF_CODE_4M.fd, so firmwarePath resolves to null
 # and Cowork is permanently "unsupported" -> the Download button is inert and the
 # workspace never provisions.  (qemuPath is a $PATH lookup, so it works anywhere
-# qemu-system-x86_64 is installed; virtiofsd is bundled, so it also resolves.)
+# qemu-system-x86_64 is installed. virtiofsd does NOT resolve everywhere: the
+# bundled resources/virtiofsd only counts on Ubuntu 22.x - see below.)
+#
+# On top of the extra fixed paths, we prepend ENV-VAR overrides to both arrays
+# (issue #177, NixOS): NixOS has no /usr/share firmware or /usr/libexec, so fixed
+# paths can never cover it. The probe honors:
+#   CLAUDE_OVMF_CODE_PATH  - path to an OVMF/AAVMF *CODE* firmware image. The
+#     matching VARS file must sit next to it with the same name shape (the app
+#     derives it via replace("OVMF_CODE","OVMF_VARS")/("AAVMF_CODE","AAVMF_VARS")).
+#   CLAUDE_VIRTIOFSD_PATH  - path to a system virtiofsd binary.
+# The Nix package wraps these via `.override { OVMF = ...; virtiofsd = ...; }`.
+# Injected as conditional array spreads (`...(env?[env]:[])`), so behavior is
+# byte-for-byte identical when the vars are unset.
 #
 # Upstream code (minified var names change every release):
 #   boi = process.arch==="arm64"
@@ -71,8 +83,16 @@ proc apply*(input: string): string =
     "\"/usr/lib/virtiofsd\"," & # Arch (virtiofsd pkg)
     "\"/usr/lib/qemu/virtiofsd\"," # some distros
 
+  # Env-var override candidates, prepended so an explicit override always wins.
+  # Conditional spread = no-op when the env var is unset.
+  const envFirmware =
+    "...(process.env.CLAUDE_OVMF_CODE_PATH?[process.env.CLAUDE_OVMF_CODE_PATH]:[]),"
+  const envVirtiofsd =
+    "...(process.env.CLAUDE_VIRTIOFSD_PATH?[process.env.CLAUDE_VIRTIOFSD_PATH]:[]),"
+
   var patchesApplied = 0
-  const EXPECTED_PATCHES = 2 # A: firmware arrays, B: virtiofsd array
+  const EXPECTED_PATCHES = 3
+    # A: x64 firmware array, B: virtiofsd array, C: arm64 firmware array
 
   # --- Patch A: extend the x86_64 OVMF firmware array ------------------------
   # Only the x86_64 (OVMF) array needs extending; the aarch64 (AAVMF) array's
@@ -84,46 +104,73 @@ proc apply*(input: string): string =
   # group0 = `]:[`   group1 = `"/usr/share/OVMF/OVMF_CODE_4M.fd"`  (x64 first value)
   let firmwarePattern = re2"""(\]:\[)("/usr/share/OVMF/OVMF_CODE_4M\.fd")"""
   var countA = 0
-  let alreadyFirmware = "/usr/share/edk2/x64/OVMF_CODE.4m.fd" in result
+  let alreadyFirmware =
+    "/usr/share/edk2/x64/OVMF_CODE.4m.fd" in result and envFirmware & extraX64 in result
   if alreadyFirmware:
-    echo "  [OK] firmware paths: non-Debian OVMF candidates already present"
+    echo "  [OK] firmware paths: env override + non-Debian OVMF candidates already present"
     inc patchesApplied
   else:
     result = result.replace(
       firmwarePattern,
       proc(m: RegexMatch2, s: string): string =
         inc countA
-        s[m.group(0)] & extraX64 & s[m.group(1)],
+        s[m.group(0)] & envFirmware & extraX64 & s[m.group(1)],
     )
     if countA == 1:
-      echo "  [OK] firmware paths: injected non-Debian OVMF candidates"
+      echo "  [OK] firmware paths: injected env override + non-Debian OVMF candidates"
       inc patchesApplied
     else:
       echo "  [FAIL] firmware paths: expected 1 match, got " & $countA &
         " (upstream OVMF array shape changed - re-anchor)"
 
   # --- Patch B: extend the virtiofsd system-path array -----------------------
-  # group0 = `["/usr/libexec/virtiofsd",`   group1 = `"/usr/bin/virtiofsd"`
-  let virtiofsdPattern = re2"""(\["/usr/libexec/virtiofsd",)("/usr/bin/virtiofsd")"""
+  # group0 = `[`  group1 = `"/usr/libexec/virtiofsd",`  group2 = `"/usr/bin/virtiofsd"`
+  # Env override goes FIRST (before the system paths), extras keep their old
+  # position between the two Debian candidates.
+  let virtiofsdPattern = re2"""(\[)("/usr/libexec/virtiofsd",)("/usr/bin/virtiofsd")"""
   var countB = 0
-  let alreadyVirtiofsd = "/usr/lib/virtiofsd" in result
+  let alreadyVirtiofsd =
+    "/usr/lib/virtiofsd" in result and
+    envVirtiofsd & "\"/usr/libexec/virtiofsd\"" in result
   if alreadyVirtiofsd:
-    echo "  [OK] virtiofsd paths: non-Debian candidate already present"
+    echo "  [OK] virtiofsd paths: env override + non-Debian candidate already present"
     inc patchesApplied
   else:
     result = result.replace(
       virtiofsdPattern,
       proc(m: RegexMatch2, s: string): string =
         inc countB
-        # group0: ["/usr/libexec/virtiofsd","   group1: /usr/bin/virtiofsd"
-        s[m.group(0)] & extraVirtiofsd & s[m.group(1)],
+        s[m.group(0)] & envVirtiofsd & s[m.group(1)] & extraVirtiofsd & s[m.group(2)],
     )
     if countB == 1:
-      echo "  [OK] virtiofsd paths: injected non-Debian candidate"
+      echo "  [OK] virtiofsd paths: injected env override + non-Debian candidate"
       inc patchesApplied
     else:
       echo "  [FAIL] virtiofsd paths: expected 1 match, got " & $countB &
         " (upstream virtiofsd array shape changed - re-anchor)"
+
+  # --- Patch C: env override for the arm64 AAVMF firmware array --------------
+  # The arm64 arm needs no extra fixed paths (see above), but the env override
+  # must reach it too. group0 = `?[`  group1 = `"/usr/share/AAVMF/AAVMF_CODE.fd"`
+  let aavmfPattern = re2"""(\?\[)("/usr/share/AAVMF/AAVMF_CODE\.fd")"""
+  var countC = 0
+  let alreadyAavmf = envFirmware & "\"/usr/share/AAVMF/AAVMF_CODE.fd\"" in result
+  if alreadyAavmf:
+    echo "  [OK] arm64 firmware: env override already present"
+    inc patchesApplied
+  else:
+    result = result.replace(
+      aavmfPattern,
+      proc(m: RegexMatch2, s: string): string =
+        inc countC
+        s[m.group(0)] & envFirmware & s[m.group(1)],
+    )
+    if countC == 1:
+      echo "  [OK] arm64 firmware: injected env override"
+      inc patchesApplied
+    else:
+      echo "  [FAIL] arm64 firmware: expected 1 match, got " & $countC &
+        " (upstream AAVMF array shape changed - re-anchor)"
 
   if patchesApplied < EXPECTED_PATCHES:
     echo "  [FAIL] Only " & $patchesApplied & "/" & $EXPECTED_PATCHES &

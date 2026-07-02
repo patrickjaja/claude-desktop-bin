@@ -2,6 +2,27 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-07-03
+
+### Upstream bump v1.17377.2 -> v1.18286.0: three patches re-anchored after the auto-release failed
+
+The 2-hourly version check dispatched an auto-release for v1.18286.0 and it failed (tracking issue #176). The bump is a full re-minify plus a few small refactors; three patches needed work:
+
+- **`enable_local_agent_mode`**: GrowthBook flag `1496676413` (SSH remote MCP/plugin passthrough) was removed upstream - the feature went unconditional (`createSpawnFunction` lost the flag argument, `resolveSshControllerForMcp` returns the controller whenever an sshConfig exists). Patch 3n deleted (19/19 sub-patches), with a guard that fails the build if the flag ever reappears.
+- **`fix_buddy_ble_linux`**: the Buddy flag gate gained a new `workspace.hardwareBuddyEnabled` setting in its chain (upstream's new Cowork "Hardware Buddy & Maker Devices" BLE feature). Re-anchored so only the GrowthBook half is forced - the user's hardwareBuddyEnabled toggle keeps working.
+- **`fix_computer_use_linux`**: upstream re-shaped the CU enable gates - the old isEnabled/rj pair merged into a `wS()` (pref-respecting) / `bue()` (flag-gated, pref-ignoring) / `dq()` (stub-mode nudge) family, the `handleToolCall` body was extracted into `vgn()` with teach-mode telemetry, and the tool wrapper gained an abort timeout. Patches 5b/6/11/12 re-anchored: `wS` gets the Linux pref-respecting branch, `bue` delegates to the patched `wS` on Linux (so a remote flip of its gating flag can't switch CU back off), and `dq` stays untouched (false on Linux keeps the "enable in settings" nudge path off). CI only reported 2 of the 4 - Patch 6's abort-on-failure had masked the downstream 11/12 failures. 36/36 sub-patches apply; a live Computer Use smoke-test after install is recommended since the handler was restructured.
+
+Audits came back clean: platform-gate counts byte-identical (darwin 78 / win32 128 / linux 12 - no new PORTABLE opportunities, no new Linux blockers), the Cowork VM capability probe is structurally unchanged, resources identical (no new binaries), IPC additions purely additive (Claude Code PR/CLI-status channels, CU remote-lock release, file-preview open-in-default-app), ion-dist patch applies unchanged, GrowthBook +8/-4 with nothing needing forcing. Official docs (code.claude.com/docs/en/desktop-linux) still list Computer Use as not available on Linux - our CU stack remains the only one. Baseline docs updated (CLAUDE_FEATURE_FLAGS.md renames `sM()`/`Yue`/`rt()` + history row, PLATFORM_GATE_BASELINE.md, ION.md).
+
+### NixOS Cowork "requires QEMU" while --diagnose passes: root-caused, diagnose false-positive fixed, env overrides added (#177)
+
+On NixOS the in-app probe failed on **virtiofsd** while `claude-desktop --diagnose` claimed the capability probe "SHOULD pass". Two distinct bugs:
+
+- **`--diagnose` false positive**: the launcher listed the bundled `resources/locales/virtiofsd` as an unconditional candidate, but the app only uses the bundled copy on Ubuntu 22.x (`/etc/os-release` gate) - on every other distro a missing system virtiofsd means `virtiofsdPath=null` and the "Cowork requires QEMU ... virtiofsd" message. The diagnose replica now mirrors the Ubuntu-22 gate and prints an actionable NOT-FOUND hint instead.
+- **No way to point the probe anywhere on NixOS**: the probe's candidate lists are fixed `/usr/...` paths that NixOS never populates. `fix_cowork_firmware_paths_linux` now prepends two env-var overrides to the probe arrays (conditional spreads, no-ops when unset): `CLAUDE_VIRTIOFSD_PATH` and `CLAUDE_OVMF_CODE_PATH` (CODE image; the VARS sibling is derived by name next to it). Injected into both the x86_64 OVMF and arm64 AAVMF arms (3 sub-patches, strict).
+
+The Nix package now resolves `virtiofsd` and `OVMF` from nixpkgs automatically (like `qemu`) and wires them via those env vars - Cowork on NixOS needs no tmpfiles symlink hacks from this release on. README and package.nix notes corrected: they previously claimed "virtiofsd is bundled" and omitted the system-virtiofsd requirement entirely; the Cowork setup section now documents it for all non-Ubuntu-22 distros, plus the new env overrides.
+
 ## 2026-07-02
 
 ### M365 local connector: OAuth browser now opens reliably on KDE (and everywhere else) (#139)
