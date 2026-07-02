@@ -25,6 +25,10 @@ Set permanently in `~/.bashrc` / `~/.zshrc`, or pass per-launch: `CLAUDE_DISABLE
 A few variables belong to specific features and are documented alongside them:
 
 - `COWORK_SCREENSHOT_CMD` - override Computer Use screenshot auto-detection. See [Computer Use dependencies](computer-use-dependencies.md#custom-screenshot-command).
+- `CLAUDE_VIRTIOFSD_PATH` - path to a system `virtiofsd` binary for the Cowork VM capability probe. Checked before all fixed candidate paths. Needed only when virtiofsd lives outside the probed locations (`/usr/libexec`, `/usr/lib`, `/usr/lib/qemu`, `/run/current-system/sw/bin`, `/usr/bin`) - e.g. AppImage on NixOS. The Nix flake package sets it automatically; the bundled virtiofsd is only ever used on Ubuntu 22.x ([#177](https://github.com/patrickjaja/claude-desktop-bin/issues/177)).
+- `CLAUDE_OVMF_CODE_PATH` - path to an OVMF/AAVMF UEFI *CODE* firmware image for the Cowork VM capability probe, checked before the fixed `/usr/share/...` candidates. The matching `*_VARS*` file must sit next to it with the same name shape (the app derives it by replacing `OVMF_CODE` -> `OVMF_VARS` / `AAVMF_CODE` -> `AAVMF_VARS` in the filename). The Nix flake package sets it automatically ([#177](https://github.com/patrickjaja/claude-desktop-bin/issues/177)).
+
+Both Cowork variables must reach the **app process**, not just your shell - a `~/.bashrc` export only covers terminal launches. For icon/GUI launches put them in the session environment (NixOS: `environment.sessionVariables = { CLAUDE_VIRTIOFSD_PATH = "${pkgs.virtiofsd}/bin/virtiofsd"; ... }`; elsewhere: `~/.config/environment.d/`). Flake users don't need any of this - the wrapper bakes both in. `claude-desktop --diagnose` honors them too, so a wrong path is immediately visible.
 
 ## See also
 
