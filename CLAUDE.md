@@ -36,7 +36,7 @@ CI enforces the floor via `objdump -T | grep GLIBC_` verification. If a new nati
 | Session type | Compositors / DEs | Input backend | Screenshot tools |
 |-------------|-------------------|---------------|-----------------|
 | X11 | Any (GNOME, KDE, i3, …) | `xdotool` | `scrot`, `imagemagick`, `gnome-screenshot` |
-| Wayland — wlroots | Sway, Hyprland | `ydotool` (+`ydotoold`) | `grim` |
+| Wayland — wlroots/wlr-protocols | Sway, Hyprland, Niri | `ydotool` (+`ydotoold`) | `grim` |
 | Wayland — GNOME | GNOME Shell | `ydotool` (+`ydotoold`) | `portal+pipewire` (GNOME 46+), `gnome-screenshot`, `gdbus` (glib2) |
 | Wayland — KDE | KDE Plasma | `kwin-portal-bridge` (bundled) | `kwin-portal-bridge` (bundled) |
 | XWayland | Any Wayland compositor | `xdotool` (fallback) | depends on compositor |

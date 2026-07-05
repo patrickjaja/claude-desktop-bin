@@ -14,7 +14,7 @@ Repackages Anthropic's **official Claude Desktop Linux `.deb`** (bundles Electro
 | Session | Compositors/DEs | Input backend | Screenshot |
 |---|---|---|---|
 | X11 | any (GNOME, KDE, i3, …) | `xdotool` | `gnome-screenshot` → `scrot` → `import` (ImageMagick) |
-| Wayland wlroots | Sway, Hyprland | `ydotool` (+`ydotoold`) | `grim` |
+| Wayland wlroots | Sway, Hyprland, Niri | `ydotool` (+`ydotoold`) | `grim` |
 | Wayland GNOME | GNOME Shell | `ydotool` (+`ydotoold`) | portal+pipewire → `gnome-screenshot` → `gdbus` |
 | Wayland KDE | KDE Plasma | `ydotool` (+`ydotoold`) | `spectacle` (`kwin-portal-bridge` bundled fallback) |
 | XWayland | any Wayland | `xdotool` (fallback) | depends on compositor |

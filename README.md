@@ -75,14 +75,14 @@ sudo pacman -S --needed qemu-system-aarch64 edk2-aarch64 virtiofsd  # aarch64
 ```bash
 # X11 / XWayland
 sudo pacman -S --needed xdotool scrot imagemagick wmctrl
-# Wayland - Sway / Hyprland
+# Wayland - Sway / Hyprland / Niri
 sudo pacman -S --needed ydotool grim jq            # Hyprland: also hyprland
 # Wayland - GNOME
 sudo pacman -S --needed ydotool xdotool glib2 gnome-screenshot imagemagick python-gobject gst-plugin-pipewire
 # Wayland - KDE Plasma: nothing to install - the bundled kwin-portal-bridge handles it
 ```
 
-Sway/Hyprland/GNOME also need `ydotool` v1.0+ running (`sudo systemctl enable --now ydotool`); KDE does not. Also optional: `nodejs` (system MCP servers), `sqlite` (project detection), `claude-code`. Full matrix + notes: [Computer Use dependencies](docs/computer-use-dependencies.md).
+Sway/Hyprland/Niri/GNOME also need `ydotool` v1.0+ running (`sudo systemctl enable --now ydotool`); KDE does not. Also optional: `nodejs` (system MCP servers), `sqlite` (project detection), `claude-code`. Full matrix + notes: [Computer Use dependencies](docs/computer-use-dependencies.md).
 
 ### Debian / Ubuntu (APT Repository)
 
@@ -111,14 +111,14 @@ sudo apt install qemu-system-x86 ovmf virtiofsd        # arm64: qemu-system-arm 
 ```bash
 # X11 / XWayland
 sudo apt install xdotool scrot imagemagick wmctrl
-# Wayland - Sway / Hyprland
+# Wayland - Sway / Hyprland / Niri
 sudo apt install ydotool grim jq              # Hyprland: also hyprland
 # Wayland - GNOME
 sudo apt install ydotool xdotool libglib2.0-bin gnome-screenshot imagemagick python3-gi gstreamer1.0-pipewire
 # Wayland - KDE Plasma: nothing to install - the bundled kwin-portal-bridge handles it
 ```
 
-Sway/Hyprland/GNOME also need `ydotool` **v1.0+** running (KDE does not), but Ubuntu/Debian ship an **incompatible v0.1.8** - build v1.0+ via the [setup script](docs/computer-use-dependencies.md#ydotool-setup). Full matrix + notes: [Computer Use dependencies](docs/computer-use-dependencies.md).
+Sway/Hyprland/Niri/GNOME also need `ydotool` **v1.0+** running (KDE does not), but Ubuntu/Debian ship an **incompatible v0.1.8** - build v1.0+ via the [setup script](docs/computer-use-dependencies.md#ydotool-setup). Full matrix + notes: [Computer Use dependencies](docs/computer-use-dependencies.md).
 
 <details>
 <summary>Manual .deb install (without APT repo)</summary>
@@ -153,14 +153,14 @@ sudo dnf install qemu-system-x86 edk2-ovmf virtiofsd   # arm64: qemu-system-aarc
 ```bash
 # X11 / XWayland
 sudo dnf install xdotool scrot ImageMagick wmctrl
-# Wayland - Sway / Hyprland
+# Wayland - Sway / Hyprland / Niri
 sudo dnf install ydotool grim jq              # Hyprland: also hyprland
 # Wayland - GNOME
 sudo dnf install ydotool xdotool glib2 gnome-screenshot ImageMagick python3-gobject pipewire-gstreamer
 # Wayland - KDE Plasma: nothing to install - the bundled kwin-portal-bridge handles it
 ```
 
-Sway/Hyprland/GNOME also need `ydotool` v1.0+ running (`sudo systemctl enable --now ydotool`); KDE does not. Full matrix + notes: [Computer Use dependencies](docs/computer-use-dependencies.md).
+Sway/Hyprland/Niri/GNOME also need `ydotool` v1.0+ running (`sudo systemctl enable --now ydotool`); KDE does not. Full matrix + notes: [Computer Use dependencies](docs/computer-use-dependencies.md).
 
 <details>
 <summary>Manual .rpm install (without DNF repo)</summary>
@@ -201,7 +201,7 @@ nix profile install github:patrickjaja/claude-desktop-bin
 >
 > ```nix
 > users.users.<you>.extraGroups = [ "kvm" ];  # Cowork: /dev/kvm access (once, needs re-login)
-> programs.ydotool.enable = true;             # Computer Use input on Wayland (Sway/Hyprland/GNOME)
+> programs.ydotool.enable = true;             # Computer Use input on Wayland (Sway/Hyprland/Niri/GNOME)
 > ```
 >
 > Full Computer Use matrix: [docs/computer-use-dependencies.md](docs/computer-use-dependencies.md). If your flake pins a release older than v1.18286.0, virtiofsd and OVMF need manual exposure - see the notes in [`packaging/nix/package.nix`](packaging/nix/package.nix).

@@ -4,7 +4,7 @@
 
 Check your session type (`echo $XDG_SESSION_TYPE`) and desktop (`echo $XDG_CURRENT_DESKTOP`), then install the matching packages.
 
-| Distro | X11 / XWayland | Wayland - Sway/Hyprland | Wayland - GNOME | Wayland - KDE Plasma |
+| Distro | X11 / XWayland | Wayland - Sway/Hyprland/Niri | Wayland - GNOME | Wayland - KDE Plasma |
 |--------|----------------|-------------------------|-----------------|----------------------|
 | **Arch** | `xdotool scrot imagemagick wmctrl` | `ydotool grim jq` (+`hyprland` on Hyprland) | `ydotool xdotool glib2 gnome-screenshot imagemagick python-gobject gst-plugin-pipewire` | *none - bundled bridge* |
 | **Debian/Ubuntu** | `xdotool scrot imagemagick wmctrl` | `ydotool grim jq` (+`hyprland`) | `ydotool xdotool libglib2.0-bin gnome-screenshot imagemagick python3-gi gstreamer1.0-pipewire` | *none - bundled bridge* |
@@ -18,9 +18,9 @@ Check your session type (`echo $XDG_SESSION_TYPE`) and desktop (`echo $XDG_CURRE
 > **Custom screenshot command:** set `COWORK_SCREENSHOT_CMD` to override auto-detection. Placeholders: `{FILE}`, `{X}`, `{Y}`, `{W}`, `{H}`. Example: `COWORK_SCREENSHOT_CMD='spectacle -b -n -r -o {FILE}'`
 
 <a id="ydotool-setup"></a>
-## ydotool setup (Wayland - GNOME, Sway, Hyprland)
+## ydotool setup (Wayland - GNOME, Sway, Hyprland, Niri)
 
-Computer Use needs `ydotool` **v1.0+** and the `ydotoold` daemon for input on GNOME, Sway, and Hyprland Wayland. KDE Plasma does not need it.
+Computer Use needs `ydotool` **v1.0+** and the `ydotoold` daemon for input on GNOME, Sway, Hyprland, and Niri Wayland. KDE Plasma does not need it.
 
 **Arch / Fedora** ship v1.x in the repos:
 ```bash

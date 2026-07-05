@@ -4,7 +4,7 @@ function _exec(cmd){return _cp.execSync(cmd,{encoding:"utf-8",timeout:15000}).tr
 function _execBuf(cmd){return _cp.execSync(cmd,{timeout:15000})}
 function _isWayland(){var st=(process.env.XDG_SESSION_TYPE||"").toLowerCase();if(st==="wayland")return true;if(st==="x11")return false;return!!process.env.WAYLAND_DISPLAY}
 var _wayland=_isWayland();
-function _isWlroots(){return!!process.env.SWAYSOCK||!!process.env.HYPRLAND_INSTANCE_SIGNATURE}
+function _isWlroots(){return!!process.env.SWAYSOCK||!!process.env.HYPRLAND_INSTANCE_SIGNATURE||!!process.env.NIRI_SOCKET}
 try{var _virt=_cp.execSync("systemd-detect-virt 2>/dev/null",{encoding:"utf-8",timeout:3000}).trim();globalThis.__isVM=_virt!=="none"&&_virt!==""}catch(e){globalThis.__isVM=!1}
 if(globalThis.__isVM)console.log("[claude-cu] VM detected ("+_virt+") — teach overlay uses dark backdrop fallback");
 var _cmdCache={};
@@ -80,7 +80,7 @@ if(_wayland){console.log("[claude-cu] Wayland session detected — using native 
 (function(){
   var _de=_desktopId();var _wlr=_wayland?_isWlroots():false;
   var _isGnome=_de.indexOf("gnome")>=0;var _isKde=_de.indexOf("kde")>=0;
-  var _isHypr=!!process.env.HYPRLAND_INSTANCE_SIGNATURE;var _isSway=!!process.env.SWAYSOCK;
+  var _isHypr=!!process.env.HYPRLAND_INSTANCE_SIGNATURE;var _isSway=!!process.env.SWAYSOCK;var _isNiri=!!process.env.NIRI_SOCKET;
   var _relevant=[];
   if(_wayland&&_wlr)_relevant.push("grim");
   if(_wayland&&_isGnome){_relevant.push("gst-launch-1.0");_relevant.push("gnome-screenshot");_relevant.push("gdbus")}
@@ -92,6 +92,7 @@ if(_wayland){console.log("[claude-cu] Wayland session detected — using native 
   if(!_wayland)_relevant.push("wmctrl");
   if(_isHypr)_relevant.push("hyprctl");
   if(_isSway){_relevant.push("swaymsg");_relevant.push("jq")}
+  if(_isNiri)_relevant.push("niri");
   _relevant.push("xdg-open");
   var avail=_relevant.filter(function(t){return _hasCmd(t)});
   var missing=_relevant.filter(function(t){return !_hasCmd(t)});
@@ -208,6 +209,13 @@ function _getActiveWindowWayland(){
       if(w&&(w.app_id||w.name)){_logFirstUse("window","swaymsg+jq");return{bundleId:w.app_id||w.name,displayName:w.name||w.app_id}}
     }
   }catch(se){}
+  try{
+    if(process.env.NIRI_SOCKET&&_hasCmd("niri")){
+      var out=_exec("niri msg --json focused-window 2>/dev/null");
+      var w=JSON.parse(out);
+      if(w&&(w.app_id||w.title)){_logFirstUse("window","niri msg");return{bundleId:w.app_id||w.title,displayName:w.title||w.app_id}}
+    }
+  }catch(ne){}
   return null;
 }
 function _listRunningAppsWayland(){
@@ -240,6 +248,19 @@ function _listRunningAppsWayland(){
       return apps;
     }
   }catch(se){}
+  try{
+    if(process.env.NIRI_SOCKET&&_hasCmd("niri")){
+      console.log("[claude-cu] listRunningApps: using niri msg");
+      var out=_exec("niri msg --json windows 2>/dev/null");
+      var wins=JSON.parse(out);
+      for(var i=0;i<wins.length;i++){
+        var w=wins[i];
+        var id=w.app_id||w.title;
+        if(id&&!seen[id]){seen[id]=true;apps.push({bundleId:w.app_id||w.title,displayName:w.title||w.app_id})}
+      }
+      return apps;
+    }
+  }catch(ne){}
   return apps;
 }
 function _getWinInfo(wid){

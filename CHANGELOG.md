@@ -2,6 +2,12 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-07-05
+
+### Computer Use: recognize Niri (issue #181)
+
+The Linux executor's wlroots detection only checked `SWAYSOCK` and `HYPRLAND_INSTANCE_SIGNATURE`, so on Niri the `grim` screenshot path was never tried even with `grim` installed - Computer Use screenshots failed. `_isWlroots()` now also checks `NIRI_SOCKET` (Niri speaks the same wlr-screencopy protocol grim uses). The same gap existed in Wayland window discovery: `getFrontmostApp` and `listRunningApps` only had Hyprland/Sway backends; both gained a Niri backend via `niri msg --json focused-window` / `windows`. Startup diagnostics now list `niri` as a relevant tool on Niri sessions. Docs updated to include Niri in the Wayland session matrix.
+
 ## 2026-07-03
 
 ### Full 45-patch + distro-gap audit vs v1.18286.0: all patches valid, three hygiene fixes
