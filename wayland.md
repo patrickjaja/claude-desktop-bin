@@ -1,5 +1,38 @@
 # Wayland Troubleshooting
 
+## App exits after a few seconds on native Wayland (GPU process launch failure)
+
+On some systems (reported on Nobara 43/KDE with AMD RDNA3 and Fedora 44/GNOME with
+Intel Xe, both on kernel 7.0.x and Mesa 26.1 -
+[#180](https://github.com/patrickjaja/claude-desktop-bin/issues/180)),
+Electron 42's GPU process repeatedly fails to launch under native Wayland and the
+app self-terminates. Terminal signature:
+
+```text
+GPU process launch failed: error_code=1002
+GPU process isn't usable. Goodbye.
+```
+
+The bug is upstream (Electron/Chromium), intermittent, and not specific to our patches.
+
+**Workaround** - try mildest first, keep the first one that stays running:
+
+```bash
+CLAUDE_DISABLE_GPU=1 claude-desktop                          # GPU compositing off
+CLAUDE_DISABLE_GPU=full claude-desktop                       # GPU fully off
+CLAUDE_USE_XWAYLAND=1 CLAUDE_DISABLE_GPU=full claude-desktop # + XWayland (confirmed working in #180)
+```
+
+**Persist it** (covers menu, autostart, and `claude://` links; survives package updates):
+
+```bash
+cp /usr/share/applications/claude-desktop.desktop ~/.local/share/applications/
+sed -i 's|^Exec=claude-desktop|Exec=env CLAUDE_USE_XWAYLAND=1 CLAUDE_DISABLE_GPU=full claude-desktop|' \
+  ~/.local/share/applications/claude-desktop.desktop
+```
+
+(Swap in whichever env vars worked for you. Delete the file to return to defaults.)
+
 ## Quick Entry hotkey not firing on GNOME
 
 On GNOME Wayland the `xdg-desktop-portal` GlobalShortcuts flow only works if
