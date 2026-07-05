@@ -6,10 +6,14 @@ Check your session type (`echo $XDG_SESSION_TYPE`) and desktop (`echo $XDG_CURRE
 
 | Distro | X11 / XWayland | Wayland - Sway/Hyprland/Niri | Wayland - GNOME | Wayland - KDE Plasma |
 |--------|----------------|-------------------------|-----------------|----------------------|
-| **Arch** | `xdotool scrot imagemagick wmctrl` | `ydotool grim jq` (+`hyprland` on Hyprland) | `ydotool xdotool glib2 gnome-screenshot imagemagick python-gobject gst-plugin-pipewire` | *none - bundled bridge* |
-| **Debian/Ubuntu** | `xdotool scrot imagemagick wmctrl` | `ydotool grim jq` (+`hyprland`) | `ydotool xdotool libglib2.0-bin gnome-screenshot imagemagick python3-gi gstreamer1.0-pipewire` | *none - bundled bridge* |
-| **Fedora/RHEL** | `xdotool scrot ImageMagick wmctrl` | `ydotool grim jq` (+`hyprland`) | `ydotool xdotool glib2 gnome-screenshot ImageMagick python3-gobject pipewire-gstreamer` | *none - bundled bridge* |
+| **Arch** | *none - bundled bridge* | `ydotool grim jq` (+`hyprland` on Hyprland) | `ydotool xdotool glib2 gnome-screenshot imagemagick python-gobject gst-plugin-pipewire` | *none - bundled bridge* |
+| **Debian/Ubuntu** | *none - bundled bridge* | `ydotool grim jq` (+`hyprland`) | `ydotool xdotool libglib2.0-bin gnome-screenshot imagemagick python3-gi gstreamer1.0-pipewire` | *none - bundled bridge* |
+| **Fedora/RHEL** | *none - bundled bridge* | `ydotool grim jq` (+`hyprland`) | `ydotool xdotool glib2 gnome-screenshot ImageMagick python3-gobject pipewire-gstreamer` | *none - bundled bridge* |
 
+> **X11 / XWayland:** the bundled [`x11-bridge`](https://github.com/patrickjaja/x11-bridge) handles input, screenshots, and window activation natively - no extra packages. It is a fully-static Rust binary (no glibc floor, runs on every distro). This first-party backend replaces the old `xdotool` / `scrot` / `imagemagick` / `wmctrl` / `gnome-screenshot` X11 tools; there is no third-party fallback on X11.
+>
+> **GNOME on XWayland:** the `xdotool` / `imagemagick` in the GNOME column are the XWayland fallback for GNOME sessions running Claude Desktop under XWayland; GNOME-native Wayland input uses `ydotool` and screenshots use the portal / `gnome-screenshot`.
+>
 > **KDE Plasma Wayland:** the bundled [`kwin-portal-bridge`](https://github.com/patrickjaja/kwin-portal-bridge) handles input, screenshots, clipboard, and display info natively via XDG portals - no extra packages. One consent prompt per session. Falls back to `ydotool` + `spectacle` if unavailable.
 >
 > **GNOME 46+** (Ubuntu 25.10+, Fedora 40+): screenshots use the XDG ScreenCast portal with PipeWire restore tokens - one permission dialog, then silent (needs `python-gobject`/`python3-gi` + `gst-plugin-pipewire`). Falls back to `gnome-screenshot` / `gdbus`. Set flat mouse accel for accurate clicks: `gsettings set org.gnome.desktop.peripherals.mouse accel-profile flat`.

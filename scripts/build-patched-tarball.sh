@@ -22,6 +22,7 @@
 # Environment:
 #   SKIP_SMOKE_TEST=1        Skip the Electron smoke test (default in local wrappers).
 #   KWIN_PORTAL_BRIDGE_BIN   Path to a pre-built kwin-portal-bridge to bundle.
+#   X11_BRIDGE_BIN           Path to a pre-built x11-bridge (static musl) to bundle.
 #   CLAUDE_DEB_ARCH          amd64|arm64 — which arch to pick when arg1 is a URL (default amd64).
 #   CLAUDE_GPG_VERIFY        1 (default) | 0 — verify the signed Release when arg1 is a URL.
 #   CLAUDE_DESKTOP_GPG_KEY   Override the bundled Anthropic signing key (.asc).
@@ -434,6 +435,28 @@ elif command -v cargo &>/dev/null && [ -d "$PROJECT_DIR/../kwin-portal-bridge" ]
     fi
 else
     log_warn "kwin-portal-bridge not available — skipping (KDE Wayland Computer Use will require manual install)"
+fi
+
+# Bundle x11-bridge into locales/ (= process.resourcesPath) for X11 / XWayland
+# Computer Use. First-party replacement for xdotool/scrot/import/wmctrl on X11.
+# We bundle the static MUSL build so it runs across distros regardless of glibc.
+X11_BRIDGE_MUSL_REL="target/x86_64-unknown-linux-musl/release/x11-bridge"
+X11_BRIDGE_SRC_DIR="$PROJECT_DIR/../computer-use/x11-bridge"
+if [ -n "${X11_BRIDGE_BIN:-}" ] && [ -f "${X11_BRIDGE_BIN:-}" ]; then
+    log_info "Bundling x11-bridge from $X11_BRIDGE_BIN"
+    cp "$X11_BRIDGE_BIN" "$TARBALL_DIR/app/locales/x11-bridge"
+    chmod +x "$TARBALL_DIR/app/locales/x11-bridge"
+elif command -v cargo &>/dev/null && [ -d "$X11_BRIDGE_SRC_DIR" ]; then
+    log_info "Building x11-bridge (static musl) from source ($X11_BRIDGE_SRC_DIR)..."
+    if (cd "$X11_BRIDGE_SRC_DIR" && cargo build --release --target x86_64-unknown-linux-musl 2>&1 | tail -3); then
+        cp "$X11_BRIDGE_SRC_DIR/$X11_BRIDGE_MUSL_REL" "$TARBALL_DIR/app/locales/x11-bridge"
+        chmod +x "$TARBALL_DIR/app/locales/x11-bridge"
+        log_info "x11-bridge built and bundled"
+    else
+        log_warn "x11-bridge build failed — skipping (X11 Computer Use will require manual install)"
+    fi
+else
+    log_warn "x11-bridge not available — skipping (X11 Computer Use will require manual install)"
 fi
 
 # Validate launcher with shellcheck (catches shebang issues, syntax errors, common bugs)

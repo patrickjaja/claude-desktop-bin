@@ -66,3 +66,6 @@ disabled
 
 # Raw theme-extract captures (one-time DevTools dumps, not source)
 claude-theme-extract-*.json
+
+# x11-bridge moved to its own repo (github.com/patrickjaja/x11-bridge);
+# it now lives as a sibling checkout at ../computer-use/x11-bridge, not in-tree.

@@ -134,6 +134,15 @@ else
     DEB_ARG="$APT_PACKAGES_URL"
 fi
 
+# Prefer the pre-built static musl x11-bridge if present (the CI/local convention
+# is to ship the musl binary so it runs across distros). build-patched-tarball.sh
+# falls back to `cargo build --release --target x86_64-unknown-linux-musl` otherwise.
+X11_BRIDGE_MUSL="$PROJECT_DIR/../computer-use/x11-bridge/target/x86_64-unknown-linux-musl/release/x11-bridge"
+if [ -z "${X11_BRIDGE_BIN:-}" ] && [ -f "$X11_BRIDGE_MUSL" ]; then
+    export X11_BRIDGE_BIN="$X11_BRIDGE_MUSL"
+    log_info "Using pre-built x11-bridge: $X11_BRIDGE_BIN"
+fi
+
 # Build the patched tarball (ingest the .deb)
 log_info "Building patched tarball from official .deb..."
 SKIP_SMOKE_TEST="$SKIP_SMOKE_TEST" "$SCRIPT_DIR/build-patched-tarball.sh" "$DEB_ARG" "$BUILD_DIR"

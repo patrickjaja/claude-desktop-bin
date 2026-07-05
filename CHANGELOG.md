@@ -4,6 +4,23 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 
 ## 2026-07-05
 
+### Computer Use: new bundled x11-bridge is the first-party X11 backend (no more xdotool/scrot/etc.)
+
+X11 / XWayland Computer Use is now served by a bundled first-party binary, `x11-bridge`, instead of the third-party tools. It handles input, screenshots, and window activation natively by talking to the X server directly, and it fully replaces `xdotool`, `scrot`, `imagemagick` (`import`), `wmctrl`, and the X11 use of `gnome-screenshot`. There is no third-party fallback on X11 anymore - the bridge is the path. It is a fully-static Rust binary (no C dependencies, no glibc floor), so it runs on every distro and every arch we ship (x86_64 and aarch64). X11 users now install nothing for Computer Use, mirroring how KDE Plasma Wayland already relies on the bundled `kwin-portal-bridge`. Wayland-native sessions are unchanged: `ydotool` plus `grim` / `gnome-screenshot` / portal + PipeWire remain required for wlroots (Sway/Hyprland/Niri) and GNOME. The bridge lives in its own repo (github.com/patrickjaja/x11-bridge) and CI builds both arches from source and bundles them into the tarball.
+
+### Computer Use: v1.18286 handler realignment and Cowork gate fix
+
+Several Computer Use fixes landed for the v1.18286 bundle:
+
+- The `chicagoEnabled` gate that had disabled Computer Use inside Cowork sessions was corrected, so CU is available in Cowork again.
+- The Linux CU handler was realigned to v1.18286's schema changes: the zoom region format, `computer_batch` image handling, coordinate scaling, and teach-mode anchor mapping.
+- `open_application` now activates an already-open window (via the bridge) instead of only launching a new instance.
+- `request_access` de-duplicates grants so repeated access requests no longer stack.
+
+### Launcher: --1p / --3p deployment-mode selector (upstream removed --boot-1p-once)
+
+The upstream one-shot flag `--boot-1p-once` (MSIX-era) is no longer read by the official `.deb` bundle - the only remaining user-side switch is the persisted `deploymentMode` key in `~/.config/Claude-3p/claude_desktop_config.json`. The launcher now offers `claude-desktop --1p` / `--3p` to write that key before launch (per-profile aware; persistent until switched back), and passing the removed `--boot-1p-once` exits with a pointer to the new flags. Root cause worth knowing: after deleting `managed-settings.json` the app can still boot 3P because the applied local-settings entry in `~/.config/Claude-3p/configLibrary/` (written by the in-app 3P Setup UI) also carries the inference provider - `docs/third-party-inference.md`'s gotchas section was rewritten to describe the real config-source chain and the exit paths.
+
 ### Computer Use: recognize Niri (issue #181)
 
 The Linux executor's wlroots detection only checked `SWAYSOCK` and `HYPRLAND_INSTANCE_SIGNATURE`, so on Niri the `grim` screenshot path was never tried even with `grim` installed - Computer Use screenshots failed. `_isWlroots()` now also checks `NIRI_SOCKET` (Niri speaks the same wlr-screencopy protocol grim uses). The same gap existed in Wayland window discovery: `getFrontmostApp` and `listRunningApps` only had Hyprland/Sway backends; both gained a Niri backend via `niri msg --json focused-window` / `windows`. Startup diagnostics now list `niri` as a relevant tool on Niri sessions. Docs updated to include Niri in the Wayland session matrix.

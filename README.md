@@ -73,8 +73,7 @@ sudo pacman -S --needed qemu-system-aarch64 edk2-aarch64 virtiofsd  # aarch64
 **Computer Use** - pick the line for your session (`echo $XDG_SESSION_TYPE`, `echo $XDG_CURRENT_DESKTOP`):
 
 ```bash
-# X11 / XWayland
-sudo pacman -S --needed xdotool scrot imagemagick wmctrl
+# X11 / XWayland: nothing to install - the bundled x11-bridge handles it
 # Wayland - Sway / Hyprland / Niri
 sudo pacman -S --needed ydotool grim jq            # Hyprland: also hyprland
 # Wayland - GNOME
@@ -109,8 +108,7 @@ sudo apt install qemu-system-x86 ovmf virtiofsd        # arm64: qemu-system-arm 
 **Computer Use** (`Suggests`, not auto-installed) - pick the line for your session (`echo $XDG_SESSION_TYPE`, `echo $XDG_CURRENT_DESKTOP`):
 
 ```bash
-# X11 / XWayland
-sudo apt install xdotool scrot imagemagick wmctrl
+# X11 / XWayland: nothing to install - the bundled x11-bridge handles it
 # Wayland - Sway / Hyprland / Niri
 sudo apt install ydotool grim jq              # Hyprland: also hyprland
 # Wayland - GNOME
@@ -151,8 +149,7 @@ sudo dnf install qemu-system-x86 edk2-ovmf virtiofsd   # arm64: qemu-system-aarc
 **Computer Use** (`Suggests`, not auto-installed) - pick the line for your session (`echo $XDG_SESSION_TYPE`, `echo $XDG_CURRENT_DESKTOP`):
 
 ```bash
-# X11 / XWayland
-sudo dnf install xdotool scrot ImageMagick wmctrl
+# X11 / XWayland: nothing to install - the bundled x11-bridge handles it
 # Wayland - Sway / Hyprland / Niri
 sudo dnf install ydotool grim jq              # Hyprland: also hyprland
 # Wayland - GNOME
@@ -255,7 +252,7 @@ curl -fsSL https://patrickjaja.github.io/claude-desktop-bin/gpg-key.asc | gpg --
 
 ## Computer Use
 
-**Our exclusive feature - not part of the official Linux beta.** Claude Desktop's built-in Computer Use MCP server exposes 27 tools for desktop automation (screenshot, click, type, scroll, drag, clipboard, and more), plus **learn tools** that generate interactive overlay tutorials for any app. Upstream is macOS-only; the patch ([`fix_computer_use_linux.nim`](patches/fix_computer_use_linux.nim)) removes the platform gates and injects a Linux executor that auto-detects your session (xdotool/ydotool, grim/spectacle/scrot/portal, plus `kwin-portal-bridge` on KDE Wayland).
+**Our exclusive feature - not part of the official Linux beta.** Claude Desktop's built-in Computer Use MCP server exposes 27 tools for desktop automation (screenshot, click, type, scroll, drag, clipboard, and more), plus **learn tools** that generate interactive overlay tutorials for any app. Upstream is macOS-only; the patch ([`fix_computer_use_linux.nim`](patches/fix_computer_use_linux.nim)) removes the platform gates and injects a Linux executor that auto-detects your session: the bundled `x11-bridge` handles X11 / XWayland natively (input, screenshots, window activation), the bundled `kwin-portal-bridge` handles KDE Wayland, and Wayland (wlroots / GNOME) uses `ydotool` plus `grim`/`gnome-screenshot`/portal.
 
 See **[docs/computer-use.md](docs/computer-use.md)** for how it works, the notes (primary-monitor, app discovery, teach overlay), and links to the [tool reference](baseline/CLAUDE_BUILT_IN_MCP.md#14-computer-use). Install the tools for your session from your distro's [Installation](#installation) section; [Computer Use dependencies](docs/computer-use-dependencies.md) has the full matrix and `ydotool` setup.
 
@@ -416,7 +413,7 @@ Each patch is a self-contained `patches/*.nim` file compiled to a native binary.
 | Patch | Purpose | Debug pattern |
 |-------|---------|---------------|
 | `add_feature_custom_themes.nim` | CSS theme injection - 7 dual light/dark themes + per-theme spinner reshape | Prepended IIFE, no regex |
-| `fix_computer_use_linux.nim` | Enables Computer Use - removes platform gates, routes both executor factories to an injected Linux executor (portal+PipeWire/grim/GNOME D-Bus/spectacle/scrot, xdotool/ydotool) | `rg -o '.{0,60}executor not implemented' index.js` |
+| `fix_computer_use_linux.nim` | Enables Computer Use - removes platform gates, routes both executor factories to an injected Linux executor (bundled x11-bridge on X11/XWayland, bundled kwin-portal-bridge on KDE Wayland, portal+PipeWire/grim/GNOME D-Bus on other Wayland, ydotool) | `rg -o '.{0,60}executor not implemented' index.js` |
 | `fix_computer_use_tcc.nim` | Stubs macOS TCC permission handlers to prevent error logs | Prepended IIFE, UUID extraction |
 | `fix_buddy_ble_linux.nim` | Enables Hardware Buddy (Nibblet BLE) - forces feature flag, uses Web Bluetooth via BlueZ | `rg -o '2358734848.{0,50}' index.js` |
 | `fix_quick_entry_position.nim` | Quick Entry opens on the cursor's monitor; position+focus retries gated to X11 (no Wayland jitter) | `rg -o 'getPrimaryDisplay.{0,50}' index.js` |
@@ -475,6 +472,7 @@ Flags this project adds on top of the official build (run `claude-desktop --help
 | `--list-profiles` | List installed profiles |
 | `--toggle` | Toggle the [Quick Entry](#quick-entry) overlay (bind to a global shortcut) |
 | `--install-gnome-hotkey [ACCEL]` | Bind the Quick Entry hotkey on GNOME, where the portal doesn't (default `Ctrl+Alt+Space`); `--uninstall-gnome-hotkey` removes it |
+| `--1p` / `--3p` | Select personal claude.ai (1P) vs [third-party inference](docs/third-party-inference.md) (3P) mode by persisting the upstream `deploymentMode` key; replaces the removed upstream `--boot-1p-once` flag. See [switching back to 1P](docs/third-party-inference.md#common-gotchas) |
 | `--native-titlebar` | Use the native window frame instead of the integrated titlebar (same as `CLAUDE_NATIVE_TITLEBAR=1`) |
 | `--no-systemd-scope` | Skip the `systemd --user --scope` wrapper for this launch (same as `CLAUDE_DISABLE_SYSTEMD_SCOPE=1`) |
 | `--diagnose` | Print session type, portal status, and hotkey state for issue reports |

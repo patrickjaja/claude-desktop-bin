@@ -523,6 +523,86 @@ jobs:
             echo "::warning::aarch64-linux-gnu-objdump unavailable — could not enforce glibc floor on the arm64 bridge"
           fi
 
+      - name: Get x11-bridge repo HEAD
+        id: x11-rev
+        run: |
+          X11_SHA=$(git ls-remote https://github.com/patrickjaja/x11-bridge.git HEAD | cut -f1)
+          echo "sha=${X11_SHA}" >> $GITHUB_OUTPUT
+          echo "x11-bridge HEAD: ${X11_SHA}"
+
+      - name: Cache x11-bridge binaries
+        id: x11-cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/x11-bridge-output
+          key: x11-bridge-${{ steps.x11-rev.outputs.sha }}
+
+      - name: Build x11-bridge (x86_64 + aarch64 static musl)
+        id: x11
+        if: steps.x11-cache.outputs.cache-hit != 'true'
+        run: |
+          echo "=== Building x11-bridge (pure Rust, static musl, no C deps) ==="
+          mkdir -p /tmp/x11-bridge-output
+
+          # No apt system deps and no cross gcc: x11-bridge is pure Rust and the
+          # repo's .cargo/config.toml pins rust-lld + crt-static, so both musl
+          # targets link fully-static without a musl-gcc / aarch64 cross-linker.
+          docker run --rm \
+            -v /tmp/x11-bridge-output:/output \
+            -e DEBIAN_FRONTEND=noninteractive \
+            ubuntu:noble \
+            bash -c '
+              set -eo pipefail
+
+              apt-get update
+              apt-get install -y --no-install-recommends curl ca-certificates git
+
+              # Rust toolchain via rustup (Noble has no rust preinstalled).
+              curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | \
+                sh -s -- -y --profile minimal --default-toolchain stable
+              export PATH=/root/.cargo/bin:$PATH
+              rustup target add x86_64-unknown-linux-musl aarch64-unknown-linux-musl
+
+              cd /tmp
+              git clone --depth=1 https://github.com/patrickjaja/x11-bridge.git
+              cd x11-bridge
+
+              cargo build --release --target x86_64-unknown-linux-musl
+              cp target/x86_64-unknown-linux-musl/release/x11-bridge /output/x11-bridge
+              echo "x11-bridge x86_64 built successfully"
+
+              cargo build --release --target aarch64-unknown-linux-musl
+              cp target/aarch64-unknown-linux-musl/release/x11-bridge /output/x11-bridge-aarch64
+              echo "x11-bridge aarch64 built successfully"
+            '
+
+      - name: Verify x11-bridge binaries (static)
+        run: |
+          # x11-bridge has no glibc floor - it is fully static. Assert that both
+          # arches are statically linked so a dynamic dependency can never sneak
+          # in. `file` reads the ELF header cross-arch; `ldd` only runs on the
+          # native arch, so gate it to x86_64 and rely on `file` for aarch64.
+          echo "--- x86_64 binary ---"
+          file /tmp/x11-bridge-output/x11-bridge
+          if ! file /tmp/x11-bridge-output/x11-bridge | grep -Eq 'statically linked|static-pie'; then
+            echo "::error::x86_64 x11-bridge is not statically linked"
+            exit 1
+          fi
+          if ldd /tmp/x11-bridge-output/x11-bridge 2>&1 | grep -q 'not a dynamic executable'; then
+            echo "x86_64 x11-bridge: not a dynamic executable (static confirmed)"
+          else
+            echo "::error::x86_64 x11-bridge reports dynamic dependencies"
+            ldd /tmp/x11-bridge-output/x11-bridge || true
+            exit 1
+          fi
+
+          echo "--- aarch64 binary ---"
+          file /tmp/x11-bridge-output/x11-bridge-aarch64
+          if ! file /tmp/x11-bridge-output/x11-bridge-aarch64 | grep -Eq 'statically linked|static-pie'; then
+            echo "::error::aarch64 x11-bridge is not statically linked"
+            exit 1
+          fi
+
       - name: Build Patched Tarball (ingest official amd64 .deb)
         id: build
         run: |
@@ -535,11 +615,16 @@ jobs:
           cp "$DEB" /tmp/build-input/claude.deb
           cp -r scripts patches js packaging /tmp/build-input/
 
-          # Pass kwin-portal-bridge binary if available (Computer Use on Wayland)
+          # Pass the bridge binaries if available: kwin-portal-bridge for KDE
+          # Wayland Computer Use, x11-bridge for X11 / XWayland Computer Use.
           BRIDGE_ENV=""
           if [ -f /tmp/bridge-output/kwin-portal-bridge ]; then
             cp /tmp/bridge-output/kwin-portal-bridge /tmp/build-input/kwin-portal-bridge
             BRIDGE_ENV="KWIN_PORTAL_BRIDGE_BIN=/input/kwin-portal-bridge"
+          fi
+          if [ -f /tmp/x11-bridge-output/x11-bridge ]; then
+            cp /tmp/x11-bridge-output/x11-bridge /tmp/build-input/x11-bridge
+            BRIDGE_ENV="${BRIDGE_ENV} X11_BRIDGE_BIN=/input/x11-bridge"
           fi
 
           # The .deb already bundles Electron + node-pty + chrome-sandbox etc.,
@@ -623,6 +708,13 @@ jobs:
           path: /tmp/bridge-output/kwin-portal-bridge-aarch64
           retention-days: 1
 
+      - name: Upload x11-bridge aarch64 binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: x11-bridge-aarch64
+          path: /tmp/x11-bridge-output/x11-bridge-aarch64
+          retention-days: 1
+
       - name: Upload Build Log
         if: always()
         uses: actions/upload-artifact@v4
@@ -662,6 +754,11 @@ jobs:
         with:
           name: kwin-portal-bridge-aarch64
 
+      - name: Download x11-bridge aarch64
+        uses: actions/download-artifact@v4
+        with:
+          name: x11-bridge-aarch64
+
       - name: Build aarch64 patched tarball (ingest official arm64 .deb)
         id: build
         run: |
@@ -674,11 +771,16 @@ jobs:
           cp "$DEB" /tmp/build-input-arm/claude.deb
           cp -r scripts patches js packaging /tmp/build-input-arm/
 
-          # Bundle the prebuilt arm64 kwin-portal-bridge.
+          # Bundle the prebuilt arm64 bridges: kwin-portal-bridge (KDE Wayland)
+          # and x11-bridge (X11 / XWayland).
           BRIDGE_ENV=""
           if [ -f kwin-portal-bridge-aarch64 ]; then
             cp kwin-portal-bridge-aarch64 /tmp/build-input-arm/kwin-portal-bridge
             BRIDGE_ENV="KWIN_PORTAL_BRIDGE_BIN=/input/kwin-portal-bridge"
+          fi
+          if [ -f x11-bridge-aarch64 ]; then
+            cp x11-bridge-aarch64 /tmp/build-input-arm/x11-bridge
+            BRIDGE_ENV="${BRIDGE_ENV} X11_BRIDGE_BIN=/input/x11-bridge"
           fi
 
           docker run --rm \

@@ -34,6 +34,35 @@
   }
   var _mode=envMode||autoMode;
   globalThis.__cuKwinMode=_mode==="kwin-wayland";
+  // Resolve x11-bridge for the regular (non-kwin-wayland) executor. Used on X11
+  // sessions and as the XWayland input/screenshot backend on Wayland sessions
+  // where ydotool is unavailable. Skipped in kwin-wayland mode (that path uses
+  // kwin-portal-bridge). Priority: X11_BRIDGE_BIN env → process.resourcesPath →
+  // each $PATH dir; verified executable via X_OK.
+  if(!globalThis.__cuKwinMode){
+    var _sessType=(process.env.XDG_SESSION_TYPE||"").toLowerCase();
+    var _sessionCouldNeedX11=_sessType==="x11"||_sessType==="wayland"||!!process.env.WAYLAND_DISPLAY||!!process.env.DISPLAY;
+    if(_sessionCouldNeedX11){
+      var _xfs=require("fs"),_xpath=require("path");
+      var _xbFound=!1,_xbBin="";
+      var _xbExplicit=process.env.X11_BRIDGE_BIN;
+      if(_xbExplicit){try{_xfs.accessSync(_xbExplicit,_xfs.constants.X_OK);_xbFound=!0;_xbBin=_xbExplicit}catch(e){}}
+      if(!_xbFound){
+        var _xbBundled=_xpath.join(process.resourcesPath,"x11-bridge");
+        try{_xfs.accessSync(_xbBundled,_xfs.constants.X_OK);_xbFound=!0;_xbBin=_xbBundled}catch(e){}
+      }
+      if(!_xbFound){
+        var _xbPaths=(process.env.PATH||"").split(_xpath.delimiter);
+        for(var _xbi=0;_xbi<_xbPaths.length&&!_xbFound;_xbi++){
+          if(!_xbPaths[_xbi])continue;
+          var _xbCandidate=_xpath.join(_xbPaths[_xbi],"x11-bridge");
+          try{_xfs.accessSync(_xbCandidate,_xfs.constants.X_OK);_xbFound=!0;_xbBin=_xbCandidate}catch(e){}
+        }
+      }
+      if(_xbFound){globalThis.__cuX11BridgeBin=_xbBin;console.log("[claude-cu] x11-bridge resolved at "+_xbBin)}
+      else console.log("[claude-cu] x11-bridge not found (X11 input/screenshot + XWayland fallback unavailable)");
+    }
+  }
   var _reason;
   if(envMode)_reason=" (CLAUDE_CU_MODE set)";
   else if(autoMode==="kwin-wayland")_reason=" (auto: KDE Wayland + kwin-portal-bridge at "+_resolvedBin+", "+_kwinVer+")";

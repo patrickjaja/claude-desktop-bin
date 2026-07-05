@@ -624,55 +624,75 @@ proc apply*(input: string): string =
     #        Patch 2 adds "linux" to IRA, so IRA.has() is TRUE here; dq() is
     #        harmless anyway because Patch 6 injects the Linux dispatch at the
     #        top of handleToolCall, before the if(dq()) stub path is reached.
-    # YiA() is a build-time dev override (`const aAn=void 0` in prod), so the
-    # injected Linux branch keeps the old semantics: bypass the platform set +
-    # GrowthBook gate, respect the chicagoEnabled pref (default ON when unset).
-    let patV18286 =
-      re"""(function [\w$]+\(\)\{)if\(!([\w$]+)\.has\(process\.platform\)\)return!1;const ([\w$]+)=([\w$]+)\(\);return \3!==void 0\?\3:([\w$]+)\(\)&&([\w$]+)\("chicagoEnabled"\)\}"""
-    # <=v1.17377 shapes, kept as fallbacks:
-    let patNew =
-      re"""(function [\w$]+\(\)\{)return [\w$]+\.has\(process\.platform\)&&[\w$]+\(\)\}"""
-    let patOld =
-      re"""(function [\w$]+\(\)\{)return [\w$]+\([\w$]+\)\?[\w$]+\.has\(process\.platform\)&&[\w$]+\(\):[\w$]+\(\)\}"""
-    var n = replaceFirst(
-      content,
-      patV18286,
-      proc(m: RegexMatch): string =
-        let bounds = m.matchBounds
-        let whole = content[bounds.a .. bounds.b]
-        let headerLen = m.captures[0].len
-        let prefsReader = m.captures[5]
-        m.captures[0] & "if(process.platform===\"linux\")return(" & prefsReader &
-          "(\"chicagoEnabled\")??!0);" & whole[headerLen ..^ 1],
-    )
-    if n == 0:
-      n = replaceFirst(
-        content,
-        patNew,
-        proc(m: RegexMatch): string =
-          let bounds = m.matchBounds
-          let whole = content[bounds.a .. bounds.b]
-          let headerLen = m.captures[0].len
-          m.captures[0] & "if(process.platform===\"linux\")return!0;" &
-            whole[headerLen ..^ 1],
-      )
-    if n == 0:
-      n = replaceFirst(
-        content,
-        patOld,
-        proc(m: RegexMatch): string =
-          let bounds = m.matchBounds
-          let whole = content[bounds.a .. bounds.b]
-          let headerLen = m.captures[0].len
-          m.captures[0] & "if(process.platform===\"linux\")return!0;" &
-            whole[headerLen ..^ 1],
-      )
-    if n >= 1:
-      echo &"  [OK] isEnabled: force true on Linux ({n} match)"
-      inc changes, n
+    #
+    # The injected Linux branch is an UNCONDITIONAL `return!0`, not a pref read.
+    # Reason: the enable pref is read through sr("chicagoEnabled"), and
+    #   sr = A=>{const e=mc().preferences??{};return Qre(e)[A]}
+    #   Qre = A=>{const e={};...;return{...U0t,...e,...A,...}}   (U0t = defaults)
+    # merges the static defaults object U0t, which carries `chicagoEnabled:!1`.
+    # So sr("chicagoEnabled") NEVER returns undefined for a user who has not set
+    # the pref — it returns !1 — which means `sr("chicagoEnabled")??!0` can never
+    # fall through to !0 and the gate stays false for everyone (CU absent). There
+    # is also no CU toggle on Linux: the chicagoEnabled switch is server-rendered
+    # by claude.ai and hidden here (see baseline/CLAUDE_FEATURE_FLAGS.md), so there
+    # is no legitimate user-set state to respect. Forcing true unconditionally
+    # restores the working v1.17377 semantics.
+    #
+    # Rule-6 regression guard: if the desired Linux branch is already present,
+    # assert it and count success (idempotent), keying off the PATCHED end-state
+    # (return!0 as the first statement of the gate function), not the absence of
+    # the old shape.
+    let alreadyWs =
+      re"""function [\w$]+\(\)\{if\(process\.platform==="linux"\)return!0;if\(![\w$]+\.has\(process\.platform\)\)return!1;const """
+    if content.contains(alreadyWs):
+      echo "  [OK] isEnabled: linux unconditional return!0 already present (guard satisfied)"
       inc patchesApplied
     else:
-      echo "  [FAIL] isEnabled pattern: 0 matches (computer-use may not work in cowork/CCD)"
+      let patV18286 =
+        re"""(function [\w$]+\(\)\{)if\(!([\w$]+)\.has\(process\.platform\)\)return!1;const ([\w$]+)=([\w$]+)\(\);return \3!==void 0\?\3:([\w$]+)\(\)&&([\w$]+)\("chicagoEnabled"\)\}"""
+      # <=v1.17377 shapes, kept as fallbacks:
+      let patNew =
+        re"""(function [\w$]+\(\)\{)return [\w$]+\.has\(process\.platform\)&&[\w$]+\(\)\}"""
+      let patOld =
+        re"""(function [\w$]+\(\)\{)return [\w$]+\([\w$]+\)\?[\w$]+\.has\(process\.platform\)&&[\w$]+\(\):[\w$]+\(\)\}"""
+      var n = replaceFirst(
+        content,
+        patV18286,
+        proc(m: RegexMatch): string =
+          let bounds = m.matchBounds
+          let whole = content[bounds.a .. bounds.b]
+          let headerLen = m.captures[0].len
+          m.captures[0] & "if(process.platform===\"linux\")return!0;" &
+            whole[headerLen ..^ 1],
+      )
+      if n == 0:
+        n = replaceFirst(
+          content,
+          patNew,
+          proc(m: RegexMatch): string =
+            let bounds = m.matchBounds
+            let whole = content[bounds.a .. bounds.b]
+            let headerLen = m.captures[0].len
+            m.captures[0] & "if(process.platform===\"linux\")return!0;" &
+              whole[headerLen ..^ 1],
+        )
+      if n == 0:
+        n = replaceFirst(
+          content,
+          patOld,
+          proc(m: RegexMatch): string =
+            let bounds = m.matchBounds
+            let whole = content[bounds.a .. bounds.b]
+            let headerLen = m.captures[0].len
+            m.captures[0] & "if(process.platform===\"linux\")return!0;" &
+              whole[headerLen ..^ 1],
+        )
+      if n >= 1:
+        echo &"  [OK] isEnabled: force true on Linux ({n} match)"
+        inc changes, n
+        inc patchesApplied
+      else:
+        echo "  [FAIL] isEnabled pattern: 0 matches (computer-use may not work in cowork/CCD)"
 
   # ── Patch 12: flag-gated pref-ignoring gate (bue) → delegate to wS ──────
   block:
@@ -681,41 +701,56 @@ proc apply*(input: string): string =
     # ("2486083521") it stops consulting wS/chicagoEnabled and re-checks the
     # platform set, which would flip CU back OFF on Linux if the flag turns on
     # remotely. Prepend a Linux branch that always delegates to the (already
-    # patched, pref-respecting) wS.
-    let patBue =
-      re"""(function [\w$]+\(\)\{)if\(!([\w$]+)\(([\w$]+)\)\)return ([\w$]+)\(\);const ([\w$]+)=([\w$]+)\(\);return \5!==void 0\?\5:([\w$]+)\.has\(process\.platform\)&&([\w$]+)\(\)\}"""
-    # <=v1.17377 shape (standalone chicagoEnabled ternary), kept as fallback:
-    let patOldChicago =
-      re"""(function [\w$]+\(\)\{)return [\w$]+\.has\(process\.platform\)\?[\w$]+\(\)&&([\w$]+)\("chicagoEnabled"\):!1\}"""
-    var n = replaceFirst(
-      content,
-      patBue,
-      proc(m: RegexMatch): string =
-        let bounds = m.matchBounds
-        let whole = content[bounds.a .. bounds.b]
-        let headerLen = m.captures[0].len
-        let wsName = m.captures[3]
-        m.captures[0] & "if(process.platform===\"linux\")return " & wsName & "();" &
-          whole[headerLen ..^ 1],
-    )
-    if n == 0:
-      n = replaceFirst(
+    # patched, unconditionally-true) wS.
+    #
+    # The v18286 branch delegates to wS() (now `return!0` on Linux via Patch 11),
+    # so it is correct as-is. The <=v1.17377 fallback below used the same latent
+    # `sr("chicagoEnabled")??!0` shape as the old Patch 11 — with sr merging the
+    # `chicagoEnabled:!1` default that expression is always !1, so it too is now
+    # an unconditional `return!0` for the same reason (see Patch 11 comment).
+    #
+    # Rule-6 regression guard: assert the desired end-state (a Linux branch at the
+    # top of this gate that either delegates to a wS-style fn or returns !0) is
+    # present, keying off the PATCHED shape, not the absence of the old one.
+    let alreadyBue =
+      re"""function [\w$]+\(\)\{if\(process\.platform==="linux"\)return (?:[\w$]+\(\)|!0);if\(![\w$]+\(([\w$]+)\)\)return """
+    if content.contains(alreadyBue):
+      echo "  [OK] rj/bue: linux branch already present (guard satisfied)"
+      inc patchesApplied
+    else:
+      let patBue =
+        re"""(function [\w$]+\(\)\{)if\(!([\w$]+)\(([\w$]+)\)\)return ([\w$]+)\(\);const ([\w$]+)=([\w$]+)\(\);return \5!==void 0\?\5:([\w$]+)\.has\(process\.platform\)&&([\w$]+)\(\)\}"""
+      # <=v1.17377 shape (standalone chicagoEnabled ternary), kept as fallback:
+      let patOldChicago =
+        re"""(function [\w$]+\(\)\{)return [\w$]+\.has\(process\.platform\)\?[\w$]+\(\)&&([\w$]+)\("chicagoEnabled"\):!1\}"""
+      var n = replaceFirst(
         content,
-        patOldChicago,
+        patBue,
         proc(m: RegexMatch): string =
           let bounds = m.matchBounds
           let whole = content[bounds.a .. bounds.b]
           let headerLen = m.captures[0].len
-          let prefsReader = m.captures[1]
-          m.captures[0] & "if(process.platform===\"linux\")return(" & prefsReader &
-            "(\"chicagoEnabled\")??!0);" & whole[headerLen ..^ 1],
+          let wsName = m.captures[3]
+          m.captures[0] & "if(process.platform===\"linux\")return " & wsName & "();" &
+            whole[headerLen ..^ 1],
       )
-    if n >= 1:
-      echo &"  [OK] rj chicagoEnabled: respect pref, default true ({n} match)"
-      inc changes, n
-      inc patchesApplied
-    else:
-      echo "  [FAIL] rj pattern: 0 matches (computer-use tool calls may be blocked)"
+      if n == 0:
+        n = replaceFirst(
+          content,
+          patOldChicago,
+          proc(m: RegexMatch): string =
+            let bounds = m.matchBounds
+            let whole = content[bounds.a .. bounds.b]
+            let headerLen = m.captures[0].len
+            m.captures[0] & "if(process.platform===\"linux\")return!0;" &
+              whole[headerLen ..^ 1],
+        )
+      if n >= 1:
+        echo &"  [OK] rj/bue: force true on Linux ({n} match)"
+        inc changes, n
+        inc patchesApplied
+      else:
+        echo "  [FAIL] rj pattern: 0 matches (computer-use tool calls may be blocked)"
 
   # ─── Tool description patches ────────────────────────────────────────
   echo "  --- Tool description patches ---"
