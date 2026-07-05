@@ -39,4 +39,4 @@ curl -fsSL https://raw.githubusercontent.com/patrickjaja/claude-desktop-bin/mast
 
 Restart Claude Desktop after setup.
 
-> **Nix:** pass Computer Use deps via `claude-desktop.override { xdotool = pkgs.xdotool; scrot = pkgs.scrot; ydotool = pkgs.ydotool; grim = pkgs.grim; … }`. On NixOS the bundled `kwin-portal-bridge` won't run (glibc linker mismatch) - use the `ydotool`/`spectacle` fallback tools instead.
+> **Nix:** pass Computer Use deps via `claude-desktop.override { ydotool = pkgs.ydotool; grim = pkgs.grim; gnome-screenshot = pkgs.gnome-screenshot; imagemagick = pkgs.imagemagick; … }` for the Wayland-native tools. On NixOS the bundled `kwin-portal-bridge` won't run (glibc linker mismatch), so KDE Wayland uses the `ydotool`/`spectacle` fallback - but the bundled `x11-bridge` is fully static and **does** run on NixOS, so X11 / XWayland Computer Use works with no extra packages.
