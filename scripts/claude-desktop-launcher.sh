@@ -101,6 +101,8 @@ fi
 #   --profile=NAME / --profile NAME: sets CLAUDE_PROFILE
 #   --no-systemd-scope:              sets CLAUDE_DISABLE_SYSTEMD_SCOPE=1
 #   --native-titlebar:               sets CLAUDE_NATIVE_TITLEBAR=1
+#   --1p / --3p:                     persist deploymentMode before launch
+_deployment_mode=""
 _filtered_args=()
 while (( $# > 0 )); do
     case "$1" in
@@ -124,6 +126,15 @@ while (( $# > 0 )); do
         --native-titlebar)
             export CLAUDE_NATIVE_TITLEBAR=1
             shift
+            ;;
+        --1p|--3p)
+            _deployment_mode="${1#--}"
+            shift
+            ;;
+        --boot-1p-once)
+            echo >&2 'claude-desktop: --boot-1p-once was removed upstream (official .deb builds no longer read it).'
+            echo >&2 'Use --1p or --3p instead: persists deploymentMode until switched back.'
+            exit 2
             ;;
         *)
             _filtered_args+=("$1")
@@ -227,6 +238,56 @@ if [[ -z "${CLAUDE_PROFILE:-}" ]]; then
             fi
         fi
     fi
+fi
+
+# ---------------------------------------------------------------------------
+# Deployment-mode selector (--1p / --3p)
+# ---------------------------------------------------------------------------
+# The app's bootstrap (index.pre.js) decides 1p vs 3p BEFORE the main window
+# exists: it loads /etc/claude-desktop/managed-settings.json if present,
+# otherwise the applied local-settings entry in <userData>-3p/configLibrary/,
+# and boots 3p (relocating userData to <userData>-3p) when that config carries
+# an inference block - unless the persisted key `deploymentMode` in
+# <userData>-3p/claude_desktop_config.json equals "1p". The upstream one-shot
+# flag --boot-1p-once was removed in the official .deb, so that persisted key
+# is the only user-side switch left. --1p/--3p write it before launch.
+#
+# Notes:
+#  - Persistent, not one-shot: plain launches keep the last choice.
+#  - Cannot override a managed config with authentication.disableClaudeAiSignIn
+#    (enterprise-enforced 3p wins over the "1p" key by design).
+#  - Placed after the SSO profile-routing re-exec so a routed launch writes to
+#    the final profile's dir. Takes effect on the next full app start - if an
+#    instance is already running, quit it first.
+if [[ -n "$_deployment_mode" ]]; then
+    _mode_dir="${config_dir}-3p"
+    _mode_file="${_mode_dir}/claude_desktop_config.json"
+    mkdir -p "$_mode_dir"
+    if [[ -f "$_mode_file" ]]; then
+        if command -v python3 >/dev/null 2>&1; then
+            python3 - "$_mode_file" "$_deployment_mode" <<'PY'
+import json, sys
+path, mode = sys.argv[1], sys.argv[2]
+try:
+    with open(path) as f:
+        data = json.load(f)
+except (ValueError, OSError):
+    data = {}
+if not isinstance(data, dict):
+    data = {}
+data["deploymentMode"] = mode
+with open(path, "w") as f:
+    json.dump(data, f, indent=2)
+    f.write("\n")
+PY
+        else
+            echo >&2 "claude-desktop: --${_deployment_mode} needs python3 to edit ${_mode_file} - not found"
+            exit 2
+        fi
+    else
+        printf '{\n  "deploymentMode": "%s"\n}\n' "$_deployment_mode" > "$_mode_file"
+    fi
+    echo "[launcher] deploymentMode=${_deployment_mode} persisted to ${_mode_file}" >&2
 fi
 
 # ---------------------------------------------------------------------------
@@ -1148,6 +1209,16 @@ Options:
                             registration or verify the current state.
   --unintegrate             Remove the AppImage protocol handler registration
                             and menu entry. Does not affect system packages.
+  --1p / --3p               Select the deployment mode for this and future
+                            launches by persisting `deploymentMode` in
+                            ~/.config/Claude-3p/claude_desktop_config.json
+                            (per-profile: Claude-NAME-3p). Replaces the
+                            upstream --boot-1p-once flag, which the official
+                            .deb removed. --1p forces personal claude.ai mode
+                            even while a 3p inference config is still stored;
+                            --3p switches back. Quit any running instance
+                            first. Cannot override an enterprise config that
+                            sets authentication.disableClaudeAiSignIn.
   --native-titlebar          Restore the native window frame instead of the
                             integrated (overlay) titlebar. Same as setting
                             CLAUDE_NATIVE_TITLEBAR=1.

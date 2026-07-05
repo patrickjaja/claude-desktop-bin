@@ -292,19 +292,24 @@ python3 -c 'import json; json.load(open("/etc/claude-desktop/managed-settings.js
 ## Common gotchas
 
 - **The file must be readable by your user.** `install -m 644` (used above) is correct. `chmod 600` will silently make Claude fall back to the default config.
-- **Removing `managed-settings.json` does NOT exit 3P mode - the deployment mode is sticky.** On the first successful 3P launch the app persists `"deploymentMode": "3p"` to `~/.config/Claude-3p/claude_desktop_config.json` (you'll see `[custom-3p] deploymentMode written { mode: '3p' }` in the log). On every later launch the bootstrap reads that persisted flag *before* the live config, so deleting `managed-settings.json` leaves the app stuck in 3P - now **degraded**, because there are no credentials (`Credentials read failed … baseUrl: Required`, `inference apiHost=http://custom-3p-unused.invalid`), and it keeps using the separate `~/.config/Claude-3p/` profile. This is upstream behavior, not a packaging bug. To return to your personal claude.ai (1P) login:
-  - **One-shot:** launch once with the upstream flag `claude-desktop --boot-1p-once` (forces 1P for that boot only; it does not necessarily rewrite the persisted flag, so the next plain launch may revert).
-  - **Permanent:** set the persisted flag to `1p` (or delete the key) and restart:
+- **Removing `managed-settings.json` does NOT exit 3P mode by itself.** The bootstrap (validated against v1.18286.0) picks the mode before any window exists, from the first config source that carries an inference block:
+  1. `/etc/claude-desktop/managed-settings.json` (managed), otherwise
+  2. the *applied* local-settings entry under `~/.config/Claude-3p/configLibrary/` - written by the in-app 3P Setup UI and consulted on every launch, even after the managed file is deleted. **This is the sticky part:** a leftover entry like `{"inferenceProvider": "gateway"}` keeps forcing 3P (degraded - `Credentials read failed … baseUrl: Required`, `inference apiHost=http://custom-3p-unused.invalid`) with no `/etc` file present. The `configLibrary/` is always read from the `-3p` dir (per-profile: `Claude-NAME-3p`), regardless of which userData dir ends up active.
+
+  If the chosen config has an inference block, the app boots 3P and relocates userData to `~/.config/Claude-3p/` - *unless* the persisted `"deploymentMode"` key in `~/.config/Claude-3p/claude_desktop_config.json` is `"1p"`, which forces 1P even while a 3P config is still stored. (Exception: a managed config with `authentication.disableClaudeAiSignIn: true` always wins - enterprise-enforced 3P cannot be overridden.) To switch modes:
+  - **Launcher flags (this package):** `claude-desktop --1p` or `claude-desktop --3p` persist the `deploymentMode` key for you. Persistent until switched back; takes effect on the next full start, so quit any running instance first. The upstream one-shot flag `--boot-1p-once` from the MSIX-era builds was **removed** in the official `.deb` bundle and is no longer read - the persisted key is the only user-side switch left.
+  - **Manual equivalent:**
     ```bash
-    # in ~/.config/Claude-3p/claude_desktop_config.json: "deploymentMode": "3p" -> "1p"
     python3 - <<'PY'
     import json, pathlib
     p = pathlib.Path.home() / ".config/Claude-3p/claude_desktop_config.json"
-    d = json.loads(p.read_text()); d["deploymentMode"] = "1p"
+    d = json.loads(p.read_text()); d["deploymentMode"] = "1p"   # or "3p"
     p.write_text(json.dumps(d, indent=2))
-    print("deploymentMode set to 1p")
+    print("deploymentMode set")
     PY
     ```
-    Plain `claude-desktop` then boots in 1P and uses `~/.config/Claude/` again. Re-add `managed-settings.json` at any time to switch back to 3P. (`--boot-1p-once` and `deploymentMode` are upstream Anthropic mechanisms, not flags added by this package.)
+  - **Full reset:** to make 1P the default without relying on the override key, also delete the stored 3P settings so no config source can select 3P: `rm -rf ~/.config/Claude-3p/configLibrary` (you will re-enter provider settings in Setup if you return to 3P).
+
+  Plain `claude-desktop` in 1P mode uses `~/.config/Claude/` again. Re-adding `managed-settings.json` (or `--3p`, if a stored provider config exists) switches back to 3P. (`deploymentMode` and the config sources are upstream Anthropic mechanisms; `--1p`/`--3p` are launcher conveniences added by this package.)
 - **`global` region requires Vertex's global endpoint to be enabled** for your project - newer projects have this on by default; older ones may need to be enabled in the Cloud Console under Vertex AI Studio settings.
 - **`sqlite3` is needed for project detection.** Unrelated to 3P, but if you hit `[detectedProjects] spawn /usr/bin/sqlite3 ENOENT` in the logs, `apt install sqlite3` clears it.
