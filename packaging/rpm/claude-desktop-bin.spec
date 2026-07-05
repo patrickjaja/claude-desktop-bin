@@ -61,11 +61,10 @@ Recommends:     virtiofsd
 # errors spam ~/.config/Claude/logs/main.log and detected-projects features
 # don't surface. Soft dep so the app still installs without it.
 Recommends:     sqlite
-# Computer Use — X11/XWayland
+# Quick Entry monitor positioning + WM_CLASS (X11) - no longer a Computer Use dep
 Suggests:       xdotool
-Suggests:       scrot
+# Computer Use screenshot crop (Wayland GNOME / KDE spectacle tiers) via convert
 Suggests:       ImageMagick
-Suggests:       wmctrl
 # Computer Use — Wayland input automation (GNOME, Sway, Hyprland)
 Suggests:       ydotool
 # Computer Use — Wayland/wlroots (Sway, Hyprland)

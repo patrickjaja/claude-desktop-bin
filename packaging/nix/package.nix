@@ -5,11 +5,9 @@
 , makeWrapper
 , makeDesktopItem
 , copyDesktopItems
-# Computer Use — X11/XWayland session
-, xdotool ? null       # input automation + Quick Entry positioning
-, scrot ? null          # screenshot capture
-, imagemagick ? null    # screenshot fallback (import) and crop (convert)
-, wmctrl ? null         # running app detection
+# Quick Entry positioning (X11) - no longer a Computer Use dep
+, xdotool ? null       # Quick Entry monitor positioning + WM_CLASS (X11)
+, imagemagick ? null    # Computer Use screenshot crop (Wayland GNOME / KDE spectacle tiers) via convert
 # Computer Use — Wayland session (Sway, Hyprland — wlroots compositors)
 , ydotool ? null        # input automation (requires ydotoold daemon)
 , grim ? null           # screenshot capture (wlroots)
@@ -140,9 +138,7 @@ stdenvNoCC.mkDerivation {
       --set ELECTRON_FORCE_IS_PACKAGED "true" \
       --set ELECTRON_USE_SYSTEM_TITLE_BAR "1" \
       ${lib.optionalString (xdotool != null) "--prefix PATH : ${xdotool}/bin"} \
-      ${lib.optionalString (scrot != null) "--prefix PATH : ${scrot}/bin"} \
       ${lib.optionalString (imagemagick != null) "--prefix PATH : ${imagemagick}/bin"} \
-      ${lib.optionalString (wmctrl != null) "--prefix PATH : ${wmctrl}/bin"} \
       ${lib.optionalString (socat != null) "--prefix PATH : ${socat}/bin"} \
       ${lib.optionalString (hyprland != null) "--prefix PATH : ${hyprland}/bin"} \
       ${lib.optionalString (ydotool != null) "--prefix PATH : ${ydotool}/bin"} \

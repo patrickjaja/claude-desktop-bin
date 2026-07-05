@@ -35,11 +35,11 @@ CI enforces the floor via `objdump -T | grep GLIBC_` verification. If a new nati
 
 | Session type | Compositors / DEs | Input backend | Screenshot tools |
 |-------------|-------------------|---------------|-----------------|
-| X11 | Any (GNOME, KDE, i3, …) | `xdotool` | `scrot`, `imagemagick`, `gnome-screenshot` |
+| X11 | Any (GNOME, KDE, i3, …) | `x11-bridge` (bundled) | `x11-bridge` (bundled) |
 | Wayland — wlroots/wlr-protocols | Sway, Hyprland, Niri | `ydotool` (+`ydotoold`) | `grim` |
 | Wayland — GNOME | GNOME Shell | `ydotool` (+`ydotoold`) | `portal+pipewire` (GNOME 46+), `gnome-screenshot`, `gdbus` (glib2) |
 | Wayland — KDE | KDE Plasma | `kwin-portal-bridge` (bundled) | `kwin-portal-bridge` (bundled) |
-| XWayland | Any Wayland compositor | `xdotool` (fallback) | depends on compositor |
+| XWayland | Any Wayland compositor | `x11-bridge` (bundled) | `x11-bridge` (bundled) |
 
 Patches emit `[claude-cu] diagnostics:` lines to **stderr/stdout** at startup showing detected session, available/missing tools, and screenshot cascade order. Visible when running `claude-desktop` from a terminal. Ask users to share this output when debugging.
 
