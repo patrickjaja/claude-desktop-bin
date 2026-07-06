@@ -7,17 +7,39 @@
 import std/[os, strformat, options]
 import std/nre
 
+# Resolve the bundled x11-bridge binary (cached in globalThis.__qeX11Bridge).
+# The bridge ships at a FIXED location: the package's locales/ resources dir,
+# like upstream's own bundled binaries. Candidates: the CU preamble's
+# resolution (if fix_computer_use_linux already ran), the X11_BRIDGE_BIN
+# escape hatch, then that bundled dir. The dir is computed explicitly as
+# dirname(app.getAppPath())+"/locales" and NOT via process.resourcesPath -
+# fix_locale_paths rewrites that identifier to the locales expression, but it
+# runs alphabetically BEFORE this patch, so text WE inject afterwards would
+# keep the raw (wrong) resourcesPath. Returns null when nothing resolves.
+proc x11BridgeExpr(): string =
+  "(()=>{if(globalThis.__qeX11Bridge!==void 0)return globalThis.__qeX11Bridge;" &
+    "const fs=require(\"fs\"),pa=require(\"path\");" &
+    "const cands=[globalThis.__cuX11BridgeBin,process.env.X11_BRIDGE_BIN," &
+    "pa.join(pa.dirname(require(\"electron\").app.getAppPath()),\"locales\",\"x11-bridge\")];" &
+    "for(const c of cands){if(!c)continue;try{fs.accessSync(c,fs.constants.X_OK);return globalThis.__qeX11Bridge=c}catch(e){}}" &
+    "return globalThis.__qeX11Bridge=null})()"
+
+# Cursor position cascade: hyprctl on Hyprland (compositor-native coords;
+# hyprctl always ships with Hyprland itself, no extra package), the bundled
+# x11-bridge on X11/XWayland, Electron's getCursorScreenPoint as last resort.
 proc cursorIife(electronVar: string): string =
   "(()=>{" & "if(process.platform===\"linux\"){" & "const cp=require(\"child_process\");" &
-    "try{" & "const r=cp.execFileSync(\"xdotool\",[\"getmouselocation\",\"--shell\"]," &
-    "{timeout:100,encoding:\"utf-8\"});" & "const x=parseInt(r.match(/X=(\\d+)/)?.[1]);" &
-    "const y=parseInt(r.match(/Y=(\\d+)/)?.[1]);" &
-    "if(!isNaN(x)&&!isNaN(y)){if(!globalThis.__qeCursorLogged){globalThis.__qeCursorLogged=true;console.log(\"[quick-entry] cursor: using xdotool\")}return{x,y}}" &
-    "}catch(e){}" & "try{" & "const r=cp.execFileSync(\"hyprctl\",[\"cursorpos\"]," &
-    "{timeout:100,encoding:\"utf-8\"});" & "const m=r.match(/(\\d+),\\s*(\\d+)/);" &
-    "if(m){if(!globalThis.__qeCursorLogged){globalThis.__qeCursorLogged=true;console.log(\"[quick-entry] cursor: using hyprctl\")}return{x:parseInt(m[1]),y:parseInt(m[2])}}" &
-    "}catch(e){}" &
-    "if(!globalThis.__qeCursorLogged){globalThis.__qeCursorLogged=true;console.warn(\"[quick-entry] cursor: xdotool/hyprctl not available -- falling back to Electron API (may show on wrong monitor)\")}" &
+    "if(process.env.HYPRLAND_INSTANCE_SIGNATURE){try{" &
+    "const r=cp.execFileSync(\"hyprctl\",[\"cursorpos\"]," &
+    "{timeout:100,encoding:\"utf-8\"});" & "const m=r.match(/(-?\\d+),\\s*(-?\\d+)/);" &
+    "if(m){if(!globalThis.__qeCursorLogged){globalThis.__qeCursorLogged=true;(globalThis.__cdbDiag||console.log)(\"[quick-entry] cursor: using hyprctl\")}return{x:parseInt(m[1]),y:parseInt(m[2])}}" &
+    "}catch(e){}}" & "const xb=" & x11BridgeExpr() & ";" &
+    "if(xb&&process.env.DISPLAY){try{" &
+    "const j=JSON.parse(cp.execFileSync(xb,[\"cursor-position\"]," &
+    "{timeout:200,encoding:\"utf-8\"}));" &
+    "if(Number.isFinite(j.x)&&Number.isFinite(j.y)){if(!globalThis.__qeCursorLogged){globalThis.__qeCursorLogged=true;(globalThis.__cdbDiag||console.log)(\"[quick-entry] cursor: using x11-bridge\")}return{x:j.x,y:j.y}}" &
+    "}catch(e){}}" &
+    "if(!globalThis.__qeCursorLogged){globalThis.__qeCursorLogged=true;(globalThis.__cdbDiag||console.warn)(\"[quick-entry] cursor: x11-bridge/hyprctl unavailable -- falling back to Electron API (may show on wrong monitor)\")}" &
     "}" & "return " & electronVar & ".screen.getCursorScreenPoint()" & "})()"
 
 proc apply*(input: string): string =
@@ -108,9 +130,10 @@ proc apply*(input: string): string =
       "||process.argv.some(a=>a===\"--ozone-platform=x11\")" &
       "||(!process.env.XDG_SESSION_TYPE&&!process.env.WAYLAND_DISPLAY));" &
       "const _xf=()=>{if(!_isX11||" & w & ".isDestroyed())return;" & "try{" &
-      "const cp=require(\"child_process\");" & "const wid=" & w &
+      "const cp=require(\"child_process\");" & "const xb=" & x11BridgeExpr() & ";" &
+      "if(!xb){_ef();return}" & "const wid=" & w &
       ".getNativeWindowHandle().readUInt32LE(0);" &
-      "cp.execFile(\"xdotool\",[\"windowactivate\",\"--sync\",String(wid)]," &
+      "cp.execFile(xb,[\"activate-window\",\"--window\",String(wid)]," &
       "{timeout:500},(e)=>{if(!" & w & ".isDestroyed()){_ef()}});" & "}catch(e){_ef()}};" &
       "const _ff=()=>{_ef();if(_isX11){_xf()}};" & w & ".setBounds(_b);" & w & ".show();" &
       "_r();" & "_ff();" & "if(_isX11){" & "setTimeout(()=>{if(!" & w &

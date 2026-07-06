@@ -155,7 +155,7 @@ proc apply*(input: string): string =
           "require(\"fs\").mkdirSync(_e,{recursive:!0});" &
           "require(\"fs\").writeFileSync(_p.join(_e,_id+\".json\")," &
           "JSON.stringify({external_update_url:_url},null,2),\"utf-8\");" &
-          "console.log(\"[Chrome Extension Install] Wrote to \"+_e);_ok=!0}catch(_x){}}" &
+          "(globalThis.__cdbDiag||console.log)(\"[Chrome Extension Install] Wrote to \"+_e);_ok=!0}catch(_x){}}" &
           "return _ok?{status:" & enumVar & ".Succeeded}:{status:" & enumVar &
           ".Error,error:\"No Chrome/Chromium config dirs found on Linux\"}}" &
           "catch(e){return{status:" & enumVar &

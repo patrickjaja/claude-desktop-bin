@@ -475,7 +475,7 @@ CLAUDE_DEV_TOOLS=detach ELECTRON_ENABLE_LOGGING=1 claude-desktop 2>&1 | tee /tmp
 rm -rf ~/.config/Claude/local-agent-mode-sessions/
 ```
 
-Computer Use patches emit `[claude-cu] diagnostics:` lines at startup showing the detected session, available/missing tools, and screenshot cascade - run `claude-desktop` from a terminal and share that output when reporting Computer Use issues.
+Computer Use patches emit `[claude-cu] diagnostics:` lines showing the detected session, available/missing tools, and screenshot cascade. They land in `~/.config/Claude/logs/claude-patches.log` (and on stderr when launched from a terminal) - share that log file when reporting Computer Use issues. The official build discards plain `console.log` output, so the old "run from a terminal and copy the output" advice only shows Chromium noise.
 
 ## Known Limitations
 

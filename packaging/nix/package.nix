@@ -5,8 +5,6 @@
 , makeWrapper
 , makeDesktopItem
 , copyDesktopItems
-# Quick Entry positioning (X11) - no longer a Computer Use dep
-, xdotool ? null       # Quick Entry monitor positioning + WM_CLASS (X11)
 , imagemagick ? null    # Computer Use screenshot crop via convert - residual KDE-without-kwin-bridge spectacle tier only
 # Computer Use is first-party now: the bundled STATIC bridges (x11-bridge for
 # X11/XWayland, wlroots-bridge for Sway/Hyprland/Niri) run on NixOS as-is.
@@ -14,7 +12,6 @@
 # gnome-portal-bridge for GNOME Wayland) have a glibc mismatch on NixOS; pass a
 # natively built gnome-portal-bridge below to enable GNOME Wayland CU.
 , ydotool ? null        # input on exotic Wayland compositors ONLY (non-wlroots/GNOME/KDE; requires ydotoold daemon)
-, hyprland ? null       # Quick Entry cursor positioning (Hyprland only) - not a Computer Use dep
 # Computer Use — KDE Plasma Wayland (bundled bridge has glibc mismatch on NixOS)
 , spectacle ? null      # screenshot fallback (KDE Plasma on NixOS)
 # Computer Use — GNOME Wayland: natively built gnome-portal-bridge
@@ -138,10 +135,8 @@ stdenvNoCC.mkDerivation {
       --set ELECTRON_OZONE_PLATFORM_HINT "auto" \
       --set ELECTRON_FORCE_IS_PACKAGED "true" \
       --set ELECTRON_USE_SYSTEM_TITLE_BAR "1" \
-      ${lib.optionalString (xdotool != null) "--prefix PATH : ${xdotool}/bin"} \
       ${lib.optionalString (imagemagick != null) "--prefix PATH : ${imagemagick}/bin"} \
       ${lib.optionalString (socat != null) "--prefix PATH : ${socat}/bin"} \
-      ${lib.optionalString (hyprland != null) "--prefix PATH : ${hyprland}/bin"} \
       ${lib.optionalString (ydotool != null) "--prefix PATH : ${ydotool}/bin"} \
       ${lib.optionalString (spectacle != null) "--prefix PATH : ${spectacle}/bin"} \
       ${lib.optionalString (gnome-portal-bridge != null) "--set-default GNOME_PORTAL_BRIDGE_BIN ${gnome-portal-bridge}/bin/gnome-portal-bridge"} \

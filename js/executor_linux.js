@@ -130,7 +130,7 @@ async function execBridge(command, args, opts = {}) {
       return ''
     }
 
-    console.warn(`[linux-executor] exec ${command} failed`, {
+    globalThis.__cdbDiag(`[linux-executor] exec ${command} failed`, {
       detail,
       args: spec.args,
     })
@@ -159,7 +159,7 @@ async function ensureBridgeSession() {
       await execBridge('session-start', [], { allowAlreadyActive: true })
     })().catch(error => {
       sessionReadyPromise = null
-      console.warn('[linux-executor] bridge session startup failed', error)
+      globalThis.__cdbDiag('[linux-executor] bridge session startup failed', error)
       throw error
     })
   }
@@ -215,7 +215,7 @@ async function stopBridgeSession() {
     debugLog('stopping bridge session')
     await execBridge('session-end', [])
   })().catch(error => {
-    console.warn('[linux-executor] bridge session shutdown failed', error)
+    globalThis.__cdbDiag('[linux-executor] bridge session shutdown failed', error)
     throw error
   }).finally(() => {
     sessionStopPromise = null
@@ -1050,7 +1050,7 @@ export function createLinuxExecutor(opts = {}) {
         mainWindow.focus()
       }
     } catch (error) {
-      console.warn('[linux-executor] failed to show Claude window before restore', error)
+      globalThis.__cdbDiag('[linux-executor] failed to show Claude window before restore', error)
     }
 
     for (let attempt = 0; attempt < 10; attempt += 1) {
@@ -1161,7 +1161,7 @@ export function createLinuxExecutor(opts = {}) {
         restoredThroughBridge = true
       }
     } catch (error) {
-      console.warn('[linux-executor] failed to restore Claude window through bridge', error)
+      globalThis.__cdbDiag('[linux-executor] failed to restore Claude window through bridge', error)
     }
 
     if (dockControllerState.operationGeneration !== generation) {
@@ -1233,7 +1233,7 @@ export function createLinuxExecutor(opts = {}) {
         }
       }
     } catch (error) {
-      console.warn('[linux-executor] failed to restore teach main window', error)
+      globalThis.__cdbDiag('[linux-executor] failed to restore teach main window', error)
     }
   }
 
@@ -1248,7 +1248,7 @@ export function createLinuxExecutor(opts = {}) {
 
     debugLog('stopTeachSession fallback without holder')
     await backend.hideTeachOverlay().catch(error => {
-      console.warn('[linux-executor] failed to hide teach overlay during fallback stop', error)
+      globalThis.__cdbDiag('[linux-executor] failed to hide teach overlay during fallback stop', error)
     })
     restoreTeachMainWindow(mainWindow)
   }
@@ -1280,7 +1280,7 @@ export function createLinuxExecutor(opts = {}) {
         }
       }
     })().catch(error => {
-      console.warn('[linux-executor] teach event watcher failed', error)
+      globalThis.__cdbDiag('[linux-executor] teach event watcher failed', error)
     })
   }
 
@@ -1299,7 +1299,7 @@ export function createLinuxExecutor(opts = {}) {
           sessionOverlayState.manager,
         )
         await backend.setSessionOverlayDisplay(displayId).catch(error => {
-          console.warn('[linux-executor] failed to set session overlay display on lock acquire', error)
+          globalThis.__cdbDiag('[linux-executor] failed to set session overlay display on lock acquire', error)
         })
         if (dockControllerState.initialized) {
           await dockClaudeWindow()
@@ -1329,10 +1329,10 @@ export function createLinuxExecutor(opts = {}) {
           sessionOverlayState.manager,
         )
         backend.setSessionOverlayDisplay(displayId).catch(error => {
-          console.warn('[linux-executor] failed to set session overlay display on dock init', error)
+          globalThis.__cdbDiag('[linux-executor] failed to set session overlay display on dock init', error)
         })
         dockClaudeWindow().catch(error => {
-          console.warn('[linux-executor] failed to dock Claude window on init', error)
+          globalThis.__cdbDiag('[linux-executor] failed to dock Claude window on init', error)
         })
       }
 
@@ -1347,7 +1347,7 @@ export function createLinuxExecutor(opts = {}) {
       if (dockControllerState.isLockHeld) {
         const displayId = resolveSessionOverlayDisplayId(manager)
         backend.setSessionOverlayDisplay(displayId).catch(error => {
-          console.warn('[linux-executor] failed to sync session overlay display on controller init', error)
+          globalThis.__cdbDiag('[linux-executor] failed to sync session overlay display on controller init', error)
         })
       }
 
@@ -1358,7 +1358,7 @@ export function createLinuxExecutor(opts = {}) {
           const displayId = resolveTeachDisplayId(manager, mainWindow, sessionId)
           if (typeof displayId === 'number') {
             backend.setTeachDisplay(displayId).catch(error => {
-              console.warn('[linux-executor] failed to set initial teach display', error)
+              globalThis.__cdbDiag('[linux-executor] failed to set initial teach display', error)
             })
           }
 
@@ -1368,7 +1368,7 @@ export function createLinuxExecutor(opts = {}) {
               teachControllerState.mainWindowHidden = true
             }
           } catch (error) {
-            console.warn('[linux-executor] failed to hide teach main window', error)
+            globalThis.__cdbDiag('[linux-executor] failed to hide teach main window', error)
           }
 
           startTeachEventWatcher(manager, mainWindow, sessionId)
@@ -1378,7 +1378,7 @@ export function createLinuxExecutor(opts = {}) {
         teachControllerState.activeSessionId = null
         teachControllerState.watcherGeneration += 1
         backend.hideTeachOverlay().catch(error => {
-          console.warn('[linux-executor] failed to hide teach overlay on deactivate', error)
+          globalThis.__cdbDiag('[linux-executor] failed to hide teach overlay on deactivate', error)
         })
         restoreTeachMainWindow(mainWindow)
       })
@@ -1399,7 +1399,7 @@ export function createLinuxExecutor(opts = {}) {
             manager.resolveTeachStep({ action: 'next' })
           })
           .catch(async error => {
-            console.warn('[linux-executor] showTeachStep failed', error)
+            globalThis.__cdbDiag('[linux-executor] showTeachStep failed', error)
             manager.resolveTeachStep({ action: 'exit' })
             await stopTeachSession(manager, mainWindow)
           })
@@ -1407,7 +1407,7 @@ export function createLinuxExecutor(opts = {}) {
 
       manager.on('teachStepWorking', () => {
         backend.setTeachWorking().catch(error => {
-          console.warn('[linux-executor] failed to switch teach overlay to working', error)
+          globalThis.__cdbDiag('[linux-executor] failed to switch teach overlay to working', error)
         })
       })
 
@@ -1420,13 +1420,13 @@ export function createLinuxExecutor(opts = {}) {
             sessionId,
           )
           backend.setSessionOverlayDisplay(resolvedDisplayId).catch(error => {
-            console.warn('[linux-executor] failed to retarget session overlay display', error)
+            globalThis.__cdbDiag('[linux-executor] failed to retarget session overlay display', error)
           })
         }
 
         if (sessionId !== teachControllerState.activeSessionId) return
         backend.setTeachDisplay(displayId).catch(error => {
-          console.warn('[linux-executor] failed to retarget teach overlay display', error)
+          globalThis.__cdbDiag('[linux-executor] failed to retarget teach overlay display', error)
         })
       })
 
@@ -1438,7 +1438,7 @@ export function createLinuxExecutor(opts = {}) {
         teachControllerState.activeSessionId = null
         teachControllerState.watcherGeneration += 1
         backend.hideTeachOverlay().catch(error => {
-          console.warn('[linux-executor] failed to hide teach overlay during lifecycle fallback', error)
+          globalThis.__cdbDiag('[linux-executor] failed to hide teach overlay during lifecycle fallback', error)
         })
         restoreTeachMainWindow(mainWindow)
       })

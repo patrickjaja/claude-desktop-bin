@@ -88,12 +88,12 @@ var __cdb_spinnerJson="null";
 var __cdb_marker="__cdb_dualvariant";
 var __cdb_cfgPath=_path.join(_app.getPath("userData"),"claude-desktop-bin.json");
 try{
-console.log("[CustomThemes] Reading config: "+__cdb_cfgPath);
+(globalThis.__cdbDiag||console.log)("[CustomThemes] Reading config: "+__cdb_cfgPath);
 var __cdb_cfg=JSON.parse(_fs.readFileSync(__cdb_cfgPath,"utf8"));
 var __cdb_name=__cdb_cfg.activeTheme;
-if(!__cdb_name){console.log("[CustomThemes] No activeTheme set, skipping");return}
-if(__cdb_aliases[__cdb_name]){console.log("[CustomThemes] Alias '"+__cdb_name+"' -> '"+__cdb_aliases[__cdb_name]+"'");__cdb_name=__cdb_aliases[__cdb_name]}
-console.log("[CustomThemes] Active theme: "+__cdb_name);
+if(!__cdb_name){(globalThis.__cdbDiag||console.log)("[CustomThemes] No activeTheme set, skipping");return}
+if(__cdb_aliases[__cdb_name]){(globalThis.__cdbDiag||console.log)("[CustomThemes] Alias '"+__cdb_name+"' -> '"+__cdb_aliases[__cdb_name]+"'");__cdb_name=__cdb_aliases[__cdb_name]}
+(globalThis.__cdbDiag||console.log)("[CustomThemes] Active theme: "+__cdb_name);
 var __cdb_customThemes=__cdb_cfg.themes||{};
 var __cdb_theme=null,__cdb_src="";
 if(__cdb_customThemes[__cdb_name]){__cdb_theme=__cdb_customThemes[__cdb_name];__cdb_src="custom"}
@@ -101,9 +101,9 @@ else if(__cdb_builtins[__cdb_name]){__cdb_theme=__cdb_builtins[__cdb_name];__cdb
 if(!__cdb_theme){
 // LOUD fallback (CONTRACT 5): do not silently succeed.
 var __cdb_validBuiltins=Object.keys(__cdb_builtins).concat(Object.keys(__cdb_aliases)).join(", ");
-console.log("%c[CustomThemes] THEME NOT FOUND: '"+__cdb_name+"'","color:#ff5555;font-weight:bold");
-console.log("[CustomThemes] Not in config.themes and not a built-in. Valid built-in names: "+__cdb_validBuiltins);
-console.log("[CustomThemes] Define it under \"themes\" in "+__cdb_cfgPath+" or pick a valid built-in. Nothing applied.");
+(globalThis.__cdbDiag||console.log)("%c[CustomThemes] THEME NOT FOUND: '"+__cdb_name+"'","color:#ff5555;font-weight:bold");
+(globalThis.__cdbDiag||console.log)("[CustomThemes] Not in config.themes and not a built-in. Valid built-in names: "+__cdb_validBuiltins);
+(globalThis.__cdbDiag||console.log)("[CustomThemes] Define it under \"themes\" in "+__cdb_cfgPath+" or pick a valid built-in. Nothing applied.");
 return;
 }
 // Resolve light/dark variants. Dual-variant -> use each; flat map -> same for both.
@@ -115,7 +115,7 @@ __cdb_darkVars=__cdb_theme.dark||__cdb_theme.light;
 __cdb_lightVars=__cdb_theme;
 __cdb_darkVars=__cdb_theme;
 }else{
-console.log("[CustomThemes] Theme '"+__cdb_name+"' has neither light/dark variants nor --token keys; nothing applied");
+(globalThis.__cdbDiag||console.log)("[CustomThemes] Theme '"+__cdb_name+"' has neither light/dark variants nor --token keys; nothing applied");
 return;
 }
 var __cdb_lightBlock=__cdb_block(__cdb_lightVars);
@@ -171,14 +171,14 @@ if(__cdb_font){
 __cdb_css+="html .font-claude-response-body,html .font-claude-response-title,html .font-claude-response,[data-user-message-bubble],[data-user-message-bubble] *{font-family:"+__cdb_font+"!important}";
 __cdb_css+=":root{--theme-font-override:1}";
 __cdb_fontFlag=true;
-console.log("[CustomThemes] Font override: "+__cdb_font);
+(globalThis.__cdbDiag||console.log)("[CustomThemes] Font override: "+__cdb_font);
 }
 // customCss: top-level and per-theme (string or array). Supported as before.
 var __cdb_extra=__cdb_toCss(__cdb_cfg.customCss);
 var __cdb_themeExtra=__cdb_toCss(__cdb_theme.customCss)||__cdb_toCss(__cdb_lightVars&&__cdb_lightVars.customCss);
 if(__cdb_extra)__cdb_css+="\n"+__cdb_extra;
 if(__cdb_themeExtra)__cdb_css+="\n"+__cdb_themeExtra;
-if(__cdb_extra||__cdb_themeExtra)console.log("[CustomThemes] customCss appended ("+((__cdb_extra?__cdb_extra.length:0)+(__cdb_themeExtra?__cdb_themeExtra.length:0))+" chars)");
+if(__cdb_extra||__cdb_themeExtra)(globalThis.__cdbDiag||console.log)("[CustomThemes] customCss appended ("+((__cdb_extra?__cdb_extra.length:0)+(__cdb_themeExtra?__cdb_themeExtra.length:0))+" chars)");
 // Spinner spec: read the active theme's `spinner` object (per-theme or flat-shared).
 var __cdb_spinnerSpec=(__cdb_theme&&__cdb_theme.spinner)||(__cdb_lightVars&&__cdb_lightVars.spinner)||null;
 if(__cdb_spinnerSpec){
@@ -192,12 +192,12 @@ __cdb_css+="@keyframes cdbPulse{0%,100%{opacity:1}50%{opacity:.45}}";
 __cdb_css+="svg[data-cdb-spinner].cdb-anim-spin{animation:cdbSpin 1s linear infinite;transform-origin:50% 50%;transform-box:fill-box}";
 __cdb_css+="svg[data-cdb-spinner].cdb-anim-bounce{animation:cdbBounce .8s ease-in-out infinite;transform-origin:50% 50%;transform-box:fill-box}";
 __cdb_css+="svg[data-cdb-spinner].cdb-anim-pulse{animation:cdbPulse 1.2s ease-in-out infinite}";
-console.log("[CustomThemes] Spinner spec present ("+__cdb_spinnerJson.length+" chars JSON)");
+(globalThis.__cdbDiag||console.log)("[CustomThemes] Spinner spec present ("+__cdb_spinnerJson.length+" chars JSON)");
 }
-console.log("[CustomThemes] Loaded "+__cdb_src+" theme '"+__cdb_name+"' (dual-variant) with element overrides");
+(globalThis.__cdbDiag||console.log)("[CustomThemes] Loaded "+__cdb_src+" theme '"+__cdb_name+"' (dual-variant) with element overrides");
 }catch(e){
-if(e.code==="ENOENT"){console.log("[CustomThemes] No config file found at "+__cdb_cfgPath+", skipping")}
-else{console.log("[CustomThemes] Error reading config: "+e.message)}
+if(e.code==="ENOENT"){(globalThis.__cdbDiag||console.log)("[CustomThemes] No config file found at "+__cdb_cfgPath+", skipping")}
+else{(globalThis.__cdbDiag||console.log)("[CustomThemes] Error reading config: "+e.message)}
 }
 if(!__cdb_css)return;
 // Build the spinner script: prepend the per-theme spec to the staticRead injector body.
@@ -214,8 +214,8 @@ var __cdb_postJs="";
 if(__cdb_fontFlag)__cdb_postJs+="window.__themeFontOverride=true;\n";
 __cdb_postJs+=__cdb_spinnerScript;
 wc.executeJavaScript(__cdb_postJs).catch(function(){});
-console.log("[CustomThemes] Injected CSS+JS into "+url);
-}catch(e){console.log("[CustomThemes] insertCSS error: "+e.message)}
+(globalThis.__cdbDiag||console.log)("[CustomThemes] Injected CSS+JS into "+url);
+}catch(e){(globalThis.__cdbDiag||console.log)("[CustomThemes] insertCSS error: "+e.message)}
 });
 });
 })();"""

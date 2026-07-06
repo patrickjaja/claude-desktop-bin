@@ -88,13 +88,13 @@ proc apply*(input: string): string =
           "const _qeS=(process.env.XDG_RUNTIME_DIR||(\"/run/user/\"+process.getuid()))+\"/claude-desktop-qe\"+(process.env.CLAUDE_PROFILE?\"-\"+process.env.CLAUDE_PROFILE:\"\")+\".sock\";" &
           "try{require(\"fs\").unlinkSync(_qeS)}catch(e){}" &
           "require(\"net\").createServer(c=>{" &
-          "c.on(\"error\",e=>{console.warn(\"[quick-entry] socket connection error:\",e.message)});" &
+          "c.on(\"error\",e=>{(globalThis.__cdbDiag||console.warn)(\"[quick-entry] socket connection error:\",e.message)});" &
           "c.end();" & "try{if(globalThis." & HANDLER_GLOBAL & ")globalThis." &
           HANDLER_GLOBAL & "()}catch(e){}" &
-          "}).on(\"error\",e=>{console.warn(\"[quick-entry] socket server error:\",e.message)}).listen(_qeS);" &
+          "}).on(\"error\",e=>{(globalThis.__cdbDiag||console.warn)(\"[quick-entry] socket server error:\",e.message)}).listen(_qeS);" &
           "if(!globalThis.__qeTriggerLogged){globalThis.__qeTriggerLogged=true;" &
-          "console.log(\"[quick-entry] socket trigger ready: \"+_qeS)}" & "}catch(e){}" &
-          "})()"
+          "(globalThis.__cdbDiag||console.log)(\"[quick-entry] socket trigger ready: \"+_qeS)}" &
+          "}catch(e){}" & "})()"
 
         resultStr &=
           regFn & "(" & enumVar & ".QUICK_ENTRY," & assign & ")" & firstInstance &

@@ -61,8 +61,6 @@ Recommends:     virtiofsd
 # errors spam ~/.config/Claude/logs/main.log and detected-projects features
 # don't surface. Soft dep so the app still installs without it.
 Recommends:     sqlite
-# Quick Entry monitor positioning + WM_CLASS (X11) - no longer a Computer Use dep
-Suggests:       xdotool
 # Computer Use is fully first-party now: bundled x11-bridge (X11/XWayland),
 # wlroots-bridge (Sway/Hyprland/Niri), gnome-portal-bridge (GNOME Wayland) and
 # kwin-portal-bridge (KDE Plasma 6.6+). Remaining Suggests cover only the
@@ -72,8 +70,6 @@ Suggests:       xdotool
 #   requires ydotoold daemon)
 Suggests:       ImageMagick
 Suggests:       ydotool
-# Quick Entry cursor positioning on Hyprland (hyprctl) - not a Computer Use dep
-Suggests:       hyprland
 # Faster Quick Entry toggle via socket (~2ms vs ~25ms python3 — not required)
 Suggests:       socat
 # MCP servers requiring system Node.js

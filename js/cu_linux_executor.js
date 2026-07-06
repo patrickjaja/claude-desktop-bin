@@ -15,18 +15,18 @@ function _gnomeBridgeBin(){return process.env.GNOME_PORTAL_BRIDGE_BIN||globalThi
 function _isWlrootsCovered(){return _wayland&&_isWlroots()}
 function _isGnomeCovered(){return _isGnomeWayland()}
 try{var _virt=_cp.execSync("systemd-detect-virt 2>/dev/null",{encoding:"utf-8",timeout:3000}).trim();globalThis.__isVM=_virt!=="none"&&_virt!==""}catch(e){globalThis.__isVM=!1}
-if(globalThis.__isVM)console.log("[claude-cu] VM detected ("+_virt+") — teach overlay uses dark backdrop fallback");
+if(globalThis.__isVM)globalThis.__cdbDiag("[claude-cu] VM detected ("+_virt+") — teach overlay uses dark backdrop fallback");
 var _cmdCache={};
 function _hasCmd(cmd){if(_cmdCache[cmd]!==void 0)return _cmdCache[cmd];try{_exec("which "+cmd+" 2>/dev/null");_cmdCache[cmd]=true}catch(e){_cmdCache[cmd]=false}return _cmdCache[cmd]}
 function _desktopId(){return(process.env.XDG_CURRENT_DESKTOP||"").toLowerCase()}
 var _ydotoolOk=null;
-function _checkYdotool(){if(_ydotoolOk!==null)return _ydotoolOk;if(!_hasCmd("ydotool")){_ydotoolOk=false;return false}try{_cp.execSync("pgrep -x ydotoold",{timeout:2000,stdio:"pipe"});_ydotoolOk=true}catch(e){var sock=(process.env.YDOTOOL_SOCKET||"")||((process.env.XDG_RUNTIME_DIR||"/tmp")+"/.ydotool_socket");try{_fs.accessSync(sock);_ydotoolOk=true}catch(se){console.warn("[claude-cu] ydotool found but ydotoold not running — falling back to x11-bridge (XWayland)");_ydotoolOk=false}}return _ydotoolOk}
+function _checkYdotool(){if(_ydotoolOk!==null)return _ydotoolOk;if(!_hasCmd("ydotool")){_ydotoolOk=false;return false}try{_cp.execSync("pgrep -x ydotoold",{timeout:2000,stdio:"pipe"});_ydotoolOk=true}catch(e){var sock=(process.env.YDOTOOL_SOCKET||"")||((process.env.XDG_RUNTIME_DIR||"/tmp")+"/.ydotool_socket");try{_fs.accessSync(sock);_ydotoolOk=true}catch(se){globalThis.__cdbDiag("[claude-cu] ydotool found but ydotoold not running — falling back to x11-bridge (XWayland)");_ydotoolOk=false}}return _ydotoolOk}
 // ── x11-bridge: first-party X11/XWayland backend (replaces xdotool/scrot/import/wmctrl) ──
 // The binary is resolved in cu_mode_preamble.js into globalThis.__cuX11BridgeBin.
 function _x11BridgeBin(){return process.env.X11_BRIDGE_BIN||globalThis.__cuX11BridgeBin}
 function _x11Bridge(args){
   var bin=_x11BridgeBin();
-  if(!bin)throw new Error("x11-bridge not available (globalThis.__cuX11BridgeBin unset — set X11_BRIDGE_BIN or install x11-bridge)");
+  if(!bin)throw new Error("x11-bridge not available (globalThis.__cuX11BridgeBin unset — set X11_BRIDGE_BIN or reinstall the package - the bundled bridge is missing)");
   var res=_cp.execFileSync(bin,args,{encoding:"utf-8",timeout:15000,maxBuffer:16*1024*1024});
   var out=res.trim();
   return out?JSON.parse(out):null;
@@ -36,7 +36,7 @@ function _x11Bridge(args){
 var _x11ScreensCache=null;
 function _x11BridgeScreens(){
   if(_x11ScreensCache!==null)return _x11ScreensCache;
-  try{var s=_x11Bridge(["screens"]);_x11ScreensCache=Array.isArray(s)?s:[]}catch(e){console.warn("[claude-cu] x11-bridge screens failed: "+(e.message||e));_x11ScreensCache=[]}
+  try{var s=_x11Bridge(["screens"]);_x11ScreensCache=Array.isArray(s)?s:[]}catch(e){globalThis.__cdbDiag("[claude-cu] x11-bridge screens failed: "+(e.message||e));_x11ScreensCache=[]}
   return _x11ScreensCache;
 }
 // ── Generic bridge invoker for the Wayland first-party backends ──
@@ -63,7 +63,7 @@ function _wlBridgeCall(args){var b=_wlBridge();if(!b)throw new Error("no covered
 var _wlScreensCache=null;
 function _wlBridgeScreens(){
   if(_wlScreensCache!==null)return _wlScreensCache;
-  try{var s=_wlBridgeCall(["screens"]);_wlScreensCache=Array.isArray(s)?s:[]}catch(e){console.warn("[claude-cu] "+(_wlBridge()?_wlBridge().name:"bridge")+" screens failed: "+(e.message||e));_wlScreensCache=[]}
+  try{var s=_wlBridgeCall(["screens"]);_wlScreensCache=Array.isArray(s)?s:[]}catch(e){globalThis.__cdbDiag("[claude-cu] "+(_wlBridge()?_wlBridge().name:"bridge")+" screens failed: "+(e.message||e));_wlScreensCache=[]}
   return _wlScreensCache;
 }
 // Map a global-logical region to the bridge monitor containing its top-left,
@@ -88,8 +88,8 @@ function _wlMonForRegion(x,y){
 var _gnomeSessionActive=!1,_gnomeExitHooked=!1;
 function _gnomeSessionStart(){
   var bin=_gnomeBridgeBin();if(!bin)return;
-  try{_bridge(bin,["session-start"],30000);_gnomeSessionActive=!0;console.log("[claude-cu] gnome-portal-bridge session started")}
-  catch(e){console.warn("[claude-cu] gnome-portal-bridge session-start failed: "+(e.message||e))}
+  try{_bridge(bin,["session-start"],30000);_gnomeSessionActive=!0;globalThis.__cdbDiag("[claude-cu] gnome-portal-bridge session started")}
+  catch(e){globalThis.__cdbDiag("[claude-cu] gnome-portal-bridge session-start failed: "+(e.message||e))}
 }
 function _gnomeSessionEnd(){
   var bin=_gnomeBridgeBin();if(!bin)return;
@@ -141,7 +141,7 @@ async function _captureRegion(x,y,w,h,sf){
   function _nativePng(b64){return{base64:b64,imgW:w,imgH:h,mimeType:"image/png"}}
   if(process.env.COWORK_SCREENSHOT_CMD){
     try{var cmd=process.env.COWORK_SCREENSHOT_CMD.replace(/\{FILE\}/g,tmp).replace(/\{X\}/g,x).replace(/\{Y\}/g,y).replace(/\{W\}/g,w).replace(/\{H\}/g,h);
-    _cp.execSync(cmd,{timeout:15000});console.log("[claude-cu] screenshot: captured via COWORK_SCREENSHOT_CMD");return _nativePng(_readClean(tmp))}catch(e){console.warn("[claude-cu] COWORK_SCREENSHOT_CMD failed: "+e.message)}
+    _cp.execSync(cmd,{timeout:15000});globalThis.__cdbDiag("[claude-cu] screenshot: captured via COWORK_SCREENSHOT_CMD");return _nativePng(_readClean(tmp))}catch(e){globalThis.__cdbDiag("[claude-cu] COWORK_SCREENSHOT_CMD failed: "+e.message)}
   }
   // Covered Wayland sessions (wlroots / GNOME): the bundled bridge is the SOLE
   // screenshot backend (no third-party fallback, per design). Like x11-bridge,
@@ -163,17 +163,17 @@ async function _captureRegion(x,y,w,h,sf){
       var _wzargs=["zoom","--x",String(_wmr?_wmr.x:_lx),"--y",String(_wmr?_wmr.y:_ly),"--w",String(_lw),"--h",String(_lh)];
       if(_wmr&&_wmr.name){_wzargs.push("--display",_wmr.name)}
       var _wzr=_wlBridgeCall(_wzargs);
-      if(_wzr&&_wzr.base64){console.log("[claude-cu] screenshot: captured via "+_wlb.name);return{base64:_wzr.base64,imgW:_wzr.width||w,imgH:_wzr.height||h,mimeType:"image/jpeg"}}
-    }catch(e){console.warn("[claude-cu] "+_wlb.name+" zoom failed: "+(e.message||e))}
+      if(_wzr&&_wzr.base64){globalThis.__cdbDiag("[claude-cu] screenshot: captured via "+_wlb.name);return{base64:_wzr.base64,imgW:_wzr.width||w,imgH:_wzr.height||h,mimeType:"image/jpeg"}}
+    }catch(e){globalThis.__cdbDiag("[claude-cu] "+_wlb.name+" zoom failed: "+(e.message||e))}
     // Covered session with a resolved bridge: do NOT fall through to deleted
     // third-party tools. Last resort is the Electron desktopCapturer tier below.
-    console.error("[claude-cu] "+_wlb.name+" screenshot failed on a covered Wayland session — no third-party fallback (set COWORK_SCREENSHOT_CMD to override)");
+    globalThis.__cdbDiag("[claude-cu] "+_wlb.name+" screenshot failed on a covered Wayland session — no third-party fallback (set COWORK_SCREENSHOT_CMD to override)");
   }
   if(_de.indexOf("kde")>=0&&_hasCmd("spectacle")){
     try{var stmp=_path.join(_os.tmpdir(),"claude-cu-spectacle-"+Date.now()+".png");
     _cp.execSync('spectacle -b -n -f -o "'+stmp+'"',{timeout:10000});
-    if(_fs.existsSync(stmp)){try{_cp.execSync('convert "'+stmp+'" -crop '+w+"x"+h+"+"+x+"+"+y+' +repage "'+tmp+'"',{timeout:5000});try{_fs.unlinkSync(stmp)}catch(e){}console.log("[claude-cu] screenshot: captured via spectacle+convert (KDE)");return _nativePng(_readClean(tmp))}catch(ce){try{_fs.renameSync(stmp,tmp)}catch(re){}console.log("[claude-cu] screenshot: captured via spectacle (KDE, uncropped)");return _nativePng(_readClean(tmp))}}
-    }catch(e){console.warn("[claude-cu] spectacle failed: "+e.message)}
+    if(_fs.existsSync(stmp)){try{_cp.execSync('convert "'+stmp+'" -crop '+w+"x"+h+"+"+x+"+"+y+' +repage "'+tmp+'"',{timeout:5000});try{_fs.unlinkSync(stmp)}catch(e){}globalThis.__cdbDiag("[claude-cu] screenshot: captured via spectacle+convert (KDE)");return _nativePng(_readClean(tmp))}catch(ce){try{_fs.renameSync(stmp,tmp)}catch(re){}globalThis.__cdbDiag("[claude-cu] screenshot: captured via spectacle (KDE, uncropped)");return _nativePng(_readClean(tmp))}}
+    }catch(e){globalThis.__cdbDiag("[claude-cu] spectacle failed: "+e.message)}
   }
   // X11 (and XWayland fallback): single first-party tier — x11-bridge zoom.
   // The bridge returns inline base64 JPEG (quality 75) and its own width/height
@@ -187,18 +187,18 @@ async function _captureRegion(x,y,w,h,sf){
         var _zargs=["zoom","--x",String(_mr?_mr.x:x),"--y",String(_mr?_mr.y:y),"--w",String(w),"--h",String(h)];
         if(_mr&&_mr.name){_zargs.push("--display",_mr.name)}
         var _zr=_x11Bridge(_zargs);
-        if(_zr&&_zr.base64){console.log("[claude-cu] screenshot: captured via x11-bridge"+(_wayland?" (XWayland)":""));return{base64:_zr.base64,imgW:_zr.width||w,imgH:_zr.height||h,mimeType:"image/jpeg"}}
-      }catch(e){console.warn("[claude-cu] x11-bridge zoom failed: "+(e.message||e))}
+        if(_zr&&_zr.base64){globalThis.__cdbDiag("[claude-cu] screenshot: captured via x11-bridge"+(_wayland?" (XWayland)":""));return{base64:_zr.base64,imgW:_zr.width||w,imgH:_zr.height||h,mimeType:"image/jpeg"}}
+      }catch(e){globalThis.__cdbDiag("[claude-cu] x11-bridge zoom failed: "+(e.message||e))}
     }else if(!_wayland){
       // X11 session with no bridge: hard fail (no third-party fallback, per design).
       // The Electron desktopCapturer tier below is the only remaining last resort.
-      console.error("[claude-cu] x11-bridge missing on X11 session — set X11_BRIDGE_BIN or install x11-bridge");
+      globalThis.__cdbDiag("[claude-cu] x11-bridge missing on X11 session — set X11_BRIDGE_BIN or reinstall the package - the bundled bridge is missing");
     }
   }
-  try{var _sources=await _electron.desktopCapturer.getSources({types:["screen"],thumbnailSize:{width:w+x,height:h+y}});if(_sources&&_sources.length>0){var _img=_sources[0].thumbnail;if(_img&&!_img.isEmpty()){var _cropped=_img.crop({x:x,y:y,width:w,height:h});_fs.writeFileSync(tmp,_cropped.toPNG());console.log("[claude-cu] screenshot: captured via desktopCapturer (Electron fallback)");return _nativePng(_readClean(tmp))}}}catch(dce){console.warn("[claude-cu] desktopCapturer fallback failed: "+dce.message)}
-  throw new Error("Screenshot failed — on X11 install x11-bridge (or set X11_BRIDGE_BIN); on wlroots/GNOME Wayland reinstall the bundled bridge; or set COWORK_SCREENSHOT_CMD.")
+  try{var _sources=await _electron.desktopCapturer.getSources({types:["screen"],thumbnailSize:{width:w+x,height:h+y}});if(_sources&&_sources.length>0){var _img=_sources[0].thumbnail;if(_img&&!_img.isEmpty()){var _cropped=_img.crop({x:x,y:y,width:w,height:h});_fs.writeFileSync(tmp,_cropped.toPNG());globalThis.__cdbDiag("[claude-cu] screenshot: captured via desktopCapturer (Electron fallback)");return _nativePng(_readClean(tmp))}}}catch(dce){globalThis.__cdbDiag("[claude-cu] desktopCapturer fallback failed: "+dce.message)}
+  throw new Error("Screenshot failed — on X11 reinstall the package (bundled x11-bridge missing; or set X11_BRIDGE_BIN); on wlroots/GNOME Wayland reinstall the bundled bridge; or set COWORK_SCREENSHOT_CMD.")
 }
-if(_wayland){console.log("[claude-cu] Wayland session detected"+(_isWlrootsCovered()?" (wlroots — wlroots-bridge backend)":_isGnomeCovered()?" (GNOME — gnome-portal-bridge backend)":" (exotic — ydotool/x11-bridge fallback)"))}
+if(_wayland){globalThis.__cdbDiag("[claude-cu] Wayland session detected"+(_isWlrootsCovered()?" (wlroots — wlroots-bridge backend)":_isGnomeCovered()?" (GNOME — gnome-portal-bridge backend)":" (exotic — ydotool/x11-bridge fallback)"))}
 (function(){
   var _de=_desktopId();var _wlr=_wayland?_isWlroots():false;
   var _isGnome=_de.indexOf("gnome")>=0;var _isKde=_de.indexOf("kde")>=0;
@@ -215,18 +215,18 @@ if(_wayland){console.log("[claude-cu] Wayland session detected"+(_isWlrootsCover
   var missing=_relevant.filter(function(t){return !_hasCmd(t)});
   var _x11ok=!!_x11BridgeBin();
   var _wlrok=!!_wlrootsBridgeBin();var _gnok=!!_gnomeBridgeBin();
-  console.log("[claude-cu] diagnostics: session="+(_wayland?"wayland":"x11")+" de="+(_de||"unknown")+" wlroots="+_wlr+" vm="+!!globalThis.__isVM);
-  try{var _diagMons=_getMonitors();console.log("[claude-cu] diagnostics: displays=["+_diagMons.map(function(m){return m.label+"("+m.width+"x"+m.height+"+"+m.originX+"+"+m.originY+" sf="+m.scaleFactor+(m.isPrimary?" primary":"")+")"}).join(", ")+"]")}catch(me){}
-  console.log("[claude-cu] diagnostics: available=["+avail.join(", ")+"]");
-  if(missing.length)console.warn("[claude-cu] diagnostics: missing=["+missing.join(", ")+"] (install for the residual fallback paths)");
-  console.log("[claude-cu] diagnostics: x11-bridge="+(_x11ok?"present ("+_x11BridgeBin()+")":"absent"));
-  console.log("[claude-cu] diagnostics: wlroots-bridge="+(_wlrok?"present ("+_wlrootsBridgeBin()+")":"absent"));
-  console.log("[claude-cu] diagnostics: gnome-portal-bridge="+(_gnok?"present ("+_gnomeBridgeBin()+")":"absent"));
+  globalThis.__cdbDiag("[claude-cu] diagnostics: session="+(_wayland?"wayland":"x11")+" de="+(_de||"unknown")+" wlroots="+_wlr+" vm="+!!globalThis.__isVM);
+  try{var _diagMons=_getMonitors();globalThis.__cdbDiag("[claude-cu] diagnostics: displays=["+_diagMons.map(function(m){return m.label+"("+m.width+"x"+m.height+"+"+m.originX+"+"+m.originY+" sf="+m.scaleFactor+(m.isPrimary?" primary":"")+")"}).join(", ")+"]")}catch(me){}
+  globalThis.__cdbDiag("[claude-cu] diagnostics: available=["+avail.join(", ")+"]");
+  if(missing.length)globalThis.__cdbDiag("[claude-cu] diagnostics: missing=["+missing.join(", ")+"] (install for the residual fallback paths)");
+  globalThis.__cdbDiag("[claude-cu] diagnostics: x11-bridge="+(_x11ok?"present ("+_x11BridgeBin()+")":"absent"));
+  globalThis.__cdbDiag("[claude-cu] diagnostics: wlroots-bridge="+(_wlrok?"present ("+_wlrootsBridgeBin()+")":"absent"));
+  globalThis.__cdbDiag("[claude-cu] diagnostics: gnome-portal-bridge="+(_gnok?"present ("+_gnomeBridgeBin()+")":"absent"));
   // input-backend
-  if(_wlrCovered){console.log("[claude-cu] diagnostics: input-backend="+(_wlrok?"wlroots-bridge":"none (wlroots-bridge missing — reinstall)"))}
-  else if(_gnomeCovered){console.log("[claude-cu] diagnostics: input-backend="+(_gnok?"gnome-portal-bridge":"none (gnome-portal-bridge missing — reinstall)"))}
-  else if(_wayland){var ydOk=_checkYdotool();console.log("[claude-cu] diagnostics: input-backend="+(ydOk?"ydotool":(_x11ok?"x11-bridge (XWayland fallback)":"none (install ydotool or x11-bridge)")))}
-  else{console.log("[claude-cu] diagnostics: input-backend="+(_x11ok?"x11-bridge":"none (install x11-bridge)"))}
+  if(_wlrCovered){globalThis.__cdbDiag("[claude-cu] diagnostics: input-backend="+(_wlrok?"wlroots-bridge":"none (wlroots-bridge missing — reinstall)"))}
+  else if(_gnomeCovered){globalThis.__cdbDiag("[claude-cu] diagnostics: input-backend="+(_gnok?"gnome-portal-bridge":"none (gnome-portal-bridge missing — reinstall)"))}
+  else if(_wayland){var ydOk=_checkYdotool();globalThis.__cdbDiag("[claude-cu] diagnostics: input-backend="+(ydOk?"ydotool":(_x11ok?"x11-bridge (XWayland fallback)":"none (install ydotool or x11-bridge)")))}
+  else{globalThis.__cdbDiag("[claude-cu] diagnostics: input-backend="+(_x11ok?"x11-bridge":"none (bundled x11-bridge missing - reinstall)"))}
   // screenshot-cascade
   var order=[];
   if(process.env.COWORK_SCREENSHOT_CMD)order.push("COWORK_SCREENSHOT_CMD");
@@ -235,7 +235,7 @@ if(_wayland){console.log("[claude-cu] Wayland session detected"+(_isWlrootsCover
   if(_isKde&&!globalThis.__cuKwinMode&&_hasCmd("spectacle"))order.push("spectacle");
   if(!_covered&&_x11ok)order.push("x11-bridge"+(_wayland?" (XWayland)":""));
   order.push("desktopCapturer");
-  console.log("[claude-cu] diagnostics: screenshot-cascade=["+order.join(" > ")+"]");
+  globalThis.__cdbDiag("[claude-cu] diagnostics: screenshot-cascade=["+order.join(" > ")+"]");
 })();
 var _defaultMon={displayId:0,width:1920,height:1080,originX:0,originY:0,scaleFactor:1,isPrimary:true,label:"default"};
 function _getMonitors(){
@@ -260,7 +260,7 @@ function _findMon(displayId){
   return mons[0];
 }
 var _inputLogDone={mouse:false,click:false,key:false,type:false,scroll:false,drag:false,window:false,app:false};
-function _logFirstUse(op,backend){if(!_inputLogDone[op]){_inputLogDone[op]=true;console.log("[claude-cu] "+op+": using "+backend)}}
+function _logFirstUse(op,backend){if(!_inputLogDone[op]){_inputLogDone[op]=true;globalThis.__cdbDiag("[claude-cu] "+op+": using "+backend)}}
 // True when a covered Wayland session (wlroots/GNOME) has a resolved bridge —
 // input/screenshot/windows all route through it and the ydotool path is skipped.
 function _useWlBridge(){return _wayland&&!!_wlBridge()}
@@ -269,9 +269,9 @@ function _moveMouse(x,y){
     _logFirstUse("mouse",_wlBridge().name);_wlBridgeCall(["pointer-move","--x",String(Math.round(x)),"--y",String(Math.round(y))]);return;
   }
   if(_wayland&&_checkYdotool()){
-    try{_logFirstUse("mouse","ydotool");_exec("ydotool mousemove --absolute 0 0");_cp.execSync("sleep 0.05");_exec("ydotool mousemove "+Math.round(x)+" "+Math.round(y));return}catch(e){console.warn("[claude-cu] ydotool mousemove failed, falling back to x11-bridge: "+e.message)}
+    try{_logFirstUse("mouse","ydotool");_exec("ydotool mousemove --absolute 0 0");_cp.execSync("sleep 0.05");_exec("ydotool mousemove "+Math.round(x)+" "+Math.round(y));return}catch(e){globalThis.__cdbDiag("[claude-cu] ydotool mousemove failed, falling back to x11-bridge: "+e.message)}
   }else{
-    if(_wayland&&!_checkYdotool())console.warn("[claude-cu] ydotool not available on Wayland, falling back to x11-bridge via XWayland");
+    if(_wayland&&!_checkYdotool())globalThis.__cdbDiag("[claude-cu] ydotool not available on Wayland, falling back to x11-bridge via XWayland");
   }
   _logFirstUse("mouse","x11-bridge");
   _x11Bridge(["pointer-move","--x",String(Math.round(x)),"--y",String(Math.round(y))]);
@@ -359,7 +359,7 @@ globalThis.__linuxExecutor={
   async zoom(rect,scale,displayId){
     var mon=displayId!=null?_findMon(displayId):_findMonByPoint(rect.x,rect.y);
     var sf=mon?mon.scaleFactor:1;
-    console.log("[claude-cu] zoom: rect="+JSON.stringify(rect)+" scale="+scale+" displayId="+displayId+" mon="+((mon&&mon.label)||"?")+" sf="+sf);
+    globalThis.__cdbDiag("[claude-cu] zoom: rect="+JSON.stringify(rect)+" scale="+scale+" displayId="+displayId+" mon="+((mon&&mon.label)||"?")+" sf="+sf);
     var cap=await _captureRegion(rect.x,rect.y,rect.w,rect.h,sf);
     // {base64, imgW, imgH, mimeType}
     return cap;
@@ -411,7 +411,7 @@ globalThis.__linuxExecutor={
       try{
         var wb=_wlBridge();
         _logFirstUse("app",wb.name);
-        console.log("[claude-cu] listRunningApps: using "+wb.name+" windows");
+        globalThis.__cdbDiag("[claude-cu] listRunningApps: using "+wb.name+" windows");
         var wwins=_wlBridgeCall(["windows"]);
         var wapps=[],wseen={};
         if(Array.isArray(wwins)){
@@ -424,7 +424,7 @@ globalThis.__linuxExecutor={
           }
         }
         return wapps;
-      }catch(we){console.warn("[claude-cu] bridge windows failed: "+(we.message||we));return[]}
+      }catch(we){globalThis.__cdbDiag("[claude-cu] bridge windows failed: "+(we.message||we));return[]}
     }
     // Exotic (uncovered) Wayland: no enumeration backend (compositor IPC was
     // wlroots-only and wlroots is covered by the bridge now).
@@ -433,7 +433,7 @@ globalThis.__linuxExecutor={
     // X11 / XWayland: enumerate via x11-bridge windows (EWMH).
     try{
       _logFirstUse("app","x11-bridge");
-      console.log("[claude-cu] listRunningApps: using x11-bridge windows");
+      globalThis.__cdbDiag("[claude-cu] listRunningApps: using x11-bridge windows");
       var wins=_x11Bridge(["windows"]);
       var apps=[],seen={};
       if(Array.isArray(wins)){
@@ -446,7 +446,7 @@ globalThis.__linuxExecutor={
         }
       }
       return apps;
-    }catch(e){console.warn("[claude-cu] x11-bridge windows failed: "+(e.message||e));return[]}
+    }catch(e){globalThis.__cdbDiag("[claude-cu] x11-bridge windows failed: "+(e.message||e));return[]}
   },
   async getFrontmostApp(){
     if(_useWlBridge()){
@@ -555,7 +555,7 @@ globalThis.__linuxExecutor={
     }
     function _findWindow(nl){
       var wins;
-      try{wins=_winCall(["windows"])}catch(e){console.warn("[claude-cu] openApp: bridge windows failed: "+(e.message||e));return null}
+      try{wins=_winCall(["windows"])}catch(e){globalThis.__cdbDiag("[claude-cu] openApp: bridge windows failed: "+(e.message||e));return null}
       if(!Array.isArray(wins))return null;
       var best=null,bestScore=0;
       for(var i=0;i<wins.length;i++){
@@ -579,11 +579,11 @@ globalThis.__linuxExecutor={
     if(_bridgeOk&&nl){
       var existing=_findWindow(nl);
       if(existing){
-        console.log("[claude-cu] openApp: activating existing window for "+name+" (id "+existing.id+")");
+        globalThis.__cdbDiag("[claude-cu] openApp: activating existing window for "+name+" (id "+existing.id+")");
         // activate-window is unsupported on gnome-portal-bridge — on failure fall
         // through to the launch path (GIO single-instance apps refocus on launch).
         try{return _activate(existing)}
-        catch(ae){console.warn("[claude-cu] openApp: activate failed ("+(ae.message||ae)+") — launching instead")}
+        catch(ae){globalThis.__cdbDiag("[claude-cu] openApp: activate failed ("+(ae.message||ae)+") — launching instead")}
       }
     }
     // 2) Resolve + launch. If the name doesn't resolve to a .desktop entry and
@@ -599,7 +599,7 @@ globalThis.__linuxExecutor={
     if(!resolved){
       // Path/URL: hand to xdg-open and return — polling for a matching window is
       // meaningless (it may open a tab in an already-running handler).
-      console.log("[claude-cu] openApp: name looks like a path/URL — setsid xdg-open "+name);
+      globalThis.__cdbDiag("[claude-cu] openApp: name looks like a path/URL — setsid xdg-open "+name);
       try{_cp.exec("setsid xdg-open "+JSON.stringify(name)+" >/dev/null 2>&1")}
       catch(e2){throw new Error("Could not open "+name)}
       // xdg-open may open a tab in an already-running handler; we never verify a
@@ -607,10 +607,10 @@ globalThis.__linuxExecutor={
       return{action:"opened",app:name};
     }
     try{
-      console.log("[claude-cu] openApp: launching via setsid "+resolved);
+      globalThis.__cdbDiag("[claude-cu] openApp: launching via setsid "+resolved);
       _cp.exec("setsid "+JSON.stringify(resolved)+" >/dev/null 2>&1");
     }catch(e){
-      try{console.log("[claude-cu] openApp: fallback to xdg-open "+name);_cp.exec("setsid xdg-open "+JSON.stringify(name)+" >/dev/null 2>&1")}
+      try{globalThis.__cdbDiag("[claude-cu] openApp: fallback to xdg-open "+name);_cp.exec("setsid xdg-open "+JSON.stringify(name)+" >/dev/null 2>&1")}
       catch(e2){throw new Error("Could not open "+name+" (resolved to "+resolved+")")}
     }
     // 3) On the bridge path, poll briefly for a matching new window and activate
@@ -622,7 +622,7 @@ globalThis.__linuxExecutor={
         try{_cp.execSync("sleep 0.5")}catch(se){}
         var appeared=_findWindow(nl);
         if(appeared){
-          console.log("[claude-cu] openApp: new window appeared for "+name+" (id "+appeared.id+")");
+          globalThis.__cdbDiag("[claude-cu] openApp: new window appeared for "+name+" (id "+appeared.id+")");
           try{var r=_activate(appeared);r.action="launched";return r}
           catch(ae2){return{action:"launched",app:_bundleIdFromWindow(appeared)||name}}
         }

@@ -257,7 +257,7 @@ proc apply*(input: string): string =
         let holder = m.captures[0]
         let callback = m.captures[1]
         "this.holder===void 0&&(this.holder=" & holder &
-          ",process.platform===\"linux\"&&globalThis.__linuxExecutor?.__setLockHeld?.(!0).catch?.(e=>console.warn(\"[linux-executor] failed to start bridge session on lock acquire\",e))," &
+          ",process.platform===\"linux\"&&globalThis.__linuxExecutor?.__setLockHeld?.(!0).catch?.(e=>(globalThis.__cdbDiag||console.warn)(\"[linux-executor] failed to start bridge session on lock acquire\",e))," &
           "this.emit(\"cuLockChanged\",{holder:" & holder & "})," & callback & "())",
     )
     if n >= 1:
@@ -277,7 +277,7 @@ proc apply*(input: string): string =
       proc(m: RegexMatch): string =
         let holder = m.captures[0]
         "this.holder===" & holder &
-          "&&(this.holder=void 0,process.platform===\"linux\"&&globalThis.__linuxExecutor?.__setLockHeld?.(!1).catch?.(e=>console.warn(\"[linux-executor] failed to stop bridge session on lock release\",e))," &
+          "&&(this.holder=void 0,process.platform===\"linux\"&&globalThis.__linuxExecutor?.__setLockHeld?.(!1).catch?.(e=>(globalThis.__cdbDiag||console.warn)(\"[linux-executor] failed to stop bridge session on lock release\",e))," &
           "this.emit(\"cuLockChanged\",{holder:void 0}))",
     )
     if n >= 1:

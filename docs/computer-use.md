@@ -13,4 +13,4 @@ Example prompt: *"Can you use computer use MCP to explain me the PhpStorm applic
 
 See [CLAUDE_BUILT_IN_MCP.md](../baseline/CLAUDE_BUILT_IN_MCP.md#14-computer-use) for the full tool reference, and [Computer Use dependencies](computer-use-dependencies.md) for the package matrix, the KDE/GNOME portal behavior notes, `COWORK_SCREENSHOT_CMD`, and `ydotool` v1.0+ setup.
 
-**Debugging:** Computer Use patches emit `[claude-cu] diagnostics:` lines at startup showing the detected session, available/missing tools, and screenshot cascade - run `claude-desktop` from a terminal and share that output when reporting Computer Use issues. See also [Debugging](../README.md#debugging).
+**Debugging:** Computer Use patches emit `[claude-cu] diagnostics:` lines showing the detected session, available/missing tools, and screenshot cascade. Find them in `~/.config/Claude/logs/claude-patches.log` (also printed to stderr on terminal launches) and share that file when reporting Computer Use issues. See also [Debugging](../README.md#debugging).

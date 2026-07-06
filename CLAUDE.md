@@ -45,7 +45,7 @@ CI enforces the floor via `objdump -T | grep GLIBC_` verification. If a new nati
 | XWayland | Any Wayland compositor | `x11-bridge` (bundled) | `x11-bridge` (bundled) |
 | Wayland — exotic (residual) | COSMIC, Enlightenment, … | `ydotool` (+`ydotoold`), else x11-bridge/XWayland | Electron `desktopCapturer` / `COWORK_SCREENSHOT_CMD` |
 
-Patches emit `[claude-cu] diagnostics:` lines to **stderr/stdout** at startup showing detected session, available/missing tools, and screenshot cascade order. Visible when running `claude-desktop` from a terminal. Ask users to share this output when debugging.
+Patches emit `[claude-cu] diagnostics:` lines showing detected session, available/missing tools, and screenshot cascade order. They are written to **`~/.config/Claude/logs/claude-patches.log`** (profile/3p-aware via userData; 2 MiB rotation to `.old`) and to raw **fd 2** (visible in a terminal launch). When debugging locally, read that file directly; for remote issue reporters, ask them to attach it. **Do NOT rely on `console.log` in main-process patch code** - the official `.deb` build discards console/`process.stdout` writes entirely (the fds are healthy; proven 2026-07-06). Use the injected `globalThis.__cdbDiag(...)` sink (defined in `js/cu_mode_preamble.js`), or `(globalThis.__cdbDiag||console.log)(...)` in patches that must not depend on the CU patch.
 
 **Key constraint:** The official Linux `.deb` is managed by Anthropic and re-minifies between releases. Every minified variable name, function signature, and feature flag can change. This makes the project inherently fragile — patches and documentation must be re-validated on each upstream update.
 
@@ -355,6 +355,7 @@ the full behavior.
 | Log File | Description |
 |----------|-------------|
 | `main.log` | Main Electron process log (~6MB) |
+| `claude-patches.log` | OUR patch diagnostics (`[claude-cu]`, `[quick-entry]`, `[CustomThemes]`, …) via `__cdbDiag` - console output is discarded by the official build |
 | `claude.ai-web.log` | BrowserView web content log (~1.6MB) |
 | `cowork_vm_node.log` | Cowork VM/session log (~638KB) |
 | `mcp.log` | MCP server communication log (~3.5MB) |

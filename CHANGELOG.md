@@ -4,6 +4,26 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 
 ## 2026-07-06
 
+### Quick Entry: cursor + focus via bundled x11-bridge - xdotool and hyprland dropped from packaging
+
+Quick Entry was the last consumer of `xdotool` (cursor position for monitor placement, window activation for focus) and the reason `hyprland` sat in the dependency lists. `fix_quick_entry_position.nim` now calls the bundled `x11-bridge` (`cursor-position`, `activate-window`) on X11/XWayland; on Hyprland it uses `hyprctl`, which ships with the compositor itself and needs no package. With that, `xdotool` and `hyprland` are gone from Arch optdepends, Debian/Ubuntu and Fedora/RHEL Suggests, and the Nix package inputs - on Nix this also stops `callPackage` from pulling the entire Hyprland compositor into the closure just for `hyprctl`. The remaining soft CU deps are only the residual tiers: `ydotool` (exotic Wayland compositors) and `imagemagick`+`spectacle` (KDE below Plasma 6.6).
+
+### Diagnostics visible again: new claude-patches.log (official build discards console output)
+
+The official `.deb` Electron build silently discards main-process `console.log`/`console.warn` - not to the terminal, not to `main.log`, the lines just vanish (the file descriptors are healthy; proven by writing into `/proc/<pid>/fd/1` directly while `console.log` in the same process produced nothing). All our patch diagnostics (`[claude-cu]`, `[quick-entry]`, `[CustomThemes]`, `[claude-profile-route]`, …) were therefore invisible since the pivot to the official `.deb`. They now go through an injected `__cdbDiag` sink that writes to `~/.config/Claude/logs/claude-patches.log` (profile/3p-aware, 2 MiB rotation) and to raw fd 2, which does reach a terminal launch. Docs updated accordingly - "run from a terminal and copy the output" no longer works for console-based lines.
+
+### Bridge resolution simplified: fixed bundled path, like upstream's own binaries
+
+The four CU bridges now resolve the same way upstream resolves its bundled binaries (e.g. `chrome-native-host`): the `*_BRIDGE_BIN` env override, else the fixed bundled `locales/` dir - one shared resolver instead of three copy-pasted candidate loops. The `$PATH` fallback is gone: bridges ship in the package, so a missing bridge is a packaging bug that should fail loud, not be masked by a stray system binary.
+
+### Docs: one Computer Use entrypoint instead of per-distro sections
+
+Since all four bridges are bundled, the near-identical "Computer Use - nothing to install" paragraphs in the Arch, Debian/Ubuntu, and Fedora/RHEL install sections were removed; the Installation intro now says it once and the `## Computer Use` section is the single entrypoint. The NixOS note was trimmed to Cowork plus a one-sentence caveat linking to a new `## NixOS` section in `docs/computer-use-dependencies.md`.
+
+### CI: install host gcc for the static bridge container builds
+
+The first real run of the new x11-bridge/wlroots-bridge build steps failed with `linker 'cc' not found`: cargo build scripts always compile for the host gnu triple and need a host `cc`, even though the musl targets themselves link via rust-lld. Both container steps now install `gcc` + `libc6-dev` (still no cross-gcc or musl-gcc).
+
 ### Computer Use: bundled wlroots-bridge + gnome-portal-bridge - every supported session is now first-party (no more ydotool/grim/gnome-screenshot)
 
 Two new first-party bridges complete the Computer Use backend family, so every supported session type now ships a bundled binary and users install nothing:

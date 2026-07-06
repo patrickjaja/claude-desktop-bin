@@ -45,13 +45,13 @@ _shell.openExternal=function(url,opts){
 try{
 if(typeof url==="string"&&_authRe.test(url)){
 _fs.writeFileSync(_markerPath,String(Date.now()),{mode:0o600});
-console.log("[claude-profile-route] auth marker written for profile '"+_profile+"' (url matched)");
+(globalThis.__cdbDiag||console.log)("[claude-profile-route] auth marker written for profile '"+_profile+"' (url matched)");
 }
-}catch(e){console.warn("[claude-profile-route] marker write failed: "+e.message)}
+}catch(e){(globalThis.__cdbDiag||console.warn)("[claude-profile-route] marker write failed: "+e.message)}
 return _origOpen.call(_shell,url,opts);
 };
-console.log("[claude-profile-route] shell.openExternal hooked for profile '"+_profile+"'");
-}catch(e){console.warn("[claude-profile-route] init failed: "+e.message)}
+(globalThis.__cdbDiag||console.log)("[claude-profile-route] shell.openExternal hooked for profile '"+_profile+"'");
+}catch(e){(globalThis.__cdbDiag||console.warn)("[claude-profile-route] init failed: "+e.message)}
 })();"""
 
 const MARKER = "[claude-profile-route]"
