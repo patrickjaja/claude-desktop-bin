@@ -465,8 +465,10 @@ jobs:
               git clone --depth=1 https://github.com/patrickjaja/kwin-portal-bridge.git
               cd kwin-portal-bridge
 
-              # x86_64 build (native)
-              cargo build --release --target x86_64-unknown-linux-gnu
+              # x86_64 build (native). --locked pins to the repo's committed
+              # Cargo.lock so an unrelated crates.io release cannot silently
+              # change the resolved dependency graph.
+              cargo build --release --locked --target x86_64-unknown-linux-gnu
               cp target/x86_64-unknown-linux-gnu/release/kwin-portal-bridge /output/kwin-portal-bridge
               echo "kwin-portal-bridge x86_64 built successfully"
 
@@ -480,7 +482,7 @@ jobs:
               export PKG_CONFIG_SYSROOT_DIR=/
               export BINDGEN_EXTRA_CLANG_ARGS_aarch64_unknown_linux_gnu="--target=aarch64-linux-gnu -I/usr/include/aarch64-linux-gnu -I/usr/include -I/usr/include/pipewire-0.3 -I/usr/include/spa-0.2"
 
-              cargo build --release --target aarch64-unknown-linux-gnu
+              cargo build --release --locked --target aarch64-unknown-linux-gnu
               cp target/aarch64-unknown-linux-gnu/release/kwin-portal-bridge /output/kwin-portal-bridge-aarch64
               echo "kwin-portal-bridge aarch64 built successfully"
             '
@@ -569,11 +571,14 @@ jobs:
               git clone --depth=1 https://github.com/patrickjaja/x11-bridge.git
               cd x11-bridge
 
-              cargo build --release --target x86_64-unknown-linux-musl
+              # --locked pins to the repo's committed Cargo.lock so an
+              # unrelated crates.io release cannot silently change the
+              # resolved dependency graph.
+              cargo build --release --locked --target x86_64-unknown-linux-musl
               cp target/x86_64-unknown-linux-musl/release/x11-bridge /output/x11-bridge
               echo "x11-bridge x86_64 built successfully"
 
-              cargo build --release --target aarch64-unknown-linux-musl
+              cargo build --release --locked --target aarch64-unknown-linux-musl
               cp target/aarch64-unknown-linux-musl/release/x11-bridge /output/x11-bridge-aarch64
               echo "x11-bridge aarch64 built successfully"
             '
@@ -648,11 +653,14 @@ jobs:
               git clone --depth=1 https://github.com/patrickjaja/wlroots-bridge.git
               cd wlroots-bridge
 
-              cargo build --release --target x86_64-unknown-linux-musl
+              # --locked pins to the repo's committed Cargo.lock so an
+              # unrelated crates.io release cannot silently change the
+              # resolved dependency graph.
+              cargo build --release --locked --target x86_64-unknown-linux-musl
               cp target/x86_64-unknown-linux-musl/release/wlroots-bridge /output/wlroots-bridge
               echo "wlroots-bridge x86_64 built successfully"
 
-              cargo build --release --target aarch64-unknown-linux-musl
+              cargo build --release --locked --target aarch64-unknown-linux-musl
               cp target/aarch64-unknown-linux-musl/release/wlroots-bridge /output/wlroots-bridge-aarch64
               echo "wlroots-bridge aarch64 built successfully"
             '
@@ -739,8 +747,11 @@ jobs:
               git clone --depth=1 https://github.com/patrickjaja/gnome-bridge.git
               cd gnome-bridge
 
-              # x86_64 build (native)
-              cargo build --release --target x86_64-unknown-linux-gnu
+              # x86_64 build (native). --locked pins to the repo'\''s committed
+              # Cargo.lock so an unrelated crates.io release (e.g. a libspa/
+              # pipewire bump whose bindgen output no longer matches Jammy'\''s
+              # system SPA headers) cannot silently break this build.
+              cargo build --release --locked --target x86_64-unknown-linux-gnu
               cp target/x86_64-unknown-linux-gnu/release/gnome-portal-bridge /output/gnome-portal-bridge
               echo "gnome-portal-bridge x86_64 built successfully"
 
@@ -754,7 +765,7 @@ jobs:
               export PKG_CONFIG_SYSROOT_DIR=/
               export BINDGEN_EXTRA_CLANG_ARGS_aarch64_unknown_linux_gnu="--target=aarch64-linux-gnu -I/usr/include/aarch64-linux-gnu -I/usr/include -I/usr/include/pipewire-0.3 -I/usr/include/spa-0.2"
 
-              cargo build --release --target aarch64-unknown-linux-gnu
+              cargo build --release --locked --target aarch64-unknown-linux-gnu
               cp target/aarch64-unknown-linux-gnu/release/gnome-portal-bridge /output/gnome-portal-bridge-aarch64
               echo "gnome-portal-bridge aarch64 built successfully"
             '
