@@ -4,6 +4,14 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 
 ## 2026-07-06
 
+### Cowork: troubleshooting docs + Arch install hint (prompted by an Arch setup report)
+
+An Arch user's Cowork setup note (assembled by an AI terminal agent) turned out to be mostly obsolete workarounds, so the audit produced documentation instead of code changes. The OVMF/virtiofsd symlinks it recommends are unnecessary since v1.17377.1 (`fix_cowork_firmware_paths_linux` already probes the distro-native paths); socat is not a Cowork dependency; and the `vhost_vsock` modprobe step is redundant on systemd distros - systemd pre-creates `/dev/vhost-vsock` as a static device node at boot and the kernel auto-loads the module the moment QEMU opens it (verified live on Arch; only non-systemd inits, containers, or kernels built without the module ever need a manual modprobe).
+
+README gains a "Troubleshooting Cowork" section keyed on the popup wordings users actually see ("Download failed", "Virtualization isn't fully set up" / "Cowork requires QEMU", "requires the vhost_vsock kernel module"), leading with `claude-desktop --diagnose` and spelling out the per-distro package commands. The in-app popup keeps upstream's Debian-only `sudo apt install` wording on every distro - deliberately left unpatched (a cosmetic string is not worth another release-blocking patch anchor). The section also warns that the symlink workaround circulating in AI-generated guides just litters package-owned directories.
+
+The AUR package now prints the optional Cowork stack once on fresh installs (`sudo pacman -S --needed qemu-system-x86 edk2-ovmf virtiofsd` plus the `kvm` group step, aarch64-aware), since pacman does not install optdepends.
+
 ### Release pipeline fixed; gnome-portal-bridge floor corrected to glibc 2.39 / PipeWire 1.0.5+
 
 The first release runs with the new bridges failed on three CI bugs, fixed in sequence: the static-linking verify step only accepted `ldd`'s non-PIE phrasing ("not a dynamic executable") and rejected our genuinely-static static-pie musl binaries (which print "statically linked"); the bridge builds did not pass `--locked`, leaving them exposed to dependency re-resolution; and a comment apostrophe inside a single-quoted `bash -c` block truncated the docker command, leaking build steps onto the bare runner.
