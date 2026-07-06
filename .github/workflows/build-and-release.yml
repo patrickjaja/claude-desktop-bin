@@ -708,27 +708,45 @@ jobs:
         id: gnome
         if: steps.gnome-cache.outputs.cache-hit != 'true'
         run: |
-          echo "=== Building gnome-portal-bridge (Ubuntu Jammy base, native cargo cross) ==="
+          echo "=== Building gnome-portal-bridge (Ubuntu Noble base, native cargo cross) ==="
           mkdir -p /tmp/gnome-bridge-output
 
-          # ubuntu:jammy (glibc 2.35) is the floor: gnome-portal-bridge must run
-          # on Ubuntu 22.04 (GNOME 42) and Debian 12 (GNOME 43). Jammy uses
-          # classic one-line sources.list (not deb822 like Noble).
+          # ubuntu:noble (glibc 2.39) is the floor, same as kwin-portal-bridge.
+          # lamco-pipewire 0.4.x calls pw_stream_get_nsec/pw_stream_get_time_n
+          # and the extended pw_time fields, which need PipeWire >= 1.0.5
+          # (Noble). Older bases (Jammy 0.3.48, Debian 12 0.3.65) can neither
+          # compile nor RUN the binary - the .so lacks those symbols and Rust
+          # links with BIND_NOW, so it would fail at load. Noble uses deb822
+          # sources; rewrite ubuntu.sources so arm64 goes to ports.ubuntu.com.
           docker run --rm \
             -v /tmp/gnome-bridge-output:/output \
             -e DEBIAN_FRONTEND=noninteractive \
-            ubuntu:jammy \
+            ubuntu:noble \
             bash -c '
               set -eo pipefail
 
               dpkg --add-architecture arm64
-              cat >/etc/apt/sources.list <<SOURCES
-          deb [arch=amd64] http://archive.ubuntu.com/ubuntu jammy main restricted universe multiverse
-          deb [arch=amd64] http://archive.ubuntu.com/ubuntu jammy-updates main restricted universe multiverse
-          deb [arch=amd64] http://security.ubuntu.com/ubuntu jammy-security main restricted universe multiverse
-          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy main restricted universe multiverse
-          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-updates main restricted universe multiverse
-          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-security main restricted universe multiverse
+              cat >/etc/apt/sources.list.d/ubuntu.sources <<SOURCES
+          Types: deb
+          URIs: http://archive.ubuntu.com/ubuntu
+          Suites: noble noble-updates noble-backports
+          Components: main restricted universe multiverse
+          Architectures: amd64
+          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+
+          Types: deb
+          URIs: http://security.ubuntu.com/ubuntu
+          Suites: noble-security
+          Components: main restricted universe multiverse
+          Architectures: amd64
+          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+
+          Types: deb
+          URIs: http://ports.ubuntu.com/ubuntu-ports
+          Suites: noble noble-updates noble-security
+          Components: main restricted universe multiverse
+          Architectures: arm64
+          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
           SOURCES
 
               apt-get update
@@ -747,10 +765,9 @@ jobs:
               git clone --depth=1 https://github.com/patrickjaja/gnome-bridge.git
               cd gnome-bridge
 
-              # x86_64 build (native). --locked pins to the repo'\''s committed
-              # Cargo.lock so an unrelated crates.io release (e.g. a libspa/
-              # pipewire bump whose bindgen output no longer matches Jammy'\''s
-              # system SPA headers) cannot silently break this build.
+              # x86_64 build (native). --locked pins to the committed Cargo.lock
+              # so an unrelated crates.io release cannot silently change the
+              # resolved dependency graph.
               cargo build --release --locked --target x86_64-unknown-linux-gnu
               cp target/x86_64-unknown-linux-gnu/release/gnome-portal-bridge /output/gnome-portal-bridge
               echo "gnome-portal-bridge x86_64 built successfully"
@@ -776,11 +793,11 @@ jobs:
           file /tmp/gnome-bridge-output/gnome-portal-bridge
           GLIBC_MAX=$(objdump -T /tmp/gnome-bridge-output/gnome-portal-bridge 2>/dev/null | grep -oP 'GLIBC_[0-9.]+' | sort -uV | tail -1 || echo "unknown")
           echo "gnome-portal-bridge x86_64 max glibc: ${GLIBC_MAX}"
-          # Jammy (glibc 2.35) is the floor: must run on Ubuntu 22.04 + Debian 12
-          # GNOME sessions. Version-compare via sort -V.
-          HIGHEST=$(printf '%s\nGLIBC_2.35\n' "${GLIBC_MAX}" | sort -V | tail -1)
-          if [[ "${HIGHEST}" != "GLIBC_2.35" ]]; then
-            echo "::error::x86_64 binary requires ${GLIBC_MAX}, expected GLIBC_2.35 or lower"
+          # Noble (glibc 2.39) is the floor, matching the PipeWire >= 1.0.5
+          # runtime requirement of lamco-pipewire. Version-compare via sort -V.
+          HIGHEST=$(printf '%s\nGLIBC_2.39\n' "${GLIBC_MAX}" | sort -V | tail -1)
+          if [[ "${HIGHEST}" != "GLIBC_2.39" ]]; then
+            echo "::error::x86_64 binary requires ${GLIBC_MAX}, expected GLIBC_2.39 or lower"
             exit 1
           fi
 
@@ -792,9 +809,9 @@ jobs:
           if command -v aarch64-linux-gnu-objdump >/dev/null 2>&1; then
             GLIBC_MAX_ARM=$(aarch64-linux-gnu-objdump -T /tmp/gnome-bridge-output/gnome-portal-bridge-aarch64 2>/dev/null | grep -oP 'GLIBC_[0-9.]+' | sort -uV | tail -1 || echo "unknown")
             echo "gnome-portal-bridge aarch64 max glibc: ${GLIBC_MAX_ARM}"
-            HIGHEST_ARM=$(printf '%s\nGLIBC_2.35\n' "${GLIBC_MAX_ARM}" | sort -V | tail -1)
-            if [[ "${HIGHEST_ARM}" != "GLIBC_2.35" ]]; then
-              echo "::error::aarch64 binary requires ${GLIBC_MAX_ARM}, expected GLIBC_2.35 or lower"
+            HIGHEST_ARM=$(printf '%s\nGLIBC_2.39\n' "${GLIBC_MAX_ARM}" | sort -V | tail -1)
+            if [[ "${HIGHEST_ARM}" != "GLIBC_2.39" ]]; then
+              echo "::error::aarch64 binary requires ${GLIBC_MAX_ARM}, expected GLIBC_2.39 or lower"
               exit 1
             fi
           else
