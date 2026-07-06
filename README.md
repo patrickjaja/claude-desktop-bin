@@ -50,7 +50,7 @@ Everything else - Chat, Claude Code, Cowork, Browser Tools, 3P/enterprise infere
 
 > **Upgrading from an older release? (temporary note)** Cowork is now bundled directly in the app (Anthropic ships it in the official `.deb` we repackage), so the separate `claude-cowork-service` daemon has been **deprecated and fully removed** - you can uninstall it. In exchange, Cowork now needs a QEMU/KVM setup on the host (this is a breaking change). Even if you've been a user for a while, please walk through your distro's section below step by step and install the **Cowork** optional dependencies + join the `kvm` group. See [Cowork setup](#cowork-setup-needs-devkvm) for details.
 
-Pick your distro below. Each section lists the optional dependencies for that distro (Cowork, Computer Use) and when you need them.
+Pick your distro below. [Computer Use](#computer-use) works out of the box everywhere - all backends are bundled, nothing to install. The only optional dependency to care about is **Cowork** (agent workspace VM), listed per distro.
 
 ### Arch Linux / Manjaro (AUR)
 ```bash
@@ -70,7 +70,7 @@ sudo pacman -S --needed qemu-system-aarch64 edk2-aarch64 virtiofsd  # aarch64
 
 > **Arch Linux ARM / EndeavourOS ARM / Manjaro ARM (native aarch64 host, e.g. Raspberry Pi 5):** `edk2-aarch64` is `arch=any` on archlinux.org but Arch Linux ARM's repos don't carry it, so `pacman -S edk2-aarch64` fails with `target not found` even after `-Syu` ([ALARM forum #16140](https://archlinuxarm.org/forum/viewtopic.php?t=16140)). Since the package is architecture-independent, grab it from the x86_64 Arch mirrors and install locally: `curl -L https://archlinux.org/packages/extra/any/edk2-aarch64/download -o edk2-aarch64.pkg.tar.zst && sudo pacman -U ./edk2-aarch64.pkg.tar.zst`.
 
-**Computer Use** - nothing to install. Every supported session type ships a bundled first-party backend: [`x11-bridge`](https://github.com/patrickjaja/x11-bridge) (X11 / XWayland), [`wlroots-bridge`](https://github.com/patrickjaja/wlroots-bridge) (Sway / Hyprland / Niri), [`gnome-portal-bridge`](https://github.com/patrickjaja/gnome-bridge) (GNOME Wayland - one-time portal consent dialog, persisted on GNOME 46+), [`kwin-portal-bridge`](https://github.com/patrickjaja/kwin-portal-bridge) (KDE Plasma 6.6+). No ydotool daemon, no grim/gnome-screenshot/jq. Only exotic Wayland compositors (none of the above) still fall back to `ydotool`. Also optional: `nodejs` (system MCP servers), `sqlite` (project detection), `claude-code`. Details: [Computer Use dependencies](docs/computer-use-dependencies.md).
+Also optional: `nodejs` (system MCP servers), `sqlite` (project detection), `claude-code`.
 
 ### Debian / Ubuntu (APT Repository)
 
@@ -93,8 +93,6 @@ Updates are automatic via `sudo apt update && sudo apt upgrade`.
 sudo apt install qemu-system-x86 ovmf virtiofsd        # arm64: qemu-system-arm qemu-efi-aarch64 virtiofsd
 # then join the kvm group (once, needs re-login): sudo usermod -aG kvm "$USER"
 ```
-
-**Computer Use** - nothing to install. Every supported session type ships a bundled first-party backend: [`x11-bridge`](https://github.com/patrickjaja/x11-bridge) (X11 / XWayland), [`wlroots-bridge`](https://github.com/patrickjaja/wlroots-bridge) (Sway / Hyprland / Niri), [`gnome-portal-bridge`](https://github.com/patrickjaja/gnome-bridge) (GNOME Wayland - one-time portal consent dialog; persisted on GNOME 46+, re-asked per session on GNOME 42-45 as on Ubuntu 22.04 / Debian 12), [`kwin-portal-bridge`](https://github.com/patrickjaja/kwin-portal-bridge) (KDE Plasma 6.6+). The old ydotool-v1.0-from-source setup is no longer needed - only exotic Wayland compositors (none of the above) still fall back to `ydotool`. Details: [Computer Use dependencies](docs/computer-use-dependencies.md).
 
 <details>
 <summary>Manual .deb install (without APT repo)</summary>
@@ -123,8 +121,6 @@ Updates are automatic via `sudo dnf upgrade`.
 sudo dnf install qemu-system-x86 edk2-ovmf virtiofsd   # arm64: qemu-system-aarch64 edk2-aarch64 · RHEL: qemu-kvm instead of qemu-system-x86
 # then join the kvm group (once, needs re-login): sudo usermod -aG kvm "$USER"
 ```
-
-**Computer Use** - nothing to install. Every supported session type ships a bundled first-party backend: [`x11-bridge`](https://github.com/patrickjaja/x11-bridge) (X11 / XWayland), [`wlroots-bridge`](https://github.com/patrickjaja/wlroots-bridge) (Sway / Hyprland / Niri), [`gnome-portal-bridge`](https://github.com/patrickjaja/gnome-bridge) (GNOME Wayland - one-time portal consent dialog, persisted on GNOME 46+), [`kwin-portal-bridge`](https://github.com/patrickjaja/kwin-portal-bridge) (KDE Plasma 6.6+). No ydotool daemon, no grim/gnome-screenshot. Only exotic Wayland compositors (none of the above) still fall back to `ydotool`. Details: [Computer Use dependencies](docs/computer-use-dependencies.md).
 
 <details>
 <summary>Manual .rpm install (without DNF repo)</summary>
@@ -161,14 +157,13 @@ nix profile install github:patrickjaja/claude-desktop-bin
 
 > **Note:** Update by running `nix flake update` to pull the latest version. `nix run` always fetches the latest.
 
-> **Optional deps on Nix: wired automatically.** The flake pulls the Cowork tools (`qemu`, `virtiofsd`, OVMF firmware) and the residual Computer Use fallbacks (`ydotool` for exotic compositors, `spectacle` for pre-6.6 KDE) from nixpkgs and bakes them into the app's closure - nothing to install. The bundled STATIC bridges (`x11-bridge`, `wlroots-bridge`) run on NixOS as-is; the glibc-dynamic `gnome-portal-bridge`/`kwin-portal-bridge` do not - pass a natively built [`gnome-portal-bridge`](https://github.com/patrickjaja/gnome-bridge) via `.override { gnome-portal-bridge = …; }` to enable GNOME Wayland CU. Use `.override { … }` also to swap or drop a tool (e.g. `qemu = null;` shrinks the closure if you don't need Cowork). Only the host-level steps other distros also need remain, in NixOS form:
+> **Optional deps on Nix: wired automatically.** The flake pulls the Cowork tools (`qemu`, `virtiofsd`, OVMF firmware) from nixpkgs and bakes them into the app's closure - nothing to install. Use `.override { … }` to swap or drop a tool (e.g. `qemu = null;` shrinks the closure if you don't need Cowork). Only one host-level step remains, in NixOS form:
 >
 > ```nix
 > users.users.<you>.extraGroups = [ "kvm" ];  # Cowork: /dev/kvm access (once, needs re-login)
-> programs.ydotool.enable = true;             # Computer Use input on EXOTIC Wayland compositors only (Sway/Hyprland/Niri/GNOME/KDE use the bundled bridges)
 > ```
 >
-> Full Computer Use matrix: [docs/computer-use-dependencies.md](docs/computer-use-dependencies.md). If your flake pins a release older than v1.18286.0, virtiofsd and OVMF need manual exposure - see the notes in [`packaging/nix/package.nix`](packaging/nix/package.nix).
+> **NixOS Computer Use caveat:** the static bridges (X11 / XWayland / Sway / Hyprland / Niri) run as-is; the glibc-dynamic GNOME/KDE bridges do not - see [Computer Use dependencies](docs/computer-use-dependencies.md#nixos) for the `.override` workaround. If your flake pins a release older than v1.18286.0, virtiofsd and OVMF need manual exposure - see the notes in [`packaging/nix/package.nix`](packaging/nix/package.nix).
 
 ### AppImage (Any Distro)
 
@@ -185,7 +180,7 @@ chmod +x Claude_Desktop-*-x86_64.AppImage
 
 > **Update:** AppImage supports delta updates via [appimagetool](https://github.com/AppImageCommunity/AppImageUpdate) - only changed blocks are downloaded (`appimageupdatetool Claude_Desktop-*.AppImage`, or `--appimage-update` from within). Compatible with [AppImageLauncher](https://github.com/TheAssassin/AppImageLauncher) and [Gear Lever](https://github.com/mijorus/gearlever). Use `--integrate` / `--unintegrate` / `--diagnose` to manage the protocol handler.
 >
-> **Optional deps.** The AppImage bundles nothing extra, so install what you need from your host's repos. **Cowork** (VM): Arch `qemu-system-x86 edk2-ovmf virtiofsd` · Fedora `qemu-system-x86 edk2-ovmf virtiofsd` · Debian/Ubuntu `qemu-system-x86 ovmf virtiofsd` (arm64 firmware differs - see [Cowork setup](#cowork-setup-needs-devkvm)). **Computer Use**: per [Computer Use dependencies](docs/computer-use-dependencies.md).
+> **Optional deps.** For **Cowork** (VM), install from your host's repos: Arch/Fedora `qemu-system-x86 edk2-ovmf virtiofsd` · Debian/Ubuntu `qemu-system-x86 ovmf virtiofsd` (arm64 firmware differs - see [Cowork setup](#cowork-setup-needs-devkvm)).
 
 ### From Source
 ```bash
@@ -196,7 +191,7 @@ cd claude-desktop-bin
 
 > **Note:** Source builds do not receive automatic updates. Pull and rebuild to update.
 >
-> **Optional deps.** A source build installs the native package for your distro, so the optional deps are the same as that distro's section above (e.g. on Arch, install the Cowork/Computer Use packages by hand since pacman doesn't pull `optdepends`).
+> **Optional deps.** A source build installs the native package for your distro, so the optional deps are the same as that distro's section above (e.g. on Arch, install the Cowork packages by hand since pacman doesn't pull `optdepends`).
 
 ### ARM64 / aarch64 (Raspberry Pi 5, NVIDIA DGX Spark, Jetson, etc.)
 
@@ -221,7 +216,7 @@ curl -fsSL https://patrickjaja.github.io/claude-desktop-bin/gpg-key.asc | gpg --
 
 **Our exclusive feature - not part of the official Linux beta.** Claude Desktop's built-in Computer Use MCP server exposes 27 tools for desktop automation (screenshot, click, type, scroll, drag, clipboard, and more), plus **learn tools** that generate interactive overlay tutorials for any app. Upstream is macOS-only; the patch ([`fix_computer_use_linux.nim`](patches/fix_computer_use_linux.nim)) removes the platform gates and injects a Linux executor that auto-detects your session and routes to a bundled first-party bridge: [`x11-bridge`](https://github.com/patrickjaja/x11-bridge) on X11 / XWayland, [`wlroots-bridge`](https://github.com/patrickjaja/wlroots-bridge) on Sway / Hyprland / Niri (native virtual-pointer/keyboard + screencopy + foreign-toplevel protocols), [`gnome-portal-bridge`](https://github.com/patrickjaja/gnome-bridge) on GNOME Wayland (XDG RemoteDesktop + ScreenCast portal, one consent dialog per session, persisted on GNOME 46+), and [`kwin-portal-bridge`](https://github.com/patrickjaja/kwin-portal-bridge) on KDE Plasma 6.6+. No third-party input/screenshot tools needed; only exotic Wayland compositors fall back to `ydotool`.
 
-See **[docs/computer-use.md](docs/computer-use.md)** for how it works, the notes (primary-monitor, app discovery, teach overlay), and links to the [tool reference](baseline/CLAUDE_BUILT_IN_MCP.md#14-computer-use). Install the tools for your session from your distro's [Installation](#installation) section; [Computer Use dependencies](docs/computer-use-dependencies.md) has the full matrix and `ydotool` setup.
+**Nothing to install** - the bridges ship inside the package. See **[docs/computer-use.md](docs/computer-use.md)** for how it works, the notes (primary-monitor, app discovery, teach overlay), and links to the [tool reference](baseline/CLAUDE_BUILT_IN_MCP.md#14-computer-use); [Computer Use dependencies](docs/computer-use-dependencies.md) has the per-session matrix and the exotic-compositor `ydotool` fallback.
 
 ## Custom Themes
 

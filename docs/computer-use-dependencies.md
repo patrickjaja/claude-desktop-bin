@@ -35,4 +35,13 @@ Ubuntu/Debian ship an incompatible v0.1.8 - build v1.0.4 with the setup script:
 curl -fsSL https://raw.githubusercontent.com/patrickjaja/claude-desktop-bin/master/scripts/setup-ydotool.sh | sudo bash
 ```
 
-> **Nix:** the bundled static bridges (`x11-bridge`, `wlroots-bridge`) run on NixOS as-is - X11, XWayland, and Sway/Hyprland/Niri Computer Use work with no extra packages. The glibc-dynamic bridges do not run on NixOS: KDE Wayland falls back to `spectacle`, and GNOME Wayland needs a natively built [`gnome-portal-bridge`](https://github.com/patrickjaja/gnome-bridge) passed via `claude-desktop.override { gnome-portal-bridge = …; }` (sets `GNOME_PORTAL_BRIDGE_BIN`).
+<a id="nixos"></a>
+## NixOS
+
+The bundled static bridges (`x11-bridge`, `wlroots-bridge`) run on NixOS as-is - X11, XWayland, and Sway/Hyprland/Niri Computer Use work with no extra packages. The glibc-dynamic bridges do not run on NixOS: KDE Wayland falls back to `spectacle` (baked into the flake's closure), and GNOME Wayland needs a natively built [`gnome-portal-bridge`](https://github.com/patrickjaja/gnome-bridge) passed via `claude-desktop.override { gnome-portal-bridge = …; }` (sets `GNOME_PORTAL_BRIDGE_BIN`).
+
+For exotic Wayland compositors, the flake already bakes `ydotool` into the closure; enable the daemon with:
+
+```nix
+programs.ydotool.enable = true;  # exotic Wayland compositors only - the bundled bridges cover X11/Sway/Hyprland/Niri/GNOME/KDE
+```
