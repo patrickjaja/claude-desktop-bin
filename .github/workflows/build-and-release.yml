@@ -544,9 +544,11 @@ jobs:
           echo "=== Building x11-bridge (pure Rust, static musl, no C deps) ==="
           mkdir -p /tmp/x11-bridge-output
 
-          # No apt system deps and no cross gcc: x11-bridge is pure Rust and the
+          # No cross gcc / musl-gcc needed: x11-bridge is pure Rust and the
           # repo's .cargo/config.toml pins rust-lld + crt-static, so both musl
-          # targets link fully-static without a musl-gcc / aarch64 cross-linker.
+          # targets link fully-static without an external cross-linker. A host
+          # gcc IS still required - cargo build scripts (proc-macro2, quote,
+          # rustix) compile for the host gnu triple and link with `cc`.
           docker run --rm \
             -v /tmp/x11-bridge-output:/output \
             -e DEBIAN_FRONTEND=noninteractive \
@@ -555,7 +557,7 @@ jobs:
               set -eo pipefail
 
               apt-get update
-              apt-get install -y --no-install-recommends curl ca-certificates git
+              apt-get install -y --no-install-recommends curl ca-certificates git gcc libc6-dev
 
               # Rust toolchain via rustup (Noble has no rust preinstalled).
               curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | \
@@ -625,7 +627,8 @@ jobs:
           mkdir -p /tmp/wlroots-bridge-output
 
           # Same model as x11-bridge: pure Rust, .cargo/config.toml pins
-          # rust-lld + crt-static, both musl targets link fully-static.
+          # rust-lld + crt-static, both musl targets link fully-static. Host
+          # gcc is only for cargo build scripts (they link with `cc`).
           docker run --rm \
             -v /tmp/wlroots-bridge-output:/output \
             -e DEBIAN_FRONTEND=noninteractive \
@@ -634,7 +637,7 @@ jobs:
               set -eo pipefail
 
               apt-get update
-              apt-get install -y --no-install-recommends curl ca-certificates git
+              apt-get install -y --no-install-recommends curl ca-certificates git gcc libc6-dev
 
               curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | \
                 sh -s -- -y --profile minimal --default-toolchain stable
