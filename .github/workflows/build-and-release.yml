@@ -590,8 +590,8 @@ jobs:
             echo "::error::x86_64 x11-bridge is not statically linked"
             exit 1
           fi
-          if ldd /tmp/x11-bridge-output/x11-bridge 2>&1 | grep -q 'not a dynamic executable'; then
-            echo "x86_64 x11-bridge: not a dynamic executable (static confirmed)"
+          if ldd /tmp/x11-bridge-output/x11-bridge 2>&1 | grep -Eq 'not a dynamic executable|statically linked'; then
+            echo "x86_64 x11-bridge: static confirmed (ldd)"
           else
             echo "::error::x86_64 x11-bridge reports dynamic dependencies"
             ldd /tmp/x11-bridge-output/x11-bridge || true
@@ -667,8 +667,8 @@ jobs:
             echo "::error::x86_64 wlroots-bridge is not statically linked"
             exit 1
           fi
-          if ldd /tmp/wlroots-bridge-output/wlroots-bridge 2>&1 | grep -q 'not a dynamic executable'; then
-            echo "x86_64 wlroots-bridge: not a dynamic executable (static confirmed)"
+          if ldd /tmp/wlroots-bridge-output/wlroots-bridge 2>&1 | grep -Eq 'not a dynamic executable|statically linked'; then
+            echo "x86_64 wlroots-bridge: static confirmed (ldd)"
           else
             echo "::error::x86_64 wlroots-bridge reports dynamic dependencies"
             ldd /tmp/wlroots-bridge-output/wlroots-bridge || true
