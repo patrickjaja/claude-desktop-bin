@@ -5,6 +5,15 @@ function _execBuf(cmd){return _cp.execSync(cmd,{timeout:15000})}
 function _isWayland(){var st=(process.env.XDG_SESSION_TYPE||"").toLowerCase();if(st==="wayland")return true;if(st==="x11")return false;return!!process.env.WAYLAND_DISPLAY}
 var _wayland=_isWayland();
 function _isWlroots(){return!!process.env.SWAYSOCK||!!process.env.HYPRLAND_INSTANCE_SIGNATURE||!!process.env.NIRI_SOCKET}
+function _isGnomeWayland(){return _wayland&&(process.env.XDG_CURRENT_DESKTOP||"").toLowerCase().indexOf("gnome")>=0}
+// A "covered" Wayland session is one with a bundled first-party bridge:
+// wlroots (Sway/Hyprland/Niri) → wlroots-bridge, GNOME → gnome-portal-bridge.
+// On covered sessions the third-party cascade (ydotool/grim/gnome-screenshot/
+// gdbus/hyprctl/swaymsg/jq/niri) is DELETED — the bridge is the only backend.
+function _wlrootsBridgeBin(){return process.env.WLROOTS_BRIDGE_BIN||globalThis.__cuWlrootsBridgeBin}
+function _gnomeBridgeBin(){return process.env.GNOME_PORTAL_BRIDGE_BIN||globalThis.__cuGnomeBridgeBin}
+function _isWlrootsCovered(){return _wayland&&_isWlroots()}
+function _isGnomeCovered(){return _isGnomeWayland()}
 try{var _virt=_cp.execSync("systemd-detect-virt 2>/dev/null",{encoding:"utf-8",timeout:3000}).trim();globalThis.__isVM=_virt!=="none"&&_virt!==""}catch(e){globalThis.__isVM=!1}
 if(globalThis.__isVM)console.log("[claude-cu] VM detected ("+_virt+") — teach overlay uses dark backdrop fallback");
 var _cmdCache={};
@@ -30,14 +39,69 @@ function _x11BridgeScreens(){
   try{var s=_x11Bridge(["screens"]);_x11ScreensCache=Array.isArray(s)?s:[]}catch(e){console.warn("[claude-cu] x11-bridge screens failed: "+(e.message||e));_x11ScreensCache=[]}
   return _x11ScreensCache;
 }
-function _readClean(f){var buf=_fs.readFileSync(f);try{_fs.unlinkSync(f)}catch(e){}return buf.toString("base64")}
-var _portalTokenPath=_path.join(_electron.app.getPath("userData"),"pipewire-restore-token");
-var _portalPyCode="import sys,os,signal,subprocess\nTOKEN_FILE=os.environ.get('CLAUDE_PORTAL_TOKEN_PATH') or os.path.expanduser('~/.config/Claude/pipewire-restore-token')\nTIMEOUT_SECS=10\ndef main():\n    if len(sys.argv)<2:\n        print('Usage: gnome-portal-screenshot.py <output.png> [x y w h]',file=sys.stderr);return 1\n    output_path=sys.argv[1]\n    crop=tuple(int(x) for x in sys.argv[2:6]) if len(sys.argv)>=6 else None\n    try:\n        import gi\n        gi.require_version('Gst','1.0')\n        from gi.repository import GLib,Gio,Gst\n    except (ImportError,ValueError) as e:\n        print(f'[portal-screenshot] missing deps: {e}',file=sys.stderr);return 2\n    Gst.init(None)\n    restore_token=''\n    try:\n        with open(TOKEN_FILE) as f: restore_token=f.read().strip()\n    except FileNotFoundError: pass\n    bus=Gio.bus_get_sync(Gio.BusType.SESSION)\n    loop=GLib.MainLoop()\n    state={'node_id':None,'new_token':'','session':'','error':None,'done':False}\n    unique_name=bus.get_unique_name().replace('.','_').replace(':','')\n    counter=[0]\n    def next_token():\n        counter[0]+=1;return f'claude_{os.getpid()}_{counter[0]}'\n    def subscribe_response(handle_path,callback):\n        sub_id=[None]\n        def on_signal(_conn,_sender,_path,_iface,_sig,params):\n            bus.signal_unsubscribe(sub_id[0]);resp,results=params.unpack();callback(resp,results)\n        sub_id[0]=bus.signal_subscribe('org.freedesktop.portal.Desktop','org.freedesktop.portal.Request','Response',handle_path,None,0,on_signal);return sub_id[0]\n    def portal_call(method,args_variant):\n        return bus.call_sync('org.freedesktop.portal.Desktop','/org/freedesktop/portal/desktop','org.freedesktop.portal.ScreenCast',method,args_variant,None,0,TIMEOUT_SECS*1000,None)\n    def fail(msg):\n        state['error']=msg\n        if loop.is_running(): loop.quit()\n    def do_start():\n        ht=next_token();hp=f'/org/freedesktop/portal/desktop/request/{unique_name}/{ht}'\n        def on_start(resp,results):\n            if resp!=0: fail(f'Start rejected ({resp})');return\n            streams=results.get('streams',None);new_tok=results.get('restore_token','')\n            if new_tok: state['new_token']=new_tok\n            if streams:\n                sl=streams.unpack() if hasattr(streams,'unpack') else streams\n                if sl: state['node_id']=sl[0][0] if isinstance(sl[0],tuple) else sl[0]\n            state['done']=True;loop.quit()\n        subscribe_response(hp,on_start)\n        portal_call('Start',GLib.Variant('(osa{sv})',(state['session'],'',{'handle_token':GLib.Variant('s',ht)})))\n    def do_select():\n        ht=next_token();hp=f'/org/freedesktop/portal/desktop/request/{unique_name}/{ht}'\n        def on_select(resp,_results):\n            if resp!=0: fail(f'SelectSources rejected ({resp})');return\n            do_start()\n        subscribe_response(hp,on_select)\n        opts={'handle_token':GLib.Variant('s',ht),'types':GLib.Variant('u',1),'multiple':GLib.Variant('b',False),'persist_mode':GLib.Variant('u',2)}\n        if restore_token: opts['restore_token']=GLib.Variant('s',restore_token)\n        portal_call('SelectSources',GLib.Variant('(oa{sv})',(state['session'],opts)))\n    def do_create():\n        ht=next_token();st=f'claude_sess_{os.getpid()}'\n        hp=f'/org/freedesktop/portal/desktop/request/{unique_name}/{ht}'\n        def on_create(resp,results):\n            if resp!=0: fail(f'CreateSession rejected ({resp})');return\n            sh=results.get('session_handle','')\n            if not sh: fail('No session handle');return\n            state['session']=sh;do_select()\n        subscribe_response(hp,on_create)\n        portal_call('CreateSession',GLib.Variant('(a{sv})',({'handle_token':GLib.Variant('s',ht),'session_handle_token':GLib.Variant('s',st)},)))\n    GLib.timeout_add_seconds(TIMEOUT_SECS,lambda:(fail('timeout') if not state['done'] else None,False)[-1])\n    try: do_create();loop.run()\n    except Exception as e: fail(str(e))\n    if state['error']:\n        print(f'[portal-screenshot] {state[\"error\"]}',file=sys.stderr);return 1\n    if not state['node_id']:\n        print('[portal-screenshot] no PipeWire node',file=sys.stderr);return 1\n    if state['new_token']:\n        try:\n            os.makedirs(os.path.dirname(TOKEN_FILE),exist_ok=True)\n            with open(TOKEN_FILE,'w') as f: f.write(state['new_token'])\n        except OSError: pass\n    node_id=state['node_id']\n    try:\n        pipeline=Gst.parse_launch(f'pipewiresrc path={node_id} num-buffers=1 ! videoconvert ! pngenc ! filesink location=\"{output_path}\"')\n        pipeline.set_state(Gst.State.PLAYING)\n        gst_bus=pipeline.get_bus()\n        msg=gst_bus.timed_pop_filtered(5*Gst.SECOND,Gst.MessageType.EOS|Gst.MessageType.ERROR)\n        if msg and msg.type==Gst.MessageType.ERROR:\n            err,_=msg.parse_error();print(f'[portal-screenshot] GStreamer: {err.message}',file=sys.stderr)\n            pipeline.set_state(Gst.State.NULL);return 1\n        pipeline.set_state(Gst.State.NULL)\n    except Exception as e:\n        print(f'[portal-screenshot] GStreamer failed: {e}',file=sys.stderr);return 1\n    if not os.path.exists(output_path): return 1\n    if crop:\n        cx,cy,cw,ch=crop\n        try:\n            from gi.repository import GdkPixbuf\n            pb=GdkPixbuf.Pixbuf.new_from_file(output_path)\n            pw,ph=pb.get_width(),pb.get_height()\n            cx=min(cx,pw-1);cy=min(cy,ph-1);cw=min(cw,pw-cx);ch=min(ch,ph-cy)\n            cr=GdkPixbuf.Pixbuf.new(GdkPixbuf.Colorspace.RGB,pb.get_has_alpha(),8,cw,ch)\n            pb.copy_area(cx,cy,cw,ch,cr,0,0);cr.savev(output_path,'png',[],[])\n        except ImportError:\n            try: subprocess.run(['convert',output_path,'-crop',f'{cw}x{ch}+{cx}+{cy}','+repage',output_path],timeout=5,check=True,capture_output=True)\n            except Exception: pass\n    if state['session']:\n        try: bus.call_sync('org.freedesktop.portal.Desktop',state['session'],'org.freedesktop.portal.Session','Close',None,None,0,1000,None)\n        except Exception: pass\n    return 0\nif __name__=='__main__':\n    signal.signal(signal.SIGALRM,lambda *_:sys.exit(1));signal.alarm(TIMEOUT_SECS+5);sys.exit(main())";
-function _hasPortalDeps(){return _hasCmd("python3")&&_hasCmd("gst-launch-1.0")}
-function _hasPortalToken(){try{_fs.accessSync(_portalTokenPath);return true}catch(e){return false}}
-async function _portalScreenshot(tmp,x,y,w,h){
-  return new Promise(function(resolve){var ch=_cp.spawn("python3",["-",tmp,String(x),String(y),String(w),String(h)],{stdio:["pipe","pipe","pipe"],env:Object.assign({},process.env,{CLAUDE_PORTAL_TOKEN_PATH:_portalTokenPath})});ch.stdin.write(_portalPyCode);ch.stdin.end();var se="";ch.stderr.on("data",function(d){se+=d.toString()});var timer=setTimeout(function(){ch.kill("SIGKILL");resolve({status:1,stderr:"timeout"})},15000);ch.on("close",function(code){clearTimeout(timer);resolve({status:code,stderr:se})});ch.on("error",function(e){clearTimeout(timer);resolve({status:1,stderr:e.message})})});
+// ── Generic bridge invoker for the Wayland first-party backends ──
+// wlroots-bridge and gnome-portal-bridge mirror x11-bridge's CLI/JSON contract
+// (subcommand + --kebab flags, one JSON value on stdout, exit 1 + stderr on
+// error). gnome-portal-bridge proxies through a portal session and can be
+// slower, so we use a more generous timeout there.
+function _bridge(bin,args,timeoutMs){
+  if(!bin)throw new Error("bridge binary not available");
+  var res=_cp.execFileSync(bin,args,{encoding:"utf-8",timeout:timeoutMs||15000,maxBuffer:16*1024*1024});
+  var out=res.trim();
+  return out?JSON.parse(out):null;
 }
+// Return {bin, name, timeout} for the active covered Wayland session, or null.
+function _wlBridge(){
+  if(_isWlrootsCovered()){var b=_wlrootsBridgeBin();if(b)return{bin:b,name:"wlroots-bridge",timeout:15000}}
+  if(_isGnomeCovered()){var g=_gnomeBridgeBin();if(g)return{bin:g,name:"gnome-portal-bridge",timeout:30000}}
+  return null;
+}
+function _wlBridgeCall(args){var b=_wlBridge();if(!b)throw new Error("no covered Wayland bridge available");if(b.name==="gnome-portal-bridge")_gnomeEnsureSession();return _bridge(b.bin,args,b.timeout)}
+// Bridge-side monitor list (snake_case screens) for the active Wayland bridge.
+// Mirrors _x11BridgeScreens; used to map a global-logical region to a monitor
+// name + monitor-relative coords for `zoom --display`.
+var _wlScreensCache=null;
+function _wlBridgeScreens(){
+  if(_wlScreensCache!==null)return _wlScreensCache;
+  try{var s=_wlBridgeCall(["screens"]);_wlScreensCache=Array.isArray(s)?s:[]}catch(e){console.warn("[claude-cu] "+(_wlBridge()?_wlBridge().name:"bridge")+" screens failed: "+(e.message||e));_wlScreensCache=[]}
+  return _wlScreensCache;
+}
+// Map a global-logical region to the bridge monitor containing its top-left,
+// returning {name, x, y} with monitor-relative x/y (mirrors _x11MonForRegion).
+function _wlMonForRegion(x,y){
+  var screens=_wlBridgeScreens();
+  if(!screens.length)return null;
+  var pick=null;
+  for(var i=0;i<screens.length;i++){var g=screens[i].geometry||{};if(x>=g.x&&x<g.x+g.width&&y>=g.y&&y<g.y+g.height){pick=screens[i];break}}
+  if(!pick){for(var j=0;j<screens.length;j++){if(screens[j].is_primary){pick=screens[j];break}}}
+  if(!pick)pick=screens[0];
+  var pg=pick.geometry||{x:0,y:0};
+  return{name:pick.name||pick.id,x:x-pg.x,y:y-pg.y};
+}
+// ── GNOME portal-session daemon lifecycle ──
+// gnome-portal-bridge holds ONE portal RemoteDesktop+ScreenCast session per
+// tool-use lock (one consent dialog; restore-token dialog-free on GNOME 46+).
+// Driven by the CU lock via __setLockHeld (wired from Patches 4b/4b.2 in
+// fix_computer_use_linux.nim, which call __linuxExecutor.__setLockHeld in BOTH
+// kwin and regular mode). If the lock hook never fires we lazy-start on first
+// bridge use and stop on process exit as a backstop.
+var _gnomeSessionActive=!1,_gnomeExitHooked=!1;
+function _gnomeSessionStart(){
+  var bin=_gnomeBridgeBin();if(!bin)return;
+  try{_bridge(bin,["session-start"],30000);_gnomeSessionActive=!0;console.log("[claude-cu] gnome-portal-bridge session started")}
+  catch(e){console.warn("[claude-cu] gnome-portal-bridge session-start failed: "+(e.message||e))}
+}
+function _gnomeSessionEnd(){
+  var bin=_gnomeBridgeBin();if(!bin)return;
+  try{_bridge(bin,["session-end"],15000)}catch(e){}
+  _gnomeSessionActive=!1;
+}
+function _gnomeEnsureSession(){
+  if(_gnomeSessionActive)return;
+  if(!_gnomeExitHooked){_gnomeExitHooked=!0;process.once("exit",function(){if(_gnomeSessionActive){try{_cp.execFileSync(_gnomeBridgeBin(),["session-end"],{timeout:5000,stdio:"ignore"})}catch(e){}}})}
+  _gnomeSessionStart();
+}
+function _readClean(f){var buf=_fs.readFileSync(f);try{_fs.unlinkSync(f)}catch(e){}return buf.toString("base64")}
 function _findMonByPoint(px,py){
   var mons=_getMonitors();
   for(var i=0;i<mons.length;i++){var m=mons[i];if(px>=m.originX&&px<m.originX+m.width&&py>=m.originY&&py<m.originY+m.height)return m}
@@ -79,30 +143,31 @@ async function _captureRegion(x,y,w,h,sf){
     try{var cmd=process.env.COWORK_SCREENSHOT_CMD.replace(/\{FILE\}/g,tmp).replace(/\{X\}/g,x).replace(/\{Y\}/g,y).replace(/\{W\}/g,w).replace(/\{H\}/g,h);
     _cp.execSync(cmd,{timeout:15000});console.log("[claude-cu] screenshot: captured via COWORK_SCREENSHOT_CMD");return _nativePng(_readClean(tmp))}catch(e){console.warn("[claude-cu] COWORK_SCREENSHOT_CMD failed: "+e.message)}
   }
-  if(_wayland&&_isWlroots()&&_hasCmd("grim")){
-    try{_cp.execSync('grim -g "'+x+","+y+" "+w+"x"+h+'" "'+tmp+'"',{timeout:10000});console.log("[claude-cu] screenshot: captured via grim (wlroots)");return _nativePng(_readClean(tmp))}catch(e){console.warn("[claude-cu] grim failed: "+e.message)}
-  }
-  if(_wayland&&_de.indexOf("gnome")>=0&&_hasPortalToken()&&_hasPortalDeps()){
-    try{var ret=await _portalScreenshot(tmp,x,y,w,h);
-    if(ret.status===0&&_fs.existsSync(tmp)){console.log("[claude-cu] screenshot: captured via portal+pipewire (GNOME, restore token)");return _nativePng(_readClean(tmp))}
-    if(ret.status===2){console.warn("[claude-cu] portal screenshot: missing python deps (python3-gi, gstreamer)")}
-    else{console.warn("[claude-cu] portal screenshot failed (exit="+ret.status+"): "+(ret.stderr?ret.stderr.trim():""))}}catch(e){console.warn("[claude-cu] portal screenshot error: "+e.message)}
-  }
-  if(_wayland&&_de.indexOf("gnome")>=0&&_hasCmd("gnome-screenshot")){
-    try{var _gstmp=_path.join(_os.tmpdir(),"claude-cu-gnome-"+Date.now()+".png");
-    _cp.execSync('gnome-screenshot -f "'+_gstmp+'"',{timeout:10000});
-    if(_fs.existsSync(_gstmp)){if(_hasCmd("convert")){try{_cp.execSync('convert "'+_gstmp+'" -crop '+w+"x"+h+"+"+x+"+"+y+' +repage "'+tmp+'"',{timeout:5000});try{_fs.unlinkSync(_gstmp)}catch(e){}console.log("[claude-cu] screenshot: captured via gnome-screenshot+convert (Wayland GNOME)");return _nativePng(_readClean(tmp))}catch(ce){try{_fs.renameSync(_gstmp,tmp)}catch(re){}console.log("[claude-cu] screenshot: captured via gnome-screenshot (Wayland GNOME, uncropped)");return _nativePng(_readClean(tmp))}}else{try{_fs.renameSync(_gstmp,tmp)}catch(re){}console.log("[claude-cu] screenshot: captured via gnome-screenshot (Wayland GNOME, uncropped)");return _nativePng(_readClean(tmp))}}
-    }catch(e){console.warn("[claude-cu] gnome-screenshot (Wayland) failed: "+e.message)}
-  }
-  if(_wayland&&_de.indexOf("gnome")>=0&&_hasCmd("gdbus")){
-    try{_cp.execSync("gdbus call --session --dest org.gnome.Shell.Screenshot --object-path /org/gnome/Shell/Screenshot --method org.gnome.Shell.Screenshot.ScreenshotArea "+x+" "+y+" "+w+" "+h+" false '"+tmp+"'",{timeout:10000});
-    if(_fs.existsSync(tmp)){console.log("[claude-cu] screenshot: captured via gdbus (GNOME Shell Screenshot D-Bus)");return _nativePng(_readClean(tmp))}}catch(e){console.warn("[claude-cu] GNOME D-Bus screenshot failed: "+e.message)}
-  }
-  if(_wayland&&_de.indexOf("gnome")>=0&&!_hasPortalToken()&&_hasPortalDeps()){
-    try{var ret=await _portalScreenshot(tmp,x,y,w,h);
-    if(ret.status===0&&_fs.existsSync(tmp)){console.log("[claude-cu] screenshot: captured via portal+pipewire (GNOME, first-run)");return _nativePng(_readClean(tmp))}
-    if(ret.status===2){console.warn("[claude-cu] portal screenshot: missing python deps (python3-gi, gstreamer)")}
-    else{console.warn("[claude-cu] portal screenshot failed (exit="+ret.status+"): "+(ret.stderr?ret.stderr.trim():""))}}catch(e){console.warn("[claude-cu] portal screenshot error: "+e.message)}
+  // Covered Wayland sessions (wlroots / GNOME): the bundled bridge is the SOLE
+  // screenshot backend (no third-party fallback, per design). Like x11-bridge,
+  // the bridge returns inline base64 JPEG + its own downscaled width/height, and
+  // its `zoom --display <name>` expects monitor-relative coords, so we translate
+  // the global-logical region to the containing monitor first. On GNOME we ensure
+  // the portal session is up (lazy backstop if the CU lock hook didn't fire).
+  // NB: the bridge captures at native resolution itself, so we pass the ORIGINAL
+  // logical region — undo the scaleFactor multiply applied above.
+  // Hard-fail (no fallback to deleted tools) if a covered Wayland session has no
+  // resolved bridge binary — this only happens if bundling broke.
+  if(_isWlrootsCovered()&&!_wlrootsBridgeBin())throw new Error("wlroots-bridge missing on a wlroots-Wayland session — set WLROOTS_BRIDGE_BIN or reinstall (the bundled bridge is required; ydotool/grim fallbacks were removed).");
+  if(_isGnomeCovered()&&!_gnomeBridgeBin())throw new Error("gnome-portal-bridge missing on a GNOME-Wayland session — set GNOME_PORTAL_BRIDGE_BIN or reinstall (the bundled bridge is required; ydotool/portal-screenshot fallbacks were removed).");
+  var _wlb=_wayland?_wlBridge():null;
+  if(_wlb){
+    try{
+      var _lx=Math.round(x/(sf||1)),_ly=Math.round(y/(sf||1)),_lw=Math.round(w/(sf||1)),_lh=Math.round(h/(sf||1));
+      var _wmr=_wlMonForRegion(_lx,_ly);
+      var _wzargs=["zoom","--x",String(_wmr?_wmr.x:_lx),"--y",String(_wmr?_wmr.y:_ly),"--w",String(_lw),"--h",String(_lh)];
+      if(_wmr&&_wmr.name){_wzargs.push("--display",_wmr.name)}
+      var _wzr=_wlBridgeCall(_wzargs);
+      if(_wzr&&_wzr.base64){console.log("[claude-cu] screenshot: captured via "+_wlb.name);return{base64:_wzr.base64,imgW:_wzr.width||w,imgH:_wzr.height||h,mimeType:"image/jpeg"}}
+    }catch(e){console.warn("[claude-cu] "+_wlb.name+" zoom failed: "+(e.message||e))}
+    // Covered session with a resolved bridge: do NOT fall through to deleted
+    // third-party tools. Last resort is the Electron desktopCapturer tier below.
+    console.error("[claude-cu] "+_wlb.name+" screenshot failed on a covered Wayland session — no third-party fallback (set COWORK_SCREENSHOT_CMD to override)");
   }
   if(_de.indexOf("kde")>=0&&_hasCmd("spectacle")){
     try{var stmp=_path.join(_os.tmpdir(),"claude-cu-spectacle-"+Date.now()+".png");
@@ -131,49 +196,46 @@ async function _captureRegion(x,y,w,h,sf){
     }
   }
   try{var _sources=await _electron.desktopCapturer.getSources({types:["screen"],thumbnailSize:{width:w+x,height:h+y}});if(_sources&&_sources.length>0){var _img=_sources[0].thumbnail;if(_img&&!_img.isEmpty()){var _cropped=_img.crop({x:x,y:y,width:w,height:h});_fs.writeFileSync(tmp,_cropped.toPNG());console.log("[claude-cu] screenshot: captured via desktopCapturer (Electron fallback)");return _nativePng(_readClean(tmp))}}}catch(dce){console.warn("[claude-cu] desktopCapturer fallback failed: "+dce.message)}
-  throw new Error("Screenshot failed — on X11 install x11-bridge (or set X11_BRIDGE_BIN); on Wayland install grim (wlroots) or set COWORK_SCREENSHOT_CMD.")
+  throw new Error("Screenshot failed — on X11 install x11-bridge (or set X11_BRIDGE_BIN); on wlroots/GNOME Wayland reinstall the bundled bridge; or set COWORK_SCREENSHOT_CMD.")
 }
-if(_wayland){console.log("[claude-cu] Wayland session detected — using native Wayland tools")}
+if(_wayland){console.log("[claude-cu] Wayland session detected"+(_isWlrootsCovered()?" (wlroots — wlroots-bridge backend)":_isGnomeCovered()?" (GNOME — gnome-portal-bridge backend)":" (exotic — ydotool/x11-bridge fallback)"))}
 (function(){
   var _de=_desktopId();var _wlr=_wayland?_isWlroots():false;
   var _isGnome=_de.indexOf("gnome")>=0;var _isKde=_de.indexOf("kde")>=0;
-  var _isHypr=!!process.env.HYPRLAND_INSTANCE_SIGNATURE;var _isSway=!!process.env.SWAYSOCK;var _isNiri=!!process.env.NIRI_SOCKET;
+  var _wlrCovered=_isWlrootsCovered();var _gnomeCovered=_isGnomeCovered();
+  var _covered=_wlrCovered||_gnomeCovered;
+  // Third-party tools only matter on the residual (uncovered) paths now: exotic
+  // non-wlroots/non-GNOME Wayland (ydotool) and KDE-without-kwin-bridge (spectacle
+  // legacy screenshot). On covered sessions the bridge replaces all of them.
   var _relevant=[];
-  if(_wayland&&_wlr)_relevant.push("grim");
-  if(_wayland&&_isGnome){_relevant.push("gst-launch-1.0");_relevant.push("gnome-screenshot");_relevant.push("gdbus")}
-  if(_isKde){_relevant.push("spectacle");_relevant.push("convert")}
-  if(_wayland)_relevant.push("ydotool");
-  if(_isHypr)_relevant.push("hyprctl");
-  if(_isSway){_relevant.push("swaymsg");_relevant.push("jq")}
-  if(_isNiri)_relevant.push("niri");
+  if(_wayland&&!_covered)_relevant.push("ydotool");
+  if(_isKde&&!globalThis.__cuKwinMode){_relevant.push("spectacle");_relevant.push("convert")}
   _relevant.push("xdg-open");
   var avail=_relevant.filter(function(t){return _hasCmd(t)});
   var missing=_relevant.filter(function(t){return !_hasCmd(t)});
   var _x11ok=!!_x11BridgeBin();
+  var _wlrok=!!_wlrootsBridgeBin();var _gnok=!!_gnomeBridgeBin();
   console.log("[claude-cu] diagnostics: session="+(_wayland?"wayland":"x11")+" de="+(_de||"unknown")+" wlroots="+_wlr+" vm="+!!globalThis.__isVM);
   try{var _diagMons=_getMonitors();console.log("[claude-cu] diagnostics: displays=["+_diagMons.map(function(m){return m.label+"("+m.width+"x"+m.height+"+"+m.originX+"+"+m.originY+" sf="+m.scaleFactor+(m.isPrimary?" primary":"")+")"}).join(", ")+"]")}catch(me){}
   console.log("[claude-cu] diagnostics: available=["+avail.join(", ")+"]");
-  if(missing.length)console.warn("[claude-cu] diagnostics: missing=["+missing.join(", ")+"] (install for full functionality)");
+  if(missing.length)console.warn("[claude-cu] diagnostics: missing=["+missing.join(", ")+"] (install for the residual fallback paths)");
   console.log("[claude-cu] diagnostics: x11-bridge="+(_x11ok?"present ("+_x11BridgeBin()+")":"absent"));
-  if(_wayland){
-    var ydOk=_checkYdotool();
-    console.log("[claude-cu] diagnostics: input-backend="+(ydOk?"ydotool":(_x11ok?"x11-bridge (XWayland fallback)":"none (install ydotool or x11-bridge)")));
-  }else{
-    console.log("[claude-cu] diagnostics: input-backend="+(_x11ok?"x11-bridge":"none (install x11-bridge)"));
-  }
-  var _hasToken=_hasPortalToken();var _hasPDeps=_hasPortalDeps();
+  console.log("[claude-cu] diagnostics: wlroots-bridge="+(_wlrok?"present ("+_wlrootsBridgeBin()+")":"absent"));
+  console.log("[claude-cu] diagnostics: gnome-portal-bridge="+(_gnok?"present ("+_gnomeBridgeBin()+")":"absent"));
+  // input-backend
+  if(_wlrCovered){console.log("[claude-cu] diagnostics: input-backend="+(_wlrok?"wlroots-bridge":"none (wlroots-bridge missing — reinstall)"))}
+  else if(_gnomeCovered){console.log("[claude-cu] diagnostics: input-backend="+(_gnok?"gnome-portal-bridge":"none (gnome-portal-bridge missing — reinstall)"))}
+  else if(_wayland){var ydOk=_checkYdotool();console.log("[claude-cu] diagnostics: input-backend="+(ydOk?"ydotool":(_x11ok?"x11-bridge (XWayland fallback)":"none (install ydotool or x11-bridge)")))}
+  else{console.log("[claude-cu] diagnostics: input-backend="+(_x11ok?"x11-bridge":"none (install x11-bridge)"))}
+  // screenshot-cascade
   var order=[];
   if(process.env.COWORK_SCREENSHOT_CMD)order.push("COWORK_SCREENSHOT_CMD");
-  if(_wayland&&_wlr&&_hasCmd("grim"))order.push("grim");
-  if(_wayland&&_isGnome&&_hasToken&&_hasPDeps)order.push("portal+pipewire");
-  if(_wayland&&_isGnome&&_hasCmd("gnome-screenshot"))order.push("gnome-screenshot");
-  if(_wayland&&_isGnome&&_hasCmd("gdbus"))order.push("gdbus");
-  if(_wayland&&_isGnome&&!_hasToken&&_hasPDeps)order.push("portal+pipewire");
-  if(_isKde&&_hasCmd("spectacle"))order.push("spectacle");
-  if(_x11ok&&(!_wayland||_x11ok))order.push("x11-bridge"+(_wayland?" (XWayland)":""));
+  if(_wlrCovered&&_wlrok)order.push("wlroots-bridge");
+  if(_gnomeCovered&&_gnok)order.push("gnome-portal-bridge");
+  if(_isKde&&!globalThis.__cuKwinMode&&_hasCmd("spectacle"))order.push("spectacle");
+  if(!_covered&&_x11ok)order.push("x11-bridge"+(_wayland?" (XWayland)":""));
   order.push("desktopCapturer");
   console.log("[claude-cu] diagnostics: screenshot-cascade=["+order.join(" > ")+"]");
-  if(_wayland&&_isGnome){console.log("[claude-cu] diagnostics: pipewire-restore-token="+(_hasToken?"found (portal screenshots will skip permission dialog)":"none (first portal screenshot will show permission dialog)"))}
 })();
 var _defaultMon={displayId:0,width:1920,height:1080,originX:0,originY:0,scaleFactor:1,isPrimary:true,label:"default"};
 function _getMonitors(){
@@ -199,7 +261,13 @@ function _findMon(displayId){
 }
 var _inputLogDone={mouse:false,click:false,key:false,type:false,scroll:false,drag:false,window:false,app:false};
 function _logFirstUse(op,backend){if(!_inputLogDone[op]){_inputLogDone[op]=true;console.log("[claude-cu] "+op+": using "+backend)}}
+// True when a covered Wayland session (wlroots/GNOME) has a resolved bridge —
+// input/screenshot/windows all route through it and the ydotool path is skipped.
+function _useWlBridge(){return _wayland&&!!_wlBridge()}
 function _moveMouse(x,y){
+  if(_useWlBridge()){
+    _logFirstUse("mouse",_wlBridge().name);_wlBridgeCall(["pointer-move","--x",String(Math.round(x)),"--y",String(Math.round(y))]);return;
+  }
   if(_wayland&&_checkYdotool()){
     try{_logFirstUse("mouse","ydotool");_exec("ydotool mousemove --absolute 0 0");_cp.execSync("sleep 0.05");_exec("ydotool mousemove "+Math.round(x)+" "+Math.round(y));return}catch(e){console.warn("[claude-cu] ydotool mousemove failed, falling back to x11-bridge: "+e.message)}
   }else{
@@ -237,75 +305,10 @@ async function _screenshotMon(mon){
   var cap=await _captureRegion(mon.originX,mon.originY,mon.width,mon.height,mon.scaleFactor||1);
   return{base64:cap.base64,imgW:cap.imgW,imgH:cap.imgH,mimeType:cap.mimeType,displayWidth:mon.width,displayHeight:mon.height,originX:mon.originX||0,originY:mon.originY||0};
 }
-function _getActiveWindowWayland(){
-  try{
-    if(process.env.HYPRLAND_INSTANCE_SIGNATURE&&_hasCmd("hyprctl")){
-      var out=_exec("hyprctl activewindow -j 2>/dev/null");
-      var w=JSON.parse(out);
-      if(w&&(w.class||w.title)){_logFirstUse("window","hyprctl");return{bundleId:w.class||w.title,displayName:w.title||w.class}}
-    }
-  }catch(he){}
-  try{
-    if(process.env.SWAYSOCK&&_hasCmd("swaymsg")&&_hasCmd("jq")){
-      var out=_exec("swaymsg -t get_tree 2>/dev/null|jq -r '.. | select(.focused? == true) | {app_id, name}'");
-      var w=JSON.parse(out);
-      if(w&&(w.app_id||w.name)){_logFirstUse("window","swaymsg+jq");return{bundleId:w.app_id||w.name,displayName:w.name||w.app_id}}
-    }
-  }catch(se){}
-  try{
-    if(process.env.NIRI_SOCKET&&_hasCmd("niri")){
-      var out=_exec("niri msg --json focused-window 2>/dev/null");
-      var w=JSON.parse(out);
-      if(w&&(w.app_id||w.title)){_logFirstUse("window","niri msg");return{bundleId:w.app_id||w.title,displayName:w.title||w.app_id}}
-    }
-  }catch(ne){}
-  return null;
-}
-function _listRunningAppsWayland(){
-  var apps=[],seen={};
-  try{
-    if(process.env.HYPRLAND_INSTANCE_SIGNATURE&&_hasCmd("hyprctl")){
-      console.log("[claude-cu] listRunningApps: using hyprctl clients");
-      var out=_exec("hyprctl clients -j 2>/dev/null");
-      var clients=JSON.parse(out);
-      for(var i=0;i<clients.length;i++){
-        var c=clients[i];
-        var id=c.class||c.title;
-        if(id&&!seen[id]){seen[id]=true;apps.push({bundleId:c.class||c.title,displayName:c.title||c.class})}
-      }
-      return apps;
-    }
-  }catch(he){}
-  try{
-    if(process.env.SWAYSOCK&&_hasCmd("swaymsg")&&_hasCmd("jq")){
-      console.log("[claude-cu] listRunningApps: using swaymsg+jq");
-      var out=_exec("swaymsg -t get_tree 2>/dev/null|jq -r '.. | select(.pid? > 0 and .visible? == true) | {app_id, name}'");
-      var lines=out.split("\n");
-      for(var i=0;i<lines.length;i++){
-        try{
-          var w=JSON.parse(lines[i]);
-          var id=w.app_id||w.name;
-          if(id&&!seen[id]){seen[id]=true;apps.push({bundleId:w.app_id||w.name,displayName:w.name||w.app_id})}
-        }catch(pe){}
-      }
-      return apps;
-    }
-  }catch(se){}
-  try{
-    if(process.env.NIRI_SOCKET&&_hasCmd("niri")){
-      console.log("[claude-cu] listRunningApps: using niri msg");
-      var out=_exec("niri msg --json windows 2>/dev/null");
-      var wins=JSON.parse(out);
-      for(var i=0;i<wins.length;i++){
-        var w=wins[i];
-        var id=w.app_id||w.title;
-        if(id&&!seen[id]){seen[id]=true;apps.push({bundleId:w.app_id||w.title,displayName:w.title||w.app_id})}
-      }
-      return apps;
-    }
-  }catch(ne){}
-  return apps;
-}
+// Wayland window enumeration goes through the covered session's bridge
+// (wlroots-bridge: foreign-toplevel protocols; gnome-portal-bridge: best-effort
+// GNOME Shell Introspect). The old hyprctl/swaymsg+jq/niri compositor-IPC
+// helpers are gone — those compositors are wlroots, i.e. covered by the bridge.
 // Map an x11-bridge WindowInfo (snake_case) to the {bundleId,displayName} shape
 // the executor's callers expect. Mirrors executor_linux.js normalizeBundleIdFromWindow.
 function _bundleIdFromWindow(w){
@@ -327,6 +330,15 @@ function _appRefFromCommand(result){
 }
 globalThis.__linuxExecutor={
   capabilities:{screenshotFiltering:"none",platform:"linux",hostBundleId:"claude-desktop"},
+  // CU lock lifecycle hook, invoked by the upstream lock holder (Patches 4b/4b.2
+  // call __linuxExecutor?.__setLockHeld?.(!0/!1) on every Linux lock transition
+  // and chain .catch() — so this MUST return a Promise, hence async). On GNOME
+  // this scopes the gnome-portal-bridge portal session (one consent dialog per
+  // CU session; dialog-free on GNOME 46+ via restore token) to the lock.
+  async __setLockHeld(held){
+    if(!_isGnomeCovered()||!_gnomeBridgeBin())return;
+    if(held)_gnomeEnsureSession();else _gnomeSessionEnd();
+  },
   async listDisplays(){return _getMonitors()},
   async getDisplaySize(displayId){
     var m=_findMon(displayId);
@@ -395,8 +407,29 @@ globalThis.__linuxExecutor={
     return apps;
   },
   async listRunningApps(){
-    if(_wayland&&_checkYdotool()){return _listRunningAppsWayland()}
-    if(_wayland&&!_x11BridgeBin()){return _listRunningAppsWayland()}
+    if(_useWlBridge()){
+      try{
+        var wb=_wlBridge();
+        _logFirstUse("app",wb.name);
+        console.log("[claude-cu] listRunningApps: using "+wb.name+" windows");
+        var wwins=_wlBridgeCall(["windows"]);
+        var wapps=[],wseen={};
+        if(Array.isArray(wwins)){
+          for(var wi=0;wi<wwins.length;wi++){
+            var ww=wwins[wi];
+            if(ww.is_minimized===true)continue;
+            if(ww.is_visible===false)continue;
+            var wref=_appRefFromWindow(ww);
+            if(wref&&!wseen[wref.bundleId]){wseen[wref.bundleId]=true;wapps.push(wref)}
+          }
+        }
+        return wapps;
+      }catch(we){console.warn("[claude-cu] bridge windows failed: "+(we.message||we));return[]}
+    }
+    // Exotic (uncovered) Wayland: no enumeration backend (compositor IPC was
+    // wlroots-only and wlroots is covered by the bridge now).
+    if(_wayland&&_checkYdotool()){return[]}
+    if(_wayland&&!_x11BridgeBin()){return[]}
     // X11 / XWayland: enumerate via x11-bridge windows (EWMH).
     try{
       _logFirstUse("app","x11-bridge");
@@ -416,8 +449,14 @@ globalThis.__linuxExecutor={
     }catch(e){console.warn("[claude-cu] x11-bridge windows failed: "+(e.message||e));return[]}
   },
   async getFrontmostApp(){
-    if(_wayland&&_checkYdotool()){return _getActiveWindowWayland()}
-    if(_wayland&&!_x11BridgeBin()){return _getActiveWindowWayland()}
+    if(_useWlBridge()){
+      try{
+        _logFirstUse("window",_wlBridge().name);
+        return _appRefFromCommand(_wlBridgeCall(["frontmost-app"]));
+      }catch(e){return null}
+    }
+    if(_wayland&&_checkYdotool()){return null}
+    if(_wayland&&!_x11BridgeBin()){return null}
     try{
       _logFirstUse("window","x11-bridge");
       // frontmost-app emits camelCase {bundleId,displayName}.
@@ -425,6 +464,11 @@ globalThis.__linuxExecutor={
     }catch(e){return null}
   },
   async appUnderPoint(x,y){
+    if(_useWlBridge()){
+      // wlroots-bridge returns null here (no window geometry in the foreign-
+      // toplevel protocols); gnome-portal-bridge is best-effort via Introspect.
+      try{return _appRefFromCommand(_wlBridgeCall(["app-under-point","--x",String(Math.round(x)),"--y",String(Math.round(y))]))}catch(e){return null}
+    }
     if(_wayland&&_checkYdotool())return null;
     if(_wayland&&!_x11BridgeBin())return null;
     try{
@@ -478,10 +522,21 @@ globalThis.__linuxExecutor={
       }
       return sub.concat(pre).slice(0,3);
     }
-    // Bridge available only on X11 / XWayland sessions (same gate the other
-    // window helpers use). On Wayland-native (ydotool, or no bridge) we keep the
-    // legacy launch-only behavior and report {action:"launched"} without polling.
-    var _bridgeOk=(!_wayland||_x11BridgeBin())&&!(_wayland&&_checkYdotool());
+    // Window-capable bridge: covered Wayland sessions use their bridge
+    // (wlroots: foreign-toplevel windows+activate on Sway/Hyprland/Niri; GNOME:
+    // best-effort Introspect, activate-window unsupported), X11/XWayland uses
+    // x11-bridge. Exotic Wayland keeps the legacy launch-only behavior.
+    function _winCall(args){return _useWlBridge()?_wlBridgeCall(args):_x11Bridge(args)}
+    var _bridgeOk;
+    if(_useWlBridge()){
+      // Probe once: if the bridge cannot enumerate windows here (e.g. GNOME with
+      // Introspect blocked, or an empty desktop), skip the activate/poll dance so
+      // we don't burn 5s polling a source that yields nothing.
+      _bridgeOk=false;
+      try{var _wprobe=_wlBridgeCall(["windows"]);_bridgeOk=Array.isArray(_wprobe)&&_wprobe.length>0}catch(wpe){}
+    }else{
+      _bridgeOk=(!_wayland||_x11BridgeBin())&&!(_wayland&&_checkYdotool());
+    }
     // Normalize the requested string for case-insensitive matching, stripping a
     // trailing .desktop so "firefox.desktop" and "firefox" both work.
     function _norm(s){return typeof s==="string"?s.trim().toLowerCase().replace(/\.desktop$/,""):""}
@@ -500,7 +555,7 @@ globalThis.__linuxExecutor={
     }
     function _findWindow(nl){
       var wins;
-      try{wins=_x11Bridge(["windows"])}catch(e){console.warn("[claude-cu] openApp: bridge windows failed: "+(e.message||e));return null}
+      try{wins=_winCall(["windows"])}catch(e){console.warn("[claude-cu] openApp: bridge windows failed: "+(e.message||e));return null}
       if(!Array.isArray(wins))return null;
       var best=null,bestScore=0;
       for(var i=0;i<wins.length;i++){
@@ -514,7 +569,7 @@ globalThis.__linuxExecutor={
     }
     function _activate(w){
       var wid=String(w.id);
-      _x11Bridge(["activate-window","--window",wid]);
+      _winCall(["activate-window","--window",wid]);
       var _bid=_bundleIdFromWindow(w)||wid;
       var _title=(typeof w.title==="string"&&w.title.trim())?w.title:_bid;
       return{action:"activated",app:_bid,windowTitle:_title};
@@ -525,7 +580,10 @@ globalThis.__linuxExecutor={
       var existing=_findWindow(nl);
       if(existing){
         console.log("[claude-cu] openApp: activating existing window for "+name+" (id "+existing.id+")");
-        return _activate(existing);
+        // activate-window is unsupported on gnome-portal-bridge — on failure fall
+        // through to the launch path (GIO single-instance apps refocus on launch).
+        try{return _activate(existing)}
+        catch(ae){console.warn("[claude-cu] openApp: activate failed ("+(ae.message||ae)+") — launching instead")}
       }
     }
     // 2) Resolve + launch. If the name doesn't resolve to a .desktop entry and
@@ -565,22 +623,28 @@ globalThis.__linuxExecutor={
         var appeared=_findWindow(nl);
         if(appeared){
           console.log("[claude-cu] openApp: new window appeared for "+name+" (id "+appeared.id+")");
-          var r=_activate(appeared);r.action="launched";return r;
+          try{var r=_activate(appeared);r.action="launched";return r}
+          catch(ae2){return{action:"launched",app:_bundleIdFromWindow(appeared)||name}}
         }
       }
       return{action:"launch_attempted",app:name,note:"no window appeared within 5s"};
     }
-    // Wayland-native / non-bridge fallback (GNOME Wayland, wlroots): launch-only,
-    // no window tracking — the bridge windows/activate-window subcommands don't
-    // exist here. Distinct "opened" action so the handler emits the original
-    // "Opened app" text byte-for-byte, unchanged from before this feature.
+    // Launch-only fallback (exotic Wayland, or a covered session whose bridge
+    // could not enumerate windows): distinct "opened" action so the handler
+    // emits the original "Opened app" text byte-for-byte.
     return{action:"opened",app:name};
   },
   async moveMouse(x,y){_moveMouse(x,y)},
   async click(x,y,button,count,holdKeys){
     _moveMouse(x,y);
     var rep=count||1;
-    if(_wayland&&_checkYdotool()){
+    if(_useWlBridge()){
+      _logFirstUse("click",_wlBridge().name);
+      var _wbtn={left:"left",right:"right",middle:"middle"}[button]||"left";
+      var _wcargs=["pointer-click","--x",String(Math.round(x)),"--y",String(Math.round(y)),"--button",_wbtn,"--count",String(rep)];
+      if(holdKeys&&holdKeys.length>0){for(var i=0;i<holdKeys.length;i++){_wcargs.push("--modifier",holdKeys[i])}}
+      _wlBridgeCall(_wcargs);
+    }else if(_wayland&&_checkYdotool()){
       _logFirstUse("click","ydotool");
       var ybtn={left:"0xC0",right:"0xC1",middle:"0xC2"}[button]||"0xC0";
       if(holdKeys&&holdKeys.length>0){
@@ -601,11 +665,13 @@ globalThis.__linuxExecutor={
     }
   },
   async mouseDown(){
-    if(_wayland&&_checkYdotool()){_logFirstUse("drag","ydotool");_exec("ydotool click 0x40")}
+    if(_useWlBridge()){_logFirstUse("drag",_wlBridge().name);_wlBridgeCall(["left-mouse-down"])}
+    else if(_wayland&&_checkYdotool()){_logFirstUse("drag","ydotool");_exec("ydotool click 0x40")}
     else{_logFirstUse("drag","x11-bridge");_x11Bridge(["left-mouse-down"])}
   },
   async mouseUp(){
-    if(_wayland&&_checkYdotool()){_exec("ydotool click 0x80")}
+    if(_useWlBridge()){_wlBridgeCall(["left-mouse-up"])}
+    else if(_wayland&&_checkYdotool()){_exec("ydotool click 0x80")}
     else{_x11Bridge(["left-mouse-up"])}
   },
   async getCursorPosition(){
@@ -613,7 +679,12 @@ globalThis.__linuxExecutor={
     return{x:p.x,y:p.y};
   },
   async drag(start,end){
-    if(_wayland&&_checkYdotool()){
+    if(_useWlBridge()){
+      _logFirstUse("drag",_wlBridge().name);
+      var _wfx=start?Math.round(start.x):Math.round(_electron.screen.getCursorScreenPoint().x);
+      var _wfy=start?Math.round(start.y):Math.round(_electron.screen.getCursorScreenPoint().y);
+      _wlBridgeCall(["pointer-drag","--from-x",String(_wfx),"--from-y",String(_wfy),"--to-x",String(Math.round(end.x)),"--to-y",String(Math.round(end.y))]);
+    }else if(_wayland&&_checkYdotool()){
       if(start)_moveMouse(start.x,start.y);
       _logFirstUse("drag","ydotool");
       _exec("ydotool click 0x40");
@@ -629,7 +700,12 @@ globalThis.__linuxExecutor={
   },
   async scroll(x,y,horizontal,vertical){
     _moveMouse(x,y);
-    if(_wayland&&_checkYdotool()){
+    if(_useWlBridge()){
+      _logFirstUse("scroll",_wlBridge().name);
+      var _wdx=horizontal?Math.round(horizontal):0;
+      var _wdy=vertical?Math.round(vertical):0;
+      if(_wdx!==0||_wdy!==0){_wlBridgeCall(["pointer-scroll","--x",String(Math.round(x)),"--y",String(Math.round(y)),"--dx",String(_wdx),"--dy",String(_wdy)])}
+    }else if(_wayland&&_checkYdotool()){
       _logFirstUse("scroll","ydotool");
       if(vertical&&vertical!==0){var vamt=-Math.round(vertical);_exec("ydotool mousemove -w -- 0 "+vamt)}
       if(horizontal&&horizontal!==0){var hamt=Math.round(horizontal);_exec("ydotool mousemove -w -- "+hamt+" 0")}
@@ -642,7 +718,13 @@ globalThis.__linuxExecutor={
   },
   async key(combo,count){
     var n=count||1;
-    if(_wayland&&_checkYdotool()){
+    if(_useWlBridge()){
+      // Both Wayland bridges parse the CU key-spec grammar themselves — pass through.
+      _logFirstUse("key",_wlBridge().name);
+      var _wkargs=["key-sequence","--keys",combo];
+      if(n>1){_wkargs.push("--repeat",String(n))}
+      _wlBridgeCall(_wkargs);
+    }else if(_wayland&&_checkYdotool()){
       _logFirstUse("key","ydotool");
       var parts=combo.split("+").map(_mapKeyWayland);
       if(parts.length===1){
@@ -663,7 +745,10 @@ globalThis.__linuxExecutor={
   },
   async holdKey(keyName,seconds){
     var secs=Math.min(seconds||0.5,10);
-    if(_wayland&&_checkYdotool()){
+    if(_useWlBridge()){
+      _logFirstUse("key",_wlBridge().name);
+      _wlBridgeCall(["hold-key","--key",keyName,"--duration-ms",String(Math.round(secs*1000))]);
+    }else if(_wayland&&_checkYdotool()){
       _logFirstUse("key","ydotool");
       var k=_mapKeyWayland(keyName);
       _exec("ydotool key "+k+":1");
@@ -675,7 +760,15 @@ globalThis.__linuxExecutor={
     }
   },
   async type(text,opts){
-    if(_wayland&&_checkYdotool()){
+    if(_useWlBridge()){
+      _logFirstUse("type",_wlBridge().name+(opts&&opts.viaClipboard?" (clipboard)":""));
+      if(opts&&opts.viaClipboard){
+        _electron.clipboard.writeText(text,"clipboard");
+        _wlBridgeCall(["key-sequence","--keys","ctrl+v"]);
+      }else{
+        _wlBridgeCall(["type","--text",text]);
+      }
+    }else if(_wayland&&_checkYdotool()){
       _logFirstUse("type","ydotool"+(opts&&opts.viaClipboard?" (clipboard)":""));
       if(opts&&opts.viaClipboard){
         _electron.clipboard.writeText(text,"clipboard");

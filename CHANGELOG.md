@@ -2,7 +2,18 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
-## 2026-07-05
+## 2026-07-06
+
+### Computer Use: bundled wlroots-bridge + gnome-portal-bridge - every supported session is now first-party (no more ydotool/grim/gnome-screenshot)
+
+Two new first-party bridges complete the Computer Use backend family, so every supported session type now ships a bundled binary and users install nothing:
+
+- **wlroots-bridge** (github.com/patrickjaja/wlroots-bridge) serves Sway, Hyprland, and Niri via native Wayland protocols: virtual-pointer + virtual-keyboard for input, wlr-screencopy for screenshots, and foreign-toplevel for window listing and activation (activation verified working on all three compositors). Pure Rust, fully static (x86_64 + aarch64, runs on NixOS), daemonless, no permission dialogs. It replaces `ydotool`, `grim`, and the `hyprctl` / `swaymsg`+`jq` / `niri msg` window queries.
+- **gnome-portal-bridge** (github.com/patrickjaja/gnome-bridge) serves GNOME Wayland via the XDG RemoteDesktop + ScreenCast portal with PipeWire capture. One system consent dialog per Computer Use session, scoped to the tool-use lock; on GNOME 46+ the grant persists via restore token and is never asked again, on GNOME 42-45 (Ubuntu 22.04, Debian 12) it reappears per session. It replaces `ydotool` and the whole GNOME screenshot cascade (embedded python3+GStreamer portal script, `gnome-screenshot`+`convert`, `gdbus`), and adds best-effort window enumeration via GNOME Shell Introspect - a capability GNOME previously had none of. Glibc floor 2.35 (built on ubuntu:jammy), x86_64 + aarch64.
+
+The third-party cascades for these sessions were removed from the executor, mirroring the earlier x11-bridge cutover: on wlroots and GNOME sessions the bridge is the path, with `COWORK_SCREENSHOT_CMD` as the only override and Electron `desktopCapturer` as the last-resort screenshot tier. `ydotool` remains only for exotic Wayland compositors (none of wlroots/GNOME/KDE), and `spectacle`+`convert` only for KDE without KWin 6.6+. Packaging was simplified accordingly: `grim`, `jq`, `gnome-screenshot`, `glib2`/`libglib2.0-bin` (gdbus), `python-gobject`/`python3-gi`, and `gst-plugin-pipewire`/`gstreamer1.0-pipewire` are gone from optdepends/Suggests across Arch, Debian/Ubuntu, Fedora/RHEL, and Nix; `ydotool`/`imagemagick` stay with residual-only descriptions. On NixOS the static bridges work as bundled; GNOME Wayland needs a natively built gnome-portal-bridge passed via `.override { gnome-portal-bridge = ...; }`.
+
+CI builds both new bridges from their repos (cached by HEAD SHA, static assert for wlroots-bridge, glibc-2.35 floor check for gnome-portal-bridge) and bundles all four bridges into every package. Docs (README install sections, computer-use docs, support matrices) were rewritten for the new reality.
 
 ### Computer Use: new bundled x11-bridge is the first-party X11 backend (no more xdotool/scrot/etc.)
 

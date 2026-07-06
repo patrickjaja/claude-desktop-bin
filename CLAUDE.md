@@ -29,6 +29,9 @@ The official `.deb` (apt repo `https://downloads.claude.ai/claude-desktop/apt`) 
 
 | Binary | glibc floor | Rationale | CI build base |
 |--------|-------------|-----------|---------------|
+| x11-bridge | none (static musl) | Pure Rust, fully static — runs everywhere incl. NixOS | `ubuntu:noble` (rustup musl targets) |
+| wlroots-bridge | none (static musl) | Pure Rust, fully static — runs everywhere incl. NixOS | `ubuntu:noble` (rustup musl targets) |
+| gnome-portal-bridge | 2.35 (Ubuntu Jammy) | Must run on Ubuntu 22.04 (GNOME 42) + Debian 12 (GNOME 43); links libpipewire | `ubuntu:jammy` + native cross |
 | kwin-portal-bridge | 2.39 (Ubuntu Noble) | KWin 6.6+ only ships on Noble+ / Fedora 40+ | `ubuntu:noble` + native cross |
 
 CI enforces the floor via `objdump -T | grep GLIBC_` verification. If a new native binary is added, pick the floor that matches its minimum viable distro. (node-pty is not in this table — it is bundled pre-built in the official `.deb`, not built by us.)
@@ -36,10 +39,11 @@ CI enforces the floor via `objdump -T | grep GLIBC_` verification. If a new nati
 | Session type | Compositors / DEs | Input backend | Screenshot tools |
 |-------------|-------------------|---------------|-----------------|
 | X11 | Any (GNOME, KDE, i3, …) | `x11-bridge` (bundled) | `x11-bridge` (bundled) |
-| Wayland — wlroots/wlr-protocols | Sway, Hyprland, Niri | `ydotool` (+`ydotoold`) | `grim` |
-| Wayland — GNOME | GNOME Shell | `ydotool` (+`ydotoold`) | `portal+pipewire` (GNOME 46+), `gnome-screenshot`, `gdbus` (glib2) |
-| Wayland — KDE | KDE Plasma | `kwin-portal-bridge` (bundled) | `kwin-portal-bridge` (bundled) |
+| Wayland — wlroots/wlr-protocols | Sway, Hyprland, Niri | `wlroots-bridge` (bundled) | `wlroots-bridge` (bundled) |
+| Wayland — GNOME | GNOME Shell | `gnome-portal-bridge` (bundled) | `gnome-portal-bridge` (bundled; consent dialog, persisted on GNOME 46+) |
+| Wayland — KDE | KDE Plasma 6.6+ | `kwin-portal-bridge` (bundled) | `kwin-portal-bridge` (bundled) |
 | XWayland | Any Wayland compositor | `x11-bridge` (bundled) | `x11-bridge` (bundled) |
+| Wayland — exotic (residual) | COSMIC, Enlightenment, … | `ydotool` (+`ydotoold`), else x11-bridge/XWayland | Electron `desktopCapturer` / `COWORK_SCREENSHOT_CMD` |
 
 Patches emit `[claude-cu] diagnostics:` lines to **stderr/stdout** at startup showing detected session, available/missing tools, and screenshot cascade order. Visible when running `claude-desktop` from a terminal. Ask users to share this output when debugging.
 

@@ -23,6 +23,8 @@
 #   SKIP_SMOKE_TEST=1        Skip the Electron smoke test (default in local wrappers).
 #   KWIN_PORTAL_BRIDGE_BIN   Path to a pre-built kwin-portal-bridge to bundle.
 #   X11_BRIDGE_BIN           Path to a pre-built x11-bridge (static musl) to bundle.
+#   WLROOTS_BRIDGE_BIN       Path to a pre-built wlroots-bridge (static musl) to bundle.
+#   GNOME_PORTAL_BRIDGE_BIN  Path to a pre-built gnome-portal-bridge to bundle.
 #   CLAUDE_DEB_ARCH          amd64|arm64 — which arch to pick when arg1 is a URL (default amd64).
 #   CLAUDE_GPG_VERIFY        1 (default) | 0 — verify the signed Release when arg1 is a URL.
 #   CLAUDE_DESKTOP_GPG_KEY   Override the bundled Anthropic signing key (.asc).
@@ -424,10 +426,10 @@ if [ -n "${KWIN_PORTAL_BRIDGE_BIN:-}" ] && [ -f "${KWIN_PORTAL_BRIDGE_BIN:-}" ];
     log_info "Bundling kwin-portal-bridge from $KWIN_PORTAL_BRIDGE_BIN"
     cp "$KWIN_PORTAL_BRIDGE_BIN" "$TARBALL_DIR/app/locales/kwin-portal-bridge"
     chmod +x "$TARBALL_DIR/app/locales/kwin-portal-bridge"
-elif command -v cargo &>/dev/null && [ -d "$PROJECT_DIR/../kwin-portal-bridge" ]; then
+elif command -v cargo &>/dev/null && [ -d "$PROJECT_DIR/../computer-use/kwin-portal-bridge" ]; then
     log_info "Building kwin-portal-bridge from source..."
-    if (cd "$PROJECT_DIR/../kwin-portal-bridge" && cargo build --release 2>&1 | tail -3); then
-        cp "$PROJECT_DIR/../kwin-portal-bridge/target/release/kwin-portal-bridge" "$TARBALL_DIR/app/locales/kwin-portal-bridge"
+    if (cd "$PROJECT_DIR/../computer-use/kwin-portal-bridge" && cargo build --release 2>&1 | tail -3); then
+        cp "$PROJECT_DIR/../computer-use/kwin-portal-bridge/target/release/kwin-portal-bridge" "$TARBALL_DIR/app/locales/kwin-portal-bridge"
         chmod +x "$TARBALL_DIR/app/locales/kwin-portal-bridge"
         log_info "kwin-portal-bridge built and bundled"
     else
@@ -457,6 +459,52 @@ elif command -v cargo &>/dev/null && [ -d "$X11_BRIDGE_SRC_DIR" ]; then
     fi
 else
     log_warn "x11-bridge not available — skipping (X11 Computer Use will require manual install)"
+fi
+
+# Bundle wlroots-bridge into locales/ (= process.resourcesPath) for wlroots
+# Wayland (Sway/Hyprland/Niri) Computer Use. First-party replacement for
+# ydotool/grim/hyprctl/swaymsg+jq/niri on wlroots sessions. Static MUSL build
+# so it runs across distros regardless of glibc (incl. NixOS).
+WLROOTS_BRIDGE_MUSL_REL="target/x86_64-unknown-linux-musl/release/wlroots-bridge"
+WLROOTS_BRIDGE_SRC_DIR="$PROJECT_DIR/../computer-use/wlroots-bridge"
+if [ -n "${WLROOTS_BRIDGE_BIN:-}" ] && [ -f "${WLROOTS_BRIDGE_BIN:-}" ]; then
+    log_info "Bundling wlroots-bridge from $WLROOTS_BRIDGE_BIN"
+    cp "$WLROOTS_BRIDGE_BIN" "$TARBALL_DIR/app/locales/wlroots-bridge"
+    chmod +x "$TARBALL_DIR/app/locales/wlroots-bridge"
+elif command -v cargo &>/dev/null && [ -d "$WLROOTS_BRIDGE_SRC_DIR" ]; then
+    log_info "Building wlroots-bridge (static musl) from source ($WLROOTS_BRIDGE_SRC_DIR)..."
+    if (cd "$WLROOTS_BRIDGE_SRC_DIR" && cargo build --release --target x86_64-unknown-linux-musl 2>&1 | tail -3); then
+        cp "$WLROOTS_BRIDGE_SRC_DIR/$WLROOTS_BRIDGE_MUSL_REL" "$TARBALL_DIR/app/locales/wlroots-bridge"
+        chmod +x "$TARBALL_DIR/app/locales/wlroots-bridge"
+        log_info "wlroots-bridge built and bundled"
+    else
+        log_warn "wlroots-bridge build failed — skipping (wlroots Wayland Computer Use will require manual install)"
+    fi
+else
+    log_warn "wlroots-bridge not available — skipping (wlroots Wayland Computer Use will require manual install)"
+fi
+
+# Bundle gnome-portal-bridge into locales/ (= process.resourcesPath) for GNOME
+# Wayland Computer Use. First-party replacement for ydotool + the portal-python/
+# gnome-screenshot/gdbus screenshot cascade. Glibc-dynamic (links libpipewire),
+# floor 2.35 (ubuntu:jammy) — NOT usable as-is on NixOS (mirrors kwin-portal-bridge).
+GNOME_PORTAL_BRIDGE_REL="target/release/gnome-portal-bridge"
+GNOME_PORTAL_BRIDGE_SRC_DIR="$PROJECT_DIR/../computer-use/gnome-portal-bridge"
+if [ -n "${GNOME_PORTAL_BRIDGE_BIN:-}" ] && [ -f "${GNOME_PORTAL_BRIDGE_BIN:-}" ]; then
+    log_info "Bundling gnome-portal-bridge from $GNOME_PORTAL_BRIDGE_BIN"
+    cp "$GNOME_PORTAL_BRIDGE_BIN" "$TARBALL_DIR/app/locales/gnome-portal-bridge"
+    chmod +x "$TARBALL_DIR/app/locales/gnome-portal-bridge"
+elif command -v cargo &>/dev/null && [ -d "$GNOME_PORTAL_BRIDGE_SRC_DIR" ]; then
+    log_info "Building gnome-portal-bridge from source ($GNOME_PORTAL_BRIDGE_SRC_DIR)..."
+    if (cd "$GNOME_PORTAL_BRIDGE_SRC_DIR" && cargo build --release 2>&1 | tail -3); then
+        cp "$GNOME_PORTAL_BRIDGE_SRC_DIR/$GNOME_PORTAL_BRIDGE_REL" "$TARBALL_DIR/app/locales/gnome-portal-bridge"
+        chmod +x "$TARBALL_DIR/app/locales/gnome-portal-bridge"
+        log_info "gnome-portal-bridge built and bundled"
+    else
+        log_warn "gnome-portal-bridge build failed — skipping (GNOME Wayland Computer Use will require manual install)"
+    fi
+else
+    log_warn "gnome-portal-bridge not available — skipping (GNOME Wayland Computer Use will require manual install)"
 fi
 
 # Validate launcher with shellcheck (catches shebang issues, syntax errors, common bugs)

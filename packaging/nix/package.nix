@@ -7,20 +7,21 @@
 , copyDesktopItems
 # Quick Entry positioning (X11) - no longer a Computer Use dep
 , xdotool ? null       # Quick Entry monitor positioning + WM_CLASS (X11)
-, imagemagick ? null    # Computer Use screenshot crop (Wayland GNOME / KDE spectacle tiers) via convert
-# Computer Use — Wayland session (Sway, Hyprland — wlroots compositors)
-, ydotool ? null        # input automation (requires ydotoold daemon)
-, grim ? null           # screenshot capture (wlroots)
-, jq ? null             # window queries on Sway (used with swaymsg)
-, hyprland ? null       # cursor positioning (Hyprland only)
+, imagemagick ? null    # Computer Use screenshot crop via convert - residual KDE-without-kwin-bridge spectacle tier only
+# Computer Use is first-party now: the bundled STATIC bridges (x11-bridge for
+# X11/XWayland, wlroots-bridge for Sway/Hyprland/Niri) run on NixOS as-is.
+# The two glibc-DYNAMIC bridges (kwin-portal-bridge for KDE 6.6+,
+# gnome-portal-bridge for GNOME Wayland) have a glibc mismatch on NixOS; pass a
+# natively built gnome-portal-bridge below to enable GNOME Wayland CU.
+, ydotool ? null        # input on exotic Wayland compositors ONLY (non-wlroots/GNOME/KDE; requires ydotoold daemon)
+, hyprland ? null       # Quick Entry cursor positioning (Hyprland only) - not a Computer Use dep
 # Computer Use — KDE Plasma Wayland (bundled bridge has glibc mismatch on NixOS)
 , spectacle ? null      # screenshot fallback (KDE Plasma on NixOS)
-# Computer Use — GNOME Wayland
-, gnome-screenshot ? null  # screenshot fallback (GNOME)
+# Computer Use — GNOME Wayland: natively built gnome-portal-bridge
+# (github.com/patrickjaja/gnome-bridge); sets GNOME_PORTAL_BRIDGE_BIN so the
+# executor uses it instead of the bundled (glibc-mismatched) binary.
+, gnome-portal-bridge ? null
 , glib ? null              # gsettings (flat mouse acceleration)
-# Portal screenshots (GNOME 46+): needs python3 with gi module + gst-plugin-pipewire.
-# On NixOS GNOME, these are typically available system-wide.
-# To enable explicitly: python3.withPackages (ps: [ ps.pygobject3 ]) in systemPackages.
 # Claude Code CLI — required for Cowork, Dispatch, and Code integration
 , claude-code ? null    # auto-resolved by callPackage if in nixpkgs
 # Cowork agent workspace VM (also requires /dev/kvm + kvm group membership).
@@ -142,10 +143,8 @@ stdenvNoCC.mkDerivation {
       ${lib.optionalString (socat != null) "--prefix PATH : ${socat}/bin"} \
       ${lib.optionalString (hyprland != null) "--prefix PATH : ${hyprland}/bin"} \
       ${lib.optionalString (ydotool != null) "--prefix PATH : ${ydotool}/bin"} \
-      ${lib.optionalString (grim != null) "--prefix PATH : ${grim}/bin"} \
-      ${lib.optionalString (jq != null) "--prefix PATH : ${jq}/bin"} \
       ${lib.optionalString (spectacle != null) "--prefix PATH : ${spectacle}/bin"} \
-      ${lib.optionalString (gnome-screenshot != null) "--prefix PATH : ${gnome-screenshot}/bin"} \
+      ${lib.optionalString (gnome-portal-bridge != null) "--set-default GNOME_PORTAL_BRIDGE_BIN ${gnome-portal-bridge}/bin/gnome-portal-bridge"} \
       ${lib.optionalString (glib != null) "--prefix PATH : ${glib}/bin"} \
       ${lib.optionalString (nodejs != null) "--prefix PATH : ${nodejs}/bin"} \
       ${lib.optionalString (qemu != null) "--prefix PATH : ${qemu}/bin"} \

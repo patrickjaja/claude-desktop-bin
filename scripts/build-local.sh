@@ -143,6 +143,25 @@ if [ -z "${X11_BRIDGE_BIN:-}" ] && [ -f "$X11_BRIDGE_MUSL" ]; then
     log_info "Using pre-built x11-bridge: $X11_BRIDGE_BIN"
 fi
 
+# Same convention for the two Wayland bridges: prefer pre-built binaries.
+WLROOTS_BRIDGE_MUSL="$PROJECT_DIR/../computer-use/wlroots-bridge/target/x86_64-unknown-linux-musl/release/wlroots-bridge"
+if [ -z "${WLROOTS_BRIDGE_BIN:-}" ] && [ -f "$WLROOTS_BRIDGE_MUSL" ]; then
+    export WLROOTS_BRIDGE_BIN="$WLROOTS_BRIDGE_MUSL"
+    log_info "Using pre-built wlroots-bridge: $WLROOTS_BRIDGE_BIN"
+fi
+
+GNOME_PORTAL_BRIDGE_REL="$PROJECT_DIR/../computer-use/gnome-portal-bridge/target/release/gnome-portal-bridge"
+if [ -z "${GNOME_PORTAL_BRIDGE_BIN:-}" ] && [ -f "$GNOME_PORTAL_BRIDGE_REL" ]; then
+    export GNOME_PORTAL_BRIDGE_BIN="$GNOME_PORTAL_BRIDGE_REL"
+    log_info "Using pre-built gnome-portal-bridge: $GNOME_PORTAL_BRIDGE_BIN"
+fi
+
+KWIN_PORTAL_BRIDGE_REL="$PROJECT_DIR/../computer-use/kwin-portal-bridge/target/release/kwin-portal-bridge"
+if [ -z "${KWIN_PORTAL_BRIDGE_BIN:-}" ] && [ -f "$KWIN_PORTAL_BRIDGE_REL" ]; then
+    export KWIN_PORTAL_BRIDGE_BIN="$KWIN_PORTAL_BRIDGE_REL"
+    log_info "Using pre-built kwin-portal-bridge: $KWIN_PORTAL_BRIDGE_BIN"
+fi
+
 # Build the patched tarball (ingest the .deb)
 log_info "Building patched tarball from official .deb..."
 SKIP_SMOKE_TEST="$SKIP_SMOKE_TEST" "$SCRIPT_DIR/build-patched-tarball.sh" "$DEB_ARG" "$BUILD_DIR"

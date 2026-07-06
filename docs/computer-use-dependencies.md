@@ -1,42 +1,38 @@
 # Computer Use dependencies
 
-[Computer Use](../README.md#computer-use) auto-detects your session at runtime and calls the matching tools. The per-distro package lists are inlined in each [Installation](../README.md#installation) section; this page is the full reference - the complete matrix, the portal/screenshot behavior notes, and the `ydotool` setup that Wayland needs.
+[Computer Use](../README.md#computer-use) auto-detects your session at runtime and routes to a **bundled first-party bridge** - there is nothing to install for any supported session type.
 
-Check your session type (`echo $XDG_SESSION_TYPE`) and desktop (`echo $XDG_CURRENT_DESKTOP`), then install the matching packages.
+| Session (`echo $XDG_SESSION_TYPE` / `$XDG_CURRENT_DESKTOP`) | Bundled backend | Packages to install |
+|--------------------------------------------------------------|-----------------|---------------------|
+| X11 / XWayland (any DE) | [`x11-bridge`](https://github.com/patrickjaja/x11-bridge) | *none* |
+| Wayland - Sway / Hyprland / Niri | [`wlroots-bridge`](https://github.com/patrickjaja/wlroots-bridge) | *none* |
+| Wayland - GNOME | [`gnome-portal-bridge`](https://github.com/patrickjaja/gnome-bridge) | *none* |
+| Wayland - KDE Plasma 6.6+ | [`kwin-portal-bridge`](https://github.com/patrickjaja/kwin-portal-bridge) | *none* |
+| Wayland - other compositors | - (fallback) | `ydotool` v1.0+ (+ running `ydotoold`) |
 
-| Distro | X11 / XWayland | Wayland - Sway/Hyprland/Niri | Wayland - GNOME | Wayland - KDE Plasma |
-|--------|----------------|-------------------------|-----------------|----------------------|
-| **Arch** | *none - bundled bridge* | `ydotool grim jq` (+`hyprland` on Hyprland) | `ydotool xdotool glib2 gnome-screenshot imagemagick python-gobject gst-plugin-pipewire` | *none - bundled bridge* |
-| **Debian/Ubuntu** | *none - bundled bridge* | `ydotool grim jq` (+`hyprland`) | `ydotool xdotool libglib2.0-bin gnome-screenshot imagemagick python3-gi gstreamer1.0-pipewire` | *none - bundled bridge* |
-| **Fedora/RHEL** | *none - bundled bridge* | `ydotool grim jq` (+`hyprland`) | `ydotool xdotool glib2 gnome-screenshot ImageMagick python3-gobject pipewire-gstreamer` | *none - bundled bridge* |
+**How each bridge works:**
 
-> **X11 / XWayland:** the bundled [`x11-bridge`](https://github.com/patrickjaja/x11-bridge) handles input, screenshots, and window activation natively - no extra packages. It is a fully-static Rust binary (no glibc floor, runs on every distro). This first-party backend replaces the old `xdotool` / `scrot` / `imagemagick` / `wmctrl` / `gnome-screenshot` X11 tools; there is no third-party fallback on X11.
->
-> **GNOME on XWayland:** the `xdotool` / `imagemagick` in the GNOME column are the XWayland fallback for GNOME sessions running Claude Desktop under XWayland; GNOME-native Wayland input uses `ydotool` and screenshots use the portal / `gnome-screenshot`.
->
-> **KDE Plasma Wayland:** the bundled [`kwin-portal-bridge`](https://github.com/patrickjaja/kwin-portal-bridge) handles input, screenshots, clipboard, and display info natively via XDG portals - no extra packages. One consent prompt per session. Falls back to `ydotool` + `spectacle` if unavailable.
->
-> **GNOME 46+** (Ubuntu 25.10+, Fedora 40+): screenshots use the XDG ScreenCast portal with PipeWire restore tokens - one permission dialog, then silent (needs `python-gobject`/`python3-gi` + `gst-plugin-pipewire`). Falls back to `gnome-screenshot` / `gdbus`. Set flat mouse accel for accurate clicks: `gsettings set org.gnome.desktop.peripherals.mouse accel-profile flat`.
->
+- **`x11-bridge`** (X11 / XWayland): XTest input, GetImage screenshots, EWMH window activation. Fully static Rust binary - no glibc floor, runs on every distro including NixOS. Replaced the old `xdotool` / `scrot` / `imagemagick` / `wmctrl` X11 cascade.
+- **`wlroots-bridge`** (Sway / Hyprland / Niri): native Wayland protocols - virtual-pointer + virtual-keyboard for input, wlr-screencopy for screenshots, foreign-toplevel for window listing/activation. Fully static, no daemon, no permission dialogs. Replaced `ydotool` + `grim` + `hyprctl`/`swaymsg`+`jq`/`niri`.
+- **`gnome-portal-bridge`** (GNOME Wayland): XDG RemoteDesktop + ScreenCast portal with PipeWire capture. Shows **one system consent dialog** ("remote control") per Computer Use session; on **GNOME 46+** (Ubuntu 24.04+, Fedora 40+) the grant is persisted via restore token and never asked again, on GNOME 42-45 (Ubuntu 22.04, Debian 12) it reappears once per session. Replaced `ydotool` + the `gnome-screenshot` / `gdbus` / python-GStreamer portal cascade. Glibc floor 2.35 - note RHEL 9 ships glibc 2.34, so on RHEL 9 GNOME Wayland the bundled bridge may not load (use X11/XWayland there, or set `GNOME_PORTAL_BRIDGE_BIN` to a locally built binary). Set flat mouse accel for accurate clicks: `gsettings set org.gnome.desktop.peripherals.mouse accel-profile flat`.
+- **`kwin-portal-bridge`** (KDE Plasma 6.6+): XDG portals + KWin scripting - input, screenshots, clipboard, window control. One consent prompt per session. Pre-6.6 KDE falls back to `spectacle` (+ `imagemagick` for cropping) and `ydotool`/x11-bridge-over-XWayland.
+
 > <a id="custom-screenshot-command"></a>
 > **Custom screenshot command:** set `COWORK_SCREENSHOT_CMD` to override auto-detection. Placeholders: `{FILE}`, `{X}`, `{Y}`, `{W}`, `{H}`. Example: `COWORK_SCREENSHOT_CMD='spectacle -b -n -r -o {FILE}'`
 
 <a id="ydotool-setup"></a>
-## ydotool setup (Wayland - GNOME, Sway, Hyprland, Niri)
+## ydotool (exotic Wayland compositors only)
 
-Computer Use needs `ydotool` **v1.0+** and the `ydotoold` daemon for input on GNOME, Sway, Hyprland, and Niri Wayland. KDE Plasma does not need it.
+`ydotool` is only needed on Wayland compositors that are **not** wlroots-based, GNOME, or KDE (e.g. COSMIC, Enlightenment). Those sessions fall back to `ydotool` v1.0+ with a running `ydotoold` daemon:
 
-**Arch / Fedora** ship v1.x in the repos:
 ```bash
 sudo pacman -S ydotool && sudo systemctl enable --now ydotool   # Arch
 sudo dnf install ydotool && sudo systemctl enable --now ydotool  # Fedora
 ```
 
-**Ubuntu / Debian** still ship the **incompatible** v0.1.8 (Ubuntu 22.04/24.04/25.10) or nothing in main (Debian 13 trixie; v1.x is backports-only) - build v1.0.4 with the setup script:
+Ubuntu/Debian ship an incompatible v0.1.8 - build v1.0.4 with the setup script:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/patrickjaja/claude-desktop-bin/master/scripts/setup-ydotool.sh | sudo bash
 ```
 
-Restart Claude Desktop after setup.
-
-> **Nix:** pass Computer Use deps via `claude-desktop.override { ydotool = pkgs.ydotool; grim = pkgs.grim; gnome-screenshot = pkgs.gnome-screenshot; imagemagick = pkgs.imagemagick; … }` for the Wayland-native tools. On NixOS the bundled `kwin-portal-bridge` won't run (glibc linker mismatch), so KDE Wayland uses the `ydotool`/`spectacle` fallback - but the bundled `x11-bridge` is fully static and **does** run on NixOS, so X11 / XWayland Computer Use works with no extra packages.
+> **Nix:** the bundled static bridges (`x11-bridge`, `wlroots-bridge`) run on NixOS as-is - X11, XWayland, and Sway/Hyprland/Niri Computer Use work with no extra packages. The glibc-dynamic bridges do not run on NixOS: KDE Wayland falls back to `spectacle`, and GNOME Wayland needs a natively built [`gnome-portal-bridge`](https://github.com/patrickjaja/gnome-bridge) passed via `claude-desktop.override { gnome-portal-bridge = …; }` (sets `GNOME_PORTAL_BRIDGE_BIN`).

@@ -70,18 +70,7 @@ sudo pacman -S --needed qemu-system-aarch64 edk2-aarch64 virtiofsd  # aarch64
 
 > **Arch Linux ARM / EndeavourOS ARM / Manjaro ARM (native aarch64 host, e.g. Raspberry Pi 5):** `edk2-aarch64` is `arch=any` on archlinux.org but Arch Linux ARM's repos don't carry it, so `pacman -S edk2-aarch64` fails with `target not found` even after `-Syu` ([ALARM forum #16140](https://archlinuxarm.org/forum/viewtopic.php?t=16140)). Since the package is architecture-independent, grab it from the x86_64 Arch mirrors and install locally: `curl -L https://archlinux.org/packages/extra/any/edk2-aarch64/download -o edk2-aarch64.pkg.tar.zst && sudo pacman -U ./edk2-aarch64.pkg.tar.zst`.
 
-**Computer Use** - pick the line for your session (`echo $XDG_SESSION_TYPE`, `echo $XDG_CURRENT_DESKTOP`):
-
-```bash
-# X11 / XWayland: nothing to install - the bundled x11-bridge handles it
-# Wayland - Sway / Hyprland / Niri
-sudo pacman -S --needed ydotool grim jq            # Hyprland: also hyprland
-# Wayland - GNOME
-sudo pacman -S --needed ydotool xdotool glib2 gnome-screenshot imagemagick python-gobject gst-plugin-pipewire
-# Wayland - KDE Plasma: nothing to install - the bundled kwin-portal-bridge handles it
-```
-
-Sway/Hyprland/Niri/GNOME also need `ydotool` v1.0+ running (`sudo systemctl enable --now ydotool`); KDE does not. Also optional: `nodejs` (system MCP servers), `sqlite` (project detection), `claude-code`. Full matrix + notes: [Computer Use dependencies](docs/computer-use-dependencies.md).
+**Computer Use** - nothing to install. Every supported session type ships a bundled first-party backend: [`x11-bridge`](https://github.com/patrickjaja/x11-bridge) (X11 / XWayland), [`wlroots-bridge`](https://github.com/patrickjaja/wlroots-bridge) (Sway / Hyprland / Niri), [`gnome-portal-bridge`](https://github.com/patrickjaja/gnome-bridge) (GNOME Wayland - one-time portal consent dialog, persisted on GNOME 46+), [`kwin-portal-bridge`](https://github.com/patrickjaja/kwin-portal-bridge) (KDE Plasma 6.6+). No ydotool daemon, no grim/gnome-screenshot/jq. Only exotic Wayland compositors (none of the above) still fall back to `ydotool`. Also optional: `nodejs` (system MCP servers), `sqlite` (project detection), `claude-code`. Details: [Computer Use dependencies](docs/computer-use-dependencies.md).
 
 ### Debian / Ubuntu (APT Repository)
 
@@ -105,18 +94,7 @@ sudo apt install qemu-system-x86 ovmf virtiofsd        # arm64: qemu-system-arm 
 # then join the kvm group (once, needs re-login): sudo usermod -aG kvm "$USER"
 ```
 
-**Computer Use** (`Suggests`, not auto-installed) - pick the line for your session (`echo $XDG_SESSION_TYPE`, `echo $XDG_CURRENT_DESKTOP`):
-
-```bash
-# X11 / XWayland: nothing to install - the bundled x11-bridge handles it
-# Wayland - Sway / Hyprland / Niri
-sudo apt install ydotool grim jq              # Hyprland: also hyprland
-# Wayland - GNOME
-sudo apt install ydotool xdotool libglib2.0-bin gnome-screenshot imagemagick python3-gi gstreamer1.0-pipewire
-# Wayland - KDE Plasma: nothing to install - the bundled kwin-portal-bridge handles it
-```
-
-Sway/Hyprland/Niri/GNOME also need `ydotool` **v1.0+** running (KDE does not), but Ubuntu/Debian ship an **incompatible v0.1.8** - build v1.0+ via the [setup script](docs/computer-use-dependencies.md#ydotool-setup). Full matrix + notes: [Computer Use dependencies](docs/computer-use-dependencies.md).
+**Computer Use** - nothing to install. Every supported session type ships a bundled first-party backend: [`x11-bridge`](https://github.com/patrickjaja/x11-bridge) (X11 / XWayland), [`wlroots-bridge`](https://github.com/patrickjaja/wlroots-bridge) (Sway / Hyprland / Niri), [`gnome-portal-bridge`](https://github.com/patrickjaja/gnome-bridge) (GNOME Wayland - one-time portal consent dialog; persisted on GNOME 46+, re-asked per session on GNOME 42-45 as on Ubuntu 22.04 / Debian 12), [`kwin-portal-bridge`](https://github.com/patrickjaja/kwin-portal-bridge) (KDE Plasma 6.6+). The old ydotool-v1.0-from-source setup is no longer needed - only exotic Wayland compositors (none of the above) still fall back to `ydotool`. Details: [Computer Use dependencies](docs/computer-use-dependencies.md).
 
 <details>
 <summary>Manual .deb install (without APT repo)</summary>
@@ -146,18 +124,7 @@ sudo dnf install qemu-system-x86 edk2-ovmf virtiofsd   # arm64: qemu-system-aarc
 # then join the kvm group (once, needs re-login): sudo usermod -aG kvm "$USER"
 ```
 
-**Computer Use** (`Suggests`, not auto-installed) - pick the line for your session (`echo $XDG_SESSION_TYPE`, `echo $XDG_CURRENT_DESKTOP`):
-
-```bash
-# X11 / XWayland: nothing to install - the bundled x11-bridge handles it
-# Wayland - Sway / Hyprland / Niri
-sudo dnf install ydotool grim jq              # Hyprland: also hyprland
-# Wayland - GNOME
-sudo dnf install ydotool xdotool glib2 gnome-screenshot ImageMagick python3-gobject pipewire-gstreamer
-# Wayland - KDE Plasma: nothing to install - the bundled kwin-portal-bridge handles it
-```
-
-Sway/Hyprland/Niri/GNOME also need `ydotool` v1.0+ running (`sudo systemctl enable --now ydotool`); KDE does not. Full matrix + notes: [Computer Use dependencies](docs/computer-use-dependencies.md).
+**Computer Use** - nothing to install. Every supported session type ships a bundled first-party backend: [`x11-bridge`](https://github.com/patrickjaja/x11-bridge) (X11 / XWayland), [`wlroots-bridge`](https://github.com/patrickjaja/wlroots-bridge) (Sway / Hyprland / Niri), [`gnome-portal-bridge`](https://github.com/patrickjaja/gnome-bridge) (GNOME Wayland - one-time portal consent dialog, persisted on GNOME 46+), [`kwin-portal-bridge`](https://github.com/patrickjaja/kwin-portal-bridge) (KDE Plasma 6.6+). No ydotool daemon, no grim/gnome-screenshot. Only exotic Wayland compositors (none of the above) still fall back to `ydotool`. Details: [Computer Use dependencies](docs/computer-use-dependencies.md).
 
 <details>
 <summary>Manual .rpm install (without DNF repo)</summary>
@@ -194,11 +161,11 @@ nix profile install github:patrickjaja/claude-desktop-bin
 
 > **Note:** Update by running `nix flake update` to pull the latest version. `nix run` always fetches the latest.
 
-> **Optional deps on Nix: wired automatically.** The flake pulls the Cowork tools (`qemu`, `virtiofsd`, OVMF firmware) and the Computer Use tools (`xdotool`, `ydotool`, `grim`, …) from nixpkgs and bakes them into the app's closure - nothing to install. Use `.override { … }` only to swap or drop one (e.g. `qemu = null;` shrinks the closure if you don't need Cowork). Only the host-level steps other distros also need remain, in NixOS form:
+> **Optional deps on Nix: wired automatically.** The flake pulls the Cowork tools (`qemu`, `virtiofsd`, OVMF firmware) and the residual Computer Use fallbacks (`ydotool` for exotic compositors, `spectacle` for pre-6.6 KDE) from nixpkgs and bakes them into the app's closure - nothing to install. The bundled STATIC bridges (`x11-bridge`, `wlroots-bridge`) run on NixOS as-is; the glibc-dynamic `gnome-portal-bridge`/`kwin-portal-bridge` do not - pass a natively built [`gnome-portal-bridge`](https://github.com/patrickjaja/gnome-bridge) via `.override { gnome-portal-bridge = …; }` to enable GNOME Wayland CU. Use `.override { … }` also to swap or drop a tool (e.g. `qemu = null;` shrinks the closure if you don't need Cowork). Only the host-level steps other distros also need remain, in NixOS form:
 >
 > ```nix
 > users.users.<you>.extraGroups = [ "kvm" ];  # Cowork: /dev/kvm access (once, needs re-login)
-> programs.ydotool.enable = true;             # Computer Use input on Wayland (Sway/Hyprland/Niri/GNOME)
+> programs.ydotool.enable = true;             # Computer Use input on EXOTIC Wayland compositors only (Sway/Hyprland/Niri/GNOME/KDE use the bundled bridges)
 > ```
 >
 > Full Computer Use matrix: [docs/computer-use-dependencies.md](docs/computer-use-dependencies.md). If your flake pins a release older than v1.18286.0, virtiofsd and OVMF need manual exposure - see the notes in [`packaging/nix/package.nix`](packaging/nix/package.nix).
@@ -252,7 +219,7 @@ curl -fsSL https://patrickjaja.github.io/claude-desktop-bin/gpg-key.asc | gpg --
 
 ## Computer Use
 
-**Our exclusive feature - not part of the official Linux beta.** Claude Desktop's built-in Computer Use MCP server exposes 27 tools for desktop automation (screenshot, click, type, scroll, drag, clipboard, and more), plus **learn tools** that generate interactive overlay tutorials for any app. Upstream is macOS-only; the patch ([`fix_computer_use_linux.nim`](patches/fix_computer_use_linux.nim)) removes the platform gates and injects a Linux executor that auto-detects your session: the bundled [`x11-bridge`](https://github.com/patrickjaja/x11-bridge) handles X11 / XWayland natively (input, screenshots, window activation), the bundled [`kwin-portal-bridge`](https://github.com/patrickjaja/kwin-portal-bridge) handles KDE Wayland, and Wayland (wlroots / GNOME) uses `ydotool` plus `grim`/`gnome-screenshot`/portal.
+**Our exclusive feature - not part of the official Linux beta.** Claude Desktop's built-in Computer Use MCP server exposes 27 tools for desktop automation (screenshot, click, type, scroll, drag, clipboard, and more), plus **learn tools** that generate interactive overlay tutorials for any app. Upstream is macOS-only; the patch ([`fix_computer_use_linux.nim`](patches/fix_computer_use_linux.nim)) removes the platform gates and injects a Linux executor that auto-detects your session and routes to a bundled first-party bridge: [`x11-bridge`](https://github.com/patrickjaja/x11-bridge) on X11 / XWayland, [`wlroots-bridge`](https://github.com/patrickjaja/wlroots-bridge) on Sway / Hyprland / Niri (native virtual-pointer/keyboard + screencopy + foreign-toplevel protocols), [`gnome-portal-bridge`](https://github.com/patrickjaja/gnome-bridge) on GNOME Wayland (XDG RemoteDesktop + ScreenCast portal, one consent dialog per session, persisted on GNOME 46+), and [`kwin-portal-bridge`](https://github.com/patrickjaja/kwin-portal-bridge) on KDE Plasma 6.6+. No third-party input/screenshot tools needed; only exotic Wayland compositors fall back to `ydotool`.
 
 See **[docs/computer-use.md](docs/computer-use.md)** for how it works, the notes (primary-monitor, app discovery, teach overlay), and links to the [tool reference](baseline/CLAUDE_BUILT_IN_MCP.md#14-computer-use). Install the tools for your session from your distro's [Installation](#installation) section; [Computer Use dependencies](docs/computer-use-dependencies.md) has the full matrix and `ydotool` setup.
 
@@ -413,7 +380,7 @@ Each patch is a self-contained `patches/*.nim` file compiled to a native binary.
 | Patch | Purpose | Debug pattern |
 |-------|---------|---------------|
 | `add_feature_custom_themes.nim` | CSS theme injection - 7 dual light/dark themes + per-theme spinner reshape | Prepended IIFE, no regex |
-| `fix_computer_use_linux.nim` | Enables Computer Use - removes platform gates, routes both executor factories to an injected Linux executor (bundled x11-bridge on X11/XWayland, bundled kwin-portal-bridge on KDE Wayland, portal+PipeWire/grim/GNOME D-Bus on other Wayland, ydotool) | `rg -o '.{0,60}executor not implemented' index.js` |
+| `fix_computer_use_linux.nim` | Enables Computer Use - removes platform gates, routes both executor factories to an injected Linux executor backed by the four bundled first-party bridges (x11-bridge on X11/XWayland, wlroots-bridge on Sway/Hyprland/Niri, gnome-portal-bridge on GNOME Wayland, kwin-portal-bridge on KDE Wayland; ydotool only on exotic compositors) | `rg -o '.{0,60}executor not implemented' index.js` |
 | `fix_computer_use_tcc.nim` | Stubs macOS TCC permission handlers to prevent error logs | Prepended IIFE, UUID extraction |
 | `fix_buddy_ble_linux.nim` | Enables Hardware Buddy (Nibblet BLE) - forces feature flag, uses Web Bluetooth via BlueZ | `rg -o '2358734848.{0,50}' index.js` |
 | `fix_quick_entry_position.nim` | Quick Entry opens on the cursor's monitor; position+focus retries gated to X11 (no Wayland jitter) | `rg -o 'getPrimaryDisplay.{0,50}' index.js` |

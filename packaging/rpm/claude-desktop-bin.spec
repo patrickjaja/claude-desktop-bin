@@ -63,19 +63,16 @@ Recommends:     virtiofsd
 Recommends:     sqlite
 # Quick Entry monitor positioning + WM_CLASS (X11) - no longer a Computer Use dep
 Suggests:       xdotool
-# Computer Use screenshot crop (Wayland GNOME / KDE spectacle tiers) via convert
+# Computer Use is fully first-party now: bundled x11-bridge (X11/XWayland),
+# wlroots-bridge (Sway/Hyprland/Niri), gnome-portal-bridge (GNOME Wayland) and
+# kwin-portal-bridge (KDE Plasma 6.6+). Remaining Suggests cover only the
+# residual paths:
+# - ImageMagick: screenshot crop for the KDE-without-kwin-bridge spectacle tier
+# - ydotool: input on exotic Wayland compositors (non-wlroots/GNOME/KDE;
+#   requires ydotoold daemon)
 Suggests:       ImageMagick
-# Computer Use — Wayland input automation (GNOME, Sway, Hyprland)
 Suggests:       ydotool
-# Computer Use — Wayland/wlroots (Sway, Hyprland)
-Suggests:       grim
-Suggests:       jq
-# Computer Use — GNOME Wayland
-Suggests:       glib2
-Suggests:       python3-gobject
-Suggests:       pipewire-gstreamer
-Suggests:       gnome-screenshot
-# Computer Use — Hyprland-specific
+# Quick Entry cursor positioning on Hyprland (hyprctl) - not a Computer Use dep
 Suggests:       hyprland
 # Faster Quick Entry toggle via socket (~2ms vs ~25ms python3 — not required)
 Suggests:       socat

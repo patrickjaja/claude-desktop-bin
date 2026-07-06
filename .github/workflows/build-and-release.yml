@@ -603,6 +603,190 @@ jobs:
             exit 1
           fi
 
+      - name: Get wlroots-bridge repo HEAD
+        id: wlroots-rev
+        run: |
+          WLR_SHA=$(git ls-remote https://github.com/patrickjaja/wlroots-bridge.git HEAD | cut -f1)
+          echo "sha=${WLR_SHA}" >> $GITHUB_OUTPUT
+          echo "wlroots-bridge HEAD: ${WLR_SHA}"
+
+      - name: Cache wlroots-bridge binaries
+        id: wlroots-cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/wlroots-bridge-output
+          key: wlroots-bridge-${{ steps.wlroots-rev.outputs.sha }}
+
+      - name: Build wlroots-bridge (x86_64 + aarch64 static musl)
+        id: wlroots
+        if: steps.wlroots-cache.outputs.cache-hit != 'true'
+        run: |
+          echo "=== Building wlroots-bridge (pure Rust, static musl, no C deps) ==="
+          mkdir -p /tmp/wlroots-bridge-output
+
+          # Same model as x11-bridge: pure Rust, .cargo/config.toml pins
+          # rust-lld + crt-static, both musl targets link fully-static.
+          docker run --rm \
+            -v /tmp/wlroots-bridge-output:/output \
+            -e DEBIAN_FRONTEND=noninteractive \
+            ubuntu:noble \
+            bash -c '
+              set -eo pipefail
+
+              apt-get update
+              apt-get install -y --no-install-recommends curl ca-certificates git
+
+              curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | \
+                sh -s -- -y --profile minimal --default-toolchain stable
+              export PATH=/root/.cargo/bin:$PATH
+              rustup target add x86_64-unknown-linux-musl aarch64-unknown-linux-musl
+
+              cd /tmp
+              git clone --depth=1 https://github.com/patrickjaja/wlroots-bridge.git
+              cd wlroots-bridge
+
+              cargo build --release --target x86_64-unknown-linux-musl
+              cp target/x86_64-unknown-linux-musl/release/wlroots-bridge /output/wlroots-bridge
+              echo "wlroots-bridge x86_64 built successfully"
+
+              cargo build --release --target aarch64-unknown-linux-musl
+              cp target/aarch64-unknown-linux-musl/release/wlroots-bridge /output/wlroots-bridge-aarch64
+              echo "wlroots-bridge aarch64 built successfully"
+            '
+
+      - name: Verify wlroots-bridge binaries (static)
+        run: |
+          # Fully static like x11-bridge - no glibc floor. `file` reads the ELF
+          # header cross-arch; `ldd` only runs on the native arch.
+          echo "--- x86_64 binary ---"
+          file /tmp/wlroots-bridge-output/wlroots-bridge
+          if ! file /tmp/wlroots-bridge-output/wlroots-bridge | grep -Eq 'statically linked|static-pie'; then
+            echo "::error::x86_64 wlroots-bridge is not statically linked"
+            exit 1
+          fi
+          if ldd /tmp/wlroots-bridge-output/wlroots-bridge 2>&1 | grep -q 'not a dynamic executable'; then
+            echo "x86_64 wlroots-bridge: not a dynamic executable (static confirmed)"
+          else
+            echo "::error::x86_64 wlroots-bridge reports dynamic dependencies"
+            ldd /tmp/wlroots-bridge-output/wlroots-bridge || true
+            exit 1
+          fi
+
+          echo "--- aarch64 binary ---"
+          file /tmp/wlroots-bridge-output/wlroots-bridge-aarch64
+          if ! file /tmp/wlroots-bridge-output/wlroots-bridge-aarch64 | grep -Eq 'statically linked|static-pie'; then
+            echo "::error::aarch64 wlroots-bridge is not statically linked"
+            exit 1
+          fi
+
+      - name: Get gnome-portal-bridge repo HEAD
+        id: gnome-rev
+        run: |
+          GNOME_SHA=$(git ls-remote https://github.com/patrickjaja/gnome-bridge.git HEAD | cut -f1)
+          echo "sha=${GNOME_SHA}" >> $GITHUB_OUTPUT
+          echo "gnome-bridge HEAD: ${GNOME_SHA}"
+
+      - name: Cache gnome-portal-bridge binaries
+        id: gnome-cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/gnome-bridge-output
+          key: gnome-portal-bridge-${{ steps.gnome-rev.outputs.sha }}
+
+      - name: Build gnome-portal-bridge (x86_64 + aarch64)
+        id: gnome
+        if: steps.gnome-cache.outputs.cache-hit != 'true'
+        run: |
+          echo "=== Building gnome-portal-bridge (Ubuntu Jammy base, native cargo cross) ==="
+          mkdir -p /tmp/gnome-bridge-output
+
+          # ubuntu:jammy (glibc 2.35) is the floor: gnome-portal-bridge must run
+          # on Ubuntu 22.04 (GNOME 42) and Debian 12 (GNOME 43). Jammy uses
+          # classic one-line sources.list (not deb822 like Noble).
+          docker run --rm \
+            -v /tmp/gnome-bridge-output:/output \
+            -e DEBIAN_FRONTEND=noninteractive \
+            ubuntu:jammy \
+            bash -c '
+              set -eo pipefail
+
+              dpkg --add-architecture arm64
+              cat >/etc/apt/sources.list <<SOURCES
+          deb [arch=amd64] http://archive.ubuntu.com/ubuntu jammy main restricted universe multiverse
+          deb [arch=amd64] http://archive.ubuntu.com/ubuntu jammy-updates main restricted universe multiverse
+          deb [arch=amd64] http://security.ubuntu.com/ubuntu jammy-security main restricted universe multiverse
+          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy main restricted universe multiverse
+          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-updates main restricted universe multiverse
+          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-security main restricted universe multiverse
+          SOURCES
+
+              apt-get update
+              apt-get install -y --no-install-recommends \
+                build-essential pkg-config clang cmake curl ca-certificates git \
+                gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
+                libpipewire-0.3-dev libpipewire-0.3-dev:arm64
+
+              curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | \
+                sh -s -- -y --profile minimal --default-toolchain stable \
+                         --target x86_64-unknown-linux-gnu \
+                         --target aarch64-unknown-linux-gnu
+              export PATH=/root/.cargo/bin:$PATH
+
+              cd /tmp
+              git clone --depth=1 https://github.com/patrickjaja/gnome-bridge.git
+              cd gnome-bridge
+
+              # x86_64 build (native)
+              cargo build --release --target x86_64-unknown-linux-gnu
+              cp target/x86_64-unknown-linux-gnu/release/gnome-portal-bridge /output/gnome-portal-bridge
+              echo "gnome-portal-bridge x86_64 built successfully"
+
+              # aarch64 cross build (gcc-aarch64-linux-gnu as linker)
+              export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
+              export CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc
+              export CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++
+              export AR_aarch64_unknown_linux_gnu=aarch64-linux-gnu-ar
+              export PKG_CONFIG_ALLOW_CROSS=1
+              export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig
+              export PKG_CONFIG_SYSROOT_DIR=/
+              export BINDGEN_EXTRA_CLANG_ARGS_aarch64_unknown_linux_gnu="--target=aarch64-linux-gnu -I/usr/include/aarch64-linux-gnu -I/usr/include -I/usr/include/pipewire-0.3 -I/usr/include/spa-0.2"
+
+              cargo build --release --target aarch64-unknown-linux-gnu
+              cp target/aarch64-unknown-linux-gnu/release/gnome-portal-bridge /output/gnome-portal-bridge-aarch64
+              echo "gnome-portal-bridge aarch64 built successfully"
+            '
+
+      - name: Verify gnome-portal-bridge binaries
+        run: |
+          echo "--- x86_64 binary ---"
+          file /tmp/gnome-bridge-output/gnome-portal-bridge
+          GLIBC_MAX=$(objdump -T /tmp/gnome-bridge-output/gnome-portal-bridge 2>/dev/null | grep -oP 'GLIBC_[0-9.]+' | sort -uV | tail -1 || echo "unknown")
+          echo "gnome-portal-bridge x86_64 max glibc: ${GLIBC_MAX}"
+          # Jammy (glibc 2.35) is the floor: must run on Ubuntu 22.04 + Debian 12
+          # GNOME sessions. Version-compare via sort -V.
+          HIGHEST=$(printf '%s\nGLIBC_2.35\n' "${GLIBC_MAX}" | sort -V | tail -1)
+          if [[ "${HIGHEST}" != "GLIBC_2.35" ]]; then
+            echo "::error::x86_64 binary requires ${GLIBC_MAX}, expected GLIBC_2.35 or lower"
+            exit 1
+          fi
+
+          echo "--- aarch64 binary ---"
+          file /tmp/gnome-bridge-output/gnome-portal-bridge-aarch64
+          if ! command -v aarch64-linux-gnu-objdump >/dev/null 2>&1; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq binutils-aarch64-linux-gnu || true
+          fi
+          if command -v aarch64-linux-gnu-objdump >/dev/null 2>&1; then
+            GLIBC_MAX_ARM=$(aarch64-linux-gnu-objdump -T /tmp/gnome-bridge-output/gnome-portal-bridge-aarch64 2>/dev/null | grep -oP 'GLIBC_[0-9.]+' | sort -uV | tail -1 || echo "unknown")
+            echo "gnome-portal-bridge aarch64 max glibc: ${GLIBC_MAX_ARM}"
+            HIGHEST_ARM=$(printf '%s\nGLIBC_2.35\n' "${GLIBC_MAX_ARM}" | sort -V | tail -1)
+            if [[ "${HIGHEST_ARM}" != "GLIBC_2.35" ]]; then
+              echo "::error::aarch64 binary requires ${GLIBC_MAX_ARM}, expected GLIBC_2.35 or lower"
+              exit 1
+            fi
+          else
+            echo "::warning::aarch64-linux-gnu-objdump unavailable — could not enforce glibc floor on the arm64 bridge"
+          fi
+
       - name: Build Patched Tarball (ingest official amd64 .deb)
         id: build
         run: |
@@ -625,6 +809,14 @@ jobs:
           if [ -f /tmp/x11-bridge-output/x11-bridge ]; then
             cp /tmp/x11-bridge-output/x11-bridge /tmp/build-input/x11-bridge
             BRIDGE_ENV="${BRIDGE_ENV} X11_BRIDGE_BIN=/input/x11-bridge"
+          fi
+          if [ -f /tmp/wlroots-bridge-output/wlroots-bridge ]; then
+            cp /tmp/wlroots-bridge-output/wlroots-bridge /tmp/build-input/wlroots-bridge
+            BRIDGE_ENV="${BRIDGE_ENV} WLROOTS_BRIDGE_BIN=/input/wlroots-bridge"
+          fi
+          if [ -f /tmp/gnome-bridge-output/gnome-portal-bridge ]; then
+            cp /tmp/gnome-bridge-output/gnome-portal-bridge /tmp/build-input/gnome-portal-bridge
+            BRIDGE_ENV="${BRIDGE_ENV} GNOME_PORTAL_BRIDGE_BIN=/input/gnome-portal-bridge"
           fi
 
           # The .deb already bundles Electron + node-pty + chrome-sandbox etc.,
@@ -715,6 +907,20 @@ jobs:
           path: /tmp/x11-bridge-output/x11-bridge-aarch64
           retention-days: 1
 
+      - name: Upload wlroots-bridge aarch64 binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: wlroots-bridge-aarch64
+          path: /tmp/wlroots-bridge-output/wlroots-bridge-aarch64
+          retention-days: 1
+
+      - name: Upload gnome-portal-bridge aarch64 binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: gnome-portal-bridge-aarch64
+          path: /tmp/gnome-bridge-output/gnome-portal-bridge-aarch64
+          retention-days: 1
+
       - name: Upload Build Log
         if: always()
         uses: actions/upload-artifact@v4
@@ -759,6 +965,16 @@ jobs:
         with:
           name: x11-bridge-aarch64
 
+      - name: Download wlroots-bridge aarch64
+        uses: actions/download-artifact@v4
+        with:
+          name: wlroots-bridge-aarch64
+
+      - name: Download gnome-portal-bridge aarch64
+        uses: actions/download-artifact@v4
+        with:
+          name: gnome-portal-bridge-aarch64
+
       - name: Build aarch64 patched tarball (ingest official arm64 .deb)
         id: build
         run: |
@@ -781,6 +997,14 @@ jobs:
           if [ -f x11-bridge-aarch64 ]; then
             cp x11-bridge-aarch64 /tmp/build-input-arm/x11-bridge
             BRIDGE_ENV="${BRIDGE_ENV} X11_BRIDGE_BIN=/input/x11-bridge"
+          fi
+          if [ -f wlroots-bridge-aarch64 ]; then
+            cp wlroots-bridge-aarch64 /tmp/build-input-arm/wlroots-bridge
+            BRIDGE_ENV="${BRIDGE_ENV} WLROOTS_BRIDGE_BIN=/input/wlroots-bridge"
+          fi
+          if [ -f gnome-portal-bridge-aarch64 ]; then
+            cp gnome-portal-bridge-aarch64 /tmp/build-input-arm/gnome-portal-bridge
+            BRIDGE_ENV="${BRIDGE_ENV} GNOME_PORTAL_BRIDGE_BIN=/input/gnome-portal-bridge"
           fi
 
           docker run --rm \

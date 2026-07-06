@@ -13,11 +13,13 @@ Repackages Anthropic's **official Claude Desktop Linux `.deb`** (bundles Electro
 
 | Session | Compositors/DEs | Input backend | Screenshot |
 |---|---|---|---|
-| X11 | any (GNOME, KDE, i3, …) | `xdotool` | `gnome-screenshot` → `scrot` → `import` (ImageMagick) |
-| Wayland wlroots | Sway, Hyprland, Niri | `ydotool` (+`ydotoold`) | `grim` |
-| Wayland GNOME | GNOME Shell | `ydotool` (+`ydotoold`) | portal+pipewire → `gnome-screenshot` → `gdbus` |
-| Wayland KDE | KDE Plasma | `ydotool` (+`ydotoold`) | `spectacle` (`kwin-portal-bridge` bundled fallback) |
-| XWayland | any Wayland | `xdotool` (fallback) | depends on compositor |
+| X11 | any (GNOME, KDE, i3, …) | `x11-bridge` (bundled, static) | `x11-bridge` (bundled, static) |
+| Wayland wlroots | Sway, Hyprland, Niri | `wlroots-bridge` (bundled, static) | `wlroots-bridge` (bundled, static) |
+| Wayland GNOME | GNOME Shell | `gnome-portal-bridge` (bundled; portal consent, persisted GNOME 46+) | `gnome-portal-bridge` (bundled) |
+| Wayland KDE 6.6+ | KDE Plasma | `kwin-portal-bridge` (bundled) | `kwin-portal-bridge` (bundled) |
+| Wayland KDE <6.6 | KDE Plasma | `ydotool`, else x11-bridge/XWayland | `spectacle`+`convert` |
+| XWayland | any Wayland | `x11-bridge` (bundled) | `x11-bridge` (bundled) |
+| Wayland exotic | COSMIC, Enlightenment, … | `ydotool` (+`ydotoold`), else x11-bridge/XWayland | `desktopCapturer` / `COWORK_SCREENSHOT_CMD` |
 
 | Distro | Pkg | Min glibc | Arch |
 |---|---|---|---|
@@ -39,23 +41,26 @@ Repackages Anthropic's **official Claude Desktop Linux `.deb`** (bundles Electro
 - `claude-desktop --diagnose` dumps `XDG_SESSION_TYPE`, `WAYLAND_DISPLAY`, `platform_mode`, electron major.
 
 ## Input + screenshot executors - single source of truth
-The cascade logic lives in checked-in JS under `js/`, embedded into `patches/fix_computer_use_linux.nim` via `staticRead` (35 sub-patches, PCRE/`std/nre` for backreferences). **Edit the `.js`, not the patch.**
-- `js/cu_linux_executor.js` - inline executor: detection, all screenshot/input cascades, `[claude-cu] diagnostics:` lines.
-- `js/executor_linux.js` - KWin/KDE hybrid executor.
-- `js/cu_handler_injection.js`, `js/cu_mode_preamble.js` - handler wiring + mode preamble.
+The dispatch logic lives in checked-in JS under `js/`, embedded into `patches/fix_computer_use_linux.nim` via `staticRead` (36 sub-patches, PCRE/`std/nre` for backreferences). **Edit the `.js`, not the patch.**
+- `js/cu_linux_executor.js` - inline executor: session detection, per-session bridge dispatch, residual fallbacks, `[claude-cu] diagnostics:` lines.
+- `js/executor_linux.js` - KWin/KDE hybrid executor (kwin mode).
+- `js/cu_handler_injection.js`, `js/cu_mode_preamble.js` - handler wiring + mode/bridge-binary resolution (env var → `process.resourcesPath` → `$PATH`; env vars: `X11_BRIDGE_BIN`, `WLROOTS_BRIDGE_BIN`, `GNOME_PORTAL_BRIDGE_BIN`, `KWIN_PORTAL_BRIDGE_BIN`).
 
-**Input:** `_checkYdotool()` → true only if `ydotool` present AND (`pgrep -x ydotoold` OR `$YDOTOOL_SOCKET`/`$XDG_RUNTIME_DIR/.ydotool_socket` exists). On Wayland use `ydotool`, else fall back to `xdotool` (via XWayland). xdotool cannot inject on native Wayland - daemon is mandatory there.
-**Screenshot order (in code):** `COWORK_SCREENSHOT_CMD` (override) → grim (wlroots) → portal+pipewire (GNOME, restore-token) → gnome-screenshot+convert (GNOME) → gdbus (GNOME Shell DBus) → portal+pipewire (GNOME first-run) → spectacle (KDE) → gnome-screenshot (X11) → scrot (X11) → import/ImageMagick (X11) → Electron `desktopCapturer` (last resort).
+**Dispatch (bridge-only on covered sessions):** wlroots session → `wlroots-bridge`; GNOME Wayland → `gnome-portal-bridge` (portal session daemon scoped to the CU lock via `__setLockHeld`); X11/XWayland → `x11-bridge`; KDE 6.6+ → kwin mode. All bridges share the x11-bridge CLI/JSON contract (subcommand + `--kebab` flags, one JSON value on stdout, exit 1 + stderr on error). On covered sessions there is NO third-party fallback - a missing bridge is a hard, diagnosable error. `COWORK_SCREENSHOT_CMD` overrides screenshots everywhere; Electron `desktopCapturer` is the last-resort screenshot tier. Clipboard + cursor-position are Electron-native in the regular executor. `_checkYdotool()` (ydotool + running ydotoold) gates only the exotic-Wayland residual path.
 
-**`[claude-cu] diagnostics:`** lines print to stderr/stdout at startup/first-use: `input-backend=ydotool|xdotool`, `screenshot: captured via <tool>`, missing-tool warnings, VM/Wayland detection. **Always ask users to paste these when debugging Computer Use.**
+**`[claude-cu] diagnostics:`** lines print to stderr/stdout at startup/first-use: `input-backend=<bridge|ydotool|x11-bridge>`, per-bridge `present (path)|absent` lines, `screenshot-cascade=[...]`, VM/Wayland detection. **Always ask users to paste these when debugging Computer Use.**
 
 ## Native binaries & glibc floors (CI enforces via `objdump -T | grep GLIBC_`)
 | Binary | Floor | Why | CI base |
 |---|---|---|---|
+| x11-bridge | none (static musl) | pure Rust, runs everywhere incl. NixOS | `ubuntu:noble` (rustup musl) |
+| wlroots-bridge | none (static musl) | pure Rust, runs everywhere incl. NixOS | `ubuntu:noble` (rustup musl) |
+| gnome-portal-bridge | 2.35 (Ubuntu Jammy) | Ubuntu 22.04 (GNOME 42) + Debian 12 (GNOME 43); links libpipewire | `ubuntu:jammy` + native cross |
 | kwin-portal-bridge | 2.39 (Ubuntu Noble) | KWin 6.6+ only on Noble+/Fedora 40+ | `ubuntu:noble` + native cross |
 
 - **node-pty is no longer rebuilt by us.** The official Linux `.deb` ships a pre-built `pty.node` + `spawn-helper` for x86_64 and arm64 inside `app.asar.unpacked`; our repackage preserves them (`asar pack` keeps the unpacked dir). There is no `rebuild-pty-for-arch.sh` and no Electron pin (`.electron-version`/`.electron-shasums` are gone) - Electron 42.5.1 is bundled in the official `.deb`.
-- **kwin-portal-bridge is ours** (Computer Use on KDE Wayland). Built for x86_64 + arm64 by CI.
+- **All four CU bridges are ours** (repos: patrickjaja/x11-bridge, patrickjaja/wlroots-bridge, patrickjaja/gnome-bridge, patrickjaja/kwin-portal-bridge fork). Built for x86_64 + arm64 by CI, cached by upstream HEAD SHA. Static bridges assert `statically linked|static-pie`; dynamic bridges assert the glibc floor.
+- On NixOS the static bridges run as bundled; the dynamic two do not (glibc mismatch) - GNOME needs `.override { gnome-portal-bridge = …; }`, KDE falls back to spectacle.
 - New native binary → pick floor = its minimum viable distro; CI verifies it via `objdump -T | grep GLIBC_`.
 
 ## Multi-profile / window identity (`scripts/claude-desktop-launcher.sh`)
@@ -81,8 +86,8 @@ The cascade logic lives in checked-in JS under `js/`, embedded into `patches/fix
 - KDE stale kglobalaccel entries after crash block re-registration → `gdbus` unregister before re-register.
 
 ## Rules
-1. Every change must work across all 5 session types and all distro/arch rows - think through each, especially Wayland fragmentation (GNOME ≠ KDE ≠ wlroots).
-2. New input/screenshot work → edit `js/cu_linux_executor.js` (+ `executor_linux.js` for KDE), keep diagnostics lines.
+1. Every change must work across all session types and all distro/arch rows - think through each, especially Wayland fragmentation (GNOME ≠ KDE ≠ wlroots ≠ exotic).
+2. New input/screenshot work → change the BRIDGE for that session type (x11-bridge / wlroots-bridge / gnome-portal-bridge / kwin-portal-bridge), or the dispatch in `js/cu_linux_executor.js` (+ `executor_linux.js` for KDE); keep diagnostics lines and the shared CLI/JSON contract (x11-bridge DESIGN.md is authoritative).
 3. Fixed user-level paths → prefer `app.getPath("userData")` (auto-isolates per profile) over `~/.config/Claude`.
-4. New native binary we ship (e.g. kwin-portal-bridge) → builds for x86_64 AND aarch64, pick a glibc floor, CI verifies. (We do NOT rebuild node-pty - it comes pre-built in the official `.deb`.)
+4. New native binary we ship → builds for x86_64 AND aarch64, pick a glibc floor (or static musl), CI verifies. (We do NOT rebuild node-pty - it comes pre-built in the official `.deb`.)
 5. Verify JS syntax after any patch: `node --check ./tmp/app.asar.contents/.vite/build/index.js`.

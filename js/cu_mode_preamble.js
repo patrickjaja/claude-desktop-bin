@@ -62,6 +62,38 @@
       if(_xbFound){globalThis.__cuX11BridgeBin=_xbBin;console.log("[claude-cu] x11-bridge resolved at "+_xbBin)}
       else console.log("[claude-cu] x11-bridge not found (X11 input/screenshot + XWayland fallback unavailable)");
     }
+    // Resolve wlroots-bridge (Sway/Hyprland/Niri) and gnome-portal-bridge (GNOME
+    // Wayland) — the first-party CU backends for those Wayland session types.
+    // Priority per bridge: <ENV>_BRIDGE_BIN → process.resourcesPath → each $PATH
+    // dir; verified executable via X_OK. Resolution is gated on session type so
+    // we don't probe binaries irrelevant to the running compositor.
+    var _wlSess=_sessType==="wayland"||!!process.env.WAYLAND_DISPLAY;
+    if(_wlSess){
+      var _brfs=require("fs"),_brpath=require("path");
+      function _resolveBridge(name,envVar){
+        var _explicit=process.env[envVar];
+        if(_explicit){try{_brfs.accessSync(_explicit,_brfs.constants.X_OK);return _explicit}catch(e){}}
+        try{var _b=_brpath.join(process.resourcesPath,name);_brfs.accessSync(_b,_brfs.constants.X_OK);return _b}catch(e){}
+        var _dirs=(process.env.PATH||"").split(_brpath.delimiter);
+        for(var _di=0;_di<_dirs.length;_di++){
+          if(!_dirs[_di])continue;
+          try{var _c=_brpath.join(_dirs[_di],name);_brfs.accessSync(_c,_brfs.constants.X_OK);return _c}catch(e){}
+        }
+        return"";
+      }
+      var _isWlroots=!!process.env.SWAYSOCK||!!process.env.HYPRLAND_INSTANCE_SIGNATURE||!!process.env.NIRI_SOCKET;
+      var _isGnome=(process.env.XDG_CURRENT_DESKTOP||"").toLowerCase().indexOf("gnome")>=0;
+      if(_isWlroots){
+        var _wlrBin=_resolveBridge("wlroots-bridge","WLROOTS_BRIDGE_BIN");
+        if(_wlrBin){globalThis.__cuWlrootsBridgeBin=_wlrBin;console.log("[claude-cu] wlroots-bridge resolved at "+_wlrBin)}
+        else console.log("[claude-cu] wlroots-bridge not found (wlroots-Wayland CU input/screenshot unavailable)");
+      }
+      if(_isGnome){
+        var _gnBin=_resolveBridge("gnome-portal-bridge","GNOME_PORTAL_BRIDGE_BIN");
+        if(_gnBin){globalThis.__cuGnomeBridgeBin=_gnBin;console.log("[claude-cu] gnome-portal-bridge resolved at "+_gnBin)}
+        else console.log("[claude-cu] gnome-portal-bridge not found (GNOME-Wayland CU input/screenshot unavailable)");
+      }
+    }
   }
   var _reason;
   if(envMode)_reason=" (CLAUDE_CU_MODE set)";
