@@ -465,7 +465,7 @@ jobs:
               git clone --depth=1 https://github.com/patrickjaja/kwin-portal-bridge.git
               cd kwin-portal-bridge
 
-              # x86_64 build (native). --locked pins to the repo's committed
+              # x86_64 build (native). --locked pins to the repo'\''s committed
               # Cargo.lock so an unrelated crates.io release cannot silently
               # change the resolved dependency graph.
               cargo build --release --locked --target x86_64-unknown-linux-gnu
@@ -571,7 +571,7 @@ jobs:
               git clone --depth=1 https://github.com/patrickjaja/x11-bridge.git
               cd x11-bridge
 
-              # --locked pins to the repo's committed Cargo.lock so an
+              # --locked pins to the repo'\''s committed Cargo.lock so an
               # unrelated crates.io release cannot silently change the
               # resolved dependency graph.
               cargo build --release --locked --target x86_64-unknown-linux-musl
@@ -653,7 +653,7 @@ jobs:
               git clone --depth=1 https://github.com/patrickjaja/wlroots-bridge.git
               cd wlroots-bridge
 
-              # --locked pins to the repo's committed Cargo.lock so an
+              # --locked pins to the repo'\''s committed Cargo.lock so an
               # unrelated crates.io release cannot silently change the
               # resolved dependency graph.
               cargo build --release --locked --target x86_64-unknown-linux-musl
