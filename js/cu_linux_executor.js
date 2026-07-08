@@ -50,13 +50,41 @@ function _bridge(bin,args,timeoutMs){
   var out=res.trim();
   return out?JSON.parse(out):null;
 }
+// Async, non-blocking variant of _bridge. Used ONLY for the GNOME portal
+// session lifecycle (session-start/session-end), because session-start blocks
+// on the XDG RemoteDesktop consent dialog for up to timeoutMs — a synchronous
+// execFileSync there would freeze the Electron main process while the dialog is
+// pending. Mirrors the kwin executor's promisified execFile (executor_linux.js).
+function _bridgeAsync(bin,args,timeoutMs){
+  return new Promise(function(resolve,reject){
+    if(!bin){reject(new Error("bridge binary not available"));return}
+    _cp.execFile(bin,args,{encoding:"utf-8",timeout:timeoutMs||15000,maxBuffer:16*1024*1024},function(err,stdout){
+      if(err){reject(err);return}
+      var out=(stdout||"").trim();
+      try{resolve(out?JSON.parse(out):null)}catch(pe){reject(pe)}
+    });
+  });
+}
 // Return {bin, name, timeout} for the active covered Wayland session, or null.
 function _wlBridge(){
   if(_isWlrootsCovered()){var b=_wlrootsBridgeBin();if(b)return{bin:b,name:"wlroots-bridge",timeout:15000}}
   if(_isGnomeCovered()){var g=_gnomeBridgeBin();if(g)return{bin:g,name:"gnome-portal-bridge",timeout:30000}}
   return null;
 }
-function _wlBridgeCall(args){var b=_wlBridge();if(!b)throw new Error("no covered Wayland bridge available");if(b.name==="gnome-portal-bridge")_gnomeEnsureSession();return _bridge(b.bin,args,b.timeout)}
+function _wlBridgeCall(args){var b=_wlBridge();if(!b)throw new Error("no covered Wayland bridge available");if(b.name==="gnome-portal-bridge")_gnomeEnsureSessionSync();return _bridge(b.bin,args,b.timeout)}
+// Synchronous session-start backstop for the per-call path (screenshot/click/…):
+// these callers run the bridge synchronously and need the portal session up
+// FIRST. In normal operation the CU lock hook (__setLockHeld → _gnomeEnsureSession,
+// async) has already brought the session up, so this is a no-op. It only does the
+// blocking session-start if the lock hook never fired — a rare degenerate path,
+// not the session-resume path that froze the main process (issue #184 audit).
+function _gnomeEnsureSessionSync(){
+  if(_gnomeSessionActive||_gnomeSessionStarting)return;
+  var bin=_gnomeBridgeBin();if(!bin)return;
+  if(!_gnomeExitHooked){_gnomeExitHooked=!0;process.once("exit",function(){if(_gnomeSessionActive){try{_cp.execFileSync(_gnomeBridgeBin(),["session-end"],{timeout:5000,stdio:"ignore"})}catch(e){}}})}
+  try{_bridge(bin,["session-start"],30000);_gnomeSessionActive=!0;globalThis.__cdbDiag("[claude-cu] gnome-portal-bridge session started (sync backstop)")}
+  catch(e){globalThis.__cdbDiag("[claude-cu] gnome-portal-bridge session-start failed (sync backstop): "+(e.message||e))}
+}
 // Bridge-side monitor list (snake_case screens) for the active Wayland bridge.
 // Mirrors _x11BridgeScreens; used to map a global-logical region to a monitor
 // name + monitor-relative coords for `zoom --display`.
@@ -85,21 +113,26 @@ function _wlMonForRegion(x,y){
 // fix_computer_use_linux.nim, which call __linuxExecutor.__setLockHeld in BOTH
 // kwin and regular mode). If the lock hook never fires we lazy-start on first
 // bridge use and stop on process exit as a backstop.
-var _gnomeSessionActive=!1,_gnomeExitHooked=!1;
-function _gnomeSessionStart(){
+var _gnomeSessionActive=!1,_gnomeExitHooked=!1,_gnomeSessionStarting=null;
+async function _gnomeSessionStart(){
   var bin=_gnomeBridgeBin();if(!bin)return;
-  try{_bridge(bin,["session-start"],30000);_gnomeSessionActive=!0;globalThis.__cdbDiag("[claude-cu] gnome-portal-bridge session started")}
+  try{await _bridgeAsync(bin,["session-start"],30000);_gnomeSessionActive=!0;globalThis.__cdbDiag("[claude-cu] gnome-portal-bridge session started")}
   catch(e){globalThis.__cdbDiag("[claude-cu] gnome-portal-bridge session-start failed: "+(e.message||e))}
 }
-function _gnomeSessionEnd(){
+async function _gnomeSessionEnd(){
   var bin=_gnomeBridgeBin();if(!bin)return;
-  try{_bridge(bin,["session-end"],15000)}catch(e){}
-  _gnomeSessionActive=!1;
+  try{await _bridgeAsync(bin,["session-end"],15000)}catch(e){}
+  _gnomeSessionActive=!1;_gnomeSessionStarting=null;
 }
+// Bring the portal session up without blocking the main process. Returns a
+// Promise that resolves once session-start finishes (or immediately if the
+// session is already active). Concurrent callers share the in-flight promise.
 function _gnomeEnsureSession(){
-  if(_gnomeSessionActive)return;
+  if(_gnomeSessionActive)return Promise.resolve();
+  if(_gnomeSessionStarting)return _gnomeSessionStarting;
   if(!_gnomeExitHooked){_gnomeExitHooked=!0;process.once("exit",function(){if(_gnomeSessionActive){try{_cp.execFileSync(_gnomeBridgeBin(),["session-end"],{timeout:5000,stdio:"ignore"})}catch(e){}}})}
-  _gnomeSessionStart();
+  _gnomeSessionStarting=_gnomeSessionStart().then(function(){_gnomeSessionStarting=null},function(){_gnomeSessionStarting=null});
+  return _gnomeSessionStarting;
 }
 function _readClean(f){var buf=_fs.readFileSync(f);try{_fs.unlinkSync(f)}catch(e){}return buf.toString("base64")}
 function _findMonByPoint(px,py){
@@ -337,7 +370,7 @@ globalThis.__linuxExecutor={
   // CU session; dialog-free on GNOME 46+ via restore token) to the lock.
   async __setLockHeld(held){
     if(!_isGnomeCovered()||!_gnomeBridgeBin())return;
-    if(held)_gnomeEnsureSession();else _gnomeSessionEnd();
+    if(held)await _gnomeEnsureSession();else await _gnomeSessionEnd();
   },
   async listDisplays(){return _getMonitors()},
   async getDisplaySize(displayId){

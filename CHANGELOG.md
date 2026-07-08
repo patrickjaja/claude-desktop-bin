@@ -2,6 +2,12 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-07-08
+
+### Computer Use: GNOME portal session-start no longer blocks the Electron main process
+
+On GNOME Wayland, acquiring the Computer Use lock starts a `gnome-portal-bridge` XDG RemoteDesktop/ScreenCast portal session, which waits on the GNOME "remote control" consent dialog. That `session-start` ran through a synchronous `execFileSync` (30s timeout) on the Electron main process, so the whole UI could freeze for as long as the consent dialog stayed open. The GNOME session lifecycle (`session-start`/`session-end`) now runs through a promisified async `execFile` awaited inside the already-async `__setLockHeld` lock hook - the same non-blocking pattern the KDE/kwin executor already used. The per-call screenshot/input path keeps a synchronous session-start backstop for the rare case where the lock hook never fired; the per-tool bridge calls themselves are unchanged. This is a latent main-process-freeze fix on GNOME Wayland; it is unrelated to issue #184 (a session-resume freeze traced to Anthropic's bundled agent-sdk, not our patches).
+
 ## 2026-07-06
 
 ### Cowork: troubleshooting docs + Arch install hint (prompted by an Arch setup report)
