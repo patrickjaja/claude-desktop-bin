@@ -71,13 +71,32 @@ function _wlBridge(){
   if(_isGnomeCovered()){var g=_gnomeBridgeBin();if(g)return{bin:g,name:"gnome-portal-bridge",timeout:30000}}
   return null;
 }
-function _wlBridgeCall(args){var b=_wlBridge();if(!b)throw new Error("no covered Wayland bridge available");if(b.name==="gnome-portal-bridge")_gnomeEnsureSessionSync();return _bridge(b.bin,args,b.timeout)}
-// Synchronous session-start backstop for the per-call path (screenshot/click/…):
-// these callers run the bridge synchronously and need the portal session up
-// FIRST. In normal operation the CU lock hook (__setLockHeld → _gnomeEnsureSession,
-// async) has already brought the session up, so this is a no-op. It only does the
-// blocking session-start if the lock hook never fired — a rare degenerate path,
-// not the session-resume path that froze the main process (issue #184 audit).
+// gnome-portal-bridge subcommands that go through the XDG RemoteDesktop/
+// ScreenCast portal session (input injection + capture). ONLY these may ensure
+// the portal session first. Enumeration subcommands (windows, frontmost-app,
+// app-under-point, screens, activate-window) are plain GNOME Shell Introspect /
+// Mutter D-Bus calls in the bridge (see gnome-bridge src/main.rs) and MUST NOT
+// touch the portal: issue #184 — upstream warms a resumed Code session via
+// listRunningApps → `windows`, and a blanket session ensure here popped the
+// GNOME "Desktop remoto" consent dialog and froze the main process.
+var _gnomePortalCmds={"zoom":1,"screenshot":1,"pointer-move":1,"pointer-click":1,"pointer-scroll":1,"pointer-drag":1,"left-mouse-down":1,"left-mouse-up":1,"key-sequence":1,"type":1,"hold-key":1};
+function _wlBridgeCall(args){
+  var b=_wlBridge();if(!b)throw new Error("no covered Wayland bridge available");
+  var portalCmd=b.name==="gnome-portal-bridge"&&_gnomePortalCmds[args[0]]===1;
+  if(portalCmd)_gnomeEnsureSessionSync();
+  // Portal-proxied commands keep the generous gnome timeout; portal-free
+  // enumeration gets the standard bridge timeout so a stuck D-Bus call can
+  // never block the main process for the full portal budget.
+  var t=b.name==="gnome-portal-bridge"&&!portalCmd?15000:b.timeout;
+  return _bridge(b.bin,args,t);
+}
+// Synchronous session-start backstop for the per-call input/capture path: these
+// callers run the bridge synchronously and need the portal session up FIRST.
+// In normal operation the CU lock hook (__setLockHeld → _gnomeEnsureSession,
+// async) has already brought the session up, so this is a no-op. It only does
+// the blocking session-start if a portal command runs without the lock hook
+// having fired — and by then a consent dialog is expected UX anyway (the user
+// invoked Computer Use).
 function _gnomeEnsureSessionSync(){
   if(_gnomeSessionActive||_gnomeSessionStarting)return;
   var bin=_gnomeBridgeBin();if(!bin)return;
@@ -111,8 +130,9 @@ function _wlMonForRegion(x,y){
 // tool-use lock (one consent dialog; restore-token dialog-free on GNOME 46+).
 // Driven by the CU lock via __setLockHeld (wired from Patches 4b/4b.2 in
 // fix_computer_use_linux.nim, which call __linuxExecutor.__setLockHeld in BOTH
-// kwin and regular mode). If the lock hook never fires we lazy-start on first
-// bridge use and stop on process exit as a backstop.
+// kwin and regular mode). If the lock hook never fires we lazy-start on the
+// first PORTAL command (input/capture — see _gnomePortalCmds; never for
+// enumeration) and stop on process exit as a backstop.
 var _gnomeSessionActive=!1,_gnomeExitHooked=!1,_gnomeSessionStarting=null;
 async function _gnomeSessionStart(){
   var bin=_gnomeBridgeBin();if(!bin)return;
