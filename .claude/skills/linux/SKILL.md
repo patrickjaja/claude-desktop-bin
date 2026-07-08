@@ -48,6 +48,8 @@ The dispatch logic lives in checked-in JS under `js/`, embedded into `patches/fi
 
 **Dispatch (bridge-only on covered sessions):** wlroots session → `wlroots-bridge`; GNOME Wayland → `gnome-portal-bridge` (portal session daemon scoped to the CU lock via `__setLockHeld`); X11/XWayland → `x11-bridge`; KDE 6.6+ → kwin mode. All bridges share the x11-bridge CLI/JSON contract (subcommand + `--kebab` flags, one JSON value on stdout, exit 1 + stderr on error). On covered sessions there is NO third-party fallback - a missing bridge is a hard, diagnosable error. `COWORK_SCREENSHOT_CMD` overrides screenshots everywhere; Electron `desktopCapturer` is the last-resort screenshot tier. Clipboard + cursor-position are Electron-native in the regular executor. `_checkYdotool()` (ydotool + running ydotoold) gates only the exotic-Wayland residual path.
 
+**Executor methods run OUTSIDE the CU lock - treat them as ambient API (issue #184).** Upstream builds the CU tool schemas at Code/Cowork session open and calls `executor.listInstalledApps()`/`listRunningApps()` there (raced against a 1s timeout that CANNOT preempt a synchronous block - `execFileSync` freezes the whole main process, timer never fires). Therefore: enumeration subcommands (`windows`, `frontmost-app`, `app-under-point`, `screens`) must NEVER open a portal session, pop a consent dialog, or wait on user interaction; portal sessions belong to the lock lifecycle (`__setLockHeld`, async `execFile`) plus the per-portal-command sync backstop. In `cu_linux_executor.js` this is enforced by the `_gnomePortalCmds` allowlist - only input/capture subcommands (pointer-*, key-sequence, type, hold-key, zoom, screenshot, left-mouse-*) may ensure the portal session. Any new executor method or bridge subcommand must declare which side it is on. All four bridges audited 2026-07-08: kwin already enforces this structurally (enumeration = portal-free KWin scripting; portal only via explicit `session-start`, fail-closed otherwise; JS fully async); wlroots/x11 have zero portal/consent surface (`session-start` is a no-op there) and bounded enumeration - GNOME was the only offender.
+
 **`[claude-cu] diagnostics:`** lines (input-backend, per-bridge `present (path)|absent`, `screenshot-cascade=[...]`, VM/Wayland detection) are written via `globalThis.__cdbDiag` to `~/.config/Claude/logs/claude-patches.log` + raw fd 2. **Debugging locally: read that file yourself** (`grep -a 'claude-cu' ~/.config/Claude/logs/claude-patches.log`); ask remote issue reporters to attach it. The official `.deb` build DISCARDS main-process `console.log`/`process.stdout` (fds healthy - proven via /proc fd probe); never add plain `console.log` diagnostics to main-process patch code - use `__cdbDiag` (or the `(globalThis.__cdbDiag||console.log)` fallback outside the CU patch).
 
 ## Native binaries & glibc floors (CI enforces via `objdump -T | grep GLIBC_`)
@@ -55,7 +57,7 @@ The dispatch logic lives in checked-in JS under `js/`, embedded into `patches/fi
 |---|---|---|---|
 | x11-bridge | none (static musl) | pure Rust, runs everywhere incl. NixOS | `ubuntu:noble` (rustup musl) |
 | wlroots-bridge | none (static musl) | pure Rust, runs everywhere incl. NixOS | `ubuntu:noble` (rustup musl) |
-| gnome-portal-bridge | 2.35 (Ubuntu Jammy) | Ubuntu 22.04 (GNOME 42) + Debian 12 (GNOME 43); links libpipewire | `ubuntu:jammy` + native cross |
+| gnome-portal-bridge | 2.39 (Ubuntu Noble) | lamco-pipewire needs PipeWire >= 1.0.5 runtime (Noble/Fedora 40+/Debian 13+); Jammy (0.3.48) and Bookworm (0.3.65) cannot even load the binary | `ubuntu:noble` + native cross |
 | kwin-portal-bridge | 2.39 (Ubuntu Noble) | KWin 6.6+ only on Noble+/Fedora 40+ | `ubuntu:noble` + native cross |
 
 - **node-pty is no longer rebuilt by us.** The official Linux `.deb` ships a pre-built `pty.node` + `spawn-helper` for x86_64 and arm64 inside `app.asar.unpacked`; our repackage preserves them (`asar pack` keeps the unpacked dir). There is no `rebuild-pty-for-arch.sh` and no Electron pin (`.electron-version`/`.electron-shasums` are gone) - Electron 42.5.1 is bundled in the official `.deb`.
@@ -70,6 +72,7 @@ The dispatch logic lives in checked-in JS under `js/`, embedded into `patches/fi
 - **Portal identity caveat** (`project_platform_gate_baseline` / portal memory): xdg-desktop-portal wants a reverse-URL app_id to route activations back to unsandboxed Electron; shipping single-segment `"Claude"` breaks routing across compositors. Fix is launcher-only.
 
 ## Known Linux gotchas (one line each → which patch)
+- Opening a Code session enumerates apps via the executor (no CU lock); a portal-session ensure on that path popped GNOME's consent dialog + froze the main process (#184) → `js/cu_linux_executor.js` `_gnomePortalCmds` allowlist + async `__setLockHeld` lifecycle.
 - EXDEV cross-device rename (/tmp tmpfs ↔ ~/.config) → `fix_cross_device_rename.nim` (copy+unlink fallback).
 - Sandbox credential-path blocklist (.ssh/.gnupg/.aws/keyrings/.pki/autostart) → `fix_sensitive_dirs_linux.nim`.
 - Tray DBus races on session change → `fix_tray_dbus.nim` (async + mutex + destroy delay). Theme: `fix_tray_icon_theme.nim`.
