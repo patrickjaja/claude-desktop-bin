@@ -15,7 +15,8 @@
 #   3c coworkArtifacts GrowthBook flag 2940196192
 #   3d chillingSlothPool GrowthBook flag 1992087837
 #   3e (removed upstream v1.17282.0: markTaskComplete flag 3732274605 no longer exists)
-#   3f ENABLE_TOOL_SEARCH GrowthBook flag 1129419822
+#   3f (disabled 2026-07-11: ENABLE_TOOL_SEARCH flag 1129419822 no longer forced -
+#       follows server rollout; see the commented block below)
 #   3g toolResultFormatting GrowthBook flag 2192324205
 #   3h deterministicSorting GrowthBook flag 2800354941
 #   3i pluginEnabledState GrowthBook flag 4274871493
@@ -47,7 +48,7 @@
 import std/[os, strformat, strutils]
 import std/nre
 
-const EXPECTED_PATCHES = 20
+const EXPECTED_PATCHES = 19
 
 proc apply*(input: string): string =
   result = input
@@ -254,21 +255,29 @@ proc apply*(input: string): string =
   # id nor the `markTaskComplete` key appear anywhere). Sub-patch deleted accordingly;
   # EXPECTED_PATCHES dropped 24 -> 23 and the merger override list dropped to 11 keys.
 
-  # Patch 3f: Enable ENABLE_TOOL_SEARCH for LAM sessions - flag 1129419822
-  let toolSearchPattern = re"""[\w$]+(?:\.[\w$]+)*\("1129419822"\)"""
-  var toolSearchApplied = 0
-  result = result.replace(
-    toolSearchPattern,
-    proc(m: RegexMatch): string =
-      inc toolSearchApplied
-      "!0",
-  )
-  if toolSearchApplied >= 1:
-    echo &"  [OK] ENABLE_TOOL_SEARCH flag 1129419822: forced ON ({toolSearchApplied} matches)"
-    inc patchesApplied
-  else:
-    echo "  [FAIL] ENABLE_TOOL_SEARCH flag 1129419822: 0 matches"
-    failed = true
+  # Patch 3f (ENABLE_TOOL_SEARCH, GrowthBook flag 1129419822) DISABLED 2026-07-11:
+  # forcing it injected the ToolSearch tool into every LAM session even though the
+  # session tool count is far below the defer threshold, so nothing was ever
+  # deferred - the tool was dead weight and primed the model into a bogus
+  # "load tools first" detour (observed: Skill({"skill":"ToolSearch"}) ->
+  # "Unknown skill" error). The flag now follows Anthropic's server-side rollout.
+  # EXPECTED_PATCHES dropped 20 -> 19. Re-enable only if a session with a large
+  # tool inventory demonstrably benefits from tool search on Linux.
+  #
+  # let toolSearchPattern = re"""[\w$]+(?:\.[\w$]+)*\("1129419822"\)"""
+  # var toolSearchApplied = 0
+  # result = result.replace(
+  #   toolSearchPattern,
+  #   proc(m: RegexMatch): string =
+  #     inc toolSearchApplied
+  #     "!0",
+  # )
+  # if toolSearchApplied >= 1:
+  #   echo &"  [OK] ENABLE_TOOL_SEARCH flag 1129419822: forced ON ({toolSearchApplied} matches)"
+  #   inc patchesApplied
+  # else:
+  #   echo "  [FAIL] ENABLE_TOOL_SEARCH flag 1129419822: 0 matches"
+  #   failed = true
 
   # Patch 3g: Enable tool use result formatting - flag 2192324205
   let toolResultFmtPattern = re"""[\w$]+(?:\.[\w$]+)*\("2192324205"\)"""
