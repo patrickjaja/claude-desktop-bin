@@ -87,9 +87,23 @@ var __cdb_fontFlag=false;
 var __cdb_spinnerJson="null";
 var __cdb_marker="__cdb_dualvariant";
 var __cdb_cfgPath=_path.join(_app.getPath("userData"),"claude-desktop-bin.json");
+var __cdb_cfgPathC=_path.join(_app.getPath("userData"),"claude-desktop-bin.jsonc");
+// Config may live in claude-desktop-bin.json (legacy plain JSON) and/or
+// claude-desktop-bin.jsonc (commented template auto-created by the
+// growthbook-overrides patch). Both are JSONC (comments stripped outside
+// strings) and merged per key with .jsonc winning; themes maps merge per name.
+var __cdb_stripJsonc=function(s){var o="",q=false,i=0;while(i<s.length){var c=s[i];if(q){o+=c;if(c==="\\"&&i+1<s.length){o+=s[i+1];i++}else if(c==='"'){q=false}i++;continue}if(c==='"'){q=true;o+=c;i++;continue}if(c==="/"&&s[i+1]==="/"){while(i<s.length&&s[i]!=="\n")i++;continue}if(c==="/"&&s[i+1]==="*"){i+=2;while(i<s.length&&!(s[i]==="*"&&s[i+1]==="/"))i++;i+=2;continue}o+=c;i++}return o};
+var __cdb_readCfg=function(p){var r;try{r=_fs.readFileSync(p,"utf8")}catch(e){if(e.code!=="ENOENT"){(globalThis.__cdbDiag||console.log)("[CustomThemes] Error reading "+p+": "+e.message)}return null}try{return JSON.parse(__cdb_stripJsonc(r))}catch(e){(globalThis.__cdbDiag||console.log)("[CustomThemes] Error parsing "+p+": "+e.message);return null}};
 try{
-(globalThis.__cdbDiag||console.log)("[CustomThemes] Reading config: "+__cdb_cfgPath);
-var __cdb_cfg=JSON.parse(_fs.readFileSync(__cdb_cfgPath,"utf8"));
+(globalThis.__cdbDiag||console.log)("[CustomThemes] Reading config: "+__cdb_cfgPath+" + .jsonc");
+var __cdb_cfgJ=__cdb_readCfg(__cdb_cfgPath),__cdb_cfgC=__cdb_readCfg(__cdb_cfgPathC);
+if(!__cdb_cfgJ&&!__cdb_cfgC){(globalThis.__cdbDiag||console.log)("[CustomThemes] No config file found (claude-desktop-bin.json/.jsonc), skipping");return}
+var __cdb_cfg={},__cdb_mk;
+for(__cdb_mk in (__cdb_cfgJ||{}))__cdb_cfg[__cdb_mk]=__cdb_cfgJ[__cdb_mk];
+for(__cdb_mk in (__cdb_cfgC||{}))__cdb_cfg[__cdb_mk]=__cdb_cfgC[__cdb_mk];
+__cdb_cfg.themes={};
+for(__cdb_mk in ((__cdb_cfgJ&&__cdb_cfgJ.themes)||{}))__cdb_cfg.themes[__cdb_mk]=__cdb_cfgJ.themes[__cdb_mk];
+for(__cdb_mk in ((__cdb_cfgC&&__cdb_cfgC.themes)||{}))__cdb_cfg.themes[__cdb_mk]=__cdb_cfgC.themes[__cdb_mk];
 var __cdb_name=__cdb_cfg.activeTheme;
 if(!__cdb_name){(globalThis.__cdbDiag||console.log)("[CustomThemes] No activeTheme set, skipping");return}
 if(__cdb_aliases[__cdb_name]){(globalThis.__cdbDiag||console.log)("[CustomThemes] Alias '"+__cdb_name+"' -> '"+__cdb_aliases[__cdb_name]+"'");__cdb_name=__cdb_aliases[__cdb_name]}
@@ -103,7 +117,7 @@ if(!__cdb_theme){
 var __cdb_validBuiltins=Object.keys(__cdb_builtins).concat(Object.keys(__cdb_aliases)).join(", ");
 (globalThis.__cdbDiag||console.log)("%c[CustomThemes] THEME NOT FOUND: '"+__cdb_name+"'","color:#ff5555;font-weight:bold");
 (globalThis.__cdbDiag||console.log)("[CustomThemes] Not in config.themes and not a built-in. Valid built-in names: "+__cdb_validBuiltins);
-(globalThis.__cdbDiag||console.log)("[CustomThemes] Define it under \"themes\" in "+__cdb_cfgPath+" or pick a valid built-in. Nothing applied.");
+(globalThis.__cdbDiag||console.log)("[CustomThemes] Define it under \"themes\" in "+__cdb_cfgPathC+" or pick a valid built-in. Nothing applied.");
 return;
 }
 // Resolve light/dark variants. Dual-variant -> use each; flat map -> same for both.
@@ -196,8 +210,7 @@ __cdb_css+="svg[data-cdb-spinner].cdb-anim-pulse{animation:cdbPulse 1.2s ease-in
 }
 (globalThis.__cdbDiag||console.log)("[CustomThemes] Loaded "+__cdb_src+" theme '"+__cdb_name+"' (dual-variant) with element overrides");
 }catch(e){
-if(e.code==="ENOENT"){(globalThis.__cdbDiag||console.log)("[CustomThemes] No config file found at "+__cdb_cfgPath+", skipping")}
-else{(globalThis.__cdbDiag||console.log)("[CustomThemes] Error reading config: "+e.message)}
+(globalThis.__cdbDiag||console.log)("[CustomThemes] Error applying config: "+e.message)
 }
 if(!__cdb_css)return;
 // Build the spinner script: prepend the per-theme spec to the staticRead injector body.

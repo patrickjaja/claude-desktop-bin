@@ -14,6 +14,8 @@ Feature flags are controlled by a 3-layer system (current minified names — see
 
 `rt(...)` flag reader in the big chunk (unchanged from v1.18286.x, but aliased `isFeatureEnabled(...)` in other chunks — per-chunk naming, see caveat above). `Bm()` listener, `Pr()` multi-key reader, `Lh()` single-value reader names are v1.18286-era; re-verify per chunk.
 
+**Our override layer (add_growthbook_overrides.nim, since 2026-07-11):** all GrowthBook load paths (network fetch `/api/desktop/features`, encrypted `fcache` disk cache, deployment-mode hardcoded set) funnel through a single features-store setter (`hTt(e){const t=lf;lf=e,...}` in v1.19367.0, anchored by the log string `"[growthbook] loaded %d features (%d changed)"`). The patch hooks its head to merge the `growthbookOverrides` map from `<userData>/claude-desktop-bin.jsonc` (primary, auto-created commented template) and legacy `<userData>/claude-desktop-bin.json` (both JSONC-parsed; `.jsonc` wins per key; same shared config file as custom themes) over the loaded map on a shallow copy. Effective layering: user JSON override > server GrowthBook > (separately) our call-site force rewrites, which bypass the store entirely and are NOT affected by the JSON file. Readers consume `lf[id].on` (boolean, `rt()`) and `lf[id].value` (value flags, `ga()`/`Vr()`); overrides write `{on, value, source:"cdb-override"}`.
+
 Feature name strings (`chillingSlothFeat`, `louderPenguin`, etc.) are runtime IPC identifiers, **not minified** - they are stable pattern anchors.
 
 ## All Features (30 listed; `markTaskComplete` removed in v1.17282.0)

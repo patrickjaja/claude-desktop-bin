@@ -39,8 +39,9 @@ dark mode (they look gaudy on a light surface).
 
 ## JSON schema
 
-Place your theme config at `~/.config/Claude/claude-desktop-bin.json`. The
-dual-variant shape:
+Place your theme config at `~/.config/Claude/claude-desktop-bin.jsonc`
+(comments allowed; a legacy `claude-desktop-bin.json` also keeps working and is
+merged in, with the `.jsonc` winning per key). The dual-variant shape:
 
 ```jsonc
 {

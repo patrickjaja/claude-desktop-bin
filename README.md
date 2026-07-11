@@ -37,6 +37,7 @@ Everything else - Chat, Claude Code, Cowork, Browser Tools, 3P/enterprise infere
 - [Patches](#patches)
 - [Command-line flags](#command-line-flags)
 - [Environment Variables](#environment-variables)
+- [Feature Flag Overrides (advanced)](#feature-flag-overrides-advanced)
 - [Debugging](#debugging)
 - [Known Limitations](#known-limitations)
 - [Automation](#automation)
@@ -224,7 +225,7 @@ Recolor the whole app - chat, sidebar, Code/Cowork, dialogs, Quick Entry - by ov
 
 **Quick start** - just pick a theme, no extra config needed:
 ```bash
-echo '{"activeTheme": "mario"}' > ~/.config/Claude/claude-desktop-bin.json
+echo '{"activeTheme": "mario"}' > ~/.config/Claude/claude-desktop-bin.jsonc
 # Restart Claude Desktop, then toggle Settings → Appearance for light/dark
 ```
 
@@ -395,6 +396,7 @@ Each patch is a self-contained `patches/*.nim` file compiled to a native binary.
 | `fix_quick_entry_wayland_blur_guard.nim` | Guards Quick Entry blur-to-dismiss against spurious Wayland blur events | `rg -o '.{0,30}blur.{0,30}null.{0,30}' index.js` |
 | `fix_profile_url_routing.nim` | Writes a per-profile auth-marker before opening SSO URLs so `claude://` callbacks route to the right profile | `rg -o 'shell\.openExternal' index.js` |
 | `fix_profile_window_title.nim` | Appends profile name to window title (`Claude` → `Claude (work)`) | Prepended IIFE, `page-title-updated` listener |
+| `add_growthbook_overrides.nim` | [Local feature-flag overrides](#feature-flag-overrides-advanced) via `claude-desktop-bin.jsonc` - hooks the GrowthBook features-store setter so user overrides win over the server rollout | `rg -o 'loaded %d features' index*.js` |
 
 ### Linux fixes
 
@@ -464,6 +466,22 @@ Flags this project adds on top of the official build (run `claude-desktop --help
 Set permanently in `~/.bashrc` / `~/.zshrc`, or pass per-launch: `CLAUDE_DISABLE_GPU=1 claude-desktop`
 
 **Full list** (profile/config dirs, Vulkan, menu bar, DevTools, systemd-scope, Electron overrides, …) → **[docs/environment-variables.md](docs/environment-variables.md)**.
+
+## Feature Flag Overrides (advanced)
+
+Claude Desktop gates many features behind server-side GrowthBook flags with no built-in local override. This package adds one: **`~/.config/Claude/claude-desktop-bin.jsonc`** (per-profile: the profile's userData dir; auto-created with a commented template on first launch). It is the same config file the [Custom Themes](#custom-themes) use - one file for both. A legacy `claude-desktop-bin.json` next to it keeps working and is merged in (the `.jsonc` wins per key). Uncomment an entry to activate it - comments are allowed:
+
+```jsonc
+{
+  "growthbookOverrides": {
+    "1129419822": true   // ENABLE_TOOL_SEARCH - tool search in local agent sessions
+  }
+}
+```
+
+Overrides apply on every flag load (startup + periodic refresh, no restart needed) and win over the server rollout; active overrides are logged to `logs/claude-patches.log`. `true`/`false` for switches, numbers/strings/objects for value flags.
+
+**Scope and caveats:** flag IDs are Anthropic-internal and can vanish or change meaning in any release; this is unsupported expert territory - if the app misbehaves, empty the file first. Flags this package already force-enables in its patches (Code/Cowork/Computer Use enablement) don't consult this file, and server-side account capabilities can't be overridden locally at all.
 
 ## Debugging
 
