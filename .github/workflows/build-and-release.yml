@@ -354,6 +354,13 @@ jobs:
           # mechanism that shipped index.pre.js / mainView.js unpatched in v1.15200.
           bash scripts/check-patch-sibling-noop.sh
 
+      - name: Guard docs flag catalog is in sync with the shipped template
+        run: |
+          # docs/claude-desktop-bin.jsonc (linked from the README) must match the
+          # template add_growthbook_overrides writes on first launch, so the
+          # browsable flag catalog cannot drift from what the app produces.
+          bash scripts/check-jsonc-template-sync.sh
+
       - name: Verify Anthropic apt signing key fingerprint
         run: |
           # The committed key (packaging/claude-desktop-archive-keyring.asc) is

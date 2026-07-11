@@ -60,7 +60,12 @@ diff <(rg -o '\w+\("[0-9]{6,}"\)' "$OLD"|sort -u) <(rg -o '\w+\("[0-9]{6,}"\)' "
 ```
 Check `enable_local_agent_mode.nim`'s override list still covers the cowork/code flags and its Zod schema includes them. Update the doc + version-history table.
 
-Also refresh the flag catalog in `js/growthbook_overrides.js` (TEMPLATE): it lists every store-consulted flag of the audited version, commented out. Extract IDs with `rg -o '[\w$]+(?:\.[\w$]+)*\("([0-9]{6,10})"[,)]' -r '$1' <new-bundle-concat> | sort -u`, drop the IDs force-rewritten by patches (`rg -oI '"[0-9]{6,10}"' patches/*.nim`, minus IDs only mentioned in comments), and update descriptions + the version stamp in the header. Then `touch patches/add_growthbook_overrides.nim && make` (the Makefile does not track staticRead deps).
+Also refresh the flag catalog in `js/growthbook_overrides.js` (TEMPLATE): it lists every store-consulted flag of the audited version, commented out. Extract IDs with `rg -o '[\w$]+(?:\.[\w$]+)*\("([0-9]{6,10})"[,)]' -r '$1' <new-bundle-concat> | sort -u`, drop the IDs force-rewritten by patches (`rg -oI '"[0-9]{6,10}"' patches/*.nim`, minus IDs only mentioned in comments), and update descriptions + the version stamp in the header. Then regenerate the browsable copy and rebuild the binary:
+```bash
+node scripts/check-jsonc-template-sync.sh --write   # updates docs/claude-desktop-bin.jsonc
+touch patches/add_growthbook_overrides.nim && (cd patches && make)  # Makefile doesn't track staticRead deps
+```
+CI runs `scripts/check-jsonc-template-sync.sh` (no `--write`) and fails if the docs catalog drifts from the shipped template.
 
 ## Step 5 - ion-dist SPA audit
 Read `baseline/ION.md`. Confirm ion-dist exists in new resources; compare bundle stats + content-hash of the config chunk; confirm `fix_ion_dist_linux.nim` patterns (mountPath linux key, platform ternary) still match (it finds the target by content signature, not filename). Update `ION.md`/the patch if changed. (Prompt 4.)

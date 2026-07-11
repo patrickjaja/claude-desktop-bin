@@ -481,6 +481,8 @@ Claude Desktop gates many features behind server-side GrowthBook flags with no b
 
 Overrides apply on every flag load (startup + periodic refresh, no restart needed) and win over the server rollout; active overrides are logged to `logs/claude-patches.log`. `true`/`false` for switches, numbers/strings/objects for value flags.
 
+**Full flag catalog:** the auto-created template lists *every* GrowthBook flag the app reads from its feature store, each commented out with a short description - browse it here: **[docs/claude-desktop-bin.jsonc](docs/claude-desktop-bin.jsonc)**. It reflects the version noted in the file header and is regenerated each release.
+
 **Scope and caveats:** flag IDs are Anthropic-internal and can vanish or change meaning in any release; this is unsupported expert territory - if the app misbehaves, empty the file first. Flags this package already force-enables in its patches (Code/Cowork/Computer Use enablement) don't consult this file, and server-side account capabilities can't be overridden locally at all.
 
 ## Debugging
