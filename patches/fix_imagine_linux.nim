@@ -35,6 +35,9 @@ proc apply*(input: string): string =
   # Patch A: Force isEnabled in visualize server definition
   # v1.6608: isEnabled:e=>(pt("3444158716")||!1)&&e.sessionType==="cowork"
   # v1.7196: isEnabled:e=>(pt("3444158716")||!1)&&(e.sessionType==="cowork"||e.sessionType==="ccd"&&pt("2204227020"))
+  # v1.19367 (code-split): the flag reader became a member call, e.g.
+  #   isEnabled:e=>(p.isFeatureEnabled("3444158716")||!1)&&(...)
+  # so callee positions allow dotted member expressions ([\w$]+(?:\.[\w$]+)*).
   let alreadyA =
     "isEnabled:t=>(true)&&(t.sessionType===\"cowork\"||t.sessionType===\"ccd\")" in
     result or "isEnabled:t=>(true)&&t.sessionType===\"cowork\"" in result
@@ -44,7 +47,7 @@ proc apply*(input: string): string =
   else:
     # Try v1.7196+ pattern first (cowork || ccd with second flag)
     let patternANew =
-      re2"isEnabled:[\w$]+=>\([\w$]+\(""3444158716""\)\|\|!1\)&&\([\w$]+\.sessionType===""cowork""\|\|[\w$]+\.sessionType===""ccd""&&[\w$]+\(""\d+""\)\)"
+      re2"isEnabled:[\w$]+=>\([\w$]+(?:\.[\w$]+)*\(""3444158716""\)\|\|!1\)&&\([\w$]+\.sessionType===""cowork""\|\|[\w$]+\.sessionType===""ccd""&&[\w$]+(?:\.[\w$]+)*\(""\d+""\)\)"
     var countA = result.replaceFirst(
       patternANew,
       proc(m: RegexMatch2, s: string): string =
@@ -95,7 +98,10 @@ proc apply*(input: string): string =
   # branch); this catches the remaining standalone uses -- notably the
   # read_widget_context CCD tool-registration ternary (dt("3516166472")?[{...}]:[]),
   # the capability registration, and the yP accessor -- forcing each ON (!0).
-  let ccdVisualizePattern = re2"[\w$]+\(""3516166472""\)"
+  # Since v1.19367 some reads are member calls (n.isFeatureEnabled("3516166472"));
+  # the dotted-callee matcher swallows the whole receiver chain so the !0
+  # replacement never leaves a dangling "n." behind.
+  let ccdVisualizePattern = re2"[\w$]+(?:\.[\w$]+)*\(""3516166472""\)"
   var ccdVisualizeApplied = 0
   for m in result.findAll(ccdVisualizePattern):
     inc ccdVisualizeApplied

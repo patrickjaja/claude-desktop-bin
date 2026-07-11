@@ -51,6 +51,62 @@ def resolve_target(app_dir: Path, target_spec: str):
     return app_dir / rel
 
 
+# --- Code-split chunk support -------------------------------------------------
+# Since Claude Desktop v1.19367.0 the main bundle is code-split: .vite/build/
+# index.js is a tiny loader stub and the real code lives in content-hashed
+# sibling chunks (index.chunk-<hash>.js). Chunk names change every release, so
+# patches keep targeting index.js and the orchestrator transparently stages the
+# stub + all sibling chunks as ONE concatenated file (newline-separated boundary
+# markers between parts). Patch binaries see the whole logical bundle, so their
+# strict aggregate match counts keep working exactly as on the old monolith.
+# After the group succeeds, the staged file is split back on the markers and
+# each part is written to its original file.
+#
+# Safety: markers are comment lines a patch regex cannot plausibly produce or
+# match across ('.' does not match newline in the patch regexes). If a patch
+# replacement ever swallowed a marker, the part count check below fails the
+# build loudly.
+
+MARKER_PREFIX = "/*__CDB_SPLIT__"
+MARKER_RE = re.compile(rb"\n/\*__CDB_SPLIT__([^*\n]+?)__\*/\n")
+
+
+def chunk_parts(target_path: Path) -> list[Path] | None:
+    """Return [target, chunk1, chunk2, ...] if code-split siblings exist, else None."""
+    chunks = sorted(target_path.parent.glob(f"{target_path.stem}.chunk-*{target_path.suffix}"))
+    return [target_path] + chunks if chunks else None
+
+
+def marker_for(name: str) -> bytes:
+    return f"\n{MARKER_PREFIX}{name}__*/\n".encode()
+
+
+def concat_parts(parts: list[Path]) -> bytes:
+    blob = parts[0].read_bytes()
+    for p in parts[1:]:
+        blob += marker_for(p.name) + p.read_bytes()
+    return blob
+
+
+def split_and_write(blob: bytes, parts: list[Path]) -> bool:
+    """Split staged blob on markers and write each part back. False on mismatch."""
+    pieces = MARKER_RE.split(blob)
+    # re.split with one capture group yields [content0, name1, content1, ...]
+    contents = pieces[0::2]
+    names = [n.decode() for n in pieces[1::2]]
+    expected = [p.name for p in parts[1:]]
+    if len(contents) != len(parts) or names != expected:
+        print(
+            f"  [FAIL] chunk boundary markers corrupted after patching: "
+            f"expected {len(parts)} parts {expected}, got {len(contents)} parts {names}",
+            file=sys.stderr,
+        )
+        return False
+    for part_path, content in zip(parts, contents):
+        part_path.write_bytes(content)
+    return True
+
+
 def run_nim_patch(nim_bin: Path, target_file: Path) -> bool:
     """Run a compiled Nim patch binary."""
     try:
@@ -148,8 +204,10 @@ def main():
     staging_root = None  # Could use /dev/shm if available
     for target_path, patches in nim_jobs_by_target.items():
         rel = target_path.relative_to(app_dir)
+        parts = chunk_parts(target_path)
+        chunk_note = f" +{len(parts) - 1} chunks" if parts else ""
         print(
-            f"\n=== Patching {rel} "
+            f"\n=== Patching {rel}{chunk_note} "
             f"({len(patches)} patch{'es' if len(patches) != 1 else ''}) ==="
         )
 
@@ -160,7 +218,7 @@ def main():
             delete=False,
         ) as tmp:
             staged = Path(tmp.name)
-            tmp.write(target_path.read_bytes())
+            tmp.write(concat_parts(parts) if parts else target_path.read_bytes())
 
         try:
             group_failed = False
@@ -170,7 +228,12 @@ def main():
                     failed = True
 
             if not group_failed:
-                shutil.copy(staged, target_path)
+                if parts:
+                    if not split_and_write(staged.read_bytes(), parts):
+                        failed = True
+                        print(f"  [SKIP-WRITE] {rel} chunk split failed")
+                else:
+                    shutil.copy(staged, target_path)
             else:
                 print(f"  [SKIP-WRITE] {rel} not updated due to patch failure")
         finally:

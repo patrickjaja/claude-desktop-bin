@@ -28,12 +28,13 @@ Run the build for this OS (Arch here). It auto-downloads the latest official `.d
 # Fedora/RHEL:   ./scripts/build-fedora-local.sh
 ```
 If patches fail (upstream renamed identifiers / refactored / removed a feature):
-1. Get a clean unpatched extract (run `/fresh-upstream`, or it's already in `./tmp/app.asar.contents/.vite/build/index.js`).
+1. Get a clean unpatched extract (run `/fresh-upstream`, or it's already in `./tmp/app.asar.contents/.vite/build/`). The main bundle is code-split since v1.19367.0: `index.js` is a loader stub, the code lives in `index.chunk-<hash>.js` siblings (hashes change every release) + `index.pre.js`; `rg` across `index*.js`, not just `index.js`.
 2. For each failing patch, find the new pattern with `rg`, then fix `patches/<name>.nim` using `[\w$]+` + capture/replace. **Edit the `.js` in `js/`** for Computer Use / cowork-font (they're `staticRead` into the patch).
-3. Recompile + test one patch:
+3. Recompile + test one patch against the stub+chunks concatenation (what the orchestrator stages):
    ```bash
    cd patches && make <patch_name> && cd ..
-   cp ./tmp/app.asar.contents/.vite/build/index.js /tmp/test-index.js
+   B=./tmp/app.asar.contents/.vite/build
+   { cat $B/index.js; for c in $B/index.chunk-*.js; do printf '\n/*__CDB_SPLIT__%s__*/\n' "$(basename $c)"; cat "$c"; done; } > /tmp/test-index.js
    patches/<patch_name> /tmp/test-index.js; echo "exit=$?"
    node --check /tmp/test-index.js
    ```

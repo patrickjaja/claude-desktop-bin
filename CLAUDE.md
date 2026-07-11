@@ -118,7 +118,14 @@ See also: [UPDATE-PROMPT-CC-INPUT-MANUAL.md](UPDATE-PROMPT-CC-INPUT-MANUAL.md) f
 mkdir -p tmp
 dpkg-deb -x ./tmp/claude-desktop_*_amd64.deb ./tmp/extract
 asar extract ./tmp/extract/usr/lib/claude-desktop/resources/app.asar ./tmp/app.asar.contents
-# The unpatched index.js is then at: ./tmp/app.asar.contents/.vite/build/index.js
+# The unpatched main bundle is at: ./tmp/app.asar.contents/.vite/build/
+# Since v1.19367.0 it is CODE-SPLIT: index.js is a tiny loader stub and the real
+# code lives in content-hashed siblings (index.chunk-<hash>.js; hashes change
+# every release) plus index.pre.js (the package.json main). Patches still target
+# index.js: the orchestrator stages the stub + all chunks as ONE concatenated
+# file (marker comments between parts) and splits it back after patching, so
+# match counts apply across the whole logical bundle. To search "the bundle",
+# rg across .vite/build/index*.js, not just index.js.
 
 # ion-dist (3P config SPA) is in the .deb's resources, not inside app.asar:
 #   ls ./tmp/extract/usr/lib/claude-desktop/resources/ion-dist/
@@ -149,8 +156,10 @@ Test individual patches directly using compiled Nim binaries:
 # Compile first (or use Docker fallback)
 cd patches && make -j$(nproc) && cd ..
 
-# Run a single patch on a copy
-cp ./tmp/app.asar.contents/.vite/build/index.js ./tmp/test-index.js
+# Run a single patch on a copy. For the code-split main bundle, test against a
+# stub+chunks concatenation (what the orchestrator stages), not index.js alone:
+B=./tmp/app.asar.contents/.vite/build
+{ cat $B/index.js; for c in $B/index.chunk-*.js; do printf '\n/*__CDB_SPLIT__%s__*/\n' "$(basename $c)"; cat "$c"; done; } > ./tmp/test-index.js
 patches/fix_quick_entry_position ./tmp/test-index.js
 echo "Exit code: $?"
 ```

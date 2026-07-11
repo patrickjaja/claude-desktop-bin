@@ -40,7 +40,9 @@ proc apply*(input: string): string =
     return
 
   # function NAME(ARG){return WIN=new ELECTRON.BrowserWindow(ARG),
-  let pattern = re"function ([\w$]+)\(([\w$]+)\)\{return ([\w$]+)=new ([\w$]+)\.BrowserWindow\(\2\),"
+  # WIN may be a dotted property path since v1.19367.0 (`exports.mainWindow`).
+  let pattern =
+    re"function ([\w$]+)\(([\w$]+)\)\{return ([\w$]+(?:\.[\w$]+)*)=new ([\w$]+)\.BrowserWindow\(\2\),"
 
   var hits = 0
   result = result.replace(
@@ -56,11 +58,10 @@ proc apply*(input: string): string =
         # Profile-aware title injection. Wrapped in a single short-circuit
         # expression so the comma chain still type-checks; evaluates to
         # `false` (no-op) when CLAUDE_PROFILE is unset.
-        "process.env.CLAUDE_PROFILE&&((globalThis." & SENTINEL & "=true)," &
-        winVar & ".setTitle(\"Claude (\"+process.env.CLAUDE_PROFILE+\")\")," &
-        winVar &
+        "process.env.CLAUDE_PROFILE&&((globalThis." & SENTINEL & "=true)," & winVar &
+        ".setTitle(\"Claude (\"+process.env.CLAUDE_PROFILE+\")\")," & winVar &
         ".on(\"page-title-updated\",(__cdb_ev,__cdb_t)=>{__cdb_ev.preventDefault();" &
-        winVar & ".setTitle(__cdb_t+\" (\"+process.env.CLAUDE_PROFILE+\")\")}))," ,
+        winVar & ".setTitle(__cdb_t+\" (\"+process.env.CLAUDE_PROFILE+\")\")})),",
   )
 
   if hits == 1:

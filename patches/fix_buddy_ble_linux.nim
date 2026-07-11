@@ -56,8 +56,14 @@ proc apply*(input: string): string =
   var patchesApplied = 0
 
   if "BuddyBleTransport" notin result:
-    echo "  [SKIP] No BuddyBleTransport references (feature not present)"
-    return result
+    # Do NOT skip-succeed on absence: on a real staged bundle the Buddy code is
+    # present, so reaching here means the feature was removed/renamed upstream
+    # (or the patch ran against the wrong file). Fail loud per Rule 6 -- a
+    # success keyed off absence is a false positive.
+    echo "  [FAIL] No BuddyBleTransport references - Buddy feature removed/renamed upstream; re-audit (drop this patch only after confirming the feature is gone)"
+    raise newException(
+      ValueError, "fix_buddy_ble_linux: BuddyBleTransport absent from bundle"
+    )
 
   # Patch A: Force the Buddy feature flag on Linux.
   # v1.18286.0 shape: const X="2358734848",S=()=>cfg().workspace.hardwareBuddyEnabled
@@ -65,17 +71,21 @@ proc apply*(input: string): string =
   # setting in front of the GrowthBook flag. We force only the flag half
   # (G=()=>S()&&(process.platform==="linux"||flag(X))) so the user's
   # hardwareBuddyEnabled toggle keeps working.
+  # v1.19367 (code-split): both readers became member calls, e.g.
+  #   const de="2358734848",ce=()=>r.getManagedConfig().workspace.hardwareBuddyEnabled
+  #   !==!1,Ve=()=>ce()&&r.isFeatureEnabled(de)
+  # so callee positions allow dotted member expressions.
   let alreadyA =
     "\"2358734848\"" in result and
     result.contains(
-      re2"""=\(\)=>[\w$]+\(\)&&\(process\.platform==="linux"\|\|[\w$]+\([\w$]+\)\)"""
+      re2"""=\(\)=>[\w$]+\(\)&&\(process\.platform==="linux"\|\|[\w$]+(?:\.[\w$]+)*\([\w$]+\)\)"""
     )
   if alreadyA:
     echo "  [OK] Buddy flag: already patched (skipped)"
     patchesApplied += 1
   else:
     let flagPattern =
-      re2"(const [\w$]+=""2358734848"",[\w$]+=\(\)=>[\w$]+\(\)\.workspace\.hardwareBuddyEnabled!==!1,[\w$]+=\(\)=>[\w$]+\(\)&&)([\w$]+\([\w$]+\))"
+      re2"(const [\w$]+=""2358734848"",[\w$]+=\(\)=>[\w$]+(?:\.[\w$]+)*\(\)\.workspace\.hardwareBuddyEnabled!==!1,[\w$]+=\(\)=>[\w$]+\(\)&&)([\w$]+(?:\.[\w$]+)*\([\w$]+\))"
     var countFlag = result.replaceFirst(
       flagPattern,
       proc(m: RegexMatch2, s: string): string =

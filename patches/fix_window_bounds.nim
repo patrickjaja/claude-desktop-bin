@@ -40,8 +40,10 @@ proc apply*(input: string): string =
     # Allow optional code between BrowserWindow() and the setup call (group 5, midCode),
     # AND between the setup call and the final `,W}` (group 7, trailing). v1.15962 added a
     # `,Cft(tt)` call after the MAIN_WINDOW setup call which broke the old adjacency anchor.
+    # v1.19367.0 changed the window variable from a minified local (`it`) to a dotted
+    # property path (`exports.mainWindow`), so winVar allows `.`-joined segments.
     let mainWinPattern =
-      nre.re"(function [\w$]+\([\w$]+\)\{return )([\w$]+)=new ([\w$]+)\.BrowserWindow\(([\w$]+)\),(.*?)([\w$]+\(\2\.webContents,[\w$]+\.MAIN_WINDOW\))(.*?),\2\}"
+      nre.re"(function [\w$]+\([\w$]+\)\{return )([\w$]+(?:\.[\w$]+)*)=new ([\w$]+)\.BrowserWindow\(([\w$]+)\),(.*?)([\w$]+\(\2\.webContents,[\w$]+\.MAIN_WINDOW\))(.*?),\2\}"
 
     let m1 = result.find(mainWinPattern)
     if m1.isSome:

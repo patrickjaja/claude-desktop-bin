@@ -119,6 +119,12 @@ Copy-paste this into Claude Code to analyze what changed between two versions:
 >
 >    (If not yet extracted, extract them first using the steps in CLAUDE.md § "Extract and Test Locally".)
 >
+>    Since v1.19367.0 the main bundle is code-split: `index.js` is a loader stub and the
+>    code lives in `index.chunk-<hash>.js` siblings + `index.pre.js`. Wherever a command
+>    below reads `.vite/build/index.js`, use a concatenation of `index.pre.js` + `index.js`
+>    + all `index.chunk-*.js` for that side instead, e.g.:
+>    `cat /tmp/claude-new/app/.vite/build/index.pre.js /tmp/claude-new/app/.vite/build/index.js /tmp/claude-new/app/.vite/build/index.chunk-*.js > /tmp/claude-new-bundle.js`
+>
 > Run these comparisons and summarize the findings:
 >
 > 1. **File-level diff** — new or removed files

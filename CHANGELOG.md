@@ -2,6 +2,26 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-07-11
+
+### v1.19367.0: upstream code-split the main bundle - orchestrator now patches stub + chunks as one logical file
+
+Upstream restructured the app: `.vite/build/index.js` went from a 15 MB monolith to a 773-byte loader stub, with the real main-process code in ~44 content-hashed `index.chunk-<hash>.js` siblings, and `index.pre.js` (now the `package.json` entry point) grew to 4.5 MB. Chunk hashes change every release, so no patch can target them by name. Every pattern-matching patch 0-matched and the auto-release failed (#187).
+
+The fix is in the patch orchestrator, not in 40 regexes: `apply_patches.py` (and `validate-patches.sh`) now stage the stub plus all sibling chunks as one concatenated file with boundary markers, run every `index.js` patch against it, then split it back and write each file. Patches keep their `@patch-target: .../index.js` headers and their strict aggregate match counts work across the whole logical bundle exactly as on the old monolith; a corrupted boundary fails the build loudly, and each split file is `node --check`ed. This proved necessary beyond convenience: `fix_asar_workspace_cwd`'s five anchor sites now span two different chunks.
+
+31 of 40 patches applied verbatim on the concatenation. Nine needed real fixes, almost all one shared root cause: the code-split minifier turned module-local identifiers into dotted cross-chunk member paths that `[\w$]+` cannot match - the main window is now `exports.mainWindow` (fix_window_bounds, fix_profile_window_title, fix_quick_entry_cli_toggle), loggers are `n.logger.info` (fix_asar_workspace_cwd), and flag reads are `p.isFeatureEnabled("...")` instead of `rt("...")` (fix_imagine_linux, fix_buddy_ble_linux, enable_local_agent_mode - the latter's standalone flag matchers would otherwise have produced dangling `l.!0` syntax errors). The remaining drifts were minifier hoisting (`var r;` before the folder-drop handler in fix_asar_folder_drop) and a renamed tray icon variable (fix_tray_icon_theme). SSH plugin/MCP forwarding remains unconditional upstream (regression guard re-anchored, satisfied).
+
+Two latent pre-existing bugs were found and fixed along the way: `fix_quick_entry_cli_toggle`'s second-instance argv sub-patch reported "already applied" on pristine bundles because its idempotency probe matched a sibling sub-patch's own injected text (it now checks the real end-state and genuinely applies), and `fix_buddy_ble_linux` reported success on files containing no buddy code at all (absence now fails loud).
+
+### v1.19367.0: desktopName pinned to claude-desktop.desktop (upstream renamed to com.anthropic.Claude.desktop)
+
+Upstream renamed its `desktopName` to `com.anthropic.Claude.desktop`, matching the .desktop file the official .deb installs. Chromium derives the window's Wayland `app_id` / X11 `WM_CLASS` from that value, and every .desktop entry we ship (Arch/deb/rpm/AppImage/Nix, the launcher's per-profile entries, `StartupWMClass`, the `claude://` xdg-mime handler) is built around the `claude-desktop` identity - the window-to-icon matching fixed in #148 would have silently broken on Wayland. The tarball build now pins `desktopName` back to `claude-desktop.desktop` after extraction (the JS bundle references neither name, so the pin is safe) and fails loud if the key ever disappears.
+
+### v1.19367.0: what else changed upstream
+
+The bundle actually shrank 1.7 MB - the old build double-shipped agent-sdk (0.3.198 + 0.3.202), the new one ships only 0.3.202. Electron stays 42.5.1; the built-in MCP server set, the Cowork VM backend files, and the CU platform gates are unchanged. No newly darwin/win32-gated features exclude Linux; the new `file-index-worker` (fuzzy file scorer) and `coworkScheduledTaskProjects` capability are ungated and work on Linux natively. Three new GrowthBook flags (session-concurrency limits, device-tool artifact read gate, GPU crash-streak marker) - none patch-relevant; all 13 flags forced by `enable_local_agent_mode` are unchanged. ion-dist needed no patch changes (one new config key upstream: `inferenceFoundryAuthFlow` for Entra ID device-code vs browser sign-in). Eleven new IPC channels landed (LocalSessions remote-target trust/WSL/cwd handling, a DocumentFunnel bridge, `Extensions.isLocalExtensionInstallAllowed`), none removed. One structural caveat for future audits, now noted in the baseline docs: minified helper names differ per chunk (the flag reader is `rt()` in the big chunk but `isFeatureEnabled()` in smaller ones), so greps must cover all `index*.js` files.
+
 ## 2026-07-08
 
 ### Computer Use: GNOME Wayland froze on opening a Code session - portal consent dialog fired on plain window enumeration (#184)

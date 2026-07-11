@@ -15,14 +15,16 @@ proc apply*(input: string): string =
 
   # Idempotency check
   let idempotencyPat =
-    re"function [\w$]+\([\w$]+\)\{[\w$]+=[\w$]+\.filter\([\w$]+=>!/\\\.asar/"
+    re"function [\w$]+\([\w$]+\)\{(?:var [\w$]+(?:,[\w$]+)*;)?[\w$]+=[\w$]+\.filter\([\w$]+=>!/\\\.asar/"
   if result.find(idempotencyPat).isSome:
     echo "  [SKIP] Already patched (.asar filter found)"
     return result
 
   # Patch A: noe() file-drop convergence filter
+  # v1.19367.0: minifier emits an optional `var r;` (hoisted temp) between the
+  # opening brace and the `if(...)`; the filter injection goes after it.
   let patNoe =
-    re"(function [\w$]+\()([\w$]+)(\)\{)(if\([\w$]+\.info\(`Handling file drop:)"
+    re"(function [\w$]+\()([\w$]+)(\)\{(?:var [\w$]+(?:,[\w$]+)*;)?)(if\([\w$]+\.info\(`Handling file drop:)"
 
   let mA = result.find(patNoe)
   if mA.isSome:

@@ -280,6 +280,33 @@ cp -r "$RES_DIR/app.asar.unpacked" "$APP_DIR/" 2>/dev/null || true
 log_info "Extracting app.asar..."
 ( cd "$APP_DIR" && asar extract app.asar app.asar.contents )
 
+# App identity: pin desktopName to "claude-desktop.desktop". Chromium derives the
+# window's Wayland app_id / X11 WM_CLASS from package.json desktopName, and every
+# .desktop file we ship (deb/rpm/AUR/AppImage/Nix, plus the launcher's per-profile
+# entries, StartupWMClass and the claude:// xdg-mime handler) is built around the
+# "claude-desktop" identity (issue #148). Upstream v1.19367.0 renamed its
+# desktopName to com.anthropic.Claude.desktop for the .desktop file the official
+# .deb installs - a file we do not ship. The JS bundle contains no reference to
+# either name, so pinning is safe; without it, window/icon matching silently
+# breaks on Wayland.
+log_info "Pinning desktopName app identity..."
+PKG_JSON="$APP_DIR/app.asar.contents/package.json"
+if ! grep -q '"desktopName"' "$PKG_JSON"; then
+    log_error "package.json has no desktopName key - upstream changed app-identity handling; re-audit (launcher APP_ID/DESKTOP_ID header)"
+    exit 1
+fi
+python3 - "$PKG_JSON" <<'PYEOF'
+import json, sys
+p = sys.argv[1]
+with open(p) as f:
+    d = json.load(f)
+d["desktopName"] = "claude-desktop.desktop"
+with open(p, "w") as f:
+    json.dump(d, f, indent=2)
+PYEOF
+grep -q '"desktopName": "claude-desktop.desktop"' "$PKG_JSON" || { log_error "desktopName pin failed"; exit 1; }
+log_info "desktopName pinned to claude-desktop.desktop"
+
 # i18n: the .deb ships locale JSONs directly under resources/. Mirror them into the
 # asar contents where the app expects resources/i18n/*.json.
 log_info "Copying i18n files..."

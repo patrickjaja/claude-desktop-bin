@@ -118,7 +118,21 @@ for patch_file in "$PATCHES_DIR"/*.nim "$PATCHES_DIR"/*.js; do
         fi
 
         tmp_file=$(mktemp)
-        cp "$actual_target" "$tmp_file"
+        # Code-split bundles (v1.19367.0+): stage the stub + all content-hashed
+        # sibling chunks as one concatenation, mirroring apply_patches.py, so
+        # patch match counts see the whole logical bundle.
+        target_dir=$(dirname "$actual_target")
+        target_base=$(basename "$actual_target")
+        target_stem="${target_base%.js}"
+        if compgen -G "$target_dir/$target_stem.chunk-*.js" > /dev/null; then
+            cat "$actual_target" > "$tmp_file"
+            for chunk in "$target_dir/$target_stem".chunk-*.js; do
+                printf '\n/*__CDB_SPLIT__%s__*/\n' "$(basename "$chunk")" >> "$tmp_file"
+                cat "$chunk" >> "$tmp_file"
+            done
+        else
+            cp "$actual_target" "$tmp_file"
+        fi
 
         output=$("$nim_bin" "$tmp_file" 2>&1)
         result=$?

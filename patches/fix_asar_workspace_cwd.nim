@@ -90,8 +90,10 @@ proc apply*(input: string): string =
   requireExactlyOne("saveTrust bridge", countSt)
 
   # 4. Patch start bridge
+  # v1.19367.0: the logger is a property chain (e.g. n.logger.info), so allow
+  # dotted identifier chains before .info.
   let patStart =
-    re2"(async start\()([\w$]+)(\)\{)([\w$]+\.info\(""LocalSessions\.start:""\))"
+    re2"(async start\()([\w$]+)(\)\{)([\w$]+(?:\.[\w$]+)*\.info\(""LocalSessions\.start:""\))"
   let countStart = result.replaceFirst(
     patStart,
     proc(m: RegexMatch2, s: string): string =

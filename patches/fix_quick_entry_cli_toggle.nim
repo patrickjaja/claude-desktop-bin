@@ -28,11 +28,13 @@ proc apply*(input: string): string =
     echo &"  [INFO] {HANDLER_GLOBAL} already present -- sub-patch A/C skipped"
     applied += 2
   else:
-    # The two ternary-branch calls take optional args ([\w$]*): in v1.15962 the
-    # focus-branch call gained the window var (i9t() -> GZt(tt)). The else-branch
-    # is still arg-less but is widened too for symmetry/future-proofing.
+    # The two ternary-branch calls take optional args: in v1.15962 the
+    # focus-branch call gained the window var (i9t() -> GZt(tt)). In v1.19367
+    # the window variable became a property chain (it -> exports.mainWindow),
+    # so every window-var slot allows a dotted identifier chain
+    # ([\w$]+(?:\.[\w$]+)*), including inside the call parens.
     let patA =
-      re2"([\w$]+)\(([\w$]+)\.QUICK_ENTRY,(\(\)=>\{[\w$]+&&![\w$]+\.isDestroyed\(\)&&[\w$]+\.isFullScreen\(\)\?\([\w$]+\.focus\(\),[\w$]+\([\w$]*\)\):[\w$]+\([\w$]*\)\})\)"
+      re2"([\w$]+)\(([\w$]+)\.QUICK_ENTRY,(\(\)=>\{[\w$]+(?:\.[\w$]+)*&&![\w$]+(?:\.[\w$]+)*\.isDestroyed\(\)&&[\w$]+(?:\.[\w$]+)*\.isFullScreen\(\)\?\([\w$]+(?:\.[\w$]+)*\.focus\(\),[\w$]+\((?:[\w$]+(?:\.[\w$]+)*)?\)\):[\w$]+\((?:[\w$]+(?:\.[\w$]+)*)?\)\})\)"
 
     var countA = 0
     var resultStr = ""
@@ -119,9 +121,14 @@ proc apply*(input: string): string =
         "fix_quick_entry_cli_toggle: sub-patch A did not match QUICK_ENTRY handler registration",
       )
 
-  # Sub-patch B: prepend argv check to second-instance handler
-  let bMarker = "\"" & TRIGGER_FLAG & "\")||"
-  if bMarker in result:
+  # Sub-patch B: prepend argv check to second-instance handler.
+  # Idempotency must positively verify B's OWN end-state (the second-instance
+  # handler body starting with our Array.isArray argv check) - a plain
+  # substring probe for the trigger flag is satisfied by sub-patch A/C's
+  # injected text and silently skips B on a fresh bundle (Rule 6).
+  let patBApplied =
+    re2"\.on\(""second-instance"",\([\w$]+,[\w$]+,[\w$]+\)=>\{if\(Array\.isArray\([\w$]+\)&&\([\w$]+\.includes\(""--toggle-quick-entry""\)"
+  if result.contains(patBApplied):
     echo "  [INFO] sub-patch B already applied -- skipped"
     applied += 1
   else:

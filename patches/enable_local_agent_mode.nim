@@ -196,7 +196,7 @@ proc apply*(input: string): string =
       failed = true
 
   # Patch 3b: Enable coworkKappa GrowthBook flag (123929380) on Linux
-  let kappaPattern = re"""[\w$]+\("123929380"\)"""
+  let kappaPattern = re"""[\w$]+(?:\.[\w$]+)*\("123929380"\)"""
   var kappaApplied = 0
   result = result.replace(
     kappaPattern,
@@ -215,7 +215,7 @@ proc apply*(input: string): string =
     failed = true
 
   # Patch 3c: Enable coworkArtifacts GrowthBook flag (2940196192) on Linux
-  let artifactsPattern = re"""[\w$]+\("2940196192"\)"""
+  let artifactsPattern = re"""[\w$]+(?:\.[\w$]+)*\("2940196192"\)"""
   var artifactsApplied = 0
   result = result.replace(
     artifactsPattern,
@@ -234,7 +234,7 @@ proc apply*(input: string): string =
     failed = true
 
   # Patch 3d: Enable chillingSlothPool GrowthBook flag (1992087837) on Linux
-  let poolPattern = re"""[\w$]+\("1992087837"\)"""
+  let poolPattern = re"""[\w$]+(?:\.[\w$]+)*\("1992087837"\)"""
   var poolApplied = 0
   result = result.replace(
     poolPattern,
@@ -255,7 +255,7 @@ proc apply*(input: string): string =
   # EXPECTED_PATCHES dropped 24 -> 23 and the merger override list dropped to 11 keys.
 
   # Patch 3f: Enable ENABLE_TOOL_SEARCH for LAM sessions - flag 1129419822
-  let toolSearchPattern = re"""[\w$]+\("1129419822"\)"""
+  let toolSearchPattern = re"""[\w$]+(?:\.[\w$]+)*\("1129419822"\)"""
   var toolSearchApplied = 0
   result = result.replace(
     toolSearchPattern,
@@ -271,7 +271,7 @@ proc apply*(input: string): string =
     failed = true
 
   # Patch 3g: Enable tool use result formatting - flag 2192324205
-  let toolResultFmtPattern = re"""[\w$]+\("2192324205"\)"""
+  let toolResultFmtPattern = re"""[\w$]+(?:\.[\w$]+)*\("2192324205"\)"""
   var toolResultFmtApplied = 0
   result = result.replace(
     toolResultFmtPattern,
@@ -287,7 +287,7 @@ proc apply*(input: string): string =
     failed = true
 
   # Patch 3h: Enable deterministic sorting of plugins/tools/logs - flag 2800354941
-  let detSortPattern = re"""[\w$]+\("2800354941"\)"""
+  let detSortPattern = re"""[\w$]+(?:\.[\w$]+)*\("2800354941"\)"""
   var detSortApplied = 0
   result = result.replace(
     detSortPattern,
@@ -303,7 +303,7 @@ proc apply*(input: string): string =
     failed = true
 
   # Patch 3i: Enable plugin enabled state fetching - flag 4274871493
-  let pluginStatePattern = re"""[\w$]+\("4274871493"\)"""
+  let pluginStatePattern = re"""[\w$]+(?:\.[\w$]+)*\("4274871493"\)"""
   var pluginStateApplied = 0
   result = result.replace(
     pluginStatePattern,
@@ -319,7 +319,7 @@ proc apply*(input: string): string =
     failed = true
 
   # Patch 3j: Enable Claude Preview dev server manager - flag 2976814254
-  let previewPattern = re"""[\w$]+\("2976814254"\)"""
+  let previewPattern = re"""[\w$]+(?:\.[\w$]+)*\("2976814254"\)"""
   var previewApplied = 0
   result = result.replace(
     previewPattern,
@@ -335,7 +335,7 @@ proc apply*(input: string): string =
     failed = true
 
   # Patch 3k: Enable canLaunchCodeSession suggestion tool - flag 2067027393
-  let launchCodePattern = re"""[\w$]+\("2067027393"\)"""
+  let launchCodePattern = re"""[\w$]+(?:\.[\w$]+)*\("2067027393"\)"""
   var launchCodeApplied = 0
   result = result.replace(
     launchCodePattern,
@@ -351,7 +351,7 @@ proc apply*(input: string): string =
     failed = true
 
   # Patch 3l: Enable canSaveSkill - flag 3246569822
-  let saveSkillPattern = re"""[\w$]+\("3246569822"\)"""
+  let saveSkillPattern = re"""[\w$]+(?:\.[\w$]+)*\("3246569822"\)"""
   var saveSkillApplied = 0
   result = result.replace(
     saveSkillPattern,
@@ -367,7 +367,7 @@ proc apply*(input: string): string =
     failed = true
 
   # Patch 3m: Enable suggestSkillsEnabled - flag 245679952
-  let suggestSkillsPattern = re"""[\w$]+\("245679952"\)"""
+  let suggestSkillsPattern = re"""[\w$]+(?:\.[\w$]+)*\("245679952"\)"""
   var suggestSkillsApplied = 0
   result = result.replace(
     suggestSkillsPattern,
@@ -398,9 +398,12 @@ proc apply*(input: string): string =
   # sub-patch used to force. Per CLAUDE.md Rule 6, assert the upstreamed
   # end-state (unconditional resolveSshControllerForMcp) instead of forcing a
   # flag that no longer exists; FAIL loud if upstream ever re-gates it.
+  # v1.19367 (code-split): the return callee became a member call
+  # (`return N.getRemoteServerController(e)`), still gate-free; the callee
+  # position allows dotted member expressions.
   # (Contributed in PR #179 by @boommasterxd.)
   let sshResolverUnconditional =
-    re"""resolveSshControllerForMcp\([\w$]+\)\{if\([\w$]+\)return [\w$]+\([\w$]+\)\}"""
+    re"""resolveSshControllerForMcp\([\w$]+\)\{if\([\w$]+\)return [\w$]+(?:\.[\w$]+)*\([\w$]+\)\}"""
   if result.find(sshResolverUnconditional).isSome:
     echo "  [OK] sshRemotePassthrough: native unconditional SSH plugin/MCP forwarding present (resolveSshControllerForMcp has no flag gate) - regression guard satisfied"
     inc patchesApplied
@@ -409,7 +412,7 @@ proc apply*(input: string): string =
     failed = true
 
   # Patch 3o: Enable consolidate-memory skill v2 - flag 1824824999
-  let memorySkillPattern = re"""[\w$]+\("1824824999"\)"""
+  let memorySkillPattern = re"""[\w$]+(?:\.[\w$]+)*\("1824824999"\)"""
   var memorySkillApplied = 0
   result = result.replace(
     memorySkillPattern,
@@ -425,7 +428,7 @@ proc apply*(input: string): string =
     failed = true
 
   # Patch 3p: Enable cowork onboarding role picker - flag 2114777685
-  let onboardingPattern = re"""[\w$]+\("2114777685"\)"""
+  let onboardingPattern = re"""[\w$]+(?:\.[\w$]+)*\("2114777685"\)"""
   var onboardingApplied = 0
   result = result.replace(
     onboardingPattern,
