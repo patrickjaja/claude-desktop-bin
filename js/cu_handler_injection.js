@@ -63,7 +63,7 @@ function __syncUpstreamShotDims(dims){
 }
 var __actionTools=new Set(["left_click","right_click","double_click","triple_click","middle_click","left_click_drag","mouse_move","scroll","key","type","hold_key","left_mouse_down","left_mouse_up","computer_batch"]);
 async function __hideWindows(fn){var __bws=require("electron").BrowserWindow.getAllWindows().filter(function(w){return!w.isDestroyed()});for(var __i=0;__i<__bws.length;__i++)__bws[__i].setIgnoreMouseEvents(true);try{await new Promise(function(r){setTimeout(r,50)});return await fn()}finally{for(var __i=0;__i<__bws.length;__i++){if(!__bws[__i].isDestroyed())__bws[__i].setIgnoreMouseEvents(false)}}}
-if(__actionTools.has(__TOOL_NAME__)){return await __hideWindows(async function(){switch(__TOOL_NAME__){
+if(__actionTools.has(__TOOL_NAME__)){try{return await __hideWindows(async function(){switch(__TOOL_NAME__){
 case"left_click":{var __lc=__txC(__INPUT__.coordinate||[__INPUT__.x,__INPUT__.y]);await ex.click(__lc[0],__lc[1],"left",1);return{content:[{type:"text",text:"Clicked at ("+__lc[0]+","+__lc[1]+")"}]}}
 case"right_click":{var __rc=__txC(__INPUT__.coordinate||[__INPUT__.x,__INPUT__.y]);await ex.click(__rc[0],__rc[1],"right",1);return{content:[{type:"text",text:"Right clicked"}]}}
 case"double_click":{var __dc=__txC(__INPUT__.coordinate||[__INPUT__.x,__INPUT__.y]);await ex.click(__dc[0],__dc[1],"left",2);return{content:[{type:"text",text:"Double clicked"}]}}
@@ -116,7 +116,7 @@ case"computer_batch":{
   return{content:__ok};
 }
 default:return{content:[{type:"text",text:"Unknown action tool: "+__TOOL_NAME__}],isError:!0}
-}})}
+}})}catch(err){return{content:[{type:"text",text:"Error: "+(err&&err.message||err)}],isError:!0}}}
 try{switch(__TOOL_NAME__){
 case"screenshot":{var __dlist=await ex.listDisplays();var __primaryIdx=0;for(var __pi=0;__pi<__dlist.length;__pi++){if(__dlist[__pi].isPrimary){__primaryIdx=__dlist[__pi].displayId;break}}var __did=globalThis.__cuPinnedDisplay!==void 0?globalThis.__cuPinnedDisplay:(__INPUT__.display_number||__INPUT__.display_id||__primaryIdx);var __actMon=__dlist.find(function(d){return d.displayId===__did})||__dlist[0]||{originX:0,originY:0};globalThis.__cuActiveOrigin={x:__actMon.originX||0,y:__actMon.originY||0};var __ss=await ex.screenshot({displayId:__did});globalThis.__cuLastShot={imgW:__ss.imgW||__ss.displayWidth||(__actMon.width||0),imgH:__ss.imgH||__ss.displayHeight||(__actMon.height||0),dispW:__ss.displayWidth||__actMon.width||0,dispH:__ss.displayHeight||__actMon.height||0,originX:__ss.originX!=null?__ss.originX:(__actMon.originX||0),originY:__ss.originY!=null?__ss.originY:(__actMon.originY||0)};__syncUpstreamShotDims({width:globalThis.__cuLastShot.imgW,height:globalThis.__cuLastShot.imgH,displayWidth:globalThis.__cuLastShot.dispW,displayHeight:globalThis.__cuLastShot.dispH,displayId:__did,originX:globalThis.__cuLastShot.originX,originY:globalThis.__cuLastShot.originY});return{content:[{type:"image",data:__ss.base64,mimeType:__ss.mimeType||"image/jpeg"}]}}
 case"zoom":{
