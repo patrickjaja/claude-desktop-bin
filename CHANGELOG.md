@@ -2,6 +2,12 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-07-12
+
+### Computer Use: bridge stdout parsed defensively (clear error instead of bare SyntaxError)
+
+All four bridge invokers (`_x11Bridge`, `_bridge`, `_bridgeAsync` in the regular executor; `execBridgeJson` in the kwin executor) fed bridge stdout straight into `JSON.parse`. A bridge that crashed mid-write, printed a stray warning, or emitted anything but one JSON value surfaced as an anonymous `SyntaxError: Unexpected token` with no hint of which bridge misbehaved or what it printed. Parsing now goes through a guard that fails with the bridge name and a 300-char stdout preview, and the kwin executor also logs the preview to `claude-patches.log` via `__cdbDiag`.
+
 ## 2026-07-11
 
 ### v1.19367.0: upstream code-split the main bundle - orchestrator now patches stub + chunks as one logical file

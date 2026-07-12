@@ -24,12 +24,22 @@ function _checkYdotool(){if(_ydotoolOk!==null)return _ydotoolOk;if(!_hasCmd("ydo
 // ── x11-bridge: first-party X11/XWayland backend (replaces xdotool/scrot/import/wmctrl) ──
 // The binary is resolved in cu_mode_preamble.js into globalThis.__cuX11BridgeBin.
 function _x11BridgeBin(){return process.env.X11_BRIDGE_BIN||globalThis.__cuX11BridgeBin}
+// Bridges must emit exactly one JSON value on stdout; anything else (crash
+// spew, truncated write, stray warning) lands here. Fail with the bridge name
+// and a stdout preview instead of a bare SyntaxError so the tool result says
+// which bridge misbehaved and what it printed.
+function _parseBridgeJson(label,out){
+  try{return JSON.parse(out)}catch(e){
+    var preview=out.length>300?out.slice(0,300)+"...":out;
+    throw new Error(label+" returned non-JSON output: "+preview);
+  }
+}
 function _x11Bridge(args){
   var bin=_x11BridgeBin();
   if(!bin)throw new Error("x11-bridge not available (globalThis.__cuX11BridgeBin unset — set X11_BRIDGE_BIN or reinstall the package - the bundled bridge is missing)");
   var res=_cp.execFileSync(bin,args,{encoding:"utf-8",timeout:15000,maxBuffer:16*1024*1024});
   var out=res.trim();
-  return out?JSON.parse(out):null;
+  return out?_parseBridgeJson("x11-bridge",out):null;
 }
 // Bridge-side monitor list (RandR names + root-window geometry). Used to map a
 // root-coordinate region to a monitor name + monitor-relative coords for `zoom`.
@@ -48,7 +58,7 @@ function _bridge(bin,args,timeoutMs){
   if(!bin)throw new Error("bridge binary not available");
   var res=_cp.execFileSync(bin,args,{encoding:"utf-8",timeout:timeoutMs||15000,maxBuffer:16*1024*1024});
   var out=res.trim();
-  return out?JSON.parse(out):null;
+  return out?_parseBridgeJson(bin,out):null;
 }
 // Async, non-blocking variant of _bridge. Used ONLY for the GNOME portal
 // session lifecycle (session-start/session-end), because session-start blocks
@@ -61,7 +71,7 @@ function _bridgeAsync(bin,args,timeoutMs){
     _cp.execFile(bin,args,{encoding:"utf-8",timeout:timeoutMs||15000,maxBuffer:16*1024*1024},function(err,stdout){
       if(err){reject(err);return}
       var out=(stdout||"").trim();
-      try{resolve(out?JSON.parse(out):null)}catch(pe){reject(pe)}
+      try{resolve(out?_parseBridgeJson(bin,out):null)}catch(pe){reject(pe)}
     });
   });
 }
