@@ -2,6 +2,21 @@
 var _cp=require("child_process"),_path=require("path"),_fs=require("fs"),_os=require("os"),_electron=require("electron");
 function _exec(cmd){return _cp.execSync(cmd,{encoding:"utf-8",timeout:15000}).trim()}
 function _execBuf(cmd){return _cp.execSync(cmd,{timeout:15000})}
+// Run ydotool without a shell. Typed text and key names are model-supplied;
+// concatenating them into an execSync shell string would let $(...), backticks
+// etc. expand (JSON.stringify quoting is NOT shell quoting).
+function _ydotool(args){return _cp.execFileSync("ydotool",args,{encoding:"utf-8",timeout:15000})}
+// Launch a command detached without a shell, fire-and-forget (replaces the
+// old `setsid ... >/dev/null 2>&1` shell strings). stdio:"ignore" matches the
+// old /dev/null redirect — execFile would pipe+buffer instead and SIGTERM the
+// app once its lifetime output passed maxBuffer (setsid execs the app in
+// place, so the kill would hit the app itself). Spawn failures still surface
+// via the error event; unref() lets the child outlive us.
+function _launchDetached(args){
+  var c=_cp.spawn("setsid",args,{detached:true,stdio:"ignore"});
+  c.on("error",function(err){globalThis.__cdbDiag("[claude-cu] detached launch failed ("+args.join(" ")+"): "+(err.message||err))});
+  c.unref();
+}
 function _isWayland(){var st=(process.env.XDG_SESSION_TYPE||"").toLowerCase();if(st==="wayland")return true;if(st==="x11")return false;return!!process.env.WAYLAND_DISPLAY}
 var _wayland=_isWayland();
 function _isWlroots(){return!!process.env.SWAYSOCK||!!process.env.HYPRLAND_INSTANCE_SIGNATURE||!!process.env.NIRI_SOCKET}
@@ -193,6 +208,9 @@ async function _captureRegion(x,y,w,h,sf){
   // and emit PNG.
   function _nativePng(b64){return{base64:b64,imgW:w,imgH:h,mimeType:"image/png"}}
   if(process.env.COWORK_SCREENSHOT_CMD){
+    // Intentionally shell-evaluated: this is a user-supplied command template
+    // from the user's own environment (pipes/redirects are part of the
+    // contract). Only {FILE}/{X}/{Y}/{W}/{H} are substituted, all local values.
     try{var cmd=process.env.COWORK_SCREENSHOT_CMD.replace(/\{FILE\}/g,tmp).replace(/\{X\}/g,x).replace(/\{Y\}/g,y).replace(/\{W\}/g,w).replace(/\{H\}/g,h);
     _cp.execSync(cmd,{timeout:15000});globalThis.__cdbDiag("[claude-cu] screenshot: captured via COWORK_SCREENSHOT_CMD");return _nativePng(_readClean(tmp))}catch(e){globalThis.__cdbDiag("[claude-cu] COWORK_SCREENSHOT_CMD failed: "+e.message)}
   }
@@ -224,8 +242,8 @@ async function _captureRegion(x,y,w,h,sf){
   }
   if(_de.indexOf("kde")>=0&&_hasCmd("spectacle")){
     try{var stmp=_path.join(_os.tmpdir(),"claude-cu-spectacle-"+Date.now()+".png");
-    _cp.execSync('spectacle -b -n -f -o "'+stmp+'"',{timeout:10000});
-    if(_fs.existsSync(stmp)){try{_cp.execSync('convert "'+stmp+'" -crop '+w+"x"+h+"+"+x+"+"+y+' +repage "'+tmp+'"',{timeout:5000});try{_fs.unlinkSync(stmp)}catch(e){}globalThis.__cdbDiag("[claude-cu] screenshot: captured via spectacle+convert (KDE)");return _nativePng(_readClean(tmp))}catch(ce){try{_fs.renameSync(stmp,tmp)}catch(re){}globalThis.__cdbDiag("[claude-cu] screenshot: captured via spectacle (KDE, uncropped)");return _nativePng(_readClean(tmp))}}
+    _cp.execFileSync("spectacle",["-b","-n","-f","-o",stmp],{timeout:10000});
+    if(_fs.existsSync(stmp)){try{_cp.execFileSync("convert",[stmp,"-crop",w+"x"+h+"+"+x+"+"+y,"+repage",tmp],{timeout:5000});try{_fs.unlinkSync(stmp)}catch(e){}globalThis.__cdbDiag("[claude-cu] screenshot: captured via spectacle+convert (KDE)");return _nativePng(_readClean(tmp))}catch(ce){try{_fs.renameSync(stmp,tmp)}catch(re){}globalThis.__cdbDiag("[claude-cu] screenshot: captured via spectacle (KDE, uncropped)");return _nativePng(_readClean(tmp))}}
     }catch(e){globalThis.__cdbDiag("[claude-cu] spectacle failed: "+e.message)}
   }
   // X11 (and XWayland fallback): single first-party tier — x11-bridge zoom.
@@ -322,7 +340,7 @@ function _moveMouse(x,y){
     _logFirstUse("mouse",_wlBridge().name);_wlBridgeCall(["pointer-move","--x",String(Math.round(x)),"--y",String(Math.round(y))]);return;
   }
   if(_wayland&&_checkYdotool()){
-    try{_logFirstUse("mouse","ydotool");_exec("ydotool mousemove --absolute 0 0");_cp.execSync("sleep 0.05");_exec("ydotool mousemove "+Math.round(x)+" "+Math.round(y));return}catch(e){globalThis.__cdbDiag("[claude-cu] ydotool mousemove failed, falling back to x11-bridge: "+e.message)}
+    try{_logFirstUse("mouse","ydotool");_ydotool(["mousemove","--absolute","0","0"]);_cp.execSync("sleep 0.05");_ydotool(["mousemove",String(Math.round(x)),String(Math.round(y))]);return}catch(e){globalThis.__cdbDiag("[claude-cu] ydotool mousemove failed, falling back to x11-bridge: "+e.message)}
   }else{
     if(_wayland&&!_checkYdotool())globalThis.__cdbDiag("[claude-cu] ydotool not available on Wayland, falling back to x11-bridge via XWayland");
   }
@@ -653,7 +671,7 @@ globalThis.__linuxExecutor={
       // Path/URL: hand to xdg-open and return — polling for a matching window is
       // meaningless (it may open a tab in an already-running handler).
       globalThis.__cdbDiag("[claude-cu] openApp: name looks like a path/URL — setsid xdg-open "+name);
-      try{_cp.exec("setsid xdg-open "+JSON.stringify(name)+" >/dev/null 2>&1")}
+      try{_launchDetached(["xdg-open",name])}
       catch(e2){throw new Error("Could not open "+name)}
       // xdg-open may open a tab in an already-running handler; we never verify a
       // window, so report the neutral "opened" (handler -> "Opened <name>").
@@ -661,9 +679,9 @@ globalThis.__linuxExecutor={
     }
     try{
       globalThis.__cdbDiag("[claude-cu] openApp: launching via setsid "+resolved);
-      _cp.exec("setsid "+JSON.stringify(resolved)+" >/dev/null 2>&1");
+      _launchDetached([resolved]);
     }catch(e){
-      try{globalThis.__cdbDiag("[claude-cu] openApp: fallback to xdg-open "+name);_cp.exec("setsid xdg-open "+JSON.stringify(name)+" >/dev/null 2>&1")}
+      try{globalThis.__cdbDiag("[claude-cu] openApp: fallback to xdg-open "+name);_launchDetached(["xdg-open",name])}
       catch(e2){throw new Error("Could not open "+name+" (resolved to "+resolved+")")}
     }
     // 3) On the bridge path, poll briefly for a matching new window and activate
@@ -703,11 +721,11 @@ globalThis.__linuxExecutor={
       if(holdKeys&&holdKeys.length>0){
         var downParts=[],upParts=[];
         for(var i=0;i<holdKeys.length;i++){var mk=_mapKeyWayland(holdKeys[i]);downParts.push(mk+":1");upParts.unshift(mk+":0")}
-        _exec("ydotool key "+downParts.join(" "));
-        for(var _ri=0;_ri<rep;_ri++){if(_ri>0)_cp.execSync("sleep 0.05");_exec("ydotool click "+ybtn)}
-        _exec("ydotool key "+upParts.join(" "));
+        _ydotool(["key"].concat(downParts));
+        for(var _ri=0;_ri<rep;_ri++){if(_ri>0)_cp.execSync("sleep 0.05");_ydotool(["click",ybtn])}
+        _ydotool(["key"].concat(upParts));
       }else{
-        for(var _ri=0;_ri<rep;_ri++){if(_ri>0)_cp.execSync("sleep 0.05");_exec("ydotool click "+ybtn)}
+        for(var _ri=0;_ri<rep;_ri++){if(_ri>0)_cp.execSync("sleep 0.05");_ydotool(["click",ybtn])}
       }
     }else{
       _logFirstUse("click","x11-bridge");
@@ -719,12 +737,12 @@ globalThis.__linuxExecutor={
   },
   async mouseDown(){
     if(_useWlBridge()){_logFirstUse("drag",_wlBridge().name);_wlBridgeCall(["left-mouse-down"])}
-    else if(_wayland&&_checkYdotool()){_logFirstUse("drag","ydotool");_exec("ydotool click 0x40")}
+    else if(_wayland&&_checkYdotool()){_logFirstUse("drag","ydotool");_ydotool(["click","0x40"])}
     else{_logFirstUse("drag","x11-bridge");_x11Bridge(["left-mouse-down"])}
   },
   async mouseUp(){
     if(_useWlBridge()){_wlBridgeCall(["left-mouse-up"])}
-    else if(_wayland&&_checkYdotool()){_exec("ydotool click 0x80")}
+    else if(_wayland&&_checkYdotool()){_ydotool(["click","0x80"])}
     else{_x11Bridge(["left-mouse-up"])}
   },
   async getCursorPosition(){
@@ -740,10 +758,10 @@ globalThis.__linuxExecutor={
     }else if(_wayland&&_checkYdotool()){
       if(start)_moveMouse(start.x,start.y);
       _logFirstUse("drag","ydotool");
-      _exec("ydotool click 0x40");
-      _exec("ydotool mousemove --absolute 0 0");_cp.execSync("sleep 0.05");_exec("ydotool mousemove "+Math.round(end.x)+" "+Math.round(end.y));
+      _ydotool(["click","0x40"]);
+      _ydotool(["mousemove","--absolute","0","0"]);_cp.execSync("sleep 0.05");_ydotool(["mousemove",String(Math.round(end.x)),String(Math.round(end.y))]);
       _cp.execSync("sleep 0.05");
-      _exec("ydotool click 0x80");
+      _ydotool(["click","0x80"]);
     }else{
       _logFirstUse("drag","x11-bridge");
       var fromX=start?Math.round(start.x):Math.round(_electron.screen.getCursorScreenPoint().x);
@@ -760,8 +778,8 @@ globalThis.__linuxExecutor={
       if(_wdx!==0||_wdy!==0){_wlBridgeCall(["pointer-scroll","--x",String(Math.round(x)),"--y",String(Math.round(y)),"--dx",String(_wdx),"--dy",String(_wdy)])}
     }else if(_wayland&&_checkYdotool()){
       _logFirstUse("scroll","ydotool");
-      if(vertical&&vertical!==0){var vamt=-Math.round(vertical);_exec("ydotool mousemove -w -- 0 "+vamt)}
-      if(horizontal&&horizontal!==0){var hamt=Math.round(horizontal);_exec("ydotool mousemove -w -- "+hamt+" 0")}
+      if(vertical&&vertical!==0){var vamt=-Math.round(vertical);_ydotool(["mousemove","-w","--","0",String(vamt)])}
+      if(horizontal&&horizontal!==0){var hamt=Math.round(horizontal);_ydotool(["mousemove","-w","--",String(hamt),"0"])}
     }else{
       _logFirstUse("scroll","x11-bridge");
       var dx=horizontal?Math.round(horizontal):0;
@@ -781,12 +799,12 @@ globalThis.__linuxExecutor={
       _logFirstUse("key","ydotool");
       var parts=combo.split("+").map(_mapKeyWayland);
       if(parts.length===1){
-        for(var i=0;i<n;i++){if(i>0)_cp.execSync("sleep 0.008");_exec("ydotool key "+parts[0]+":1 "+parts[0]+":0")}
+        for(var i=0;i<n;i++){if(i>0)_cp.execSync("sleep 0.008");_ydotool(["key",parts[0]+":1",parts[0]+":0"])}
       }else{
         var downSeq=[],upSeq=[];
         for(var j=0;j<parts.length;j++){downSeq.push(parts[j]+":1");upSeq.unshift(parts[j]+":0")}
-        var seq=downSeq.concat(upSeq).join(" ");
-        for(var i=0;i<n;i++){if(i>0)_cp.execSync("sleep 0.008");_exec("ydotool key "+seq)}
+        var seq=["key"].concat(downSeq,upSeq);
+        for(var i=0;i<n;i++){if(i>0)_cp.execSync("sleep 0.008");_ydotool(seq)}
       }
     }else{
       // x11-bridge parses the CU key-spec grammar itself — pass the raw combo through.
@@ -804,9 +822,9 @@ globalThis.__linuxExecutor={
     }else if(_wayland&&_checkYdotool()){
       _logFirstUse("key","ydotool");
       var k=_mapKeyWayland(keyName);
-      _exec("ydotool key "+k+":1");
+      _ydotool(["key",k+":1"]);
       _cp.execSync("sleep "+secs);
-      _exec("ydotool key "+k+":0");
+      _ydotool(["key",k+":0"]);
     }else{
       _logFirstUse("key","x11-bridge");
       _x11Bridge(["hold-key","--key",keyName,"--duration-ms",String(Math.round(secs*1000))]);
@@ -825,9 +843,9 @@ globalThis.__linuxExecutor={
       _logFirstUse("type","ydotool"+(opts&&opts.viaClipboard?" (clipboard)":""));
       if(opts&&opts.viaClipboard){
         _electron.clipboard.writeText(text,"clipboard");
-        _exec("ydotool key 29:1 47:1 47:0 29:0");
+        _ydotool(["key","29:1","47:1","47:0","29:0"]);
       }else{
-        _cp.execSync("ydotool type -- "+JSON.stringify(text),{timeout:15000});
+        _ydotool(["type","--",text]);
       }
     }else{
       _logFirstUse("type","x11-bridge"+(opts&&opts.viaClipboard?" (clipboard)":""));

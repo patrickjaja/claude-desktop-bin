@@ -2,7 +2,11 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
-## 2026-07-11
+## 2026-07-12
+
+### Computer Use: shell-string exec calls converted to argument arrays (ydotool path had a real injection vector)
+
+The regular executor built shell command strings for ydotool, spectacle/convert, and app launching. On the ydotool tier (exotic Wayland sessions), model-supplied input reached the shell: `ydotool type -- "+JSON.stringify(text)` and `ydotool key <mapped>` — JSON.stringify quoting is not shell quoting, so typed text or an unmapped key name containing `$(...)` or backticks would be command-substituted by the shell. `setsid xdg-open <name>` / `setsid <resolved>` in `openApp` had the same exposure via model-supplied app names. All of these now go through argument arrays with no shell involved (new `_ydotool` and `_launchDetached` helpers): ydotool via `execFileSync`, and detached app launches via `spawn` with `detached:true` + `stdio:"ignore"` + `unref()`, which reproduces the old `>/dev/null 2>&1` fire-and-forget semantics exactly — `execFile` would have piped and buffered the app's output and killed a long-running app once it exceeded `maxBuffer`. The spectacle/convert screenshot tier was moved to `execFileSync` for consistency. `COWORK_SCREENSHOT_CMD` stays intentionally shell-evaluated (a user-supplied template from the user's own environment, pipes/redirects are part of its contract) and is now commented as such. Validated with a full local build: all patches applied, `node --check` green, and the patched bundle contains the helpers at every call site.
 
 ### v1.19367.0: upstream code-split the main bundle - orchestrator now patches stub + chunks as one logical file
 
