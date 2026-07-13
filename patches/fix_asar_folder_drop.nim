@@ -46,10 +46,13 @@ proc apply*(input: string): string =
   # v1.9659.4: for(const X of Y.slice(1))if(!Z(X)){...
   # v1.11187.4: the .slice(1).filter(...) was hoisted into a local var, so the
   #   loop is now `for(const X of <var>)if(!Z(X)){if(NiA(X)){hp(X,...,"skill file")`.
+  # v1.20186.1: the loop body gained braces and a leading directory-collector
+  #   block: `for(const X of Y){if(lM(X)){r??(r=X);continue}if(!Z(X)){if(lF(X)){
+  #   ru(X,...,"skill file")`. Fold that new prefix into the pre-guard capture.
   # Anchor on the trailing `"skill file"` arg to keep the match unique (there is
   # exactly one such loop in the bundle).
   let patArgv =
-    re"(for\(const )([\w$]+)( of [\w$]+\))(if\()(![\w$]+\(\2\))(\)\{if\([\w$]+\(\2\)\)\{[\w$]+\(\2,[\w$]+,""skill file""\))"
+    re"(for\(const )([\w$]+)( of [\w$]+\)\{if\([\w$]+\(\2\)\)\{[\w$]+\?\?\([\w$]+=\2\);continue\})(if\()(![\w$]+\(\2\))(\)\{if\([\w$]+\(\2\)\)\{[\w$]+\(\2,[\w$]+,""skill file""\))"
 
   let mB = result.find(patArgv)
   if mB.isSome:

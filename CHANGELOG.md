@@ -4,6 +4,17 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 
 ## 2026-07-13
 
+### v1.20186.1: four patches re-fitted after the upstream bump ([#192](https://github.com/patrickjaja/claude-desktop-bin/issues/192))
+
+Upstream released v1.20186.1 (full re-minify; the code-split main bundle grew from ~45 to 82 chunks) and the auto-release failed on four patches. All four were upstream refactors of our anchor sites, not upstreamed features - every patch stays active:
+
+- `fix_computer_use_linux` (4 sub-patches): the CU lock field was renamed `holder` -> `exclusiveHolder` and `acquire()` restructured into an early-return shape; the screenshot intro-note seed re-anchored past a new takeover-approval flow in the tool wrapper; the `handleToolCall` isEnabled ternary arms became method calls (`n.isComputerUseEnabled()`). 36/36 sub-patches apply.
+- `fix_builtin_mcp_open_url_handler`: the 82-chunk split introduced a second, unrelated module using `safeStorage.decryptString`, breaking the bundle-global "exactly one electron var" discovery. The scan is now scoped to the chunk containing the msal-cache-get injection site (still fails loud on any ambiguity).
+- `fix_asar_folder_drop`: the second-instance argv loop gained a leading directory-collector block; folded into the pattern.
+- `fix_imagine_linux`: the `hasImagine` flag read became a member call (`o.isFeatureEnabled("3444158716")`); the callee matcher now accepts dotted paths. The flag ID itself is unchanged.
+
+The parallel audits confirmed a mechanical bump otherwise: the capability map is identical (41 keys), no new platform gates, no new native modules, no new PORTABLE Linux opportunities, Electron unchanged at 42.5.1. Notable upstream changes: a new "heavy work" utility process that computes Claude Code usage stats from `~/.claude/projects`, and agent-sdk 0.3.202 -> 0.3.205. GrowthBook delta: +`3602629573` (process kill-switch), -`1295378343` (CLI stream robustness) - the overrides template and docs catalog are updated; a new `launch` async feature override (flag `2976814254`) is already force-enabled by the existing Code/Cowork enablement patch. ion-dist grew 102 -> 128 MB from three new code-split chunks, no structural changes.
+
 ### Code tab fixed: Local sessions failed with "__cdb_sanitizeCwd is not defined" ([#191](https://github.com/patrickjaja/claude-desktop-bin/issues/191))
 
 On the v1.19367.0 packages, every Code-tab Local session failed - as "Trust check couldn't be completed" when picking a folder, or "Something went wrong: __cdb_sanitizeCwd is not defined" when sending a message. Chat was unaffected.

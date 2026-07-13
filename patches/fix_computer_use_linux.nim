@@ -247,18 +247,24 @@ proc apply*(input: string): string =
         return original
 
   # ── Patch 4b (kwin-wayland): cu lock acquire → __setLockHeld(true) ──────
+  # v1.20186.1 refactored the lock class: `this.holder` became
+  # `this.exclusiveHolder`, and acquire() changed from a `this.holder===void
+  # 0&&(this.holder=X,emit(...),cb())` guarded expression into an early-return
+  # guard shape ending in `return this.exclusiveHolder=X,emit(...),cb(),!0`.
+  # The cuLockChanged emit is unchanged; anchor the acquire-side emit and inject
+  # __setLockHeld(true) right before it.
   block:
     let pat =
-      re"""this\.holder===void 0&&\(this\.holder=([\w$]+),this\.emit\("cuLockChanged",\{holder:\1\}\),([\w$]+)\(\)\)"""
+      re"""return this\.exclusiveHolder=([\w$]+),this\.emit\("cuLockChanged",\{holder:\1\}\),([\w$]+)\(\),!0"""
     let n = replaceFirst(
       content,
       pat,
       proc(m: RegexMatch): string =
         let holder = m.captures[0]
         let callback = m.captures[1]
-        "this.holder===void 0&&(this.holder=" & holder &
+        "return this.exclusiveHolder=" & holder &
           ",process.platform===\"linux\"&&globalThis.__linuxExecutor?.__setLockHeld?.(!0).catch?.(e=>(globalThis.__cdbDiag||console.warn)(\"[linux-executor] failed to start bridge session on lock acquire\",e))," &
-          "this.emit(\"cuLockChanged\",{holder:" & holder & "})," & callback & "())",
+          "this.emit(\"cuLockChanged\",{holder:" & holder & "})," & callback & "(),!0",
     )
     if n >= 1:
       echo &"  [OK] cu lock acquire: start bridge session on Linux ({n} match)"
@@ -268,16 +274,18 @@ proc apply*(input: string): string =
       echo "  [FAIL] cu lock acquire pattern: 0 matches"
 
   # ── Patch 4b.2: cu lock release → __setLockHeld(false) ─────────────────
+  # v1.20186.1: `this.holder` → `this.exclusiveHolder` (see Patch 4b). The
+  # release-side emit is otherwise unchanged.
   block:
     let pat =
-      re"""this\.holder===([\w$]+)&&\(this\.holder=void 0,this\.emit\("cuLockChanged",\{holder:void 0\}\)\)"""
+      re"""this\.exclusiveHolder===([\w$]+)&&\(this\.exclusiveHolder=void 0,this\.emit\("cuLockChanged",\{holder:void 0\}\)\)"""
     let n = replaceFirst(
       content,
       pat,
       proc(m: RegexMatch): string =
         let holder = m.captures[0]
-        "this.holder===" & holder &
-          "&&(this.holder=void 0,process.platform===\"linux\"&&globalThis.__linuxExecutor?.__setLockHeld?.(!1).catch?.(e=>(globalThis.__cdbDiag||console.warn)(\"[linux-executor] failed to stop bridge session on lock release\",e))," &
+        "this.exclusiveHolder===" & holder &
+          "&&(this.exclusiveHolder=void 0,process.platform===\"linux\"&&globalThis.__linuxExecutor?.__setLockHeld?.(!1).catch?.(e=>(globalThis.__cdbDiag||console.warn)(\"[linux-executor] failed to stop bridge session on lock release\",e))," &
           "this.emit(\"cuLockChanged\",{holder:void 0}))",
     )
     if n >= 1:
@@ -316,8 +324,16 @@ proc apply*(input: string): string =
       # and non-capturing so the AbortController capture index (5) stays stable.
       # The \6 backref pins the setTimeout's abort target to the AbortController
       # var captured just before it (hardening from PR #179 by @boommasterxd).
+      #
+      # v1.20186.1 rewrote the wrapper prologue that immediately precedes the
+      # screenshot-dims decl (added an onTakeoverRequest/approveTakeover takeover
+      # flow ending in `||X.call(Y)}}}const <dims>=...` instead of the old
+      # `;X()}}const <dims>=...`). The old prologue anchor `;[\w$]+\(\)\}\}const`
+      # no longer matches. The screenshot-dims decl itself is unchanged and unique,
+      # so anchor the async header, then lazily skip (up to 8000 chars) straight to
+      # that decl — do not try to pin the exact prologue shape.
       let seedPat =
-        re"""async\(([\w$]+),[\w$]+\)=>\{[\s\S]{0,4000}?;[\w$]+\(\)\}\}const ([\w$]+)=([\w$]+)\|\|\(([\w$]+)=([\w$]+)\.getLastScreenshotDims\)==null\?void 0:\4\.call\(\5\),([\w$]+)=new AbortController(?:,[\w$]+=setTimeout\(\(\)=>\6\.abort\(\),[\w$]+\))?,([\w$]+)=\{"""
+        re"""async\(([\w$]+),[\w$]+\)=>\{[\s\S]{0,8000}?const ([\w$]+)=([\w$]+)\|\|\(([\w$]+)=([\w$]+)\.getLastScreenshotDims\)==null\?void 0:\4\.call\(\5\),([\w$]+)=new AbortController(?:,[\w$]+=setTimeout\(\(\)=>\6\.abort\(\),[\w$]+\))?,([\w$]+)=\{"""
       let maybeSeed = content.find(seedPat)
       if maybeSeed.isNone:
         echo "  [FAIL] screenshot intro note: wrapper seed anchor not found"
@@ -357,11 +373,14 @@ proc apply*(input: string): string =
   # ── Patch 6: handleToolCall hybrid dispatch (two-step match) ───────────
   block:
     # isEnabled was a bare call `e=>xS()` through v1.17377; v1.18286.0 made it a
-    # session-type ternary `A=>A.sessionType==="ccd"?wS():bue()`. Accept both
-    # (non-capturing) - the ternary shape is unique to the computer-use tool
-    # object (siblings use `A.sessionType==="ccd"` without call arms).
+    # session-type ternary `A=>A.sessionType==="ccd"?wS():bue()`; v1.20186.1 made
+    # the ternary arms METHOD calls on a namespace object
+    # `e=>e.sessionType==="ccd"?n.isComputerUseEnabled():n.isComputerUseRegisterable()`.
+    # Accept all three (non-capturing): each ternary arm is `X()` or `X.Y()`. The
+    # ternary shape is unique to the computer-use tool object (siblings use
+    # `e.sessionType==="ccd"` without paired call arms).
     let htcStart =
-      re"""(([\w$]+)=\{isEnabled:[\w$]+=>(?:[\w$]+\.sessionType==="ccd"\?[\w$]+\(\):[\w$]+\(\)|[\w$]+\(\)),handleToolCall:async\(([\w$]+),([\w$]+),([\w$]+)\)=>\{)"""
+      re"""(([\w$]+)=\{isEnabled:[\w$]+=>(?:[\w$]+\.sessionType==="ccd"\?[\w$]+(?:\.[\w$]+)?\(\):[\w$]+(?:\.[\w$]+)?\(\)|[\w$]+\(\)),handleToolCall:async\(([\w$]+),([\w$]+),([\w$]+)\)=>\{)"""
     let maybeHtc = content.find(htcStart)
     if maybeHtc.isNone:
       echo "  [FAIL] handleToolCall pattern: 0 matches"

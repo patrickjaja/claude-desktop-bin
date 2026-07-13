@@ -79,7 +79,10 @@ proc apply*(input: string): string =
   # report "already patched" the moment the flag was renamed (as 2204227020 ->
   # 3516166472 was). Patches always run on freshly-staged bundles, so on a real
   # build the assignment MUST be present; if it is not, fail loudly.
-  let patternB = re2"([\w$]+)=[\w$]+\(""3444158716""\)\|\|!1"
+  # Since v1.19367 the flag reader became a member call
+  # (o.isFeatureEnabled("3444158716")), so the callee position allows a dotted
+  # member expression ([\w$]+(?:\.[\w$]+)*), matching Patch A's callee matcher.
+  let patternB = re2"([\w$]+)=[\w$]+(?:\.[\w$]+)*\(""3444158716""\)\|\|!1"
   var countB = result.replaceFirst(
     patternB,
     proc(m: RegexMatch2, s: string): string =
