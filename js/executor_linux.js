@@ -141,7 +141,14 @@ async function execBridge(command, args, opts = {}) {
 async function execBridgeJson(command, args, opts) {
   const stdout = await execBridge(command, args, opts)
   if (!stdout) return null
-  const parsed = JSON.parse(stdout)
+  let parsed
+  try {
+    parsed = JSON.parse(stdout)
+  } catch {
+    const preview = stdout.length > 300 ? `${stdout.slice(0, 300)}...` : stdout
+    globalThis.__cdbDiag(`[linux-executor] exec ${command} returned non-JSON`, { preview })
+    throw new Error(`[kwin-portal-bridge] ${command} returned non-JSON output: ${preview}`)
+  }
   debugLog(`exec ${command} parsed json`, {
     type: Array.isArray(parsed) ? 'array' : typeof parsed,
     length: Array.isArray(parsed) ? parsed.length : undefined,

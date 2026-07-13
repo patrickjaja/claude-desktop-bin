@@ -8,6 +8,10 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 
 The Computer Use handler wrapped its non-action tools (screenshot, zoom, open_application, …) in a top-level try/catch that turns a thrown executor error into a normal `{isError:true}` tool result, but the action-tool branch (left_click, type, scroll, drag, key, …) had no such guard. A throw from `ex.click`/`ex.type`/etc. propagated out of `handleToolCall` as a rejected promise instead of a tool error, so a transient backend failure (e.g. a missing bridge on an input action) surfaced as an unhandled error rather than a message the model could see and retry. The action-tool branch now has the same top-level guard, so both paths report executor failures consistently.
 
+### Computer Use: bridge stdout parsed defensively (clear error instead of bare SyntaxError)
+
+All four bridge invokers (`_x11Bridge`, `_bridge`, `_bridgeAsync` in the regular executor; `execBridgeJson` in the kwin executor) fed bridge stdout straight into `JSON.parse`. A bridge that crashed mid-write, printed a stray warning, or emitted anything but one JSON value surfaced as an anonymous `SyntaxError: Unexpected token` with no hint of which bridge misbehaved or what it printed. Parsing now goes through a guard that fails with the bridge name and a 300-char stdout preview, and the kwin executor also logs the preview to `claude-patches.log` via `__cdbDiag`.
+
 ## 2026-07-11
 
 ### v1.19367.0: upstream code-split the main bundle - orchestrator now patches stub + chunks as one logical file
