@@ -123,6 +123,9 @@ stdenvNoCC.mkDerivation {
     # glibc); we use nixpkgs electron instead.
     mkdir -p $out/lib/claude-desktop
     cp -rL ${electron}/libexec/electron/. $out/lib/claude-desktop/
+    # Store-copied files keep their read-only modes; make the tree writable so
+    # the resources/ swap below (and the rename) can modify it.
+    chmod -R u+w $out/lib/claude-desktop
     mv $out/lib/claude-desktop/electron $out/lib/claude-desktop/claude
     chmod +x $out/lib/claude-desktop/claude
 
