@@ -1176,7 +1176,6 @@ jobs:
                 /tmp/Claude_Desktop-*-x86_64.AppImage --appimage-extract
 
                 SKIP_SANDBOX_CHECK=1 bash /scripts/smoke-test.sh \
-                  /tmp/squashfs-root/usr/lib/claude-desktop/resources/app.asar \
                   /tmp/squashfs-root/usr/lib/claude-desktop/claude
               "
           fi
@@ -1272,7 +1271,6 @@ jobs:
                 apt-get update
                 apt-get install -y xvfb /dist/claude-desktop-bin_*_amd64.deb
                 bash /scripts/smoke-test.sh \
-                  /usr/lib/claude-desktop/resources/app.asar \
                   /usr/lib/claude-desktop/claude
               "
           fi
@@ -1366,7 +1364,6 @@ jobs:
                 set -e
                 dnf install -y xorg-x11-server-Xvfb /dist/claude-desktop-bin-*.x86_64.rpm
                 bash /scripts/smoke-test.sh \
-                  /usr/lib/claude-desktop/resources/app.asar \
                   /usr/lib/claude-desktop/claude
               "
           fi
@@ -1536,9 +1533,9 @@ jobs:
         env:
           VERSION: ${{ needs.check-version.outputs.version }}
         run: |
-          # The PKGBUILD now has a SINGLE tarball source (Electron is bundled
-          # inside the tarball's electron/ tree, extracted from the official .deb
-          # — no separate Electron zip source to fetch/verify). Point that one
+          # The PKGBUILD has a SINGLE tarball source (the tarball ships the
+          # official .deb's claude-desktop/ tree verbatim, Electron included -
+          # no separate Electron zip source to fetch/verify). Point that one
           # source at the local tarball so makepkg builds offline (the release
           # isn't published yet).
           TARBALL="claude-desktop-${VERSION}-linux.tar.gz"

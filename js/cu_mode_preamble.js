@@ -9,17 +9,15 @@
 if(!globalThis.__cdbDiag){globalThis.__cdbDiag=function(){var s="";try{var i,a=[];for(i=0;i<arguments.length;i++){var x=arguments[i];if(typeof x==="string")a.push(x);else{try{a.push(JSON.stringify(x))}catch(e1){a.push(String(x))}}}s=a.join(" ")}catch(e2){}if(!s)return;try{require("fs").writeSync(2,s+"\n")}catch(e3){}try{var p=require("path"),fs=require("fs");if(!globalThis.__cdbDiagDir){globalThis.__cdbDiagDir=p.join(require("electron").app.getPath("userData"),"logs");fs.mkdirSync(globalThis.__cdbDiagDir,{recursive:!0})}var f=p.join(globalThis.__cdbDiagDir,"claude-patches.log");try{if(fs.statSync(f).size>2097152)fs.renameSync(f,f+".old")}catch(e4){}fs.appendFileSync(f,new Date().toISOString()+" "+s+"\n")}catch(e5){}};}
 // ── bundled-bridge resolver ──────────────────────────────────────────────────
 // All four bridges ship at a FIXED location inside the package - the same
-// locales/ resources dir where upstream keeps its own bundled binaries
+// resources/ dir where upstream keeps its own bundled binaries
 // (cowork-linux-helper, smol images, virtiofsd). So resolution is simply:
 // <envVar> override (NixOS GNOME native build, debugging) → bundled dir.
 // No $PATH scanning - a missing bundled bridge is a packaging bug that must
-// fail loud, not be papered over by a stray system binary. The dir is computed
-// as dirname(app.getAppPath())+"/locales" (NOT process.resourcesPath: that
-// identifier is only correct because fix_locale_paths text-rewrites it, an
-// alphabetical patch-order coupling, and on Nix it points into the separate
-// electron package). accessSync X_OK throws on miss, hence the try/catch.
+// fail loud, not be papered over by a stray system binary. The dir is
+// process.resourcesPath: the app.asar is exe-adjacent in every install
+// (Electron's OnlyLoadAppFromAsar autoload), so Electron resolves it natively.
 // WHICH bridge to resolve is decided by SESSION detection below, not here.
-  var _cdbBridgeDir=(function(){try{var _p=require("path");return _p.join(_p.dirname(require("electron").app.getAppPath()),"locales")}catch(e){return process.resourcesPath}})();
+  var _cdbBridgeDir=process.resourcesPath;
   function _cdbResolveBin(name,envVar){
     var _rfs=require("fs"),_rp=require("path");
     function _ok(c){try{_rfs.accessSync(c,_rfs.constants.X_OK);return!0}catch(e){return!1}}
@@ -51,7 +49,7 @@ if(!globalThis.__cdbDiag){globalThis.__cdbDiag=function(){var s="";try{var i,a=[
   // Resolve x11-bridge for the regular (non-kwin-wayland) executor. Used on X11
   // sessions and as the XWayland input/screenshot backend on Wayland sessions
   // where ydotool is unavailable. Skipped in kwin-wayland mode (that path uses
-  // kwin-portal-bridge). Priority: X11_BRIDGE_BIN env → bundled locales dir →
+  // kwin-portal-bridge). Priority: X11_BRIDGE_BIN env → bundled resources dir →
   // each $PATH dir; verified executable via X_OK.
   if(!globalThis.__cuKwinMode){
     var _sessType=(process.env.XDG_SESSION_TYPE||"").toLowerCase();
@@ -63,7 +61,7 @@ if(!globalThis.__cdbDiag){globalThis.__cdbDiag=function(){var s="";try{var i,a=[
     }
     // Resolve wlroots-bridge (Sway/Hyprland/Niri) and gnome-portal-bridge (GNOME
     // Wayland) — the first-party CU backends for those Wayland session types.
-    // Priority per bridge: <ENV>_BRIDGE_BIN → bundled locales dir → each $PATH
+    // Priority per bridge: <ENV>_BRIDGE_BIN → bundled resources dir → each $PATH
     // dir; verified executable via X_OK. Resolution is gated on session type so
     // we don't probe binaries irrelevant to the running compositor.
     var _wlSess=_sessType==="wayland"||!!process.env.WAYLAND_DISPLAY;

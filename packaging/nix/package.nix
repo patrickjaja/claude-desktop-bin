@@ -26,7 +26,7 @@
 #   - qemu-system-x86_64 on PATH            -> qemu (--prefix PATH)
 #   - OVMF UEFI CODE+VARS firmware          -> OVMF (CLAUDE_OVMF_CODE_PATH)
 #   - a system virtiofsd                    -> virtiofsd (CLAUDE_VIRTIOFSD_PATH)
-# The bundled resources/locales/virtiofsd does NOT count: the probe only uses the
+# The bundled resources/virtiofsd does NOT count: the probe only uses the
 # bundled copy on Ubuntu 22.x (os-release gate), and NixOS can't exec it anyway
 # (foreign ld-linux interpreter). The CLAUDE_* env vars are honored by our
 # fix_cowork_firmware_paths_linux patch from release 1.18286.0 on; on older
@@ -47,13 +47,18 @@ let
   # Updated automatically by CI (build-and-release.yml) on each release.
   version = "1.20186.1";
   hash = "sha256-+LmAeyVyMcU/iveA71VNey0NwjfLHEVYEZ+GZ1yjg74="; # TODO: CI updates this hash after building the release tarball
-  # The release tarball now also ships the official Electron runtime under
-  # electron/ (extracted from Anthropic's Linux .deb). On NixOS, however, that
-  # glibc-linked binary won't run without autoPatchelf + a runtime closure, so we
-  # keep using the nixpkgs `electron` derivation (idiomatic, sandbox-correct) and
-  # consume ONLY the patched app/ payload from the tarball. Pin `electron` to the
-  # major version the app expects (Electron 42; see the tarball's electron/version)
-  # via an override at call site if your nixpkgs default diverges.
+  # The release tarball ships the official Claude Desktop tree verbatim under
+  # claude-desktop/ (Electron runtime + our patched resources/app.asar + CU
+  # bridges), extracted from Anthropic's Linux .deb. On NixOS, however, that
+  # glibc-linked Electron binary won't run without autoPatchelf + a runtime
+  # closure, so we keep using the nixpkgs `electron` derivation (idiomatic,
+  # sandbox-correct) and DISCARD the tarball's bundled Electron runtime. We
+  # consume only the tarball's claude-desktop/resources/ (our patched app.asar +
+  # upstream app resources + bridges) and merge it into the nixpkgs electron dist
+  # so Electron finds the exe-adjacent resources/app.asar (OnlyLoadAppFromAsar
+  # fuse). Pin `electron` to the major version the app expects (Electron 42; see
+  # the tarball's claude-desktop/version) via an override at call site if your
+  # nixpkgs default diverges.
 in
 stdenvNoCC.mkDerivation {
   pname = "claude-desktop-bin";
@@ -110,19 +115,25 @@ stdenvNoCC.mkDerivation {
   installPhase = ''
     runHook preInstall
 
-    # Install app files
-    mkdir -p $out/lib/claude-desktop/resources
-    cp -r app/* $out/lib/claude-desktop/resources/
+    # Materialise the nixpkgs Electron dist into $out/lib/claude-desktop/ with the
+    # binary renamed to "claude" (cosmetic argv[0] / systemd-scope hint only; the
+    # Wayland app_id / X11 WM_CLASS comes from the app's desktopName
+    # "claude-desktop", not this basename - see startupWMClass above). The
+    # tarball's own bundled Electron runtime is DISCARDED on NixOS (foreign
+    # glibc); we use nixpkgs electron instead.
+    mkdir -p $out/lib/claude-desktop
+    cp -rL ${electron}/libexec/electron/. $out/lib/claude-desktop/
+    mv $out/lib/claude-desktop/electron $out/lib/claude-desktop/claude
+    chmod +x $out/lib/claude-desktop/claude
 
-    # Materialise Electron's libexec dir inside our derivation with the binary
-    # renamed to "claude" (cosmetic argv[0] / systemd-scope hint only). The
-    # Wayland app_id / X11 WM_CLASS is NOT derived from this basename - it comes
-    # from the app's desktopName ("claude-desktop"); see startupWMClass above.
-    mkdir -p $out/libexec/claude-desktop
-    cp -rL ${electron}/libexec/electron/. $out/libexec/claude-desktop/
-    mv $out/libexec/claude-desktop/electron \
-       $out/libexec/claude-desktop/claude
-    chmod +x $out/libexec/claude-desktop/claude
+    # Replace the electron dist's default resources/ (only default_app.asar) with
+    # the tarball's claude-desktop/resources/ (our patched app.asar +
+    # app.asar.unpacked + upstream app resources + CU bridges). Electron then
+    # auto-loads the exe-adjacent resources/app.asar (OnlyLoadAppFromAsar fuse).
+    # The rest of the tarball's claude-desktop/ tree (bundled Electron runtime) is
+    # NOT used on Nix.
+    rm -rf $out/lib/claude-desktop/resources
+    cp -r claude-desktop/resources $out/lib/claude-desktop/resources
 
     # Install launcher script (handles --toggle, --install-gnome-hotkey, --diagnose
     # and all Wayland/X11 detection, GPU fallback, etc.)
@@ -130,8 +141,7 @@ stdenvNoCC.mkDerivation {
     cp launcher/claude-desktop $out/lib/claude-desktop/launcher.sh
     chmod +x $out/lib/claude-desktop/launcher.sh
     makeWrapper $out/lib/claude-desktop/launcher.sh $out/bin/claude-desktop \
-      --set CLAUDE_ELECTRON "$out/libexec/claude-desktop/claude" \
-      --set CLAUDE_APP_ASAR "$out/lib/claude-desktop/resources/app.asar" \
+      --set CLAUDE_ELECTRON "$out/lib/claude-desktop/claude" \
       --set ELECTRON_OZONE_PLATFORM_HINT "auto" \
       --set ELECTRON_FORCE_IS_PACKAGED "true" \
       --set ELECTRON_USE_SYSTEM_TITLE_BAR "1" \

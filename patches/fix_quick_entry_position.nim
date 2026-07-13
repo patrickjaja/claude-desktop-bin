@@ -8,19 +8,16 @@ import std/[os, strformat, options]
 import std/nre
 
 # Resolve the bundled x11-bridge binary (cached in globalThis.__qeX11Bridge).
-# The bridge ships at a FIXED location: the package's locales/ resources dir,
-# like upstream's own bundled binaries. Candidates: the CU preamble's
-# resolution (if fix_computer_use_linux already ran), the X11_BRIDGE_BIN
-# escape hatch, then that bundled dir. The dir is computed explicitly as
-# dirname(app.getAppPath())+"/locales" and NOT via process.resourcesPath -
-# fix_locale_paths rewrites that identifier to the locales expression, but it
-# runs alphabetically BEFORE this patch, so text WE inject afterwards would
-# keep the raw (wrong) resourcesPath. Returns null when nothing resolves.
+# The bridge ships at a FIXED location: the package's resources/ dir (=
+# process.resourcesPath; the asar is exe-adjacent in every install), like
+# upstream's own bundled binaries. Candidates: the CU preamble's resolution
+# (if fix_computer_use_linux already ran), the X11_BRIDGE_BIN escape hatch,
+# then that bundled dir. Returns null when nothing resolves.
 proc x11BridgeExpr(): string =
   "(()=>{if(globalThis.__qeX11Bridge!==void 0)return globalThis.__qeX11Bridge;" &
     "const fs=require(\"fs\"),pa=require(\"path\");" &
     "const cands=[globalThis.__cuX11BridgeBin,process.env.X11_BRIDGE_BIN," &
-    "pa.join(pa.dirname(require(\"electron\").app.getAppPath()),\"locales\",\"x11-bridge\")];" &
+    "pa.join(process.resourcesPath,\"x11-bridge\")];" &
     "for(const c of cands){if(!c)continue;try{fs.accessSync(c,fs.constants.X_OK);return globalThis.__qeX11Bridge=c}catch(e){}}" &
     "return globalThis.__qeX11Bridge=null})()"
 

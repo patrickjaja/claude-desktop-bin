@@ -6,6 +6,8 @@ This project repackages Anthropic's **official Claude Desktop Linux `.deb`** for
 
 The official `.deb` (apt repo `https://downloads.claude.ai/claude-desktop/apt`) bundles its own **Electron 42.5.1** and a **native Cowork VM backend**. We download it, verify GPG + SHA256, `dpkg-deb -x` it, patch its `app.asar`, and repackage. We no longer ingest the Windows MSIX, and we no longer pin Electron or rebuild node-pty (both are bundled in the official `.deb`).
 
+**Layout invariant (2026-07-13):** every package ships the `.deb`'s `usr/lib/claude-desktop/` tree **verbatim** (binary renamed `claude-desktop` -> `claude`; patched `resources/app.asar` exe-adjacent; our CU bridges added to `resources/`). Electron auto-loads the adjacent asar - the official build's `OnlyLoadAppFromAsar` + `EnableEmbeddedAsarIntegrityValidation` fuses are on (integrity is not enforced on Linux, which is why a patched asar boots). The launcher passes NO asar on the command line, so `process.resourcesPath` and `app.isPackaged` behave exactly as on the stock Anthropic `.deb`. Never add a patch that redirects resource paths; put bundled files at their upstream `resources/` position instead. On NixOS the nixpkgs Electron dist is merged with our `resources/` into one directory to preserve the same adjacency.
+
 **Target platform:** Linux only. We do NOT need macOS or Windows compatibility — all patches target Linux exclusively (X11, Wayland, XWayland).
 
 **Architectures:** x86_64 (primary) and aarch64 (Raspberry Pi 5, NVIDIA Jetson/DGX Spark, etc.). Any native binary **we** ship (`kwin-portal-bridge`) must be built for both architectures. (node-pty arrives pre-built for both arches inside the official `.deb`.)

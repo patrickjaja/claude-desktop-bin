@@ -1,4 +1,4 @@
-# @patch-target: locales/ion-dist
+# @patch-target: resources/ion-dist
 # @patch-type: nim-dir
 #
 # Patch the ion-dist 3P configuration SPA for Linux compatibility.

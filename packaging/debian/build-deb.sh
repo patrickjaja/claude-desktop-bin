@@ -3,9 +3,10 @@
 # Build a Debian package from the pre-patched Claude Desktop tarball.
 #
 # The tarball (produced by scripts/build-patched-tarball.sh from the official
-# Linux .deb) already bundles the Electron runtime under electron/ and the
-# patched app under app/. We assemble our own .deb around it; we do NOT download
-# or verify a separate Electron zip anymore.
+# Linux .deb) ships the official Claude Desktop tree VERBATIM under
+# claude-desktop/ (Electron runtime + resources/app.asar already patched + our CU
+# bridges under resources/), plus launcher/, icons/, and copyright. We assemble
+# our own .deb around it; we do NOT download or verify a separate Electron zip.
 #
 # Usage: ./build-deb.sh [--arch amd64|arm64] <tarball_path> <output_dir> [pkgrel]
 #
@@ -101,35 +102,21 @@ mkdir -p "$DEB_ROOT/usr/bin"
 mkdir -p "$DEB_ROOT/usr/share/applications"
 mkdir -p "$DEB_ROOT/usr/share/icons/hicolor/256x256/apps"
 
-# Install the bundled Electron runtime (from the tarball's electron/ dir)
-log_info "Installing bundled Electron runtime..."
-cp -r "$WORK_DIR/tarball/electron/"* "$DEB_ROOT/usr/lib/claude-desktop/"
-
-# Rename the Electron binary to "claude". NOTE: this does NOT set the window
-# identity. The live X11 WM_CLASS / Wayland app_id is "claude-desktop" (verified
-# via xprop/wmctrl), because Chromium's GetXdgAppId() reads the app's desktopName
-# ("claude-desktop.desktop" in app.asar package.json), strips ".desktop", and
-# ignores the binary basename / --class. The rename is kept only as a cosmetic
-# argv[0] / systemd-scope identity hint matching APP_ID="claude". StartupWMClass
-# below must equal the real app_id. (The .deb names the binary "claude-desktop".)
-if [ -f "$DEB_ROOT/usr/lib/claude-desktop/claude-desktop" ]; then
-    mv "$DEB_ROOT/usr/lib/claude-desktop/claude-desktop" "$DEB_ROOT/usr/lib/claude-desktop/claude"
-elif [ -f "$DEB_ROOT/usr/lib/claude-desktop/electron" ]; then
-    mv "$DEB_ROOT/usr/lib/claude-desktop/electron" "$DEB_ROOT/usr/lib/claude-desktop/claude"
-fi
+# Install the official Claude Desktop tree VERBATIM (from the tarball's
+# claude-desktop/ dir): the Electron runtime, resources/app.asar (our patched
+# build) + app.asar.unpacked + upstream app resources + our CU bridges. The tree
+# is verbatim except the entrypoint is ALREADY renamed to "claude", app.asar is
+# our patched build, and the bridges are added. Electron auto-loads the
+# exe-adjacent resources/app.asar (OnlyLoadAppFromAsar fuse), so no resources/
+# remapping and no binary rename are needed here.
+log_info "Installing Claude Desktop tree..."
+cp -r "$WORK_DIR/tarball/claude-desktop/"* "$DEB_ROOT/usr/lib/claude-desktop/"
 
 # Set SUID permission on chrome-sandbox (required by Chromium's sandbox)
 if [ -f "$DEB_ROOT/usr/lib/claude-desktop/chrome-sandbox" ]; then
     chmod 4755 "$DEB_ROOT/usr/lib/claude-desktop/chrome-sandbox"
     log_info "Set SUID permission on chrome-sandbox"
 fi
-
-# Copy application files into Electron's resources directory.
-# The tarball ships the app under app/; electron/ has no resources/ subdir
-# (only resources.pak), so create resources/ before copying into it.
-log_info "Installing application files..."
-mkdir -p "$DEB_ROOT/usr/lib/claude-desktop/resources"
-cp -r "$WORK_DIR/tarball/app/"* "$DEB_ROOT/usr/lib/claude-desktop/resources/"
 
 # Install launcher (full launcher from tarball with Wayland/X11 detection,
 # GPU fallback, SingletonLock cleanup, and logging)

@@ -78,10 +78,9 @@ The dispatch logic lives in checked-in JS under `js/`, embedded into `patches/fi
 - Tray DBus races on session change → `fix_tray_dbus.nim` (async + mutex + destroy delay). Theme: `fix_tray_icon_theme.nim`.
 - GNOME Mutter focus-stealing: Quick Entry opens then self-dismisses → `fix_quick_entry_wayland_blur_guard.nim` (ignore blur with no preceding focus). KDE/Hyprland transfer focus so click-outside works; GNOME users close with Esc.
 - Native titlebar overlay was win32-only → `fix_native_frame.nim` (+ `_renderer`); gate via `CLAUDE_NATIVE_TITLEBAR`.
-- Locale/ICU paths not portable → `fix_locale_paths.nim` (runtime `dirname(getAppPath())+"/locales"`).
+- Resource paths are upstream-native: every package ships the official install tree verbatim (exe-adjacent `resources/app.asar`, autoloaded via the OnlyLoadAppFromAsar fuse; launcher passes NO asar argv). `process.resourcesPath` / `app.isPackaged` behave exactly as on the stock .deb; bridges + ion-dist + virtiofsd live directly in `resources/`. The former repackaging patches (`fix_locale_paths`, `fix_0_node_host`, `fix_asar_folder_drop`, `fix_asar_workspace_cwd`) were removed 2026-07-13.
 - `process.argv` undefined in renderer broke Claude Code web bundle → `fix_process_argv_renderer.nim`.
 - CliGovernor false memory-pressure (uses .free, not MemAvailable) evicts sessions → `fix_cli_governor_memavailable.nim` (reads /proc/meminfo).
-- Node host bound 0.0.0.0 → `fix_0_node_host.nim` (127.0.0.1).
 - `app.dock.bounce` (macOS) → `fix_dock_bounce.nim` (stub).
 
 ## wayland.md highlights

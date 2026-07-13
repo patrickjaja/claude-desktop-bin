@@ -8,9 +8,10 @@ Summary:        Claude AI Desktop Application for Linux
 
 License:        Proprietary
 URL:            https://claude.ai
-# The tarball already bundles the Electron runtime (electron/) and patched app
-# (app/), both extracted from the official Claude Desktop Linux .deb. There is no
-# separate Electron zip source anymore.
+# The tarball ships the official Claude Desktop tree VERBATIM under
+# claude-desktop/ (Electron runtime + resources/app.asar already patched + our CU
+# bridges under resources/), extracted from the official Claude Desktop Linux
+# .deb. There is no separate Electron zip source anymore.
 Source0:        %{pkg_source}
 
 ExclusiveArch:  x86_64 aarch64
@@ -89,33 +90,23 @@ code generation, document understanding, and system tray integration.
 Note: This is an unofficial Linux port. Requires an Anthropic account.
 
 %prep
-# Extract tarball (contains both electron/ runtime and app/ patched payload)
+# Extract tarball (ships the official Claude Desktop tree verbatim under
+# claude-desktop/, with our patched resources/app.asar + CU bridges)
 mkdir -p tarball
 tar -xzf %{SOURCE0} -C tarball
 
 %install
 rm -rf %{buildroot}
 
-# Install the bundled Electron runtime (from the tarball's electron/ dir) + app
+# Install the official Claude Desktop tree VERBATIM (from the tarball's
+# claude-desktop/ dir): the Electron runtime, resources/app.asar (our patched
+# build) + app.asar.unpacked + upstream app resources + our CU bridges. The tree
+# is verbatim except the entrypoint is ALREADY renamed to "claude", app.asar is
+# our patched build, and the bridges are added. Electron auto-loads the
+# exe-adjacent resources/app.asar (OnlyLoadAppFromAsar fuse), so no resources/
+# remapping and no binary rename are needed here.
 mkdir -p %{buildroot}/usr/lib/claude-desktop
-cp -a tarball/electron/* %{buildroot}/usr/lib/claude-desktop/
-mkdir -p %{buildroot}/usr/lib/claude-desktop/resources
-cp -a tarball/app/* %{buildroot}/usr/lib/claude-desktop/resources/
-
-# Rename the Electron binary to "claude". NOTE: this does NOT set the window
-# identity. The live X11 WM_CLASS / Wayland app_id is "claude-desktop" (verified
-# via xprop/wmctrl), because Chromium's GetXdgAppId() reads the app's desktopName
-# ("claude-desktop.desktop" in app.asar package.json), strips ".desktop", and
-# ignores the binary basename / --class. The rename is kept only as a cosmetic
-# argv[0] / systemd-scope identity hint matching APP_ID="claude". StartupWMClass
-# below must equal the real app_id. (The .deb names the binary "claude-desktop".)
-if [ -f %{buildroot}/usr/lib/claude-desktop/claude-desktop ]; then
-    mv %{buildroot}/usr/lib/claude-desktop/claude-desktop \
-       %{buildroot}/usr/lib/claude-desktop/claude
-elif [ -f %{buildroot}/usr/lib/claude-desktop/electron ]; then
-    mv %{buildroot}/usr/lib/claude-desktop/electron \
-       %{buildroot}/usr/lib/claude-desktop/claude
-fi
+cp -a tarball/claude-desktop/* %{buildroot}/usr/lib/claude-desktop/
 
 # Install launcher (full launcher from tarball with Wayland/X11 detection,
 # GPU fallback, SingletonLock cleanup, and logging)

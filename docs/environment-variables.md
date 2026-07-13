@@ -12,8 +12,7 @@ These environment variables tune `claude-desktop` at launch. All are optional; w
 | `CLAUDE_ENABLE_VULKAN` | `1` | Keep Vulkan enabled on native Wayland. Default off: Chromium (Electron 42) refuses to pair Vulkan with `--ozone-platform=wayland`, causing a silent no-window startup. Only affects Wayland |
 | `CLAUDE_MENU_BAR` | `auto`, `visible`, `hidden` | Menu bar visibility (default: `auto`, toggle with Alt) |
 | `CLAUDE_DEV_TOOLS` | `detach` | Open Chromium DevTools on launch |
-| `CLAUDE_ELECTRON` | path | Override Electron binary path |
-| `CLAUDE_APP_ASAR` | path | Override app.asar path |
+| `CLAUDE_ELECTRON` | path | Override Electron binary path. Electron auto-loads the `resources/app.asar` next to the binary |
 | `CLAUDE_NATIVE_TITLEBAR` | `1` | Restore the native window frame (default: integrated titlebar). Equivalent to `--native-titlebar`. See [#100](https://github.com/patrickjaja/claude-desktop-bin/pull/100) |
 | `CLAUDE_DISABLE_SYSTEMD_SCOPE` | `1` | Skip the `systemd-run --user --scope` wrapper. Use in sandboxes (bwrap, distrobox) where the systemd private socket is unreachable. Equivalent to `--no-systemd-scope`. See [#89](https://github.com/patrickjaja/claude-desktop-bin/issues/89) |
 | `CLAUDE_PASSWORD_STORE` | backend, `auto` | Force Chromium's `--password-store=<backend>` (`gnome-libsecret`, `kwallet6`, `basic`, ...). Without it, the launcher adds `gnome-libsecret` automatically when the desktop gets no keyring backend from Chromium (Hyprland, sway, river, niri, XFCE, LXQt, ...) and a Secret Service (`org.freedesktop.secrets`) is running or activatable - this makes sign-in persist across launches. `auto` disables the detection and keeps Chromium's own choice. An explicit `--password-store=...` launch argument always wins. Switching away from `basic_text` asks you to sign in once more. See [#191](https://github.com/patrickjaja/claude-desktop-bin/issues/191) |

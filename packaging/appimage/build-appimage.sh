@@ -3,8 +3,10 @@
 # Build AppImage from the pre-patched Claude Desktop tarball.
 #
 # The tarball (produced by scripts/build-patched-tarball.sh from the official
-# Linux .deb) already bundles the Electron runtime under electron/ and the
-# patched app under app/. We do NOT download or verify a separate Electron zip.
+# Linux .deb) ships the official Claude Desktop tree VERBATIM under
+# claude-desktop/ (Electron runtime + resources/app.asar already patched + our CU
+# bridges under resources/), plus launcher/, icons/, and copyright. We do NOT
+# download or verify a separate Electron zip.
 #
 # Usage: ./build-appimage.sh [--arch x86_64|aarch64] <tarball_path> <output_dir>
 #
@@ -89,35 +91,22 @@ else
     APPIMAGETOOL="appimagetool"
 fi
 
-# Extract tarball (contains both electron/ runtime and app/ patched payload)
+# Extract tarball (ships the official Claude Desktop tree verbatim under
+# claude-desktop/, with our patched resources/app.asar + CU bridges)
 log_info "Extracting Claude Desktop tarball..."
 mkdir -p "$WORK_DIR/tarball"
 tar -xzf "$TARBALL_PATH" -C "$WORK_DIR/tarball"
 
-# Install the bundled Electron runtime (from the tarball's electron/ dir)
-log_info "Installing bundled Electron runtime..."
+# Install the official Claude Desktop tree VERBATIM (from the tarball's
+# claude-desktop/ dir): the Electron runtime, resources/app.asar (our patched
+# build) + app.asar.unpacked + upstream app resources + our CU bridges. The tree
+# is verbatim except the entrypoint is ALREADY renamed to "claude", app.asar is
+# our patched build, and the bridges are added. Electron auto-loads the
+# exe-adjacent resources/app.asar (OnlyLoadAppFromAsar fuse), so no resources/
+# remapping and no binary rename are needed here.
+log_info "Installing Claude Desktop tree..."
 mkdir -p "$APPDIR/usr/lib/claude-desktop"
-cp -r "$WORK_DIR/tarball/electron/"* "$APPDIR/usr/lib/claude-desktop/"
-
-# Copy app files to Electron resources directory
-log_info "Installing application files..."
-mkdir -p "$APPDIR/usr/lib/claude-desktop/resources"
-cp -r "$WORK_DIR/tarball/app/"* "$APPDIR/usr/lib/claude-desktop/resources/"
-
-# Rename the Electron binary to "claude". NOTE: this does NOT set the window
-# identity. The live X11 WM_CLASS / Wayland app_id is "claude-desktop" (verified
-# via xprop/wmctrl), because Chromium's GetXdgAppId() reads the app's desktopName
-# ("claude-desktop.desktop" in app.asar package.json), strips ".desktop", and
-# ignores the binary basename / --class. The rename is kept only as a cosmetic
-# argv[0] / systemd-scope identity hint matching APP_ID="claude". StartupWMClass
-# below must equal the real app_id. (The .deb names the binary "claude-desktop".)
-if [ -f "$APPDIR/usr/lib/claude-desktop/claude-desktop" ]; then
-    mv "$APPDIR/usr/lib/claude-desktop/claude-desktop" \
-       "$APPDIR/usr/lib/claude-desktop/claude"
-elif [ -f "$APPDIR/usr/lib/claude-desktop/electron" ]; then
-    mv "$APPDIR/usr/lib/claude-desktop/electron" \
-       "$APPDIR/usr/lib/claude-desktop/claude"
-fi
+cp -r "$WORK_DIR/tarball/claude-desktop/"* "$APPDIR/usr/lib/claude-desktop/"
 
 # Install full launcher from tarball
 log_info "Installing launcher..."
@@ -142,9 +131,10 @@ HERE=${SELF%/*}
 export PATH="${HERE}/usr/bin:${PATH}"
 export LD_LIBRARY_PATH="${HERE}/usr/lib/claude-desktop:${LD_LIBRARY_PATH}"
 
-# Tell the launcher where the bundled Electron and app.asar live
+# Tell the launcher where the bundled Electron lives. Electron auto-loads the
+# exe-adjacent resources/app.asar (OnlyLoadAppFromAsar fuse), so the launcher no
+# longer needs (and ignores) CLAUDE_APP_ASAR.
 export CLAUDE_ELECTRON="${HERE}/usr/lib/claude-desktop/claude"
-export CLAUDE_APP_ASAR="${HERE}/usr/lib/claude-desktop/resources/app.asar"
 
 # Pass the stable AppImage path so the launcher can register
 # the claude:// protocol handler with the correct Exec= path.

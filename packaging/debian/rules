@@ -1,12 +1,18 @@
 #!/usr/bin/make -f
+# NOTE: This debhelper file is NOT the live builder - .deb packages are produced
+# by packaging/debian/build-deb.sh (dpkg-deb around the release tarball). Kept
+# only for reference; its install mapping is aligned with the current tarball
+# layout so it cannot mislead.
 
 %:
 	dh $@
 
 override_dh_auto_install:
-	# Install application files
+	# Install the official Claude Desktop tree verbatim (Electron runtime +
+	# patched resources/app.asar + CU bridges); Electron auto-loads the
+	# exe-adjacent resources/app.asar (OnlyLoadAppFromAsar fuse).
 	install -d debian/claude-desktop/usr/lib/claude-desktop
-	cp -r app/* debian/claude-desktop/usr/lib/claude-desktop/
+	cp -r claude-desktop/* debian/claude-desktop/usr/lib/claude-desktop/
 
 	# Install launcher (full launcher with Wayland/X11 detection, GPU fallback, etc.)
 	install -d debian/claude-desktop/usr/bin

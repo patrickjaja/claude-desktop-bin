@@ -372,12 +372,13 @@ The official 3P docs cover only macOS and Windows. **[docs/third-party-inference
 
 ## Patches
 
-The official Linux build ships one cross-platform JS bundle: plenty of code paths in it check `process.platform` and only serve `darwin`/`win32`, and some upstream behavior misfires in a Linux desktop environment. We apply a set of surgical JS patches to the `app.asar` at repackage time. They fall into four groups:
+The official Linux build ships one cross-platform JS bundle: plenty of code paths in it check `process.platform` and only serve `darwin`/`win32`, and some upstream behavior misfires in a Linux desktop environment. We apply a set of surgical JS patches to the `app.asar` at repackage time. They fall into three groups:
 
 - **[Value-adds](#value-adds-linux-only-features)** - features that don't exist upstream, or that we back with our own Linux implementations.
 - **[Linux fixes](#linux-fixes)** - upstream features that are still gated to macOS/Windows in the shared bundle, or that break in a Linux environment.
-- **[Repackaging fixes](#repackaging-fixes)** - needed only because we relocate `app.asar` into each distro's install layout.
 - **[Regression guards](#regression-guards)** - change nothing; they assert native Linux behavior the app relies on is still present and fail the build loudly if it ever disappears.
+
+Every package ships the official build's install tree byte-identical except for the patched `app.asar` (plus our bundled Computer Use bridges in `resources/`), so runtime path resolution (`process.resourcesPath`, `app.isPackaged`) behaves exactly as on the stock Anthropic `.deb`.
 
 Each patch is a self-contained `patches/*.nim` file compiled to a native binary. Patterns use `[\w$]+` wildcards anchored on stable strings because upstream re-minifies between releases; every sub-patch must match or the build fails, so a broken assumption surfaces at build time, never at runtime. When an update breaks a patch, only that file needs updating - each patch source documents the anchor strings it matches on.
 
@@ -434,17 +435,6 @@ Upstream ships the same JS bundle to all platforms; these patches open `darwin`/
 | `fix_updater_state_linux.nim` | Auto-update is off on Linux, so the updater idles without the `version` fields the frontend reads unchecked (TypeError); adds empty defaults |
 | `fix_utility_process_kill.nim` | The post-timeout fallback kill re-sends SIGTERM instead of SIGKILL, so a stuck UtilityProcess survived and blocked exit; sends `SIGKILL` |
 | `fix_window_bounds.nim` | Child-view geometry doesn't track window resize on Linux (stale bounds after maximize/snap/fullscreen); re-fits the content view, and blurs Quick Entry before hiding it |
-
-### Repackaging fixes
-
-Needed only because we relocate the official build into each distro's install layout - on the stock Anthropic `.deb` the original paths are correct.
-
-| Patch | What it does & why it exists |
-|-------|------------------------------|
-| `fix_locale_paths.nim` | Rebuilds locale-file paths from `app.getAppPath()` at runtime - upstream resolves them from Electron's `resourcesPath`, which points elsewhere in our install layout |
-| `fix_0_node_host.nim` | Keeps 4 sidecar runtime paths (MCP node host, shell worker, direct MCP host, transcript-search worker) valid after `fix_locale_paths` rewrites `process.resourcesPath` - without it remote MCP fails to load ([#140](https://github.com/patrickjaja/claude-desktop-bin/issues/140)). The `0` prefix orders it before `fix_locale_paths` |
-| `fix_asar_folder_drop.nim` | Filters `.asar` paths out of file-drop and second-instance argv handling so our relocated `app.asar` is never treated as a dropped folder ([#24](https://github.com/patrickjaja/claude-desktop-bin/issues/24)) |
-| `fix_asar_workspace_cwd.nim` | Sanitizes workspace `cwd` inputs on the IPC bridge: any path inside `app.asar` is mapped to the home directory so it's never used as a Code/Cowork workspace directory ([#24](https://github.com/patrickjaja/claude-desktop-bin/issues/24)) |
 
 ### Regression guards
 

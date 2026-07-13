@@ -91,8 +91,10 @@ if [ ${#MISSING_DEPS[@]} -ne 0 ]; then
     exit 1
 fi
 
-# Create output directory and a private work dir
+# Create output directory and a private work dir. Absolutize OUTPUT_DIR so
+# paths derived from it survive the cd-subshells below.
 mkdir -p "$OUTPUT_DIR"
+OUTPUT_DIR="$(cd "$OUTPUT_DIR" && pwd)"
 WORK_DIR="$OUTPUT_DIR/work"
 rm -rf "$WORK_DIR"
 mkdir -p "$WORK_DIR"
@@ -102,7 +104,7 @@ mkdir -p "$WORK_DIR"
 # ─────────────────────────────────────────────────────────────────────────────
 DEB_PATH=""
 if [ -f "$DEB_SOURCE" ]; then
-    DEB_PATH="$DEB_SOURCE"
+    DEB_PATH="$(realpath "$DEB_SOURCE")"
     log_info "Using local .deb: $DEB_PATH"
 elif [[ "$DEB_SOURCE" =~ ^https?:// ]]; then
     log_info "Resolving .deb from apt Packages index: $DEB_SOURCE"
@@ -265,20 +267,39 @@ if [ ! -f "$RES_DIR/app.asar" ]; then
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Step 3: Stage the app/ tree (app.asar + unpacked + resources) and patch it.
-# Layout matches the historical tarball contract: packaging maps app/* → resources/.
+# Step 3: Stage the verbatim upstream tree and patch app.asar in place.
+# The tarball ships the .deb's usr/lib/claude-desktop/ tree unchanged except:
+#   - the Electron entrypoint binary is renamed claude-desktop → claude
+#     (APP_ID; the launcher and every packager expect this name)
+#   - resources/app.asar is our patched build
+#   - our CU bridge binaries are added to resources/
+# Electron auto-loads the exe-adjacent resources/app.asar (OnlyLoadAppFromAsar
+# fuse), so process.resourcesPath and app.isPackaged behave exactly as on the
+# stock Anthropic .deb — no path-redirect patches, no argv asar.
 # ─────────────────────────────────────────────────────────────────────────────
-log_info "Preparing app directory..."
+log_info "Staging verbatim upstream tree..."
+TREE_DIR="$WORK_DIR/tree"
+rm -rf "$TREE_DIR"
+cp -r "$LIB_DIR" "$TREE_DIR"
+
+# The Electron entrypoint binary is named "claude-desktop" in the .deb; rename it
+# once here so every packager ships the same tree without post-processing.
+if [ ! -f "$TREE_DIR/claude-desktop" ]; then
+    log_error "Electron binary 'claude-desktop' missing from $LIB_DIR"
+    exit 1
+fi
+mv "$TREE_DIR/claude-desktop" "$TREE_DIR/claude"
+
+# Record the bundled Electron version for traceability.
+ELECTRON_VERSION="$(cat "$TREE_DIR/version" 2>/dev/null | tr -d '[:space:]' || true)"
+[ -n "$ELECTRON_VERSION" ] && log_info "Bundled Electron version: $ELECTRON_VERSION"
+
+# Patch workspace: extract app.asar for patching (the sibling app.asar.unpacked
+# in the tree provides the unpacked files during extraction).
+log_info "Extracting app.asar..."
 APP_DIR="$WORK_DIR/app"
 mkdir -p "$APP_DIR"
-cp "$RES_DIR/app.asar" "$APP_DIR/"
-# app.asar.unpacked already holds the Linux node-pty (prebuilds/linux-x64/pty.node)
-# and the Linux @ant/claude-native binding — copy it through verbatim (NO rebuild).
-cp -r "$RES_DIR/app.asar.unpacked" "$APP_DIR/" 2>/dev/null || true
-
-# Extract app.asar for patching
-log_info "Extracting app.asar..."
-( cd "$APP_DIR" && asar extract app.asar app.asar.contents )
+asar extract "$TREE_DIR/resources/app.asar" "$APP_DIR/app.asar.contents"
 
 # App identity: pin desktopName to "claude-desktop.desktop". Chromium derives the
 # window's Wayland app_id / X11 WM_CLASS from package.json desktopName, and every
@@ -306,14 +327,6 @@ with open(p, "w") as f:
 PYEOF
 grep -q '"desktopName": "claude-desktop.desktop"' "$PKG_JSON" || { log_error "desktopName pin failed"; exit 1; }
 log_info "desktopName pinned to claude-desktop.desktop"
-
-# i18n: the .deb ships locale JSONs directly under resources/. Mirror them into the
-# asar contents where the app expects resources/i18n/*.json.
-log_info "Copying i18n files..."
-mkdir -p "$APP_DIR/app.asar.contents/resources/i18n"
-if ls "$RES_DIR"/*.json 1> /dev/null 2>&1; then
-    cp "$RES_DIR"/*.json "$APP_DIR/app.asar.contents/resources/i18n/"
-fi
 
 # Compile Nim patches (native build or Docker fallback)
 log_info "Compiling Nim patches..."
@@ -349,7 +362,7 @@ if [ "$SYNTAX_FAILED" = true ]; then
 fi
 log_info "JavaScript syntax validation passed"
 
-# Repack app.asar.
+# Repack app.asar into the tree.
 # --unpack keeps native .node files and any spawn-helper in app.asar.unpacked/ and
 # flags them in the asar header so Electron redirects require() to the unpacked copy.
 # (The .deb's node-pty uses the prebuilds/<platform>-<arch>/ layout, which loads
@@ -357,26 +370,21 @@ log_info "JavaScript syntax validation passed"
 log_info "Repacking app.asar..."
 ( cd "$APP_DIR" && asar pack app.asar.contents app.asar --unpack "{**/*.node,**/spawn-helper}" )
 rm -rf "$APP_DIR/app.asar.contents"
+rm -rf "$TREE_DIR/resources/app.asar" "$TREE_DIR/resources/app.asar.unpacked"
+mv "$APP_DIR/app.asar" "$TREE_DIR/resources/app.asar"
+if [ -d "$APP_DIR/app.asar.unpacked" ]; then
+    mv "$APP_DIR/app.asar.unpacked" "$TREE_DIR/resources/app.asar.unpacked"
+fi
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Step 4: Build the locales/ tree (== process.resourcesPath at runtime).
-# This is the .deb's resources/ tree minus app.asar{,.unpacked}, which we ship
-# separately above. Patched process.resourcesPath resolves here.
-# ─────────────────────────────────────────────────────────────────────────────
-log_info "Copying upstream resources to locales/..."
-mkdir -p "$APP_DIR/locales"
-cp -r "$RES_DIR"/* "$APP_DIR/locales/"
-# app.asar{,.unpacked} ship as app/app.asar and app/app.asar.unpacked, not in locales/.
-rm -rf "$APP_DIR/locales/app.asar" "$APP_DIR/locales/app.asar.unpacked"
 # Windows-only tray .ico files are dead weight on Linux.
-find "$APP_DIR/locales" \( -name "*.exe" -o -name "*.dll" -o -name "*.ico" \) -delete 2>/dev/null || true
+find "$TREE_DIR/resources" -maxdepth 1 \( -name "*.exe" -o -name "*.dll" -o -name "*.ico" \) -delete 2>/dev/null || true
 
 # Ensure claude-ssh binaries are executable (if shipped)
-chmod +x "$APP_DIR/locales/claude-ssh/claude-ssh-"* 2>/dev/null || true
+chmod +x "$TREE_DIR/resources/claude-ssh/claude-ssh-"* 2>/dev/null || true
 
 # Apply ion-dist patches (the SPA has content-hashed filenames, so the patch finds
 # its target file dynamically by grepping for a unique pattern).
-ION_DIST_DIR="$APP_DIR/locales/ion-dist"
+ION_DIST_DIR="$TREE_DIR/resources/ion-dist"
 ION_DIST_PATCH="$PATCHES_DIR/fix_ion_dist_linux"
 if [ -d "$ION_DIST_DIR" ] && [ -x "$ION_DIST_PATCH" ]; then
     log_info "Applying ion-dist patches..."
@@ -391,73 +399,29 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Step 5: Stage the Electron runtime (electron/ tree) — the .deb's
-# usr/lib/claude-desktop/ MINUS resources/. This REPLACES the old downloaded
-# Electron zip; packaging lays electron/* into usr/lib/claude-desktop/.
-# ─────────────────────────────────────────────────────────────────────────────
-log_info "Staging bundled Electron runtime..."
-ELECTRON_DIR="$APP_DIR/../electron"
-rm -rf "$ELECTRON_DIR"
-mkdir -p "$ELECTRON_DIR"
-# Copy everything except resources/ (shipped via app/) into electron/.
-for entry in "$LIB_DIR"/*; do
-    base="$(basename "$entry")"
-    [ "$base" = "resources" ] && continue
-    cp -r "$entry" "$ELECTRON_DIR/"
-done
-# Record the bundled Electron version for traceability (no pin file anymore).
-ELECTRON_VERSION="$(cat "$ELECTRON_DIR/version" 2>/dev/null | tr -d '[:space:]' || true)"
-[ -n "$ELECTRON_VERSION" ] && log_info "Bundled Electron version: $ELECTRON_VERSION"
-# The Electron entrypoint binary is named "claude-desktop" in the .deb; packaging
-# renames it to "claude". Keep it as shipped here.
-if [ ! -f "$ELECTRON_DIR/claude-desktop" ]; then
-    log_error "Electron binary 'claude-desktop' missing from $LIB_DIR"
-    exit 1
-fi
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Step 6: Optional Electron smoke test (runs the bundled binary against app.asar).
-# ─────────────────────────────────────────────────────────────────────────────
-if [ "${SKIP_SMOKE_TEST:-0}" = "1" ]; then
-    log_warn "Skipping smoke test (SKIP_SMOKE_TEST=1)"
-elif command -v xvfb-run &>/dev/null; then
-    log_info "Running Electron smoke test (bundled Electron)..."
-    # Pass the bundled Electron binary as the smoke test's 2nd positional arg.
-    # The smoke test then sees chrome-sandbox next to it; here it's not yet SUID
-    # root (packaging sets 4755), so skip that check — we run with --no-sandbox.
-    if ! SKIP_SANDBOX_CHECK=1 "$SCRIPT_DIR/smoke-test.sh" "$APP_DIR/app.asar" "$ELECTRON_DIR/claude-desktop"; then
-        log_error "Smoke test FAILED - the patched app crashes on startup"
-        exit 1
-    fi
-else
-    log_warn "Skipping smoke test (install xorg-server-xvfb to enable)"
-fi
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Step 7: Assemble the tarball (app/ + electron/ + icons/ + launcher/).
+# Step 4: Assemble the tarball (claude-desktop/ verbatim tree + icons/ + launcher/).
 # ─────────────────────────────────────────────────────────────────────────────
 log_info "Creating tarball structure..."
 TARBALL_DIR="$WORK_DIR/tarball"
-mkdir -p "$TARBALL_DIR/app" "$TARBALL_DIR/electron" "$TARBALL_DIR/icons" "$TARBALL_DIR/launcher"
-
-cp -r "$APP_DIR"/* "$TARBALL_DIR/app/"
-cp -r "$ELECTRON_DIR"/* "$TARBALL_DIR/electron/"
+mkdir -p "$TARBALL_DIR/icons" "$TARBALL_DIR/launcher"
+mv "$TREE_DIR" "$TARBALL_DIR/claude-desktop"
+TREE_DIR="$TARBALL_DIR/claude-desktop"
 
 # Launcher script
 cp "$SCRIPT_DIR/claude-desktop-launcher.sh" "$TARBALL_DIR/launcher/claude-desktop"
 chmod +x "$TARBALL_DIR/launcher/claude-desktop"
 
-# Bundle kwin-portal-bridge into locales/ (= process.resourcesPath) for KDE Wayland
+# Bundle kwin-portal-bridge into resources/ (= process.resourcesPath) for KDE Wayland
 # Computer Use. STAYS — Computer Use is a kept feature.
 if [ -n "${KWIN_PORTAL_BRIDGE_BIN:-}" ] && [ -f "${KWIN_PORTAL_BRIDGE_BIN:-}" ]; then
     log_info "Bundling kwin-portal-bridge from $KWIN_PORTAL_BRIDGE_BIN"
-    cp "$KWIN_PORTAL_BRIDGE_BIN" "$TARBALL_DIR/app/locales/kwin-portal-bridge"
-    chmod +x "$TARBALL_DIR/app/locales/kwin-portal-bridge"
+    cp "$KWIN_PORTAL_BRIDGE_BIN" "$TREE_DIR/resources/kwin-portal-bridge"
+    chmod +x "$TREE_DIR/resources/kwin-portal-bridge"
 elif command -v cargo &>/dev/null && [ -d "$PROJECT_DIR/../computer-use/kwin-portal-bridge" ]; then
     log_info "Building kwin-portal-bridge from source..."
     if (cd "$PROJECT_DIR/../computer-use/kwin-portal-bridge" && cargo build --release 2>&1 | tail -3); then
-        cp "$PROJECT_DIR/../computer-use/kwin-portal-bridge/target/release/kwin-portal-bridge" "$TARBALL_DIR/app/locales/kwin-portal-bridge"
-        chmod +x "$TARBALL_DIR/app/locales/kwin-portal-bridge"
+        cp "$PROJECT_DIR/../computer-use/kwin-portal-bridge/target/release/kwin-portal-bridge" "$TREE_DIR/resources/kwin-portal-bridge"
+        chmod +x "$TREE_DIR/resources/kwin-portal-bridge"
         log_info "kwin-portal-bridge built and bundled"
     else
         log_warn "kwin-portal-bridge build failed — skipping (KDE Wayland Computer Use will require manual install)"
@@ -466,20 +430,20 @@ else
     log_warn "kwin-portal-bridge not available — skipping (KDE Wayland Computer Use will require manual install)"
 fi
 
-# Bundle x11-bridge into locales/ (= process.resourcesPath) for X11 / XWayland
+# Bundle x11-bridge into resources/ (= process.resourcesPath) for X11 / XWayland
 # Computer Use. First-party replacement for xdotool/scrot/import/wmctrl on X11.
 # We bundle the static MUSL build so it runs across distros regardless of glibc.
 X11_BRIDGE_MUSL_REL="target/x86_64-unknown-linux-musl/release/x11-bridge"
 X11_BRIDGE_SRC_DIR="$PROJECT_DIR/../computer-use/x11-bridge"
 if [ -n "${X11_BRIDGE_BIN:-}" ] && [ -f "${X11_BRIDGE_BIN:-}" ]; then
     log_info "Bundling x11-bridge from $X11_BRIDGE_BIN"
-    cp "$X11_BRIDGE_BIN" "$TARBALL_DIR/app/locales/x11-bridge"
-    chmod +x "$TARBALL_DIR/app/locales/x11-bridge"
+    cp "$X11_BRIDGE_BIN" "$TREE_DIR/resources/x11-bridge"
+    chmod +x "$TREE_DIR/resources/x11-bridge"
 elif command -v cargo &>/dev/null && [ -d "$X11_BRIDGE_SRC_DIR" ]; then
     log_info "Building x11-bridge (static musl) from source ($X11_BRIDGE_SRC_DIR)..."
     if (cd "$X11_BRIDGE_SRC_DIR" && cargo build --release --target x86_64-unknown-linux-musl 2>&1 | tail -3); then
-        cp "$X11_BRIDGE_SRC_DIR/$X11_BRIDGE_MUSL_REL" "$TARBALL_DIR/app/locales/x11-bridge"
-        chmod +x "$TARBALL_DIR/app/locales/x11-bridge"
+        cp "$X11_BRIDGE_SRC_DIR/$X11_BRIDGE_MUSL_REL" "$TREE_DIR/resources/x11-bridge"
+        chmod +x "$TREE_DIR/resources/x11-bridge"
         log_info "x11-bridge built and bundled"
     else
         log_warn "x11-bridge build failed — skipping (X11 Computer Use will require manual install)"
@@ -488,7 +452,7 @@ else
     log_warn "x11-bridge not available — skipping (X11 Computer Use will require manual install)"
 fi
 
-# Bundle wlroots-bridge into locales/ (= process.resourcesPath) for wlroots
+# Bundle wlroots-bridge into resources/ (= process.resourcesPath) for wlroots
 # Wayland (Sway/Hyprland/Niri) Computer Use. First-party replacement for
 # ydotool/grim/hyprctl/swaymsg+jq/niri on wlroots sessions. Static MUSL build
 # so it runs across distros regardless of glibc (incl. NixOS).
@@ -496,13 +460,13 @@ WLROOTS_BRIDGE_MUSL_REL="target/x86_64-unknown-linux-musl/release/wlroots-bridge
 WLROOTS_BRIDGE_SRC_DIR="$PROJECT_DIR/../computer-use/wlroots-bridge"
 if [ -n "${WLROOTS_BRIDGE_BIN:-}" ] && [ -f "${WLROOTS_BRIDGE_BIN:-}" ]; then
     log_info "Bundling wlroots-bridge from $WLROOTS_BRIDGE_BIN"
-    cp "$WLROOTS_BRIDGE_BIN" "$TARBALL_DIR/app/locales/wlroots-bridge"
-    chmod +x "$TARBALL_DIR/app/locales/wlroots-bridge"
+    cp "$WLROOTS_BRIDGE_BIN" "$TREE_DIR/resources/wlroots-bridge"
+    chmod +x "$TREE_DIR/resources/wlroots-bridge"
 elif command -v cargo &>/dev/null && [ -d "$WLROOTS_BRIDGE_SRC_DIR" ]; then
     log_info "Building wlroots-bridge (static musl) from source ($WLROOTS_BRIDGE_SRC_DIR)..."
     if (cd "$WLROOTS_BRIDGE_SRC_DIR" && cargo build --release --target x86_64-unknown-linux-musl 2>&1 | tail -3); then
-        cp "$WLROOTS_BRIDGE_SRC_DIR/$WLROOTS_BRIDGE_MUSL_REL" "$TARBALL_DIR/app/locales/wlroots-bridge"
-        chmod +x "$TARBALL_DIR/app/locales/wlroots-bridge"
+        cp "$WLROOTS_BRIDGE_SRC_DIR/$WLROOTS_BRIDGE_MUSL_REL" "$TREE_DIR/resources/wlroots-bridge"
+        chmod +x "$TREE_DIR/resources/wlroots-bridge"
         log_info "wlroots-bridge built and bundled"
     else
         log_warn "wlroots-bridge build failed — skipping (wlroots Wayland Computer Use will require manual install)"
@@ -511,7 +475,7 @@ else
     log_warn "wlroots-bridge not available — skipping (wlroots Wayland Computer Use will require manual install)"
 fi
 
-# Bundle gnome-portal-bridge into locales/ (= process.resourcesPath) for GNOME
+# Bundle gnome-portal-bridge into resources/ (= process.resourcesPath) for GNOME
 # Wayland Computer Use. First-party replacement for ydotool + the portal-python/
 # gnome-screenshot/gdbus screenshot cascade. Glibc-dynamic (links libpipewire),
 # floor 2.35 (ubuntu:jammy) — NOT usable as-is on NixOS (mirrors kwin-portal-bridge).
@@ -519,13 +483,13 @@ GNOME_PORTAL_BRIDGE_REL="target/release/gnome-portal-bridge"
 GNOME_PORTAL_BRIDGE_SRC_DIR="$PROJECT_DIR/../computer-use/gnome-portal-bridge"
 if [ -n "${GNOME_PORTAL_BRIDGE_BIN:-}" ] && [ -f "${GNOME_PORTAL_BRIDGE_BIN:-}" ]; then
     log_info "Bundling gnome-portal-bridge from $GNOME_PORTAL_BRIDGE_BIN"
-    cp "$GNOME_PORTAL_BRIDGE_BIN" "$TARBALL_DIR/app/locales/gnome-portal-bridge"
-    chmod +x "$TARBALL_DIR/app/locales/gnome-portal-bridge"
+    cp "$GNOME_PORTAL_BRIDGE_BIN" "$TREE_DIR/resources/gnome-portal-bridge"
+    chmod +x "$TREE_DIR/resources/gnome-portal-bridge"
 elif command -v cargo &>/dev/null && [ -d "$GNOME_PORTAL_BRIDGE_SRC_DIR" ]; then
     log_info "Building gnome-portal-bridge from source ($GNOME_PORTAL_BRIDGE_SRC_DIR)..."
     if (cd "$GNOME_PORTAL_BRIDGE_SRC_DIR" && cargo build --release 2>&1 | tail -3); then
-        cp "$GNOME_PORTAL_BRIDGE_SRC_DIR/$GNOME_PORTAL_BRIDGE_REL" "$TARBALL_DIR/app/locales/gnome-portal-bridge"
-        chmod +x "$TARBALL_DIR/app/locales/gnome-portal-bridge"
+        cp "$GNOME_PORTAL_BRIDGE_SRC_DIR/$GNOME_PORTAL_BRIDGE_REL" "$TREE_DIR/resources/gnome-portal-bridge"
+        chmod +x "$TREE_DIR/resources/gnome-portal-bridge"
         log_info "gnome-portal-bridge built and bundled"
     else
         log_warn "gnome-portal-bridge build failed — skipping (GNOME Wayland Computer Use will require manual install)"
@@ -593,6 +557,24 @@ if [ ! -f "$COPYRIGHT_SRC" ]; then
 fi
 cp "$COPYRIGHT_SRC" "$TARBALL_DIR/copyright"
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Step 5: Optional Electron smoke test (boots the finished tree; Electron
+# auto-loads the exe-adjacent resources/app.asar — no argv asar).
+# ─────────────────────────────────────────────────────────────────────────────
+if [ "${SKIP_SMOKE_TEST:-0}" = "1" ]; then
+    log_warn "Skipping smoke test (SKIP_SMOKE_TEST=1)"
+elif command -v xvfb-run &>/dev/null; then
+    log_info "Running Electron smoke test (bundled Electron)..."
+    # chrome-sandbox is not yet SUID root here (packaging sets 4755), so skip
+    # that check — the smoke test runs with --no-sandbox.
+    if ! SKIP_SANDBOX_CHECK=1 "$SCRIPT_DIR/smoke-test.sh" "$TREE_DIR/claude"; then
+        log_error "Smoke test FAILED - the patched app crashes on startup"
+        exit 1
+    fi
+else
+    log_warn "Skipping smoke test (install xorg-server-xvfb to enable)"
+fi
+
 # Create the tarball. amd64 → no suffix; arm64 → -aarch64 (matches PKGBUILD/Nix/release naming).
 case "$DEB_ARCH" in
     arm64)  TARBALL_FILE="$OUTPUT_DIR/claude-desktop-${VERSION}-linux-aarch64.tar.gz" ;;
@@ -600,7 +582,7 @@ case "$DEB_ARCH" in
     *)      TARBALL_FILE="$OUTPUT_DIR/claude-desktop-${VERSION}-linux-${DEB_ARCH}.tar.gz" ;;
 esac
 log_info "Creating tarball: $TARBALL_FILE"
-( cd "$TARBALL_DIR" && tar -czf "$TARBALL_FILE" app/ electron/ icons/ launcher/ copyright )
+( cd "$TARBALL_DIR" && tar -czf "$TARBALL_FILE" claude-desktop/ icons/ launcher/ copyright )
 
 # Calculate SHA256
 SHA256=$(sha256sum "$TARBALL_FILE" | cut -d' ' -f1)

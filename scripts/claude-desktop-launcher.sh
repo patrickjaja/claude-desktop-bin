@@ -13,7 +13,8 @@
 #   CLAUDE_PASSWORD_STORE    - Force --password-store=<value>; 'auto' disables
 #                              the launcher's Secret Service detection (issue #191)
 #   CLAUDE_ELECTRON          - Override path to Electron binary
-#   CLAUDE_APP_ASAR          - Override path to app.asar
+#   CLAUDE_APP_ASAR          - Deprecated, ignored (Electron auto-loads the
+#                              exe-adjacent resources/app.asar)
 #   CLAUDE_DISABLE_SYSTEMD_SCOPE=1
 #                            - Skip the systemd --user --scope wrapper (for
 #                              sandboxes without access to the systemd private
@@ -297,13 +298,17 @@ fi
 # ---------------------------------------------------------------------------
 
 ELECTRON_BIN="${CLAUDE_ELECTRON:-}"
-APP_ASAR="${CLAUDE_APP_ASAR:-}"
 
 # The bundled Electron binary is named after APP_ID (cosmetic argv[0] / scope
 # hint). NOTE: the binary basename does NOT set the window WM_CLASS - that comes
 # from the app's desktopName ("claude-desktop"); see the APP_ID header above and
-# issue #148. We prefer the renamed binary; fall back to `electron` for
-# mid-upgrade installs.
+# issue #148.
+#
+# The app itself is NEVER passed on the command line: the official build's
+# OnlyLoadAppFromAsar fuse makes Electron load the exe-adjacent
+# resources/app.asar and nothing else, so the binary's directory fully
+# determines the app (the install trees ship them adjacent, and per-profile
+# dirs mirror resources/ as a sibling symlink).
 #
 # When a profile is active, prefer the user-local copy at
 # ~/.local/lib/claude-desktop/<APP_ID>-<profile> created by --create-profile.
@@ -319,7 +324,6 @@ if [[ -z "$ELECTRON_BIN" ]]; then
     candidates+=(
         "/usr/lib/claude-desktop/${APP_ID}"
         "/usr/lib/claude-desktop-bin/${APP_ID}"
-        /usr/lib/claude-desktop/electron
     )
     for candidate in "${candidates[@]}"; do
         if [[ -x "$candidate" ]]; then
@@ -327,30 +331,22 @@ if [[ -z "$ELECTRON_BIN" ]]; then
             break
         fi
     done
-    if [[ -z "$ELECTRON_BIN" ]]; then
-        ELECTRON_BIN="electron"
-    fi
 fi
 
-if [[ -z "$APP_ASAR" ]]; then
-    for candidate in \
-        /usr/lib/claude-desktop-bin/resources/app.asar \
-        /usr/lib/claude-desktop-bin/app.asar \
-        /usr/lib/claude-desktop/resources/app.asar \
-        /usr/lib/claude-desktop/app.asar \
-        ; do
-        if [[ -f "$candidate" ]]; then
-            APP_ASAR="$candidate"
-            break
-        fi
-    done
-fi
-
-if [[ -z "$APP_ASAR" || ! -f "$APP_ASAR" ]]; then
-    echo >&2 'claude-desktop: app.asar not found.'
-    echo >&2 'Searched: /usr/lib/claude-desktop-bin/resources/app.asar, /usr/lib/claude-desktop-bin/app.asar, /usr/lib/claude-desktop/resources/app.asar, /usr/lib/claude-desktop/app.asar'
-    echo >&2 'Set CLAUDE_APP_ASAR=/path/to/app.asar to override.'
+if [[ -z "$ELECTRON_BIN" || ! -x "$ELECTRON_BIN" ]]; then
+    echo >&2 'claude-desktop: Claude Desktop Electron binary not found.'
+    echo >&2 "Searched: /usr/lib/claude-desktop/${APP_ID}, /usr/lib/claude-desktop-bin/${APP_ID}"
+    echo >&2 'Set CLAUDE_ELECTRON=/path/to/claude to override.'
     exit 1
+fi
+
+# Informational: the asar Electron will auto-load. The hard existence check
+# happens right before exec (after any per-profile refresh has run).
+APP_ASAR="$(dirname "$ELECTRON_BIN")/resources/app.asar"
+
+if [[ -n "${CLAUDE_APP_ASAR:-}" && "${CLAUDE_APP_ASAR}" != "$APP_ASAR" ]]; then
+    echo >&2 "claude-desktop: CLAUDE_APP_ASAR is deprecated and ignored - Electron auto-loads $APP_ASAR"
+    echo >&2 '  (to run a different app.asar, place it in a directory tree next to its own Electron binary and set CLAUDE_ELECTRON)'
 fi
 
 # ---------------------------------------------------------------------------
@@ -1058,9 +1054,9 @@ _diagnose() {
     # Mirrors the native Cowork backend's capability probe. If any of qemuPath /
     # firmwarePath / virtiofsdPath / kvm is missing, the app reports "VM not
     # supported" and the workspace Download does nothing. The resource base is
-    # our fix_locale_paths layout: <app.asar dir>/locales.
+    # the exe-adjacent resources/ dir (= process.resourcesPath at runtime).
     local _res_base
-    _res_base="$(dirname "$APP_ASAR")/locales"
+    _res_base="$(dirname "$ELECTRON_BIN")/resources"
     local _arch _qemu_bin
     case "$(uname -m)" in
         aarch64|arm64) _arch=arm64; _qemu_bin=qemu-system-aarch64 ;;
@@ -1092,7 +1088,7 @@ _diagnose() {
     fi
     # virtiofsdPath: CLAUDE_VIRTIOFSD_PATH override first, then system paths
     # (incl. NixOS /run/current-system/sw/bin - PR #178). The bundled copy under
-    # resources/locales counts ONLY on Ubuntu 22.x - the app gates its bundled
+    # resources/ counts ONLY on Ubuntu 22.x - the app gates its bundled
     # fallback on os-release id=ubuntu && version 22.* (jammy's apt has no
     # standalone virtiofsd package; the bundled candidate is probed with X_OK).
     # Listing it unconditionally here made --diagnose report "SHOULD pass" on
@@ -1113,7 +1109,7 @@ _diagnose() {
     if [[ -z $_vfs && -r "$_res_base/virtiofsd" ]]; then
         echo "  (bundled $_res_base/virtiofsd exists but is IGNORED by the app - only used as a fallback on Ubuntu 22.x)"
     fi
-    # helper + smol image (our resources/locales layout)
+    # helper + smol image (upstream resources/ layout)
     echo "helperBinaryPath = $([[ -x $_res_base/cowork-linux-helper ]] && echo "$_res_base/cowork-linux-helper" || echo MISSING)"
     echo "smolBinPath = $([[ -r $_res_base/smol-bin.$_arch.img ]] && echo "$_res_base/smol-bin.$_arch.img" || echo MISSING)"
     # kvm + vsock (app checks R_OK|W_OK)
@@ -1246,8 +1242,9 @@ Environment variables:
                             keyring backend (Hyprland, sway, XFCE, ...), a
                             Secret Service on the session bus is used
                             automatically so sign-in tokens persist.
-  CLAUDE_ELECTRON=PATH      Override path to Electron binary.
-  CLAUDE_APP_ASAR=PATH      Override path to app.asar.
+  CLAUDE_ELECTRON=PATH      Override path to Electron binary. Electron
+                            auto-loads the resources/app.asar next to it
+                            (there is no way to pass a different asar).
   CLAUDE_DISABLE_SYSTEMD_SCOPE=1
                             Skip the systemd --user --scope wrapper (for
                             sandboxes without access to the systemd private
@@ -1629,7 +1626,17 @@ fi
 # Launch
 # ---------------------------------------------------------------------------
 
-log "Launching: $ELECTRON_BIN $APP_ASAR ${ELECTRON_ARGS[*]} $*"
+# Hard check: Electron auto-loads the exe-adjacent resources/app.asar. Runs
+# after the per-profile refresh so a just-repaired symlink farm passes.
+APP_ASAR="$(dirname "$ELECTRON_BIN")/resources/app.asar"
+if [[ ! -f "$APP_ASAR" ]]; then
+    echo >&2 "claude-desktop: resources/app.asar not found next to $ELECTRON_BIN"
+    echo >&2 '  The install is incomplete or the per-profile resources symlink is broken.'
+    echo >&2 '  Reinstall the package, or recreate the profile with --create-profile.'
+    exit 1
+fi
+
+log "Launching: $ELECTRON_BIN (auto-loads $APP_ASAR) ${ELECTRON_ARGS[*]} $*"
 
 # Launch inside a named systemd user scope. The scope name (cgroup,
 # app-${DESKTOP_ID}-PID.scope) is the identity signal xdg-desktop-portal uses to
@@ -1674,7 +1681,7 @@ if [[ "${CLAUDE_DISABLE_SYSTEMD_SCOPE:-}" != '1' ]] \
         --unit="app-${DESKTOP_ID}-$$.scope" \
         --description='Claude Desktop' \
         --setenv="PATH=${_claude_path}" \
-        -- "$ELECTRON_BIN" "$APP_ASAR" "${ELECTRON_ARGS[@]}" "$@"
+        -- "$ELECTRON_BIN" "${ELECTRON_ARGS[@]}" "$@"
 fi
 log 'systemd user scope unavailable (binary missing, socket unreachable, or CLAUDE_DISABLE_SYSTEMD_SCOPE=1): launching without scope; xdg-desktop-portal may fail to identify the app'
-exec "$ELECTRON_BIN" "$APP_ASAR" "${ELECTRON_ARGS[@]}" "$@"
+exec "$ELECTRON_BIN" "${ELECTRON_ARGS[@]}" "$@"

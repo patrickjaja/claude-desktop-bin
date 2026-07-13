@@ -4,6 +4,18 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 
 ## 2026-07-13
 
+### Layout refactor: packages now ship the official install tree verbatim - 4 repackaging patches removed
+
+All packages (AUR, deb, rpm, AppImage, Nix) now install the official `.deb`'s `usr/lib/claude-desktop/` tree byte-identical except for the patched `resources/app.asar`, our four CU bridge binaries added to `resources/`, and the entrypoint binary renamed to `claude`. Electron auto-loads the exe-adjacent `resources/app.asar` (the official build's `OnlyLoadAppFromAsar` fuse permits nothing else), so the launcher no longer passes the asar on the command line and `process.resourcesPath` / `app.isPackaged` behave exactly as on the stock Anthropic `.deb`. Verified up front: the `EnableEmbeddedAsarIntegrityValidation` fuse is on but not enforced on Linux (a modified asar boots), and an instrumented boot of the verbatim tree confirmed correct `resourcesPath`, `isPackaged: true`, and clean argv.
+
+This deletes the entire "repackaging fixes" patch group - patches that existed only to compensate for our previous split layout (`app.asar` + a `locales/` resource dir decoupled from the binary, asar passed via argv):
+
+- `fix_locale_paths` - the blanket rewrite of every `process.resourcesPath` in the bundle is unnecessary when the asar sits at its upstream position. This also removes a standing hazard: every new upstream `resourcesPath` consumer was silently redirected (the class behind [#140](https://github.com/patrickjaja/claude-desktop-bin/issues/140)).
+- `fix_0_node_host` - existed only to repair sidecar paths the blanket rewrite corrupted.
+- `fix_asar_folder_drop` and `fix_asar_workspace_cwd` - the asar path no longer appears in argv, so it can no longer be treated as a dropped folder or workspace cwd ([#24](https://github.com/patrickjaja/claude-desktop-bin/issues/24); the [#191](https://github.com/patrickjaja/claude-desktop-bin/issues/191) sanitizer class is gone with it).
+
+Other consequences: locale JSONs, ion-dist, virtiofsd, cowork-linux-helper and the smol images stay at their upstream `resources/` locations (the i18n mirror-into-asar step is gone); the CU bridges resolve via plain `process.resourcesPath`; `CLAUDE_APP_ASAR` is deprecated and ignored by the launcher (a warning explains why); the smoke test boots the finished tree directly. On NixOS, package.nix now merges the nixpkgs Electron dist and our `resources/` into one directory so the same exe-adjacent autoload applies (the bundled Electron still cannot run on NixOS). Per-profile installs already mirrored `resources/` as a sibling symlink of the per-profile binary, so profiles work unchanged. Remaining patch count: 41.
+
 ### README rewritten fact-based: every patch now states the upstream gap it closes
 
 The Patches section was audited against all 45 patch sources and restructured into four groups - value-adds, Linux fixes (macOS/Windows gates + Linux environment quirks), repackaging fixes (needed only because we relocate `app.asar`), and regression guards (assert-only, previously unlisted). Each entry now explains why the patch exists on the official Linux build; historical narrative (MSIX-era references, retirement anecdotes) was removed. Also corrected stale claims: CI polls every 2 hours (not daily), the `.jsonc` flag template is CI-sync-checked (not regenerated per release), only the Computer Use and Buddy gates are forced directly, upstream gates Computer Use to macOS/Windows (not macOS-only), and the primary-monitor limitation now mentions `switch_display` retargeting.
