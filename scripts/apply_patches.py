@@ -88,6 +88,45 @@ def concat_parts(parts: list[Path]) -> bytes:
     return blob
 
 
+def check_cross_part_identifiers(contents: list[bytes], names: list[str]) -> bool:
+    """Fail loud if an injected __cdb identifier is referenced across parts
+    without a globalThis-backed definition.
+
+    Each part is a separate CommonJS module at runtime, so a module-scoped
+    `var __cdb_foo` in one part is invisible to every other part and throws
+    ReferenceError there (the fix_asar_workspace_cwd/#191 failure class).
+    Rule: any __cdb-prefixed bare identifier that appears in MORE than one
+    part must be assigned via `globalThis.<name>=` somewhere in the bundle.
+    Consequence for patch authors: never reuse a non-global __cdb name
+    (e.g. a callback parameter) across two different injection sites.
+    """
+    global_names = set()
+    for content in contents:
+        global_names.update(
+            m.decode()
+            for m in re.findall(rb"globalThis\.(__cdb[\w$]*)\s*=", content)
+        )
+    parts_by_ident: dict[str, list[str]] = {}
+    for name, content in zip(names, contents):
+        # Bare references only: exclude property accesses (.__cdb...) and
+        # longer identifiers that merely contain the prefix.
+        for m in set(re.findall(rb"(?<![.\w$])(__cdb[\w$]*)", content)):
+            parts_by_ident.setdefault(m.decode(), []).append(name)
+    ok = True
+    for ident, in_parts in sorted(parts_by_ident.items()):
+        if len(in_parts) > 1 and ident not in global_names:
+            print(
+                f"  [FAIL] injected identifier '{ident}' is referenced in "
+                f"multiple chunk parts ({', '.join(in_parts)}) but is not "
+                f"defined on globalThis — it will throw ReferenceError at "
+                f"runtime in every part that does not define it. Define it "
+                f"via 'globalThis.{ident}=...' in the patch.",
+                file=sys.stderr,
+            )
+            ok = False
+    return ok
+
+
 def split_and_write(blob: bytes, parts: list[Path]) -> bool:
     """Split staged blob on markers and write each part back. False on mismatch."""
     pieces = MARKER_RE.split(blob)
@@ -101,6 +140,8 @@ def split_and_write(blob: bytes, parts: list[Path]) -> bool:
             f"expected {len(parts)} parts {expected}, got {len(contents)} parts {names}",
             file=sys.stderr,
         )
+        return False
+    if not check_cross_part_identifiers(contents, [parts[0].name] + names):
         return False
     for part_path, content in zip(parts, contents):
         part_path.write_bytes(content)

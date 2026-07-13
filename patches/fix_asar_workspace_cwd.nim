@@ -2,6 +2,14 @@
 # @patch-type: nim
 # Prevent 'app.asar' from being used as workspace directory on Linux.
 # Sanitizes workspace paths at the IPC bridge layer.
+#
+# The helper MUST be defined on globalThis: since v1.19367.0 the bundle is
+# code-split, so the injection point (index.js loader stub) and the call
+# sites (index.chunk-*.js) end up in separate CommonJS modules after the
+# orchestrator splits the staged concat back. A module-scoped `var` in the
+# stub is invisible to the chunks and throws ReferenceError at runtime
+# (issue #191). The stub's top-level runs before it requires any chunk, so
+# a globalThis assignment there is guaranteed visible to all call sites.
 
 import std/[os, strformat, strutils]
 import regex
@@ -40,7 +48,7 @@ proc apply*(input: string): string =
 
   # 1. Inject helper function
   const SANITIZE_FN =
-    "var __cdb_sanitizeCwd=function(p){if(process.platform===\"linux\"&&typeof p===\"string\"&&/app\\.asar/.test(p)){return require(\"os\").homedir()}return p};"
+    "globalThis.__cdb_sanitizeCwd=function(p){if(process.platform===\"linux\"&&typeof p===\"string\"&&/app\\.asar/.test(p)){return require(\"os\").homedir()}return p};"
 
   let useStrict = "\"use strict\";"
   let idx = result.find(useStrict)

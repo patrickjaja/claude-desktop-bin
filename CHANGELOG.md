@@ -2,6 +2,16 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-07-13
+
+### Code tab fixed: Local sessions failed with "__cdb_sanitizeCwd is not defined" ([#191](https://github.com/patrickjaja/claude-desktop-bin/issues/191))
+
+On the v1.19367.0 packages, every Code-tab Local session failed - as "Trust check couldn't be completed" when picking a folder, or "Something went wrong: __cdb_sanitizeCwd is not defined" when sending a message. Chat was unaffected.
+
+Root cause was ours, a consequence of the code-split re-plumbing above: `fix_asar_workspace_cwd` injects a path-sanitizer helper at the top of the bundle and rewrites five LocalSessions/startCodeSession bridge call sites to use it. On the staged concatenation both live in one file, but after the split-back the injection point (the `index.js` loader stub) and the call sites (two `index.chunk-*.js` files) are separate CommonJS modules - the module-scoped `var` helper was invisible to the chunks, and every bridge call threw `ReferenceError` on its first statement. That is also why `main.log` stayed silent: `checkTrust` died before reaching its own log line. The helper is now defined on `globalThis`; the stub's top level runs before it requires any chunk, so the definition is guaranteed visible at every call site.
+
+Why no gate caught it: the strict per-site match counts validate on the concatenation, where a single scope really does exist; `node --check` on each split file passes because an unresolved identifier is a runtime error, not a syntax error; and the smoke test does not start a Code session. `apply_patches.py` now closes the class at the split-back chokepoint: any injected `__cdb*` identifier referenced in more than one chunk part must be defined via `globalThis`, otherwise the build fails loud. The guard was verified in both directions - it rejects the broken v1.19367.0-4 bundle and passes the fixed one. An audit of all other injected identifiers found no second instance of the pattern (the remaining cross-chunk helpers were already `globalThis`-based).
+
 ## 2026-07-12
 
 All three Computer Use fixes below were contributed by Craig ([@F1nny](https://github.com/F1nny)) in [#188](https://github.com/patrickjaja/claude-desktop-bin/pull/188), [#189](https://github.com/patrickjaja/claude-desktop-bin/pull/189), [#190](https://github.com/patrickjaja/claude-desktop-bin/pull/190) - thanks!
