@@ -4,6 +4,20 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 
 ## 2026-07-13
 
+### RPM fixed for RHEL 9: bundled CU bridges no longer poison the package's glibc requirement
+
+The RPM had been uninstallable on RHEL 9 / Rocky 9 since the gnome/kwin CU bridges were bundled (2026-07-06): rpm's automatic ELF dependency scan harvested the bridges' deliberate glibc-2.39 symbols and turned them into package-level requirements, while RHEL 9 ships glibc 2.34 (`nothing provides libc.so.6(GLIBC_2.39)`). The bridges are supposed to be inert on RHEL 9 - their sessions (KDE 6.6+, GNOME on PipeWire >= 1.0.5) do not exist there and X11/wlroots Computer Use uses the static bridges. The spec now excludes the bundled tree from the automatic requires/provides generators and declares runtime deps by hand, mirroring the official .deb's Depends (and our own .deb, which never had the problem). Verified: the fixed rpm installs and boots on rockylinux:9 and fedora:40; it carries no glibc auto-requires and no longer leaks bundled sonames (libffmpeg.so, ...) as provides.
+
+### CI: pipeline now boots the packages on Debian 12, RHEL 9 (Rocky) and a real Wayland session
+
+The install-and-boot test matrix previously proxied whole distro families (ubuntu:22.04 for all deb targets, fedora:40 for all rpm targets) and ran every boot under Xvfb, i.e. X11 only. Three gates added, each prototyped locally against real containers before landing:
+
+- **debian:12**: apt install of the .deb + structural asserts + 15s boot - real Debian coverage instead of the Ubuntu proxy.
+- **rockylinux:9**: dnf install of the .rpm + boot - pins the actual RHEL 9 glibc-2.34 floor and permanently guards the requires-filter fix above.
+- **Wayland boot** (ubuntu:24.04): a headless weston compositor plus `--ozone-platform=wayland` boots the installed package on a genuine Wayland display - the first automated coverage of the Wayland code path; catches ozone/wayland init regressions the Xvfb tests cannot see.
+
+`smoke-test.sh` gained `SMOKE_WAYLAND=1` (boot on a caller-provided Wayland socket instead of Xvfb) and `SMOKE_TIMEOUT_SECONDS` (default 15), and now kills the whole process group so no orphaned Electron processes outlive the test.
+
 ### Layout refactor: packages now ship the official install tree verbatim - 4 repackaging patches removed
 
 All packages (AUR, deb, rpm, AppImage, Nix) now install the official `.deb`'s `usr/lib/claude-desktop/` tree byte-identical except for the patched `resources/app.asar`, our four CU bridge binaries added to `resources/`, and the entrypoint binary renamed to `claude`. Electron auto-loads the exe-adjacent `resources/app.asar` (the official build's `OnlyLoadAppFromAsar` fuse permits nothing else), so the launcher no longer passes the asar on the command line and `process.resourcesPath` / `app.isPackaged` behave exactly as on the stock Anthropic `.deb`. Verified up front: the `EnableEmbeddedAsarIntegrityValidation` fuse is on but not enforced on Linux (a modified asar boots), and an instrumented boot of the verbatim tree confirmed correct `resourcesPath`, `isPackaged: true`, and clean argv.

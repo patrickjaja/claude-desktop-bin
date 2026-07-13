@@ -38,6 +38,8 @@ The official `.deb` (apt repo `https://downloads.claude.ai/claude-desktop/apt`) 
 
 CI enforces the floor via `objdump -T | grep GLIBC_` verification. If a new native binary is added, pick the floor that matches its minimum viable distro. (node-pty is not in this table — it is bundled pre-built in the official `.deb`, not built by us.)
 
+**RPM packaging caveat:** per-binary floors above the distro floor only work because the spec excludes the bundled tree from rpm's automatic ELF dependency generator (`__requires_exclude_from` in `packaging/rpm/claude-desktop-bin.spec`); without it, the gnome/kwin bridges' glibc-2.39 symbols become package-level requirements and the rpm cannot install on RHEL 9 (glibc 2.34). CI's rockylinux:9 install test guards this permanently.
+
 | Session type | Compositors / DEs | Input backend | Screenshot tools |
 |-------------|-------------------|---------------|-----------------|
 | X11 | Any (GNOME, KDE, i3, …) | `x11-bridge` (bundled) | `x11-bridge` (bundled) |

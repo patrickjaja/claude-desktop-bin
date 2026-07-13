@@ -1,6 +1,17 @@
 %define _build_id_links none
 %global debug_package %{nil}
 
+# The bundled tree (Electron runtime, CU bridges, virtiofsd, node-pty) must not
+# feed rpm's automatic ELF dependency generator: the gnome/kwin bridges carry a
+# deliberate glibc-2.39 floor (their sessions only exist on Fedora 40+ / KDE
+# 6.6+ distros), and letting the scanner harvest their symbols makes the whole
+# package uninstallable on RHEL 9 (glibc 2.34), where those bridges simply
+# never run. Runtime deps are declared by hand below, mirroring the official
+# .deb's Depends - exactly how our .deb packaging works. The provides filter
+# keeps bundled sonames (libffmpeg.so, ...) from leaking into the repo either.
+%global __requires_exclude_from ^/usr/lib/claude-desktop/.*$
+%global __provides_exclude_from ^/usr/lib/claude-desktop/.*$
+
 Name:           claude-desktop-bin
 Version:        %{pkg_version}
 Release:        %{?pkg_release}%{!?pkg_release:1}

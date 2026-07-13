@@ -9,6 +9,14 @@
 # Usage: ./scripts/smoke-test.sh <electron_binary>
 # Exit:  0=pass, 1=crash/error, 2=missing deps
 #
+# Environment:
+#   SMOKE_TIMEOUT_SECONDS  Survival window (default 15; raise on slow/emulated hosts)
+#   SMOKE_WAYLAND=1        Boot on a Wayland display instead of Xvfb: the caller
+#                          must provide a live WAYLAND_DISPLAY + XDG_RUNTIME_DIR
+#                          (e.g. weston --backend=headless); the app is launched
+#                          with --ozone-platform=wayland and no X server.
+#   SKIP_SANDBOX_CHECK=1   Skip the chrome-sandbox SUID assertion.
+#
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -20,7 +28,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m'
 
 ELECTRON_BIN="$1"
-TIMEOUT_SECONDS=15
+TIMEOUT_SECONDS="${SMOKE_TIMEOUT_SECONDS:-15}"
 STDERR_LOG=$(mktemp)
 trap "rm -f $STDERR_LOG" EXIT
 
@@ -40,7 +48,13 @@ if [ ! -f "$APP_ASAR" ]; then
     exit 2
 fi
 
-if ! command -v xvfb-run &>/dev/null; then
+if [ "${SMOKE_WAYLAND:-0}" = "1" ]; then
+    if [ -z "${WAYLAND_DISPLAY:-}" ] || [ -z "${XDG_RUNTIME_DIR:-}" ] \
+        || [ ! -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" ]; then
+        echo -e "${RED}[FAIL]${NC} SMOKE_WAYLAND=1 but no live Wayland socket at \$XDG_RUNTIME_DIR/\$WAYLAND_DISPLAY"
+        exit 2
+    fi
+elif ! command -v xvfb-run &>/dev/null; then
     echo -e "${RED}[FAIL]${NC} xvfb-run not found (install xorg-server-xvfb)"
     exit 2
 fi
@@ -48,6 +62,7 @@ fi
 echo "Starting Electron smoke test..."
 echo "  electron: $ELECTRON_BIN"
 echo "  app.asar: $APP_ASAR (auto-loaded)"
+echo "  display:  $([ "${SMOKE_WAYLAND:-0}" = "1" ] && echo "wayland ($WAYLAND_DISPLAY)" || echo "xvfb (x11)")"
 echo "  timeout:  ${TIMEOUT_SECONDS}s"
 
 # Verify chrome-sandbox permissions (SUID root required for sandbox to work)
@@ -81,8 +96,13 @@ fi
 # leaves orphaned Electron processes holding stdout/stderr open.
 SMOKE_USERDATA=$(mktemp -d)
 trap "rm -f $STDERR_LOG; rm -rf $SMOKE_USERDATA" EXIT
-setsid xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
-    "$ELECTRON_BIN" --no-sandbox --user-data-dir="$SMOKE_USERDATA" 2>"$STDERR_LOG" &
+if [ "${SMOKE_WAYLAND:-0}" = "1" ]; then
+    setsid "$ELECTRON_BIN" --ozone-platform=wayland --no-sandbox \
+        --user-data-dir="$SMOKE_USERDATA" 2>"$STDERR_LOG" &
+else
+    setsid xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
+        "$ELECTRON_BIN" --no-sandbox --user-data-dir="$SMOKE_USERDATA" 2>"$STDERR_LOG" &
+fi
 APP_PID=$!
 _kill_app_tree() { kill -- "-$APP_PID" 2>/dev/null || kill "$APP_PID" 2>/dev/null || true; }
 

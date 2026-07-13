@@ -1261,6 +1261,7 @@ jobs:
                 echo 'ARM64 Debian package installed successfully'
               "
           else
+            # Ubuntu 22.04: the deb's oldest supported target (glibc 2.35).
             docker run --rm \
               -v "$(pwd)/dist:/dist:ro" \
               -v "$(pwd)/scripts:/scripts:ro" \
@@ -1273,6 +1274,45 @@ jobs:
                 bash /scripts/smoke-test.sh \
                   /usr/lib/claude-desktop/claude
               "
+
+            # Debian 12: real Debian coverage (previously only proxied by Ubuntu).
+            docker run --rm \
+              -v "$(pwd)/dist:/dist:ro" \
+              -v "$(pwd)/scripts:/scripts:ro" \
+              debian:12 \
+              bash -c "
+                set -e
+                export DEBIAN_FRONTEND=noninteractive
+                apt-get update
+                apt-get install -y xvfb /dist/claude-desktop-bin_*_amd64.deb
+                test -f /usr/lib/claude-desktop/claude
+                test -f /usr/lib/claude-desktop/resources/app.asar
+                test -x /usr/bin/claude-desktop
+                bash /scripts/smoke-test.sh \
+                  /usr/lib/claude-desktop/claude
+              "
+
+            # Wayland boot: weston headless compositor + --ozone-platform=wayland.
+            # The only automated coverage of the Wayland code path (the xvfb smoke
+            # tests above are all X11); catches ozone/wayland init regressions.
+            docker run --rm \
+              -v "$(pwd)/dist:/dist:ro" \
+              -v "$(pwd)/scripts:/scripts:ro" \
+              ubuntu:24.04 \
+              bash -c '
+                set -e
+                export DEBIAN_FRONTEND=noninteractive
+                apt-get update
+                apt-get install -y weston /dist/claude-desktop-bin_*_amd64.deb
+                export XDG_RUNTIME_DIR=/tmp/xdg-smoke
+                mkdir -p "$XDG_RUNTIME_DIR" && chmod 700 "$XDG_RUNTIME_DIR"
+                weston --backend=headless --socket=wayland-1 --idle-time=0 >/tmp/weston.log 2>&1 &
+                for i in $(seq 1 50); do [ -S "$XDG_RUNTIME_DIR/wayland-1" ] && break; sleep 0.2; done
+                test -S "$XDG_RUNTIME_DIR/wayland-1"
+                export WAYLAND_DISPLAY=wayland-1
+                SMOKE_WAYLAND=1 bash /scripts/smoke-test.sh /usr/lib/claude-desktop/claude \
+                  || { echo "--- weston log ---"; tail -20 /tmp/weston.log; exit 1; }
+              '
           fi
 
       - name: Upload Debian package artifact
@@ -1363,6 +1403,24 @@ jobs:
               bash -c "
                 set -e
                 dnf install -y xorg-x11-server-Xvfb /dist/claude-desktop-bin-*.x86_64.rpm
+                bash /scripts/smoke-test.sh \
+                  /usr/lib/claude-desktop/claude
+              "
+
+            # Rocky 9 = RHEL 9, the rpm's oldest supported target (glibc 2.34).
+            # Guards the spec's __requires_exclude_from filter: without it, rpm's
+            # automatic ELF scan harvests the bundled CU bridges' glibc-2.39
+            # symbols and the package becomes uninstallable on RHEL 9.
+            docker run --rm \
+              -v "$(pwd)/dist:/dist:ro" \
+              -v "$(pwd)/scripts:/scripts:ro" \
+              rockylinux:9 \
+              bash -c "
+                set -e
+                dnf install -y xorg-x11-server-Xvfb /dist/claude-desktop-bin-*.x86_64.rpm
+                test -f /usr/lib/claude-desktop/claude
+                test -f /usr/lib/claude-desktop/resources/app.asar
+                test -x /usr/bin/claude-desktop
                 bash /scripts/smoke-test.sh \
                   /usr/lib/claude-desktop/claude
               "
