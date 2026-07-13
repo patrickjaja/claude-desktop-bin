@@ -115,7 +115,7 @@ These are accessible to CCD/Cowork sessions but not directly from the renderer.
 | Factory | `sCr()` via `getImagineServerDef` |
 | Gating | GrowthBook flag `3444158716` + (Cowork session OR CCD session with flag `2204227020`) |
 | Platform | All (no platform gate) |
-| Linux status | **Enabled** via `fix_imagine_linux.nim` - forces flag `3444158716` to bypass GrowthBook |
+| Linux status | Follows Anthropic's server rollout (no platform gate); opt-in via `claude-desktop-bin.jsonc` `growthbookOverrides` `"3444158716": true` (+ `"3516166472": true` for CCD) |
 | Resource URI | `ui://imagine/show-widget.html` |
 
 Renders inline SVG graphics, HTML diagrams, charts, mockups, data visualizations, and elicitation forms directly in the chat UI. Uses a sandboxed iframe renderer with CSP allowing `esm.sh`, `cdnjs.cloudflare.com`, `cdn.jsdelivr.net`, `unpkg.com`.
@@ -648,7 +648,7 @@ Uses `createDarwinExecutor()` -> `@ant/claude-swift` native module for screen ca
 - **Office Add-in**: Removed as MCP server in v1.8555.2 - moved to IPC bridge. Previously platform-gated to macOS/Windows; patched to enable on Linux via `fix_office_addin_linux.nim`.
 - **Terminal (`read_terminal`)**: CCD sessions only - `isEnabled` is `sessionType==="ccd"&&!isSSH` (hardcoded, not patchable without changing session semantics). NOT available in Cowork sessions. In Cowork, the model uses `mcp__workspace__bash` instead which runs directly on the host. **No platform gate** - upstream dropped the old `pj` (darwin\|\|win32) check, so it works on Linux natively (the `fix_dispatch_linux` patch that used to flip `pj` is removed). node-pty ships pre-built for Linux in the official `.deb`.
 - **Computer Use**: Works on Linux via `fix_computer_use_linux.nim` - uses xdotool/scrot + Electron built-in APIs (clipboard, screen, desktopCapturer) instead of `@ant/claude-swift`. Available in Cowork and Code sessions.
-- **Visualize (Imagine)**: Enabled on Linux via `fix_imagine_linux.nim` - forces GrowthBook flag `3444158716`. No platform gate. Renders SVG/HTML inline in cowork sessions.
+- **Visualize (Imagine)**: No platform gate - follows Anthropic's server rollout on Linux; users can force it via `claude-desktop-bin.jsonc` `growthbookOverrides` (`"3444158716": true`, plus `"3516166472": true` for CCD). Renders SVG/HTML inline in cowork sessions.
 - **Radar**: Not yet activatable - server disabled at MCP level, session creation in renderer code. No platform gate. Future feature.
 - **MCP Registry / Plugins / Scheduled Tasks**: Cross-platform, work on Linux.
 - **Integrated Terminal (node-pty)**: The official `.deb` bundles a pre-built `node-pty` (`pty.node` + `spawn-helper`) for x86_64 and arm64, which the repackage preserves. Enables the integrated terminal panel and `read_terminal` MCP tool on Linux with no source rebuild.

@@ -402,7 +402,7 @@ Each patch is a self-contained `patches/*.nim` file compiled to a native binary.
 
 | Patch | Purpose | Debug pattern |
 |-------|---------|---------------|
-| `enable_local_agent_mode.nim` | Forces Local Agent Mode / Code / plugin feature flags on. Reports the **real** platform (`linux`) to claude.ai - the MSIX-era platform spoofs were removed in issue #173 because they made the renderer see Windows and block Cowork. Does **not** force-mark Cowork VM features - those reflect the native VM-capability probe | `rg -o 'status:"supported".{0,40}' index.js`; `rg -o 'anthropic-client-os-platform.{0,40}' index.js` |
+| `enable_local_agent_mode.nim` | Enables Local Agent Mode / Code on Linux (removes the darwin/win32 platform gates and capability overrides; GrowthBook rollout flags are NOT forced - opt in via `claude-desktop-bin.jsonc` `growthbookOverrides`). Reports the **real** platform (`linux`) to claude.ai - the MSIX-era platform spoofs were removed in issue #173 because they made the renderer see Windows and block Cowork. Does **not** force-mark Cowork VM features - those reflect the native VM-capability probe | `rg -o 'status:"supported".{0,40}' index.js`; `rg -o 'anthropic-client-os-platform.{0,40}' index.js` |
 | `fix_0_node_host.nim` | Repoints 4 sidecar runtime paths off `process.resourcesPath+"app.asar"`. Needed because **we** relocate `app.asar` (`fix_locale_paths` / our install layout); on the stock `.deb` these paths are correct - our move breaks them, so remote MCP fails without this (issue #140) | `rg -o 'process\.resourcesPath,"app.asar"' index.js` |
 | `fix_app_quit.nim` | Uses `app.exit(0)` to prevent hang on exit | `rg -o '.{0,50}app\.quit.{0,50}' index.js` |
 | `fix_asar_folder_drop.nim` | Prevents app.asar being misdetected as a folder drop on launch ([#24](https://github.com/patrickjaja/claude-desktop-bin/issues/24)) | `rg -o 'filter.*\.asar' index.js` |
@@ -417,7 +417,6 @@ Each patch is a self-contained `patches/*.nim` file compiled to a native binary.
 | `fix_cross_device_rename.nim` | EXDEV fallback for cross-filesystem file moves | Uses `.rename(` literal |
 | `fix_detected_projects_linux.nim` | Enables detected projects with Linux IDE paths (VSCode, Cursor, Zed) | `rg -o 'detectedProjects.{0,50}' index.js` |
 | `fix_dock_bounce.nim` | Suppresses taskbar attention-stealing on KDE/Wayland | Prepended IIFE, no regex |
-| `fix_imagine_linux.nim` | Enables Imagine/Visualize - forces GrowthBook flag for inline SVG/HTML rendering | `rg -o '3444158716' index.js` |
 | `fix_ion_dist_linux.nim` | Adds Linux org-plugins mount path + platform ternary to the ion-dist 3P config SPA | `rg -o 'mountPath.{0,80}' ion-dist/assets/v1/*.js` |
 | `fix_locale_paths.nim` | Redirects locale file paths to the Linux install location | Global string replace on `process.resourcesPath` |
 | `fix_marketplace_linux.nim` | Forces host-local mode for plugin operations; promotes `$HOME`-scoped CLI plugins to user scope ("Personal Plugins") | `rg -o 'function \w+\(\w+\)\{return\(\w+==null.*mode.*ccd' index.js` |

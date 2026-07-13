@@ -11,25 +11,28 @@
 #   1b yukonSilver (NH) Linux early return
 #   2  chillingSlothLocal (no-op -- inherently supported on Linux)
 #   3  mC() async merger overrides
-#   3b coworkKappa GrowthBook flag 123929380
-#   3c coworkArtifacts GrowthBook flag 2940196192
-#   3d chillingSlothPool GrowthBook flag 1992087837
-#   3e (removed upstream v1.17282.0: markTaskComplete flag 3732274605 no longer exists)
-#   3f (disabled 2026-07-11: ENABLE_TOOL_SEARCH flag 1129419822 no longer forced -
-#       follows server rollout; see the commented block below)
-#   3g toolResultFormatting GrowthBook flag 2192324205
-#   3h deterministicSorting GrowthBook flag 2800354941
-#   3i pluginEnabledState GrowthBook flag 4274871493
-#   3j claudePreview GrowthBook flag 2976814254
-#   3k canLaunchCodeSession GrowthBook flag 2067027393
-#   3l canSaveSkill GrowthBook flag 3246569822
-#   3m suggestSkillsEnabled GrowthBook flag 245679952
 #   3n sshRemotePassthrough (regression guard since v1.18286.0: flag 1496676413
 #      upstreamed - the SSH remote MCP/plugin passthrough went unconditional;
 #      the guard asserts resolveSshControllerForMcp stays gate-free)
-#   3o consolidateMemoryV2 GrowthBook flag 1824824999
-#   3p coworkOnboarding GrowthBook flag 2114777685
 #   4  preferences defaults (quietPenguinEnabled / louderPenguinEnabled)
+#
+# (Sub-patches 3b-3p, the GrowthBook rollout-bypass forces, were RETIRED
+# 2026-07-13: none of those flags is platform-gated, every read consults the
+# feature store, and add_growthbook_overrides.nim gives users a supported
+# one-line opt-in via claude-desktop-bin.jsonc growthbookOverrides - so the
+# features now follow Anthropic's server rollout, matching upstream. Removed
+# forces: 123929380 coworkKappa, 2940196192 coworkArtifacts, 1992087837
+# chillingSlothPool, 2192324205 toolResultFormatting, 2800354941
+# deterministicSorting, 4274871493 pluginEnabledState, 2976814254
+# claudePreview, 2067027393 canLaunchCodeSession, 3246569822 canSaveSkill,
+# 245679952 suggestSkillsEnabled, 1824824999 consolidateMemoryV2, 2114777685
+# coworkOnboarding. 1129419822 ENABLE_TOOL_SEARCH was already un-forced
+# 2026-07-11; markTaskComplete 3732274605 was removed upstream v1.17282.0;
+# fix_imagine_linux.nim (3444158716 / 3516166472) was retired the same day as
+# 3b-3p. All retired IDs are listed in the .jsonc template for re-enabling.
+# Patch 3's capability overrides and Patch 1/4 stay: those cover features
+# that ARE platform-gated upstream (Code tab, CU) - a .jsonc flag cannot
+# express "on for Linux".)
 #
 # (Patches 5/5b/6/8 — the MSIX-era platform spoofs — were REMOVED 2026-07-01 for
 # issue #173. They told claude.ai we were macOS in HTTP headers (5:
@@ -48,7 +51,7 @@
 import std/[os, strformat, strutils]
 import std/nre
 
-const EXPECTED_PATCHES = 19
+const EXPECTED_PATCHES = 7
 
 proc apply*(input: string): string =
   result = input
@@ -196,201 +199,6 @@ proc apply*(input: string): string =
       echo "  [FAIL] mC() feature merger: 0 matches, expected 1"
       failed = true
 
-  # Patch 3b: Enable coworkKappa GrowthBook flag (123929380) on Linux
-  let kappaPattern = re"""[\w$]+(?:\.[\w$]+)*\("123929380"\)"""
-  var kappaApplied = 0
-  result = result.replace(
-    kappaPattern,
-    proc(m: RegexMatch): string =
-      inc kappaApplied
-      "!0",
-  )
-  if kappaApplied >= 3:
-    echo &"  [OK] coworkKappa flag 123929380: forced ON ({kappaApplied} matches)"
-    inc patchesApplied
-  elif kappaApplied > 0:
-    echo &"  [FAIL] coworkKappa flag 123929380: only {kappaApplied}/3 matches"
-    failed = true
-  else:
-    echo "  [FAIL] coworkKappa flag 123929380: 0 matches"
-    failed = true
-
-  # Patch 3c: Enable coworkArtifacts GrowthBook flag (2940196192) on Linux
-  let artifactsPattern = re"""[\w$]+(?:\.[\w$]+)*\("2940196192"\)"""
-  var artifactsApplied = 0
-  result = result.replace(
-    artifactsPattern,
-    proc(m: RegexMatch): string =
-      inc artifactsApplied
-      "!0",
-  )
-  if artifactsApplied >= 3:
-    echo &"  [OK] coworkArtifacts flag 2940196192: forced ON ({artifactsApplied} matches)"
-    inc patchesApplied
-  elif artifactsApplied > 0:
-    echo &"  [FAIL] coworkArtifacts flag 2940196192: only {artifactsApplied}/3 matches"
-    failed = true
-  else:
-    echo "  [FAIL] coworkArtifacts flag 2940196192: 0 matches"
-    failed = true
-
-  # Patch 3d: Enable chillingSlothPool GrowthBook flag (1992087837) on Linux
-  let poolPattern = re"""[\w$]+(?:\.[\w$]+)*\("1992087837"\)"""
-  var poolApplied = 0
-  result = result.replace(
-    poolPattern,
-    proc(m: RegexMatch): string =
-      inc poolApplied
-      "!0",
-  )
-  if poolApplied >= 1:
-    echo &"  [OK] chillingSlothPool flag 1992087837: forced ON ({poolApplied} matches)"
-    inc patchesApplied
-  else:
-    echo "  [FAIL] chillingSlothPool flag 1992087837: 0 matches"
-    failed = true
-
-  # Patch 3e (markTaskComplete, GrowthBook flag 3732274605) was REMOVED upstream
-  # in v1.17282.0 -- the feature no longer exists in the bundle (neither the numeric
-  # id nor the `markTaskComplete` key appear anywhere). Sub-patch deleted accordingly;
-  # EXPECTED_PATCHES dropped 24 -> 23 and the merger override list dropped to 11 keys.
-
-  # Patch 3f (ENABLE_TOOL_SEARCH, GrowthBook flag 1129419822) DISABLED 2026-07-11:
-  # forcing it injected the ToolSearch tool into every LAM session even though the
-  # session tool count is far below the defer threshold, so nothing was ever
-  # deferred - the tool was dead weight and primed the model into a bogus
-  # "load tools first" detour (observed: Skill({"skill":"ToolSearch"}) ->
-  # "Unknown skill" error). The flag now follows Anthropic's server-side rollout.
-  # EXPECTED_PATCHES dropped 20 -> 19. Re-enable only if a session with a large
-  # tool inventory demonstrably benefits from tool search on Linux.
-  #
-  # let toolSearchPattern = re"""[\w$]+(?:\.[\w$]+)*\("1129419822"\)"""
-  # var toolSearchApplied = 0
-  # result = result.replace(
-  #   toolSearchPattern,
-  #   proc(m: RegexMatch): string =
-  #     inc toolSearchApplied
-  #     "!0",
-  # )
-  # if toolSearchApplied >= 1:
-  #   echo &"  [OK] ENABLE_TOOL_SEARCH flag 1129419822: forced ON ({toolSearchApplied} matches)"
-  #   inc patchesApplied
-  # else:
-  #   echo "  [FAIL] ENABLE_TOOL_SEARCH flag 1129419822: 0 matches"
-  #   failed = true
-
-  # Patch 3g: Enable tool use result formatting - flag 2192324205
-  let toolResultFmtPattern = re"""[\w$]+(?:\.[\w$]+)*\("2192324205"\)"""
-  var toolResultFmtApplied = 0
-  result = result.replace(
-    toolResultFmtPattern,
-    proc(m: RegexMatch): string =
-      inc toolResultFmtApplied
-      "!0",
-  )
-  if toolResultFmtApplied >= 1:
-    echo &"  [OK] toolResultFormatting flag 2192324205: forced ON ({toolResultFmtApplied} matches)"
-    inc patchesApplied
-  else:
-    echo "  [FAIL] toolResultFormatting flag 2192324205: 0 matches"
-    failed = true
-
-  # Patch 3h: Enable deterministic sorting of plugins/tools/logs - flag 2800354941
-  let detSortPattern = re"""[\w$]+(?:\.[\w$]+)*\("2800354941"\)"""
-  var detSortApplied = 0
-  result = result.replace(
-    detSortPattern,
-    proc(m: RegexMatch): string =
-      inc detSortApplied
-      "!0",
-  )
-  if detSortApplied >= 1:
-    echo &"  [OK] deterministicSorting flag 2800354941: forced ON ({detSortApplied} matches)"
-    inc patchesApplied
-  else:
-    echo "  [FAIL] deterministicSorting flag 2800354941: 0 matches"
-    failed = true
-
-  # Patch 3i: Enable plugin enabled state fetching - flag 4274871493
-  let pluginStatePattern = re"""[\w$]+(?:\.[\w$]+)*\("4274871493"\)"""
-  var pluginStateApplied = 0
-  result = result.replace(
-    pluginStatePattern,
-    proc(m: RegexMatch): string =
-      inc pluginStateApplied
-      "!0",
-  )
-  if pluginStateApplied >= 1:
-    echo &"  [OK] pluginEnabledState flag 4274871493: forced ON ({pluginStateApplied} matches)"
-    inc patchesApplied
-  else:
-    echo "  [FAIL] pluginEnabledState flag 4274871493: 0 matches"
-    failed = true
-
-  # Patch 3j: Enable Claude Preview dev server manager - flag 2976814254
-  let previewPattern = re"""[\w$]+(?:\.[\w$]+)*\("2976814254"\)"""
-  var previewApplied = 0
-  result = result.replace(
-    previewPattern,
-    proc(m: RegexMatch): string =
-      inc previewApplied
-      "!0",
-  )
-  if previewApplied >= 1:
-    echo &"  [OK] claudePreview flag 2976814254: forced ON ({previewApplied} matches)"
-    inc patchesApplied
-  else:
-    echo "  [FAIL] claudePreview flag 2976814254: 0 matches"
-    failed = true
-
-  # Patch 3k: Enable canLaunchCodeSession suggestion tool - flag 2067027393
-  let launchCodePattern = re"""[\w$]+(?:\.[\w$]+)*\("2067027393"\)"""
-  var launchCodeApplied = 0
-  result = result.replace(
-    launchCodePattern,
-    proc(m: RegexMatch): string =
-      inc launchCodeApplied
-      "!0",
-  )
-  if launchCodeApplied >= 1:
-    echo &"  [OK] canLaunchCodeSession flag 2067027393: forced ON ({launchCodeApplied} matches)"
-    inc patchesApplied
-  else:
-    echo "  [FAIL] canLaunchCodeSession flag 2067027393: 0 matches"
-    failed = true
-
-  # Patch 3l: Enable canSaveSkill - flag 3246569822
-  let saveSkillPattern = re"""[\w$]+(?:\.[\w$]+)*\("3246569822"\)"""
-  var saveSkillApplied = 0
-  result = result.replace(
-    saveSkillPattern,
-    proc(m: RegexMatch): string =
-      inc saveSkillApplied
-      "!0",
-  )
-  if saveSkillApplied >= 1:
-    echo &"  [OK] canSaveSkill flag 3246569822: forced ON ({saveSkillApplied} matches)"
-    inc patchesApplied
-  else:
-    echo "  [FAIL] canSaveSkill flag 3246569822: 0 matches"
-    failed = true
-
-  # Patch 3m: Enable suggestSkillsEnabled - flag 245679952
-  let suggestSkillsPattern = re"""[\w$]+(?:\.[\w$]+)*\("245679952"\)"""
-  var suggestSkillsApplied = 0
-  result = result.replace(
-    suggestSkillsPattern,
-    proc(m: RegexMatch): string =
-      inc suggestSkillsApplied
-      "!0",
-  )
-  if suggestSkillsApplied >= 1:
-    echo &"  [OK] suggestSkillsEnabled flag 245679952: forced ON ({suggestSkillsApplied} matches)"
-    inc patchesApplied
-  else:
-    echo "  [FAIL] suggestSkillsEnabled flag 245679952: 0 matches"
-    failed = true
-
   # Patch 3n: sshRemotePassthrough flag 1496676413 - now a REGRESSION GUARD.
   #
   # Upstream UPSTREAMED this in v1.18286.0: the flag literal "1496676413" is
@@ -418,38 +226,6 @@ proc apply*(input: string): string =
     inc patchesApplied
   else:
     echo "  [FAIL] sshRemotePassthrough: resolveSshControllerForMcp no longer unconditional - upstream may have re-gated SSH plugin/MCP forwarding; re-audit Patch 3n"
-    failed = true
-
-  # Patch 3o: Enable consolidate-memory skill v2 - flag 1824824999
-  let memorySkillPattern = re"""[\w$]+(?:\.[\w$]+)*\("1824824999"\)"""
-  var memorySkillApplied = 0
-  result = result.replace(
-    memorySkillPattern,
-    proc(m: RegexMatch): string =
-      inc memorySkillApplied
-      "!0",
-  )
-  if memorySkillApplied >= 1:
-    echo &"  [OK] consolidateMemoryV2 flag 1824824999: forced ON ({memorySkillApplied} matches)"
-    inc patchesApplied
-  else:
-    echo "  [FAIL] consolidateMemoryV2 flag 1824824999: 0 matches"
-    failed = true
-
-  # Patch 3p: Enable cowork onboarding role picker - flag 2114777685
-  let onboardingPattern = re"""[\w$]+(?:\.[\w$]+)*\("2114777685"\)"""
-  var onboardingApplied = 0
-  result = result.replace(
-    onboardingPattern,
-    proc(m: RegexMatch): string =
-      inc onboardingApplied
-      "!0",
-  )
-  if onboardingApplied >= 1:
-    echo &"  [OK] coworkOnboarding flag 2114777685: forced ON ({onboardingApplied} matches)"
-    inc patchesApplied
-  else:
-    echo "  [FAIL] coworkOnboarding flag 2114777685: 0 matches"
     failed = true
 
   # Patch 4: Change preferences defaults for Code features

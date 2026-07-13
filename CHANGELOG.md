@@ -4,6 +4,14 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 
 ## 2026-07-13
 
+### Simplification: 14 GrowthBook rollout forces retired - flags now follow Anthropic's rollout, with .jsonc opt-in
+
+Since the `growthbookOverrides` config landed (2026-07-11), users can flip any store-read feature flag themselves in `~/.config/Claude/claude-desktop-bin.jsonc`. That made a whole class of our patches redundant: forces that merely bypassed Anthropic's server-side rollout for flags that have no platform gate. A full trace of every forced flag through the v1.20186.1 bundle confirmed all 14 of them read from the feature store (so the `.jsonc` override reaches them), none is gated on `process.platform`, and none is compensated elsewhere - so they now behave exactly as upstream ships them.
+
+Removed: `fix_imagine_linux.nim` entirely (Imagine/Visualize MCP server, `3444158716` + `3516166472`), and 12 flag sub-patches from `enable_local_agent_mode.nim`: coworkKappa `123929380`, coworkArtifacts `2940196192`, chillingSlothPool `1992087837`, toolResultFormatting `2192324205`, deterministicSorting `2800354941`, pluginEnabledState `4274871493`, claudePreview `2976814254`, canLaunchCodeSession `2067027393`, canSaveSkill `3246569822`, suggestSkillsEnabled `245679952`, consolidateMemoryV2 `1824824999`, coworkOnboarding `2114777685`. All 14 are now listed (commented out, with descriptions) in the `.jsonc` template - if a feature you relied on disappears because Anthropic's rollout has it off for you, uncomment its line to get it back.
+
+What stays: the platform-enablement core of `enable_local_agent_mode` (Code-tab/Cowork platform gates, capability merger, preference defaults, regression guards), the Computer Use gate (`2486083521` gets a Linux branch so a remote flag flip cannot disable CU), and the Buddy BLE Linux force (`2358734848`, which preserves the user's hardware toggle) - those cover features upstream gates by platform, which a flag override cannot express. For 3p/enterprise deployments nothing changes at all: upstream itself force-enables several of these flags in deployment mode.
+
 ### v1.20186.1: four patches re-fitted after the upstream bump ([#192](https://github.com/patrickjaja/claude-desktop-bin/issues/192))
 
 Upstream released v1.20186.1 (full re-minify; the code-split main bundle grew from ~45 to 82 chunks) and the auto-release failed on four patches. All four were upstream refactors of our anchor sites, not upstreamed features - every patch stays active:

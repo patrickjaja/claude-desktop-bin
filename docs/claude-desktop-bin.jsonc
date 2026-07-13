@@ -27,12 +27,14 @@
   "growthbookOverrides": {
     // "17519066": true,     // external-browser URL block
     // "66187241": true,     // CLAUDE_CODE_EMIT_TOOL_USE_SUMMARIES for local-agent sessions
+    // "123929380": true,    // coworkKappa - Cowork shared account-memory dir + consolidate-memory skill availability
     // "124685897": true,    // prompt template substitution
     // "130970054": true,    // rt('130970054') read into a prompt/feature enable check (Ve({enabled:...}))
     // "144158705": true,    // LAM remote folder-access consent network call
     // "162211072": true,    // Prompt suggestions enable
     // "180602792": true,    // midnightOwl (macOS) - live listener
     // "227459766": true,    // documents list config (value flag)
+    // "245679952": true,    // suggestSkillsEnabled - model may proactively suggest relevant skills in sessions
     // "254738541": true,    // proactive dispatch-orchestrator prompt (value flag)
     // "286376943": true,    // Plugin skills for system prompt — gates getPluginSkillsForSystemPrompt (new in v1.2278.0)
     // "397125142": true,    // Terminal server — gated: sessionType==='ccd'&&!isSSH AND this flag. CCD only, NOT cowork. 
@@ -71,6 +73,7 @@
     // "1703762832": true,   // onModelRefusalFallback retry - when ON, a refusal response with direction:'retry' in Agent
     // "1707927936": true,   // size limit tuning, bytes (value flag)
     // "1748356779": true,   // prompt template config: system_prompt/user_prompt (value flag)
+    // "1824824999": true,   // consolidate-memory skill v2 - server-configured description/prompt text
     // "1893165035": true,   // enabled+categories config object (value flag)
     // "1928275548": true,   // framebufferPreview feature — dev-gated (inside MW())
     // "1936081873": true,   // system-prompt build-skip
@@ -78,12 +81,16 @@
     // "1947305033": true,   // augments a tool description
     // "1972091654": true,   // askClaude device RPC
     // "1978029737": true,   // pluginsSyncIntervalMs (value flag)
+    // "1992087837": true,   // chillingSlothPool - Code worktree warm pool (pre-warmed session starts)
     // "2049450122": true,   // Session handoff — gates cross-device session activity broadcasting (com.anthropic.claude.s
     // "2051751800": true,   // Chrome permission-mode skip_all_permission_checks resolver gate
     // "2051942385": true,   // CIC can-use-tool
+    // "2067027393": true,   // canLaunchCodeSession - launch-a-Code-session suggestion tool for the chat agent
+    // "2114777685": true,   // cowork onboarding role picker (first-run cowork-onboarding MCP tool)
     // "2115990222": true,   // artifactsPane feature gate - NEW static registry feature artifactsPane:DPt() where functio
     // "2140326016": true,   // Author-supplied bin stubs error enforcement
     // "2143883161": true,   // /code/ route gate
+    // "2192324205": true,   // tool-result formatting - renders dispatch-child/Code sub-session result blocks in the transcript
     // "2216414644": true,   // Remote session control (Dispatch mobile)
     // "2216901299": true,   // Org policy backend check — remote management policy enforcement
     // "2229805612": true,   // remote_control_at_startup default
@@ -105,14 +112,20 @@
     // "2725876754": true,   // Org CLI exec policies — gates reading orgCliExecPolicies for plugin tool permission checks
     // "2726556121": true,   // INVERTED: ON disables the SSH file-transfer fast-path
     // "2795002549": true,   // Projects OAuth scopes
+    // "2800354941": true,   // deterministic sorting of plugin/tool/log lists
     // "2860753854": true,   // consent text override string (value flag)
     // "2893011886": true,   // enabled toggle read via value store
+    // "2940196192": true,   // coworkArtifacts - Cowork artifacts (list/thumbnails IPC, artifact inference, VM mount)
+    // "2976814254": true,   // claudePreview/launch capability - dev-server preview availability (browser preview also needs 17519066)
     // "2979038612": true,   // Session notifications — queueSessionNotification for model switch, folder access
     // "3045399524": true,   // session config: enabled/alwaysLoad (value flag)
+    // "3246569822": true,   // canSaveSkill - save-as-skill capability in sessions
     // "3300773012": true,   // scheduled-task skill description override (value flag)
     // "3302457740": true,   // hosts allowlist config (value flag)
     // "3371831021": true,   // cuOnlyMode — computer-use-only session variant
     // "3377630395": true,   // overlay/window mount toggle
+    // "3444158716": true,   // Imagine/Visualize MCP server for cowork+ccd sessions
+    // "3516166472": true,   // ccdVisualize/epitaxyMcpApps - read_widget_context CCD tool + CCD visualize branch
     // "3531779070": true,   // agent-mode thinking-display=summarized CLI arg
     // "3555657854": true,   // org-scoped plugin-bridge MCP config loading
     // "3572572142": true,   // sessions-bridge init - live listener
@@ -133,6 +146,7 @@
     // "4141490266": true,   // Framebuffer system prompt injection — adds instructions when Framebuffer server active
     // "4153934152": true,   // CLAUDE_CODE_SKIP_PRECOMPACT_LOAD
     // "4160352601": true,   // VM heartbeat monitoring
+    // "4274871493": true,   // pluginEnabledState - org-backend plugin enabled-state fetch (enterprise, co-gated on other org flags)
     // "4282876673": true,   // async module gate (default ON)
     // "4293378213": true,   // device-app tools - INERT in v1.20186.1 (hardcoded off after the flag)
   }
