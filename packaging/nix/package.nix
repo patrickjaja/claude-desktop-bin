@@ -46,7 +46,7 @@
 let
   # Updated automatically by CI (build-and-release.yml) on each release.
   version = "1.19367.0";
-  hash = "sha256-/w5zKsBcM+AehxVm92enowSkxPuOyYg8wStsCbGH7UQ="; # TODO: CI updates this hash after building the release tarball
+  hash = "sha256-SgzsRLi3dkLVPD0VXPT5kl8hJCHOYtYuuhUVDfSK2Ps="; # TODO: CI updates this hash after building the release tarball
   # The release tarball now also ships the official Electron runtime under
   # electron/ (extracted from Anthropic's Linux .deb). On NixOS, however, that
   # glibc-linked binary won't run without autoPatchelf + a runtime closure, so we
