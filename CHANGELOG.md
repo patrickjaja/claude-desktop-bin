@@ -4,6 +4,10 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 
 ## 2026-07-13
 
+### README rewritten fact-based: every patch now states the upstream gap it closes
+
+The Patches section was audited against all 45 patch sources and restructured into four groups - value-adds, Linux fixes (macOS/Windows gates + Linux environment quirks), repackaging fixes (needed only because we relocate `app.asar`), and regression guards (assert-only, previously unlisted). Each entry now explains why the patch exists on the official Linux build; historical narrative (MSIX-era references, retirement anecdotes) was removed. Also corrected stale claims: CI polls every 2 hours (not daily), the `.jsonc` flag template is CI-sync-checked (not regenerated per release), only the Computer Use and Buddy gates are forced directly, upstream gates Computer Use to macOS/Windows (not macOS-only), and the primary-monitor limitation now mentions `switch_display` retargeting.
+
 ### Simplification: 14 GrowthBook rollout forces retired - flags now follow Anthropic's rollout, with .jsonc opt-in
 
 Since the `growthbookOverrides` config landed (2026-07-11), users can flip any store-read feature flag themselves in `~/.config/Claude/claude-desktop-bin.jsonc`. That made a whole class of our patches redundant: forces that merely bypassed Anthropic's server-side rollout for flags that have no platform gate. A full trace of every forced flag through the v1.20186.1 bundle confirmed all 14 of them read from the feature store (so the `.jsonc` override reaches them), none is gated on `process.platform`, and none is compensated elsewhere - so they now behave exactly as upstream ships them.

@@ -20,7 +20,7 @@ Anthropic publishes an official Claude Desktop [Linux `.deb`](https://code.claud
 - [**Multiple Profiles**](#multiple-profiles) - run several instances side by side, each logged in to a different account with fully isolated state.
 - [**Quick Entry**](#quick-entry) - global hotkey popup (Ctrl+Alt+Space), multi-monitor and Wayland-aware.
 
-Everything else - Chat, Claude Code, Cowork, Browser Tools, 3P/enterprise inference - is the **official upstream build working natively on Linux**, preserved through the repackage. On top of that we ship a batch of **Linux fixes** (see [Patches](#patches)).
+Everything else - Chat, Cowork, Claude Code, Browser Tools, 3P/enterprise inference - is the **official upstream build**, preserved through the repackage. Where its shared cross-platform bundle still gates a feature to macOS/Windows or misbehaves on a Linux desktop, we ship a **Linux fix** (see [Patches](#patches) - each entry states exactly why it exists).
 
 > **If you run Ubuntu 22.04+ / Debian 12+,** Anthropic's [official `.deb`](https://code.claude.com/docs/en/desktop-linux) installs the base app directly. Use this project if you're on Arch/Fedora/RHEL/Nix/AppImage, or if you want the four value-adds and Linux fixes above.
 
@@ -215,7 +215,7 @@ curl -fsSL https://patrickjaja.github.io/claude-desktop-bin/gpg-key.asc | gpg --
 
 ## Computer Use
 
-**Our exclusive feature - not part of the official Linux beta.** Claude Desktop's built-in Computer Use MCP server exposes 27 tools for desktop automation (screenshot, click, type, scroll, drag, clipboard, and more), plus **learn tools** that generate interactive overlay tutorials for any app. Upstream is macOS-only; the patch ([`fix_computer_use_linux.nim`](patches/fix_computer_use_linux.nim)) removes the platform gates and injects a Linux executor that auto-detects your session and routes to a bundled first-party bridge: [`x11-bridge`](https://github.com/patrickjaja/x11-bridge) on X11 / XWayland, [`wlroots-bridge`](https://github.com/patrickjaja/wlroots-bridge) on Sway / Hyprland / Niri (native virtual-pointer/keyboard + screencopy + foreign-toplevel protocols), [`gnome-portal-bridge`](https://github.com/patrickjaja/gnome-bridge) on GNOME Wayland (XDG RemoteDesktop + ScreenCast portal, one consent dialog per session, persisted on GNOME 46+; needs PipeWire >= 1.0.5, i.e. Ubuntu 24.04+ / Fedora 40+ / Debian 13+), and [`kwin-portal-bridge`](https://github.com/patrickjaja/kwin-portal-bridge) on KDE Plasma 6.6+. No third-party input/screenshot tools needed; only exotic Wayland compositors fall back to `ydotool`.
+**Our exclusive feature - not part of the official Linux build.** Claude Desktop's built-in Computer Use MCP server exposes 27 tools for desktop automation (screenshot, click, type, scroll, drag, clipboard, and more), plus **learn tools** that generate interactive overlay tutorials for any app. Upstream gates it to macOS/Windows and ships no Linux backend; the patch ([`fix_computer_use_linux.nim`](patches/fix_computer_use_linux.nim)) removes the platform gates and injects a Linux executor that auto-detects your session and routes to a bundled first-party bridge: [`x11-bridge`](https://github.com/patrickjaja/x11-bridge) on X11 / XWayland, [`wlroots-bridge`](https://github.com/patrickjaja/wlroots-bridge) on Sway / Hyprland / Niri (native virtual-pointer/keyboard + screencopy + foreign-toplevel protocols), [`gnome-portal-bridge`](https://github.com/patrickjaja/gnome-bridge) on GNOME Wayland (XDG RemoteDesktop + ScreenCast portal, one consent dialog per session, persisted on GNOME 46+; needs PipeWire >= 1.0.5, i.e. Ubuntu 24.04+ / Fedora 40+ / Debian 13+), and [`kwin-portal-bridge`](https://github.com/patrickjaja/kwin-portal-bridge) on KDE Plasma 6.6+. No third-party input/screenshot tools needed; only exotic Wayland compositors fall back to `ydotool`.
 
 **Nothing to install** - the bridges ship inside the package. See **[docs/computer-use.md](docs/computer-use.md)** for how it works, the notes (primary-monitor, app discovery, teach overlay), and links to the [tool reference](baseline/CLAUDE_BUILT_IN_MCP.md#14-computer-use); [Computer Use dependencies](docs/computer-use-dependencies.md) has the per-session matrix and the exotic-compositor `ydotool` fallback.
 
@@ -372,66 +372,91 @@ The official 3P docs cover only macOS and Windows. **[docs/third-party-inference
 
 ## Patches
 
-The official Linux build is close to Linux-ready but not perfect. We apply a set of surgical JS patches to its `app.asar` at repackage time. The ones that actually change the bundle fall into two groups:
+The official Linux build ships one cross-platform JS bundle: plenty of code paths in it check `process.platform` and only serve `darwin`/`win32`, and some upstream behavior misfires in a Linux desktop environment. We apply a set of surgical JS patches to the `app.asar` at repackage time. They fall into four groups:
 
-- **Value-adds** - features the official build doesn't provide on Linux (our reason to exist).
-- **Linux fixes** - make upstream features that misbehave on Linux work correctly.
+- **[Value-adds](#value-adds-linux-only-features)** - features that don't exist upstream, or that we back with our own Linux implementations.
+- **[Linux fixes](#linux-fixes)** - upstream features that are still gated to macOS/Windows in the shared bundle, or that break in a Linux environment.
+- **[Repackaging fixes](#repackaging-fixes)** - needed only because we relocate `app.asar` into each distro's install layout.
+- **[Regression guards](#regression-guards)** - change nothing; they assert native Linux behavior the app relies on is still present and fail the build loudly if it ever disappears.
 
-Each patch is a self-contained `patches/*.nim` file compiled to a native binary. Patterns use `[\w$]+` wildcards anchored on stable strings because upstream re-minifies between releases. The **debug pattern** column shows the `rg` command to locate the relevant code in a new version's main bundle - since v1.19367.0 that bundle is code-split, so run the command across `.vite/build/index*.js` (loader stub + `index.chunk-*.js` + `index.pre.js`), not `index.js` alone. When an update breaks a patch, only that file needs updating.
+Each patch is a self-contained `patches/*.nim` file compiled to a native binary. Patterns use `[\w$]+` wildcards anchored on stable strings because upstream re-minifies between releases; every sub-patch must match or the build fails, so a broken assumption surfaces at build time, never at runtime. The **debug pattern** column shows the `rg` command to locate the relevant code in a new version's main bundle - since v1.19367.0 that bundle is code-split, so run the command across `.vite/build/index*.js` (loader stub + `index.chunk-*.js` + `index.pre.js`), not `index.js` alone. When an update breaks a patch, only that file needs updating.
 
-> **We keep this set as small as possible.** On each upstream release we re-audit every patch against a fresh unpatched bundle to find ones Anthropic has since made unnecessary, and retire them - a patch that still applies cleanly isn't proof it's still needed, so we confirm each is genuinely doing work (or live-test the feature) before keeping it. Recently retired this way: the Dispatch patch, now that phone→desktop task orchestration works natively on Linux. Where a feature was upstreamed but we still want to catch a future regression, we keep a small **regression guard** in `patches/` (not listed below) that makes no changes but fails the build loudly if the upstreamed behavior ever disappears. `ls patches/*.nim` is the authoritative list of everything in the tree.
+> **We keep this set as small as possible.** On each upstream release every patch is re-audited against a fresh unpatched bundle - a patch that still applies cleanly isn't proof it's still needed, so each must be confirmed to genuinely do work (or the feature live-tested) to stay. When Anthropic ships a behavior natively, the patch is removed or converted to a regression guard. `ls patches/*.nim` is the authoritative list of everything in the tree.
 
 ### Value-adds (Linux-only features)
 
-| Patch | Purpose | Debug pattern |
-|-------|---------|---------------|
-| `add_feature_custom_themes.nim` | CSS theme injection - 7 dual light/dark themes + per-theme spinner reshape | Prepended IIFE, no regex |
-| `fix_computer_use_linux.nim` | Enables Computer Use - removes platform gates, routes both executor factories to an injected Linux executor backed by the four bundled first-party bridges (x11-bridge on X11/XWayland, wlroots-bridge on Sway/Hyprland/Niri, gnome-portal-bridge on GNOME Wayland, kwin-portal-bridge on KDE Wayland; ydotool only on exotic compositors) | `rg -o '.{0,60}executor not implemented' index.js` |
-| `fix_computer_use_tcc.nim` | Stubs macOS TCC permission handlers to prevent error logs | Prepended IIFE, UUID extraction |
-| `fix_buddy_ble_linux.nim` | Enables Hardware Buddy (Nibblet BLE) - forces feature flag, uses Web Bluetooth via BlueZ | `rg -o '2358734848.{0,50}' index.js` |
-| `fix_quick_entry_position.nim` | Quick Entry opens on the cursor's monitor; position+focus retries gated to X11 (no Wayland jitter) | `rg -o 'getPrimaryDisplay.{0,50}' index.js` |
-| `fix_quick_entry_cli_toggle.nim` | `claude-desktop --toggle` hotkey (~5-25 ms via Unix socket); per-profile socket path | `rg -o 'QUICK_ENTRY.{0,80}' index.js` |
-| `fix_quick_entry_app_id.nim` | Distinct Wayland `app_id` for Quick Entry so shell-extension users can blacklist it ([#39](https://github.com/patrickjaja/claude-desktop-bin/issues/39)) | `rg -o '.{0,30}BrowserWindow.*titleBarStyle.*hidden.{0,30}' index.js` |
-| `fix_quick_entry_ready_wayland.nim` | 100 ms timeout on Quick Entry ready-to-show wait (Wayland hang: `ready-to-show` never fires for frameless transparent windows) | `rg -o 'ready-to-show.{0,50}' index.js` |
-| `fix_quick_entry_wayland_blur_guard.nim` | Guards Quick Entry blur-to-dismiss against spurious Wayland blur events | `rg -o '.{0,30}blur.{0,30}null.{0,30}' index.js` |
-| `fix_profile_url_routing.nim` | Writes a per-profile auth-marker before opening SSO URLs so `claude://` callbacks route to the right profile | `rg -o 'shell\.openExternal' index.js` |
-| `fix_profile_window_title.nim` | Appends profile name to window title (`Claude` → `Claude (work)`) | Prepended IIFE, `page-title-updated` listener |
-| `add_growthbook_overrides.nim` | [Local feature-flag overrides](#feature-flag-overrides-advanced) via `claude-desktop-bin.jsonc` - hooks the GrowthBook features-store setter so user overrides win over the server rollout | `rg -o 'loaded %d features' index*.js` |
+Features the official build doesn't have - either they exist nowhere upstream (themes, profiles, flag overrides) or upstream ships them without any Linux backend and we provide one (Computer Use, Quick Entry ergonomics, Buddy).
+
+| Patch | What it does & why it exists | Debug pattern |
+|-------|------------------------------|---------------|
+| `add_feature_custom_themes.nim` | CSS theme injection - 7 dual light/dark themes + per-theme loading spinner, applied to every window via `insertCSS()`. Upstream has no theming layer beyond the light/dark toggle | Prepended IIFE, no regex |
+| `add_growthbook_overrides.nim` | [Local feature-flag overrides](#feature-flag-overrides-advanced) via `claude-desktop-bin.jsonc` - hooks the GrowthBook features-store setter so user overrides win over the server rollout. Upstream has no local override mechanism (the flag cache is encrypted) | `rg -o 'loaded %d features' index*.js` |
+| `fix_computer_use_linux.nim` | Enables Computer Use. Upstream gates it to macOS/Windows (platform set, executor factories, enable gate) and ships zero Linux input/screenshot backends. Removes the gates and injects a Linux executor backed by the four bundled first-party bridges (x11-bridge on X11/XWayland, wlroots-bridge on Sway/Hyprland/Niri, gnome-portal-bridge on GNOME Wayland, kwin-portal-bridge on KDE Wayland; ydotool only on exotic compositors) | `rg -o '.{0,60}executor not implemented' index.js` |
+| `fix_computer_use_tcc.nim` | Stubs the macOS TCC permission IPC (accessibility / screen recording) with `not_applicable` answers - TCC has no Linux equivalent, and without handlers the renderer's permission checks throw "No handler registered" | Prepended IIFE, UUID extraction |
+| `fix_buddy_ble_linux.nim` | Enables Hardware Buddy (Nibblet BLE). Linux is outside the upstream rollout, so the flag is forced on Linux (the in-app toggle still wins); also pre-registers the BLE IPC handlers to avoid a startup race. Bluetooth works via Web Bluetooth on BlueZ | `rg -o '2358734848.{0,50}' index.js` |
+| `fix_quick_entry_position.nim` | [Quick Entry](#quick-entry) opens on the cursor's monitor instead of the primary display and auto-focuses the input; position/focus retries run only on X11 (Wayland doesn't reposition after `show()`) | `rg -o 'getPrimaryDisplay.{0,50}' index.js` |
+| `fix_quick_entry_cli_toggle.nim` | `claude-desktop --toggle`: toggles Quick Entry in ~5-25 ms via a Unix socket (per-profile path) instead of a ~300 ms Electron spawn - fast enough for a global hotkey | `rg -o 'QUICK_ENTRY.{0,80}' index.js` |
+| `fix_quick_entry_app_id.nim` | Gives Quick Entry its own Wayland `app_id` (`claude-quick-entry`) so shell-extension rules can target it separately from the main window ([#39](https://github.com/patrickjaja/claude-desktop-bin/issues/39)) | `rg -o '.{0,30}BrowserWindow.*titleBarStyle.*hidden.{0,30}' index.js` |
+| `fix_quick_entry_ready_wayland.nim` | On native Wayland `ready-to-show` never fires for frameless transparent windows, hanging the popup - adds a 100 ms timeout | `rg -o 'ready-to-show.{0,50}' index.js` |
+| `fix_quick_entry_wayland_blur_guard.nim` | Wayland emits spurious blur events that dismissed Quick Entry immediately; blur-to-dismiss now only counts after the window was actually focused | `rg -o '.{0,30}blur.{0,30}null.{0,30}' index.js` |
+| `fix_profile_url_routing.nim` | [Multi-profile](#multiple-profiles) SSO: writes a per-profile auth marker before opening SSO URLs so the launcher can route the `claude://` callback to the profile that started the flow | `rg -o 'shell\.openExternal' index.js` |
+| `fix_profile_window_title.nim` | Appends the profile name to the window title (`Claude` → `Claude (work)`) so profiles are distinguishable in Alt-Tab/taskbar | Prepended IIFE, `page-title-updated` listener |
 
 ### Linux fixes
 
-| Patch | Purpose | Debug pattern |
-|-------|---------|---------------|
-| `enable_local_agent_mode.nim` | Enables Local Agent Mode / Code on Linux (removes the darwin/win32 platform gates and capability overrides; GrowthBook rollout flags are NOT forced - opt in via `claude-desktop-bin.jsonc` `growthbookOverrides`). Reports the **real** platform (`linux`) to claude.ai - the MSIX-era platform spoofs were removed in issue #173 because they made the renderer see Windows and block Cowork. Does **not** force-mark Cowork VM features - those reflect the native VM-capability probe | `rg -o 'status:"supported".{0,40}' index.js`; `rg -o 'anthropic-client-os-platform.{0,40}' index.js` |
-| `fix_0_node_host.nim` | Repoints 4 sidecar runtime paths off `process.resourcesPath+"app.asar"`. Needed because **we** relocate `app.asar` (`fix_locale_paths` / our install layout); on the stock `.deb` these paths are correct - our move breaks them, so remote MCP fails without this (issue #140) | `rg -o 'process\.resourcesPath,"app.asar"' index.js` |
-| `fix_app_quit.nim` | Uses `app.exit(0)` to prevent hang on exit | `rg -o '.{0,50}app\.quit.{0,50}' index.js` |
-| `fix_asar_folder_drop.nim` | Prevents app.asar being misdetected as a folder drop on launch ([#24](https://github.com/patrickjaja/claude-desktop-bin/issues/24)) | `rg -o 'filter.*\.asar' index.js` |
-| `fix_asar_workspace_cwd.nim` | Redirects app.asar workspace paths to home directory ([#24](https://github.com/patrickjaja/claude-desktop-bin/issues/24)) | `rg -o '__cdb_sanitizeCwd' index.js` |
-| `fix_browse_files_linux.nim` | Enables `openDirectory` in the file dialog (upstream macOS-only) | `rg -o 'openDirectory.{0,60}' index.js` |
-| `fix_browser_tools_linux.nim` | Enables Chrome browser tools - redirects native host to Claude Code's wrapper | `rg -o '"Helpers".{0,50}' index.js` |
-| `fix_builtin_mcp_browser_env.nim` | Adds DISPLAY/Wayland/XDG/DBUS/BROWSER/`KDE_SESSION_VERSION` to the built-in MCP env allowlist (upstream's minimal `HOME,LOGNAME,PATH,SHELL,TERM,USER` set has no display vars - fine on macOS, but on Linux an MCP server can't open a browser for OAuth; without `KDE_SESSION_VERSION`, `xdg-open` on KDE no-ops silently via its `kfmclient` fallback) ([#139](https://github.com/patrickjaja/claude-desktop-bin/issues/139)) | `rg -o '"HOME","LOGNAME","PATH","SHELL","TERM","USER".{0,40}' index.js` |
+Upstream ships the same JS bundle to all platforms; these patches open `darwin`/`win32`-only gates for Linux, or fix behavior that breaks in a Linux desktop environment. Each row states the upstream gap it closes.
+
+| Patch | What it does & why it exists | Debug pattern |
+|-------|------------------------------|---------------|
+| `enable_local_agent_mode.nim` | Enables Claude Code / Local Agent Mode on the host. Several feature checks in the shared bundle return `unavailable` unless `process.platform` is `darwin`/`win32`; this rewrites them to `supported`, marks the capabilities this package ships Linux backends for (Code, plugins, Computer Use) as supported in the feature merger, and turns the Code preference defaults on. Cowork VM support is **not** forced - it follows upstream's native KVM probe - and GrowthBook rollout flags are **not** forced (opt in via [`growthbookOverrides`](#feature-flag-overrides-advanced)). Embedded regression guards assert the app keeps reporting the real platform (`linux`) to claude.ai and that upstream's native Linux Cowork path stays present | `rg -o 'status:"supported".{0,40}' index.js`; `rg -o 'quietPenguinEnabled.{0,30}' index.js` |
+| `fix_app_quit.nim` | The app hung on exit: after the `will-quit` cleanup handler runs, a second `app.quit()` is a no-op on Linux - uses `app.exit(0)` instead | `rg -o '.{0,50}app\.quit.{0,50}' index.js` |
+| `fix_browse_files_linux.nim` | The file dialog offers `openDirectory` only on macOS upstream; adds Linux (Electron supports it natively) | `rg -o 'openDirectory.{0,60}' index.js` |
+| `fix_browser_tools_linux.nim` | Enables Chrome browser tools: repoints the native-messaging host to Claude Code's wrapper, extends browser discovery beyond upstream's Chrome+Edge (Chromium, Brave, Vivaldi, Opera), and adds Linux branches for extension auto-install and the DevTools opener - both still macOS/Windows-only upstream | `rg -o '"Helpers".{0,50}' index.js` |
+| `fix_builtin_mcp_browser_env.nim` | Built-in MCP servers run with a filtered env of `HOME,LOGNAME,PATH,SHELL,TERM,USER` - no display variables, fine on macOS, but on Linux the server can't open a browser for OAuth. Adds `DISPLAY`/Wayland/XDG/DBUS/`BROWSER`/`KDE_SESSION_VERSION` (without the last, `xdg-open` on KDE no-ops silently via its `kfmclient` fallback) ([#139](https://github.com/patrickjaja/claude-desktop-bin/issues/139)) | `rg -o '"HOME","LOGNAME","PATH","SHELL","TERM","USER".{0,40}' index.js` |
 | `fix_builtin_mcp_open_url_handler.nim` | Parent side of the M365 OAuth browser-open delegation: adds an `open-url` branch (https-only, → `shell.openExternal`) to the built-in MCP host's child-message handler - the same mechanism remote OAuth connectors use ([#139](https://github.com/patrickjaja/claude-desktop-bin/issues/139)) | `rg -o 'msal-cache-get.{0,60}' index.js` |
-| `fix_cli_governor_memavailable.nim` | Computes CliGovernor memory pressure from `/proc/meminfo` `MemAvailable` instead of Electron's `free` - stops false pressure warnings ([#128](https://github.com/patrickjaja/claude-desktop-bin/issues/128)) | `rg -o 'getFreeMemoryRatio.{0,160}' index.js` |
-| `fix_cowork_firmware_paths_linux.nim` | Adds Fedora/RHEL + Arch OVMF firmware paths and non-Debian `virtiofsd` paths (Arch `/usr/lib/virtiofsd`, NixOS `/run/current-system/sw/bin/virtiofsd`) to the native Cowork VM capability probe, plus `CLAUDE_OVMF_CODE_PATH`/`CLAUDE_VIRTIOFSD_PATH` env overrides for non-FHS setups - fixes "Download failed" / "Cowork requires QEMU" on non-Debian distros ([#177](https://github.com/patrickjaja/claude-desktop-bin/issues/177)) | `rg -o 'OVMF_CODE.{0,80}' index.js` |
-| `fix_cowork_font.nim` | Applies the user's chat font preference to the Cowork tab (avoids default Serif) | Prepended dom-ready IIFE, no regex |
-| `fix_cross_device_rename.nim` | EXDEV fallback for cross-filesystem file moves | Uses `.rename(` literal |
-| `fix_detected_projects_linux.nim` | Enables detected projects with Linux IDE paths (VSCode, Cursor, Zed) | `rg -o 'detectedProjects.{0,50}' index.js` |
-| `fix_dock_bounce.nim` | Suppresses taskbar attention-stealing on KDE/Wayland | Prepended IIFE, no regex |
-| `fix_ion_dist_linux.nim` | Adds Linux org-plugins mount path + platform ternary to the ion-dist 3P config SPA | `rg -o 'mountPath.{0,80}' ion-dist/assets/v1/*.js` |
-| `fix_locale_paths.nim` | Redirects locale file paths to the Linux install location | Global string replace on `process.resourcesPath` |
-| `fix_marketplace_linux.nim` | Forces host-local mode for plugin operations; promotes `$HOME`-scoped CLI plugins to user scope ("Personal Plugins") | `rg -o 'function \w+\(\w+\)\{return\(\w+==null.*mode.*ccd' index.js` |
-| `fix_native_frame.nim` | Default: Windows-style integrated titlebar on Linux. Opt-out via `CLAUDE_NATIVE_TITLEBAR=1` / `--native-titlebar` for the native GTK frame | `rg -o 'titleBarStyle:process\.platform.{0,80}' index.js` |
-| `fix_office365_mcp_open_url.nim` | Child side of the M365 OAuth browser-open delegation: the bundled `office365-mcp` server posts `{type:"open-url"}` to the Electron parent instead of spawning `xdg-open` (immune to `xdg-open` quirks, fixes KDE) ([#139](https://github.com/patrickjaja/claude-desktop-bin/issues/139)) | `rg -o 'local_auth_browser_open.{0,60}' office365-mcp.mjs` |
-| `fix_open_in_editor_linux.nim` | Makes "Open in VS Code / Cursor / Zed / Windsurf" work in Local Code Sessions via an `xdg`-based shim | `rg -o 'getApplicationInfoForProtocol.{0,40}' index.js` |
-| `fix_process_argv_renderer.nim` | Injects `process.argv=[]` in renderer preload to prevent TypeError | `rg -o '.{0,30}\.argv.{0,30}' mainView.js` |
-| `fix_renderer_gone_suppressed_log.nim` | Logs main-webview renderer deaths upstream silently swallows (OOM SIGKILL left no trace) ([#128](https://github.com/patrickjaja/claude-desktop-bin/issues/128)) | `rg -o 'render process gone \(suppressed\).{0,60}' index.js` |
-| `fix_sensitive_dirs_linux.nim` | Adds Linux entries (`.local/share/keyrings`, `.pki`, `.config/autostart`) to the sandbox sensitive-directories block list | `rg -o '\.gnupg.{0,80}' index.js` |
-| `fix_tray_dbus.nim` | Prevents DBus race conditions with mutex and cleanup delay | `rg -o 'menuBarEnabled.*function' index.js` |
-| `fix_tray_icon_theme.nim` | Forces the light tray glyph (`TrayIconLinux-Dark.png`) on Linux - upstream's native heuristic only does so on GNOME/dark themes, but Linux trays are dark regardless of theme | `rg -o 'TrayIconLinux.{0,60}' index.js` |
-| `fix_updater_state_linux.nim` | Adds version fields to idle updater state to prevent TypeError | `rg -o 'status:"idle".{0,50}' index.js` |
-| `fix_utility_process_kill.nim` | SIGKILL fallback when UtilityProcess doesn't exit gracefully | `rg -o 'Killing utiltiy proccess' index.js` |
-| `fix_window_bounds.nim` | Fixes BrowserView bounds on maximize/snap, Quick Entry blur | Injected IIFE, minimal regex |
-| `fix_startup_settings.nim` | Per-profile "Start at login" XDG autostart handling for named profiles (the base toggle is upstreamed) | `rg -o 'isStartupOnLoginEnabled.{0,50}' index.js` |
+| `fix_office365_mcp_open_url.nim` | Child side: the bundled `office365-mcp` server posts `{type:"open-url"}` to the Electron parent instead of spawning `xdg-open`, which is unreliable inside the MCP child process on KDE (silent no-op → 300 s sign-in timeout) ([#139](https://github.com/patrickjaja/claude-desktop-bin/issues/139)) | `rg -o 'local_auth_browser_open.{0,60}' office365-mcp.mjs` |
+| `fix_cli_governor_memavailable.nim` | Computes CliGovernor memory pressure from `/proc/meminfo` `MemAvailable`. Upstream uses Electron's `free` = Linux `MemFree`, which excludes reclaimable page cache, so a healthy system reads ~5% free and triggers false pressure warnings ([#128](https://github.com/patrickjaja/claude-desktop-bin/issues/128)) | `rg -o 'getFreeMemoryRatio.{0,160}' index.js` |
+| `fix_cowork_firmware_paths_linux.nim` | The Cowork VM capability probe hardcodes Debian firmware/virtiofsd paths, so on other distros Cowork reports "Download failed" / "requires QEMU" even with QEMU installed. Adds Fedora/RHEL/Arch OVMF and Arch/NixOS virtiofsd locations plus `CLAUDE_OVMF_CODE_PATH`/`CLAUDE_VIRTIOFSD_PATH` overrides for non-FHS setups ([#177](https://github.com/patrickjaja/claude-desktop-bin/issues/177)) | `rg -o 'OVMF_CODE.{0,80}' index.js` |
+| `fix_cowork_font.nim` | claude.ai initializes the chat-font preference only when the Chat view mounts; applies it to the Cowork tab too (it fell back to Serif) | Prepended dom-ready IIFE, no regex |
+| `fix_cross_device_rename.nim` | Adds an EXDEV copy+delete fallback to `fs.rename()`: downloads land in `/tmp` (usually a separate tmpfs) and are renamed into `~/.config`, which fails across filesystems | Uses `.rename(` literal |
+| `fix_detected_projects_linux.nim` | Project detection is gated to macOS and the VS Code/Cursor/Zed state-DB paths are hardcoded macOS locations; opens the gate and adds the Linux paths | `rg -o 'detectedProjects.{0,50}' index.js` |
+| `fix_dock_bounce.nim` | Upstream focus/attention calls translate to `DEMANDS_ATTENTION` taskbar flashing on KDE/GNOME; suppresses them | Prepended IIFE, no regex |
+| `fix_ion_dist_linux.nim` | The 3P config SPA's org-plugins mount path has only macOS/Windows entries; adds `/etc/claude-desktop/org-plugins` and a Linux display branch | `rg -o 'mountPath.{0,80}' ion-dist/assets/v1/*.js` |
+| `fix_marketplace_linux.nim` | Forces host-local mode for plugin operations on Linux and promotes `$HOME`-scoped CLI plugins to user scope ("Personal Plugins") | `rg -o 'function \w+\(\w+\)\{return\(\w+==null.*mode.*ccd' index.js` |
+| `fix_native_frame.nim` | Upstream builds the integrated titlebar only on Windows and gives Linux the native GTK frame; enables the integrated titlebar on Linux by default (opt out via `CLAUDE_NATIVE_TITLEBAR=1` / `--native-titlebar`) | `rg -o 'titleBarStyle:process\.platform.{0,80}' index.js` |
+| `fix_open_in_editor_linux.nim` | "Open in VS Code / Cursor / Zed / Windsurf" gates on `getApplicationInfoForProtocol`, which answers only on macOS/Windows - Linux editors always showed as not installed. Answers it via an `xdg-mime` shim | `rg -o 'getApplicationInfoForProtocol.{0,40}' index.js` |
+| `fix_process_argv_renderer.nim` | The preload exposes a `process` object without `argv`; the Claude Code SDK web bundle calls `process.argv.includes()`, and the TypeError blocked Dispatch responses from rendering. Injects an empty `argv` | `rg -o '.{0,30}\.argv.{0,30}' mainView.js` |
+| `fix_renderer_gone_suppressed_log.nim` | Logs main-webview renderer deaths upstream silently suppresses - a kernel OOM SIGKILL arrives as reason `killed` and left no trace in `main.log` ([#128](https://github.com/patrickjaja/claude-desktop-bin/issues/128)) | `rg -o 'render process gone \(suppressed\).{0,60}' index.js` |
+| `fix_sensitive_dirs_linux.nim` | The sandbox sensitive-directories block list has macOS and Windows entries but none for Linux; adds `.local/share/keyrings`, `.pki`, `.config/autostart` | `rg -o '\.gnupg.{0,80}' index.js` |
+| `fix_startup_settings.nim` | Session-restore handling for "Start at login": hides the main window when the launch comes from session restore, and keeps autostart entries per-profile. The base XDG autostart toggle is native upstream (asserted by embedded guards) | `rg -o 'isStartupOnLoginEnabled.{0,50}' index.js` |
+| `fix_tray_dbus.nim` | Serializes tray destroy/recreate (mutex + cleanup delay) - the DBus/StatusNotifier race left ghost tray icons - and drops the recreate-on-theme-change (the Linux tray icon is static) | `rg -o 'menuBarEnabled.*function' index.js` |
+| `fix_tray_icon_theme.nim` | Always uses the light tray glyph (`TrayIconLinux-Dark.png`) on Linux: upstream's heuristic only does so on GNOME/dark themes, but Linux tray areas are dark regardless of desktop theme, leaving the icon invisible on light themes | `rg -o 'TrayIconLinux.{0,60}' index.js` |
+| `fix_updater_state_linux.nim` | Auto-update is off on Linux, so the updater idles without the `version` fields the frontend reads unchecked (TypeError); adds empty defaults | `rg -o 'status:"idle".{0,50}' index.js` |
+| `fix_utility_process_kill.nim` | The post-timeout fallback kill re-sends SIGTERM instead of SIGKILL, so a stuck UtilityProcess survived and blocked exit; sends `SIGKILL` | `rg -o 'Killing utiltiy proccess' index.js` |
+| `fix_window_bounds.nim` | Child-view geometry doesn't track window resize on Linux (stale bounds after maximize/snap/fullscreen); re-fits the content view, and blurs Quick Entry before hiding it | Injected IIFE, minimal regex |
+
+### Repackaging fixes
+
+Needed only because we relocate the official build into each distro's install layout - on the stock Anthropic `.deb` the original paths are correct.
+
+| Patch | What it does & why it exists | Debug pattern |
+|-------|------------------------------|---------------|
+| `fix_locale_paths.nim` | Rebuilds locale-file paths from `app.getAppPath()` at runtime - upstream resolves them from Electron's `resourcesPath`, which points elsewhere in our install layout | Global string replace on `process.resourcesPath` |
+| `fix_0_node_host.nim` | Keeps 4 sidecar runtime paths (MCP node host, shell worker, direct MCP host, transcript-search worker) valid after `fix_locale_paths` rewrites `process.resourcesPath` - without it remote MCP fails to load ([#140](https://github.com/patrickjaja/claude-desktop-bin/issues/140)). The `0` prefix orders it before `fix_locale_paths` | `rg -o 'process\.resourcesPath,"app.asar"' index.js` |
+| `fix_asar_folder_drop.nim` | Filters `.asar` paths out of file-drop and second-instance argv handling so our relocated `app.asar` is never treated as a dropped folder ([#24](https://github.com/patrickjaja/claude-desktop-bin/issues/24)) | `rg -o 'filter.*\.asar' index.js` |
+| `fix_asar_workspace_cwd.nim` | Sanitizes workspace `cwd` inputs on the IPC bridge: any path inside `app.asar` is mapped to the home directory so it's never used as a Code/Cowork workspace directory ([#24](https://github.com/patrickjaja/claude-desktop-bin/issues/24)) | `rg -o '__cdb_sanitizeCwd' index.js` |
+
+### Regression guards
+
+These change nothing in the bundle. Each asserts that native Linux behavior the app relies on is still present in a new upstream release and fails the build (`exit 1`) if it disappeared - so a regression is caught at build time, not by users.
+
+| Patch | What it asserts | Debug pattern |
+|-------|-----------------|---------------|
+| `fix_enterprise_config_linux.nim` | The main bundle still reads `/etc/claude-desktop/managed-settings.json` with the hardened native reader - the basis of [3P/enterprise inference](#third-party--enterprise-inference) on Linux | `rg -o 'managed-settings.{0,60}' index*.js` |
+| `fix_enterprise_config_linux_pre.nim` | The same reader in the boot bundle (`index.pre.js`), which decides 1P-vs-3P mode before the main process starts | `rg -o 'managed-settings.{0,60}' index.pre.js` |
+| `fix_native_frame_renderer.nim` | The title-bar component still returns `null` for the main window - a drag region there absorbs clicks on UI buttons in integrated-titlebar mode and must not come back | `rg -o 'isMainWindow.{0,80}' MainWindowPage-*.js` |
+
+`enable_local_agent_mode.nim` and `fix_startup_settings.nim` embed further guards inside their active patches: real-platform reporting to claude.ai, the native Linux Cowork bundle path, SSH MCP passthrough, and the native XDG autostart read/write.
 
 ## Command-line flags
 
@@ -481,9 +506,9 @@ Claude Desktop gates many features behind server-side GrowthBook flags with no b
 
 Overrides apply on every flag load (startup + periodic refresh, no restart needed) and win over the server rollout; active overrides are logged to `logs/claude-patches.log`. `true`/`false` for switches, numbers/strings/objects for value flags.
 
-**Full flag catalog:** the auto-created template lists *every* GrowthBook flag the app reads from its feature store, each commented out with a short description - browse it here: **[docs/claude-desktop-bin.jsonc](docs/claude-desktop-bin.jsonc)**. It reflects the version noted in the file header and is regenerated each release.
+**Full flag catalog:** the auto-created template lists *every* GrowthBook flag the app reads from its feature store, each commented out with a short description - browse it here: **[docs/claude-desktop-bin.jsonc](docs/claude-desktop-bin.jsonc)**. It reflects the version noted in the file header; CI verifies it stays in sync with the shipped template.
 
-**Scope and caveats:** flag IDs are Anthropic-internal and can vanish or change meaning in any release; this is unsupported expert territory - if the app misbehaves, empty the file first. Flags this package already force-enables in its patches (Code/Cowork/Computer Use enablement) don't consult this file, and server-side account capabilities can't be overridden locally at all.
+**Scope and caveats:** flag IDs are Anthropic-internal and can vanish or change meaning in any release; this is unsupported expert territory - if the app misbehaves, empty the file first. The Computer Use and Hardware Buddy patches force their own enable gates directly and don't consult this file, and server-side account capabilities can't be overridden locally at all.
 
 ## Debugging
 
@@ -515,12 +540,12 @@ Computer Use patches emit `[claude-cu] diagnostics:` lines showing the detected 
   - GNOME shell-extension blacklists (Rounded Window Corners, Unite, Blur My Shell) referencing `com.anthropic.claude-quick-entry` should become `claude-quick-entry`.
   - **NixOS** doesn't use `systemd-run --scope`; portal identity may not resolve on GNOME Wayland - use `--install-gnome-hotkey`.
   - **Sandboxes/containers** without a reachable user-systemd (bwrap, distrobox, restricted Flatpaks) auto-skip the scope wrap; force it with `--no-systemd-scope` / `CLAUDE_DISABLE_SYSTEMD_SCOPE=1` if the socket exists but is unreachable ([#89](https://github.com/patrickjaja/claude-desktop-bin/issues/89)).
-- **Computer Use is primary-monitor only** - see [Computer Use](#computer-use).
+- **Computer Use targets the primary monitor** - screenshots/clicks can be retargeted with `switch_display`; the teach overlay stays on the primary display. See [Computer Use](#computer-use).
 - **CoworkSpaces are local-only** on every platform (no account-sync) - a set created on macOS/Windows won't transfer to Linux. Upstream behavior.
 
 ## Automation
 
-CI polls the official apt Packages index daily, downloads the latest official `.deb` (verifying GPG + SHA256), extracts and patches its `app.asar`, and **validates every patch in Docker** (`makepkg` in `archlinux:base-devel`) before publishing. Each patch exits 1 if its pattern doesn't match, so a broken package never reaches users - the pipeline stops with a clear `[FAIL]` and the AUR/repo packages stay on the last-good version until patches are updated.
+CI polls the official apt Packages index every 2 hours, downloads the latest official `.deb` (verifying GPG + SHA256), extracts and patches its `app.asar`, and **validates every patch in Docker** (`makepkg` in `archlinux:base-devel`) before publishing. Each patch exits 1 if its pattern doesn't match, so a broken package never reaches users - the pipeline stops with a clear `[FAIL]` and the AUR/repo packages stay on the last-good version until patches are updated.
 
 ## Repository Structure
 
