@@ -57,7 +57,7 @@ These files embed assumptions about upstream internals and **must be challenged 
 |------|---------------|-----------------|
 | `patches/*.nim` | Regex patterns matching minified JS | Build fails → fix patterns → `make` → `node --check` |
 | `baseline/CLAUDE_FEATURE_FLAGS.md` | Function names, GrowthBook IDs, architecture details | Run Feature Flag Audit (Prompt 3 in update-prompt.md) |
-| `README.md` | Patch table (break risk, debug `rg` patterns), feature descriptions. **NOT** install command version numbers — those are updated automatically by CI. | Review after patches are fixed |
+| `README.md` | Patch tables (grouped by why each patch exists), feature descriptions. Debug `rg` anchor patterns live in the patch sources themselves, not the README. **NOT** install command version numbers — those are updated automatically by CI. | Review after patches are fixed |
 | `baseline/CLAUDE_BUILT_IN_MCP.md` | Built-in MCP server names, registration patterns | Check `registerInternalMcpServer` calls in new JS |
 | `baseline/ION.md` | ion-dist SPA bundle stats, patched patterns, config key schema | Run ion-dist checks (Prompt 4 in update-prompt.md) |
 | `baseline/PLATFORM_GATE_BASELINE.md` | darwin/win32 conditional counts, gate classifications (PATCHED/NATIVE/STUB/PORTABLE) | Run platform gate re-audit (Prompt 5 in update-prompt.md) |
