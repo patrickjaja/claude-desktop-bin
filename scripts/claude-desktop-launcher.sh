@@ -10,6 +10,8 @@
 #   CLAUDE_MENU_BAR          - Menu bar mode: auto (default), visible, hidden
 #   CLAUDE_DISABLE_GPU=1     - Disable GPU compositing (fixes white screen on some systems)
 #   CLAUDE_DISABLE_GPU=full  - Disable GPU entirely (more aggressive fallback)
+#   CLAUDE_PASSWORD_STORE    - Force --password-store=<value>; 'auto' disables
+#                              the launcher's Secret Service detection (issue #191)
 #   CLAUDE_ELECTRON          - Override path to Electron binary
 #   CLAUDE_APP_ASAR          - Override path to app.asar
 #   CLAUDE_DISABLE_SYSTEMD_SCOPE=1
@@ -1237,6 +1239,13 @@ Environment variables:
   CLAUDE_MENU_BAR=visible   Menu bar mode: auto (default), visible, hidden.
   CLAUDE_DISABLE_GPU=1      Disable GPU compositing (white screen fix).
   CLAUDE_DISABLE_GPU=full   Disable GPU entirely (more aggressive fallback).
+  CLAUDE_PASSWORD_STORE=V   Force --password-store=V (e.g. gnome-libsecret,
+                            kwallet6, basic). 'auto' disables the launcher's
+                            Secret Service detection and keeps Chromium's own
+                            choice. Default: on desktops Chromium gives no
+                            keyring backend (Hyprland, sway, XFCE, ...), a
+                            Secret Service on the session bus is used
+                            automatically so sign-in tokens persist.
   CLAUDE_ELECTRON=PATH      Override path to Electron binary.
   CLAUDE_APP_ASAR=PATH      Override path to app.asar.
   CLAUDE_DISABLE_SYSTEMD_SCOPE=1
@@ -1484,6 +1493,89 @@ case "${CLAUDE_DISABLE_GPU:-}" in
         ELECTRON_ARGS+=('--disable-gpu')
         ;;
 esac
+
+# ---------------------------------------------------------------------------
+# Password store (Secret Service keyring)
+# ---------------------------------------------------------------------------
+# Chromium picks its os_crypt backend from XDG_CURRENT_DESKTOP. On desktops it
+# does not map to a keyring backend (Hyprland, sway, river, niri, COSMIC, ...,
+# and also XFCE/LXQt, which it maps to basic_text by policy) it silently falls
+# back to basic_text: safeStorage.isEncryptionAvailable() is false, OAuth
+# tokens do not persist across launches, and the app tells the user to
+# "install a system keyring" they may already be running. When a Secret
+# Service is actually available on the session bus (owned or D-Bus
+# activatable), pass --password-store=gnome-libsecret so Electron uses it.
+# See issue #191. One-time side effect on machines previously on basic_text:
+# data encrypted with the old hardcoded key cannot be read after the switch,
+# so the first launch may require signing in again.
+#
+#   CLAUDE_PASSWORD_STORE=<value>  force --password-store=<value>
+#   CLAUDE_PASSWORD_STORE=auto     disable detection (Chromium's own choice)
+#   an explicit --password-store=... argument always wins (detection skipped)
+
+_secret_service_available() {
+    # Owned or activatable org.freedesktop.secrets on the session bus.
+    # busctl list shows both running and activatable names.
+    if command -v busctl &>/dev/null; then
+        busctl --user --no-pager list 2>/dev/null \
+            | grep -q '^org\.freedesktop\.secrets\b'
+        return
+    fi
+    if command -v dbus-send &>/dev/null; then
+        {
+            dbus-send --session --print-reply --dest=org.freedesktop.DBus \
+                /org/freedesktop/DBus org.freedesktop.DBus.ListNames 2>/dev/null
+            dbus-send --session --print-reply --dest=org.freedesktop.DBus \
+                /org/freedesktop/DBus org.freedesktop.DBus.ListActivatableNames 2>/dev/null
+        } | grep -q '"org\.freedesktop\.secrets"'
+        return
+    fi
+    if command -v gdbus &>/dev/null; then
+        gdbus call --session --dest org.freedesktop.DBus \
+            --object-path /org/freedesktop/DBus \
+            --method org.freedesktop.DBus.ListActivatableNames 2>/dev/null \
+            | grep -q 'org\.freedesktop\.secrets'
+        return
+    fi
+    return 1
+}
+
+_pw_store_explicit=''
+for _arg in "$@"; do
+    if [[ "$_arg" == --password-store=* ]]; then
+        _pw_store_explicit=1
+        break
+    fi
+done
+if [[ -z "$_pw_store_explicit" ]]; then
+    case "${CLAUDE_PASSWORD_STORE:-}" in
+        '')
+            # Skip desktops Chromium already maps to a keyring backend
+            # (GNOME-family -> libsecret, KDE -> kwallet).
+            _de_keyring_native=''
+            IFS=':' read -ra _de_parts <<< "${XDG_CURRENT_DESKTOP:-}"
+            for _de in "${_de_parts[@]}"; do
+                case "${_de,,}" in
+                    gnome|kde|unity|deepin|cinnamon|x-cinnamon|pantheon|ukui)
+                        _de_keyring_native=1
+                        break
+                        ;;
+                esac
+            done
+            if [[ -z "$_de_keyring_native" ]] && _secret_service_available; then
+                log "Secret Service detected on session bus; XDG_CURRENT_DESKTOP='${XDG_CURRENT_DESKTOP:-}' gets no keyring backend from Chromium - adding --password-store=gnome-libsecret"
+                ELECTRON_ARGS+=('--password-store=gnome-libsecret')
+            fi
+            ;;
+        auto)
+            # Opt-out: let Chromium's own detection run unmodified.
+            ;;
+        *)
+            log "Password store forced via CLAUDE_PASSWORD_STORE=${CLAUDE_PASSWORD_STORE}"
+            ELECTRON_ARGS+=("--password-store=${CLAUDE_PASSWORD_STORE}")
+            ;;
+    esac
+fi
 
 # ---------------------------------------------------------------------------
 # Environment variables

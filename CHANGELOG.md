@@ -12,6 +12,12 @@ Root cause was ours, a consequence of the code-split re-plumbing above: `fix_asa
 
 Why no gate caught it: the strict per-site match counts validate on the concatenation, where a single scope really does exist; `node --check` on each split file passes because an unresolved identifier is a runtime error, not a syntax error; and the smoke test does not start a Code session. `apply_patches.py` now closes the class at the split-back chokepoint: any injected `__cdb*` identifier referenced in more than one chunk part must be defined via `globalThis`, otherwise the build fails loud. The guard was verified in both directions - it rejects the broken v1.19367.0-4 bundle and passes the fixed one. An audit of all other injected identifiers found no second instance of the pattern (the remaining cross-chunk helpers were already `globalThis`-based).
 
+### Launcher: sign-in now persists on Hyprland/sway/XFCE and other keyring-less-by-Chromium desktops ([#191](https://github.com/patrickjaja/claude-desktop-bin/issues/191))
+
+Chromium picks its encryption backend from `XDG_CURRENT_DESKTOP`. On desktops it does not map to a keyring backend - all wlroots compositors (Hyprland, sway, river, niri), COSMIC, and also XFCE/LXQt, which it maps to `basic_text` by policy - `safeStorage.isEncryptionAvailable()` is false, OAuth tokens do not persist across launches, and the app tells the user to "install and unlock a system keyring" they may already be running.
+
+The launcher now detects a Secret Service (`org.freedesktop.secrets`, owned or D-Bus-activatable) on the session bus and, on those desktops, adds `--password-store=gnome-libsecret` automatically (suggested and verified by the #191 reporter on Hyprland). Desktops Chromium already handles (GNOME family -> libsecret, KDE -> kwallet) are left untouched. Escape hatches: an explicit `--password-store=...` argument always wins, `CLAUDE_PASSWORD_STORE=<value>` forces a backend, and `CLAUDE_PASSWORD_STORE=auto` disables the detection. One-time side effect on machines that previously ran on `basic_text`: data encrypted under the old hardcoded key cannot be read after the switch, so the first launch may ask you to sign in again - after that, sign-in finally sticks.
+
 ## 2026-07-12
 
 All three Computer Use fixes below were contributed by Craig ([@F1nny](https://github.com/F1nny)) in [#188](https://github.com/patrickjaja/claude-desktop-bin/pull/188), [#189](https://github.com/patrickjaja/claude-desktop-bin/pull/189), [#190](https://github.com/patrickjaja/claude-desktop-bin/pull/190) - thanks!
