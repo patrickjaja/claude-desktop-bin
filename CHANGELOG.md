@@ -12,6 +12,10 @@ The Computer Use handler wrapped its non-action tools (screenshot, zoom, open_ap
 
 All four bridge invokers (`_x11Bridge`, `_bridge`, `_bridgeAsync` in the regular executor; `execBridgeJson` in the kwin executor) fed bridge stdout straight into `JSON.parse`. A bridge that crashed mid-write, printed a stray warning, or emitted anything but one JSON value surfaced as an anonymous `SyntaxError: Unexpected token` with no hint of which bridge misbehaved or what it printed. Parsing now goes through a guard that fails with the bridge name and a 300-char stdout preview, and the kwin executor also logs the preview to `claude-patches.log` via `__cdbDiag`.
 
+### Computer Use: shell-string exec calls converted to argument arrays (ydotool path had a real injection vector)
+
+The regular executor built shell command strings for ydotool, spectacle/convert, and app launching. On the ydotool tier (exotic Wayland sessions), model-supplied input reached the shell: `ydotool type -- "+JSON.stringify(text)` and `ydotool key <mapped>` — JSON.stringify quoting is not shell quoting, so typed text or an unmapped key name containing `$(...)` or backticks would be command-substituted by the shell. `setsid xdg-open <name>` / `setsid <resolved>` in `openApp` had the same exposure via model-supplied app names. All of these now go through argument arrays with no shell involved (new `_ydotool` and `_launchDetached` helpers): ydotool via `execFileSync`, and detached app launches via `spawn` with `detached:true` + `stdio:"ignore"` + `unref()`, which reproduces the old `>/dev/null 2>&1` fire-and-forget semantics exactly — `execFile` would have piped and buffered the app's output and killed a long-running app once it exceeded `maxBuffer`. The spectacle/convert screenshot tier was moved to `execFileSync` for consistency. `COWORK_SCREENSHOT_CMD` stays intentionally shell-evaluated (a user-supplied template from the user's own environment, pipes/redirects are part of its contract) and is now commented as such.
+
 ## 2026-07-11
 
 ### v1.19367.0: upstream code-split the main bundle - orchestrator now patches stub + chunks as one logical file
