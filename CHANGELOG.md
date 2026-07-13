@@ -4,6 +4,10 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 
 ## 2026-07-13
 
+### Docs: how to reset a stuck Dispatch conversation
+
+The Cowork/Dispatch troubleshooting section in the README now covers Dispatch sessions that stop responding: the conversation persists its state (including past errors) across restarts, so the fix is the **⋮** menu next to the Dispatch title -> **Delete conversation** (with screenshot).
+
 ### RPM fixed for RHEL 9: bundled CU bridges no longer poison the package's glibc requirement
 
 The RPM had been uninstallable on RHEL 9 / Rocky 9 since the gnome/kwin CU bridges were bundled (2026-07-06): rpm's automatic ELF dependency scan harvested the bridges' deliberate glibc-2.39 symbols and turned them into package-level requirements, while RHEL 9 ships glibc 2.34 (`nothing provides libc.so.6(GLIBC_2.39)`). The bridges are supposed to be inert on RHEL 9 - their sessions (KDE 6.6+, GNOME on PipeWire >= 1.0.5) do not exist there and X11/wlroots Computer Use uses the static bridges. The spec now excludes the bundled tree from the automatic requires/provides generators and declares runtime deps by hand, mirroring the official .deb's Depends (and our own .deb, which never had the problem). Verified: the fixed rpm installs and boots on rockylinux:9 and fedora:40; it carries no glibc auto-requires and no longer leaks bundled sonames (libffmpeg.so, ...) as provides.
