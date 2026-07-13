@@ -2,6 +2,12 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-07-12
+
+### Computer Use: action tools no longer reject on executor errors — return a normal tool error
+
+The Computer Use handler wrapped its non-action tools (screenshot, zoom, open_application, …) in a top-level try/catch that turns a thrown executor error into a normal `{isError:true}` tool result, but the action-tool branch (left_click, type, scroll, drag, key, …) had no such guard. A throw from `ex.click`/`ex.type`/etc. propagated out of `handleToolCall` as a rejected promise instead of a tool error, so a transient backend failure (e.g. a missing bridge on an input action) surfaced as an unhandled error rather than a message the model could see and retry. The action-tool branch now has the same top-level guard, so both paths report executor failures consistently.
+
 ## 2026-07-11
 
 ### v1.19367.0: upstream code-split the main bundle - orchestrator now patches stub + chunks as one logical file
