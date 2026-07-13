@@ -462,6 +462,7 @@ Flags this project adds on top of the official build (run `claude-desktop --help
 | `CLAUDE_PROFILE` | name | Select a [profile](#multiple-profiles) by name (also `claude-desktop-NAME` / `--profile=NAME`) |
 | `CLAUDE_NATIVE_TITLEBAR` | `1` | Restore the native window frame instead of the integrated titlebar (same as `--native-titlebar`) |
 | `CLAUDE_USE_XWAYLAND` | `1` | Force XWayland instead of native Wayland. Also fixes "app exits after seconds" GPU crashes ([#180](https://github.com/patrickjaja/claude-desktop-bin/issues/180), see [wayland.md](wayland.md)) |
+| `CLAUDE_PASSWORD_STORE` | backend, `auto` | Force the Chromium keyring backend (`gnome-libsecret`, `kwallet6`, `basic`, ...). Default: on desktops Chromium gives no keyring backend (Hyprland, sway, XFCE, ...), a running Secret Service is used automatically so sign-in persists ([#191](https://github.com/patrickjaja/claude-desktop-bin/issues/191)). `auto` disables that detection |
 
 Set permanently in `~/.bashrc` / `~/.zshrc`, or pass per-launch: `CLAUDE_DISABLE_GPU=1 claude-desktop`
 
