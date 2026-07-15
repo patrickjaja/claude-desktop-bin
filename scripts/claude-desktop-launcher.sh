@@ -1071,6 +1071,44 @@ _diagnose() {
         fi
     fi
     echo
+    echo '--- Computer Use ---'
+    # The package version pins every bundled bit (bridges, Electron, app.asar).
+    local _cu_pkg _cu_res _cu_b _cu_sum=''
+    _cu_pkg="$(pacman -Q claude-desktop-bin 2>/dev/null || dpkg-query -W -f='claude-desktop-bin ${Version}\n' claude-desktop-bin 2>/dev/null || rpm -q claude-desktop-bin 2>/dev/null || echo '(no system package: AppImage/Nix/manual)')"
+    echo "package = $_cu_pkg"
+    _cu_res="$(dirname "$ELECTRON_BIN")/resources"
+    for _cu_b in x11-bridge wlroots-bridge gnome-portal-bridge kwin-portal-bridge; do
+        if [[ -x "$_cu_res/$_cu_b" ]]; then _cu_sum+=" $_cu_b"; else _cu_sum+=" $_cu_b(MISSING)"; fi
+    done
+    echo "bundled bridges =$_cu_sum"
+    if [[ "$(printf %s "${XDG_CURRENT_DESKTOP:-}" | tr '[:upper:]' '[:lower:]')" == *kde* ]] \
+        && [[ "${XDG_SESSION_TYPE:-}" == 'wayland' || -n "${WAYLAND_DISPLAY:-}" ]]; then
+        local _kv _kmaj _kmin
+        _kv="$(timeout 2 kwin_wayland --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -1 || true)"
+        if [[ -n "$_kv" ]]; then
+            _kmaj="${_kv%%.*}"; _kmin="${_kv#*.}"; _kmin="${_kmin%%.*}"
+            if (( _kmaj > 6 || (_kmaj == 6 && _kmin >= 6) )); then
+                echo "KWin = $_kv (>= 6.6: native kwin-portal-bridge route)"
+            else
+                echo "KWin = $_kv (< 6.6: ydotool/spectacle fallback - update Plasma for the native route)"
+            fi
+        else
+            echo 'KWin = (version probe failed)'
+        fi
+        # End-to-end KWin-scripting self-test: portal-free, never pops a
+        # consent dialog; window titles are not printed (only a byte count).
+        if [[ -x "$_cu_res/kwin-portal-bridge" ]]; then
+            local _st_out _st_rc=0
+            _st_out="$(timeout 10 "$_cu_res/kwin-portal-bridge" windows 2>&1)" || _st_rc=$?
+            if [[ "$_st_rc" == 0 ]]; then
+                echo "kwin-portal-bridge windows = ok (${#_st_out} bytes)"
+            else
+                echo "kwin-portal-bridge windows = FAILED (exit $_st_rc)"
+                printf '%s\n' "$_st_out" | head -3 | sed 's/^/  /'
+            fi
+        fi
+    fi
+    echo
     echo '--- Cowork VM capability (replicates the app probe) ---'
     # Mirrors the native Cowork backend's capability probe. If any of qemuPath /
     # firmwarePath / virtiofsdPath / kvm is missing, the app reports "VM not

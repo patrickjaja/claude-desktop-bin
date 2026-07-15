@@ -22,6 +22,14 @@ One-time migration on upgrade:
 - Named profiles: per-profile `.desktop` files become `com.anthropic.Claude-<name>.desktop`; `--delete-profile` cleans up both old and new names. The window `app_id` itself is shared across profiles; distinct per-profile grouping needs a per-profile `desktopName` override (follow-up).
 - Quick Entry keeps its own `claude-quick-entry` id. Launcher binary (`claude-desktop`), icon name, and userData (`~/.config/Claude`) are all unchanged - no re-login.
 
+### kwin-portal-bridge 0.2.4: Computer Use screenshots fixed on KDE Plasma Wayland ([kwin-portal-bridge#1](https://github.com/mosi0815/kwin-portal-bridge/issues/1))
+
+Two bridge bugs broke screenshots on KDE Plasma Wayland (reported on 6.7.2): the KWin helper script declared its DBus constants *after* the functions that close over them, which KWin's QJSEngine rejects ("Variable 'DBUS_DESTINATION' is used before its declaration") - so window-control scripts never ran; and un-activatable `plasmashell` overlay surfaces (OSD/notifications) in the pre-capture activation set aborted the whole preparation, cascading into "session daemon did not become ready in time". Window activation is now gated to activatable windows and best-effort, the constants precede the header, and a separate race (activation verified with a single immediate read of the active window) polls for the requested window instead. Bundled bridge is now 0.2.4 with regression tests for both fixes.
+
+### `--diagnose`: new Computer Use section
+
+`claude-desktop --diagnose` now prints the installed package version (which pins every bundled bit, bridges included), bundled-bridge presence, and - on KDE Wayland - the KWin version with the `>= 6.6` gate verdict plus a portal-free `windows` enumeration self-test through the kwin-portal-bridge, the exact KWin scripting path the 0.2.4 fixes repair. No consent dialog is opened and window titles are never included in the output. The README now also states the KDE Plasma 6.6 floor for the native KWin route explicitly.
+
 ### Removed 4 patches: we no longer keep "guard-only" patches
 
 Dropped 4 patches (41 -> 37) that no longer modified the bundle and only asserted upstream's own behavior: the CLI-governor memory fix ([#128](https://github.com/patrickjaja/claude-desktop-bin/issues/128)), the `/etc/claude-desktop/managed-settings.json` reader (main + boot bundle), and the title-bar fix - all native in the official build. We keep only patches that modify the bundle.

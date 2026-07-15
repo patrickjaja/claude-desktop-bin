@@ -219,6 +219,8 @@ curl -fsSL https://patrickjaja.github.io/claude-desktop-bin/gpg-key.asc | gpg --
 
 **Nothing to install** - the bridges ship inside the package. See **[docs/computer-use.md](docs/computer-use.md)** for how it works, the notes (primary-monitor, app discovery, teach overlay), and links to the [tool reference](baseline/CLAUDE_BUILT_IN_MCP.md#14-computer-use); [Computer Use dependencies](docs/computer-use-dependencies.md) has the per-session matrix and the exotic-compositor `ydotool` fallback.
 
+**KDE Plasma needs 6.6+** for the native KWin route (earlier Plasma lacks the KWin capture-hiding API) - below that, Computer Use falls back to `ydotool`/`spectacle`; updating Plasma restores the full experience. `claude-desktop --diagnose` prints your KWin version and which route is active.
+
 ## Custom Themes
 
 Recolor the whole app - chat, sidebar, Code/Cowork, dialogs, Quick Entry - by overriding CSS variables, injected into every window via Electron's `insertCSS()`. Each theme is **dual light/dark**: it ships a `light` and a `dark` palette, and the app's own toggle (Settings → Appearance) picks the matching one live. Every built-in is contrast-checked (WCAG AA).
@@ -514,6 +516,8 @@ rm -rf ~/.config/Claude/local-agent-mode-sessions/
 ```
 
 Computer Use patches emit `[claude-cu] diagnostics:` lines showing the detected session, available/missing tools, and screenshot cascade. They land in `~/.config/Claude/logs/claude-patches.log` (and on stderr when launched from a terminal) - share that log file when reporting Computer Use issues. The official build discards plain `console.log` output, so the old "run from a terminal and copy the output" advice only shows Chromium noise.
+
+`claude-desktop --diagnose` additionally prints a **Computer Use** section: the installed package version, bundled-bridge presence, and on KDE Wayland the KWin 6.6-gate verdict plus a portal-free `windows` self-test through the kwin-portal-bridge (no consent dialog; window titles are never printed). Attach that output together with `claude-patches.log` - the pair makes most Computer Use reports diagnosable without follow-up questions.
 
 ## Known Limitations
 
