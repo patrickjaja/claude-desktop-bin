@@ -41,6 +41,7 @@ set -euo pipefail
 # Chromium's GetXdgAppId(), which reads the app's desktopName
 # ("com.anthropic.Claude.desktop" in app.asar package.json - upstream's own) and
 # ignores the binary basename / --class / argv[0].
+APP_ID='claude'
 
 # The .desktop filename is a SEPARATE identity (DESKTOP_ID), computed below once
 # the profile is known. The default-profile launcher ships as
@@ -305,8 +306,8 @@ ELECTRON_BIN="${CLAUDE_ELECTRON:-}"
 
 # The bundled Electron binary is named after APP_ID (cosmetic argv[0] / scope
 # hint). NOTE: the binary basename does NOT set the window WM_CLASS - that comes
-# from the app's desktopName ("claude-desktop"); see the APP_ID header above and
-# issue #148.
+# from the app's desktopName ("com.anthropic.Claude"); see the APP_ID header
+# above and issue #148.
 #
 # The app itself is NEVER passed on the command line: the official build's
 # OnlyLoadAppFromAsar fuse makes Electron load the exe-adjacent
@@ -317,9 +318,9 @@ ELECTRON_BIN="${CLAUDE_ELECTRON:-}"
 # When a profile is active, prefer the user-local copy at
 # ~/.local/lib/claude-desktop/<APP_ID>-<profile> created by --create-profile.
 # (Intent was a per-profile WM_CLASS via the basename for separate icons/Alt-Tab
-# groups; in practice all profiles still report "claude-desktop" because the
-# shared app.asar desktopName wins - distinct per-profile WM_CLASS would need a
-# per-profile desktopName/CHROME_DESKTOP override, as in fix_quick_entry_app_id.nim.)
+# groups; in practice all profiles still report "com.anthropic.Claude" because
+# the shared app.asar desktopName wins - distinct per-profile WM_CLASS would need
+# a per-profile desktopName/CHROME_DESKTOP override, as in fix_quick_entry_app_id.nim.)
 if [[ -z "$ELECTRON_BIN" ]]; then
     candidates=()
     if [[ -n "$profile_suffix" ]]; then
