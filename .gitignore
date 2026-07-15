@@ -48,6 +48,7 @@ dist-local
 /mainWindow.js
 /MainWindowPage-*.js
 /window-shared.css
+/package.json
 __pycache__/
 
 # Nix build output

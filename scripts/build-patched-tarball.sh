@@ -316,7 +316,7 @@ asar extract "$TREE_DIR/resources/app.asar" "$APP_DIR/app.asar.contents"
 log_info "Asserting upstream desktopName app identity..."
 PKG_JSON="$APP_DIR/app.asar.contents/package.json"
 if ! grep -q '"desktopName": *"com.anthropic.Claude.desktop"' "$PKG_JSON"; then
-    log_error "package.json desktopName is not \"com.anthropic.Claude.desktop\" - upstream changed the app identity; re-audit the .desktop filenames + StartupWMClass + launcher DESKTOP_ID (see PLAN.md / launcher APP_ID/DESKTOP_ID header)"
+    log_error "package.json desktopName is not \"com.anthropic.Claude.desktop\" - upstream changed the app identity; re-audit the .desktop filenames + StartupWMClass + launcher DESKTOP_ID (see the launcher APP_ID/DESKTOP_ID header)"
     exit 1
 fi
 log_info "desktopName is upstream com.anthropic.Claude.desktop (no pin)"

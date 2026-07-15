@@ -66,10 +66,10 @@ The dispatch logic lives in checked-in JS under `js/`, embedded into `patches/fi
 - New native binary → pick floor = its minimum viable distro; CI verifies it via `objdump -T | grep GLIBC_`.
 
 ## Multi-profile / window identity (`scripts/claude-desktop-launcher.sh`)
-- Per-profile Electron binary at `~/.local/lib/claude-desktop/<APP_ID>-<name>` via **hardlink → reflink → copy** (never symlink - Electron derives identity from `realpath(/proc/self/exe)`, kernel resolves symlinks first).
-- WM_CLASS = Wayland app_id = binary basename (`claude` default, `claude-<name>` per profile). systemd scope `app-claude(-<name>)-$$.scope`.
+- Per-profile Electron binary at `~/.local/lib/claude-desktop/<APP_ID>-<name>` via **hardlink → reflink → copy** (never symlink - Electron derives identity from `realpath(/proc/self/exe)`, kernel resolves symlinks first). Gives per-profile process/exe identity, NOT a per-profile window app_id.
+- WM_CLASS = Wayland app_id = `com.anthropic.Claude` - Chromium derives it from the bundle's `desktopName` (upstream's own reverse-DNS identity; the old `claude-desktop` pin was removed 2026-07-15). Shared across ALL profiles; distinct per-profile app_id needs a per-profile `desktopName` override (unsolved follow-up). systemd scope `app-com.anthropic.Claude(-<name>)-$$.scope`; installed `.desktop` = `com.anthropic.Claude.desktop` (`StartupWMClass=com.anthropic.Claude`); Quick Entry keeps its own `claude-quick-entry` id. XDG autostart entries derive from the BINARY basename instead: `~/.config/autostart/claude(-<name>).desktop`.
 - Per-profile isolation: `--user-data-dir` (Electron userData), `CLAUDE_CONFIG_DIR` (Claude Code CLI), `CLAUDE_PROFILE` env (sockets/markers). See CLAUDE.md "Profile System" table.
-- **Portal identity caveat** (`project_platform_gate_baseline` / portal memory): xdg-desktop-portal wants a reverse-URL app_id to route activations back to unsandboxed Electron; shipping single-segment `"Claude"` breaks routing across compositors. Fix is launcher-only.
+- **Portal identity**: xdg-desktop-portal resolves unsandboxed Electron via systemd scope → `.desktop` id; a reverse-DNS id is required for activation routing and KDE persistent grants. Shipped since 2026-07-15: `desktopName` / `.desktop` / `StartupWMClass` / scope all agree on `com.anthropic.Claude`. A build tripwire in `build-patched-tarball.sh` fails loud if upstream renames `desktopName` again.
 
 ## Known Linux gotchas (one line each → which patch)
 - Opening a Code session enumerates apps via the executor (no CU lock); a portal-session ensure on that path popped GNOME's consent dialog + froze the main process (#184) → `js/cu_linux_executor.js` `_gnomePortalCmds` allowlist + async `__setLockHeld` lifecycle.

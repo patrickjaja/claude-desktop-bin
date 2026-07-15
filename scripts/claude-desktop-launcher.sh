@@ -781,7 +781,7 @@ _create_profile() {
     # This mirrors how Chrome does multi-channel (google-chrome-stable /
     # google-chrome-beta are real copies). NOTE: this alone does NOT give each
     # profile a distinct WM_CLASS - Chromium's app_id comes from the shared
-    # app.asar desktopName ("claude-desktop"), not the binary basename, so the
+    # app.asar desktopName ("com.anthropic.Claude"), not the binary basename, so the
     # WM still groups all profiles as one app. See issue #148 / the discovery
     # comment above for the per-profile-desktopName follow-up.
     #
@@ -838,11 +838,11 @@ _create_profile() {
         # binary, so a named profile's right-click "New chat" would open in the
         # default profile. Simpler to drop them than to rewrite each per-action Exec.
         #
-        # StartupWMClass is left as the inherited "claude-desktop" on purpose: the
-        # window's live app_id is "claude-desktop" for every profile (the shared
-        # app.asar desktopName wins), so a per-profile "claude-<name>" WMClass
-        # would never match the window. A distinct per-profile app_id needs a
-        # per-profile desktopName override (out of scope for #148).
+        # StartupWMClass is left as the inherited "com.anthropic.Claude" on
+        # purpose: the window's live app_id is "com.anthropic.Claude" for every
+        # profile (the shared app.asar desktopName wins), so a per-profile
+        # WMClass would never match the window. A distinct per-profile app_id
+        # needs a per-profile desktopName override (out of scope for #148).
         awk -v name="$name" -v execline="$exec_line" '
             BEGIN { FS=OFS="="; drop=0 }
             /^\[Desktop Action / { drop=1; next }   # drop the whole action block

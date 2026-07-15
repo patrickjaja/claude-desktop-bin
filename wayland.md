@@ -26,9 +26,9 @@ CLAUDE_USE_XWAYLAND=1 CLAUDE_DISABLE_GPU=full claude-desktop # + XWayland (confi
 **Persist it** (covers menu, autostart, and `claude://` links; survives package updates):
 
 ```bash
-cp /usr/share/applications/claude-desktop.desktop ~/.local/share/applications/
+cp /usr/share/applications/com.anthropic.Claude.desktop ~/.local/share/applications/
 sed -i 's|^Exec=claude-desktop|Exec=env CLAUDE_USE_XWAYLAND=1 CLAUDE_DISABLE_GPU=full claude-desktop|' \
-  ~/.local/share/applications/claude-desktop.desktop
+  ~/.local/share/applications/com.anthropic.Claude.desktop
 ```
 
 (Swap in whichever env vars worked for you. Delete the file to return to defaults.)

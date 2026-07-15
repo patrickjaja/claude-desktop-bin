@@ -8,6 +8,20 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 
 Routine upstream bump. Computer Use is still macOS/Windows-only upstream, so our Linux Computer Use support stays. One tool-description tweak re-fitted (`open_application` on Linux no longer tells the model to request allowlist access first, since our bridges reach every app). No new Linux-relevant changes upstream.
 
+### App identity aligned to upstream: `com.anthropic.Claude`
+
+All packages now ship the official build's app identity end to end. Previously the build pinned the bundle's `desktopName` back to `claude-desktop.desktop` and named every `.desktop` file, `StartupWMClass`, and systemd scope to match. The pin is removed: the bundle keeps upstream's `desktopName` (`com.anthropic.Claude.desktop`), every package (AUR, deb, rpm, AppImage, Nix) installs `com.anthropic.Claude.desktop` with `StartupWMClass=com.anthropic.Claude`, the launcher scope is `app-com.anthropic.Claude-PID.scope`, and the `claude://` handler registers on the new name. A build tripwire fails loud if upstream ever renames `desktopName` again.
+
+The point of the reverse-DNS id: `xdg-desktop-portal` resolves an unsandboxed app from its systemd scope back to a `.desktop` file, which is what makes portal activation routing and KDE's persistent screen-share / Computer Use grants work. The single-segment `claude-desktop` id could not do that, and keeping it meant permanent naming drift from the official package.
+
+One-time migration on upgrade:
+
+- Pinned taskbar/dock shortcuts referencing the old `claude-desktop.desktop` orphan - re-pin once (deliberately no compat symlink: it would surface a duplicate app entry in launchers).
+- Custom WM rules matching `claude-desktop` need updating to `com.anthropic.Claude`.
+- KDE screen-share / Computer Use consent asks once more (portal grants are keyed to the app id), then persists - persistence is precisely what the reverse-DNS id fixes.
+- Named profiles: per-profile `.desktop` files become `com.anthropic.Claude-<name>.desktop`; `--delete-profile` cleans up both old and new names. The window `app_id` itself is shared across profiles; distinct per-profile grouping needs a per-profile `desktopName` override (follow-up).
+- Quick Entry keeps its own `claude-quick-entry` id. Launcher binary (`claude-desktop`), icon name, and userData (`~/.config/Claude`) are all unchanged - no re-login.
+
 ### Removed 4 patches: we no longer keep "guard-only" patches
 
 Dropped 4 patches (41 -> 37) that no longer modified the bundle and only asserted upstream's own behavior: the CLI-governor memory fix ([#128](https://github.com/patrickjaja/claude-desktop-bin/issues/128)), the `/etc/claude-desktop/managed-settings.json` reader (main + boot bundle), and the title-bar fix - all native in the official build. We keep only patches that modify the bundle.
@@ -22,7 +36,7 @@ To make a future routing mismatch diagnosable without shell access, `--diagnose`
 
 ### Quick Entry no longer restores a stale window app_id after first use
 
-After Quick Entry is shown, `fix_quick_entry_app_id` resets `CHROME_DESKTOP` so later windows get the main app_id back. That reset target was a hardcoded `claude` literal, but upstream renamed the app identity (`desktopName`) to `com.anthropic.Claude` in v1.19367.0, so on Wayland compositors that create a separate toplevel after Quick Entry (GNOME, wlroots) those windows could inherit a stale, non-matching app_id - breaking taskbar/dock grouping and per-app window rules. The reset now reads `desktopName` from the app's own `package.json` at runtime (falling back to the literal only if that read fails), so it can't go stale on the next upstream rename. Verified non-breaking on KDE Plasma 6 Wayland (main window stays `claude-desktop`, Quick Entry stays `claude-quick-entry`).
+After Quick Entry is shown, `fix_quick_entry_app_id` resets `CHROME_DESKTOP` so later windows get the main app_id back. That reset target was a hardcoded `claude` literal, but upstream renamed the app identity (`desktopName`) to `com.anthropic.Claude` in v1.19367.0, so on Wayland compositors that create a separate toplevel after Quick Entry (GNOME, wlroots) those windows could inherit a stale, non-matching app_id - breaking taskbar/dock grouping and per-app window rules. The reset now reads `desktopName` from the app's own `package.json` at runtime (falling back to the literal only if that read fails), so it can't go stale on the next upstream rename. Verified non-breaking on KDE Plasma 6 Wayland (main window kept the then-pinned `claude-desktop`, Quick Entry `claude-quick-entry`; with the app-identity alignment above, the runtime read now resolves the main id to `com.anthropic.Claude`).
 
 ### Launcher: `CLAUDE_GPU_BACKEND=angle-gl` escape hatch
 
