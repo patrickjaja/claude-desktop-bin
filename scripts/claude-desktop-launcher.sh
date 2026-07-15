@@ -37,22 +37,22 @@ set -euo pipefail
 # Launch section).
 #
 # IMPORTANT: APP_ID is NOT the window's WM_CLASS / Wayland app_id either. That
-# value is "claude-desktop" (verified via xprop/wmctrl) and comes from
+# value is "com.anthropic.Claude" (verified via xprop/wmctrl) and comes from
 # Chromium's GetXdgAppId(), which reads the app's desktopName
-# ("claude-desktop.desktop" in app.asar package.json) and ignores the binary
-# basename / --class / argv[0].
-APP_ID='claude'
+# ("com.anthropic.Claude.desktop" in app.asar package.json - upstream's own) and
+# ignores the binary basename / --class / argv[0].
 
 # The .desktop filename is a SEPARATE identity (DESKTOP_ID), computed below once
-# the profile is known. As of issue #148 the default-profile launcher ships as
-# "claude-desktop.desktop" so the filename equals the window's Wayland app_id
-# ("claude-desktop"). On native Wayland there is no WM_CLASS, so GNOME/KDE match
-# the window to its .desktop entry by app_id == .desktop filename; the old
-# "claude.desktop" never matched and the dock/Alt-Tab icon fell back to a generic
-# one. StartupWMClass (also "claude-desktop", set in every .desktop we write)
-# covers X11/XWayland. So now BOTH match keys agree: filename == app_id (Wayland)
-# and StartupWMClass == app_id (X11). See the DESKTOP_ID assignment after profile
-# resolution below.
+# the profile is known. The default-profile launcher ships as
+# "com.anthropic.Claude.desktop" so the filename equals the window's Wayland
+# app_id ("com.anthropic.Claude"). On native Wayland there is no WM_CLASS, so
+# GNOME/KDE match the window to its .desktop entry by app_id == .desktop filename;
+# a mismatched filename makes the dock/Alt-Tab icon fall back to a generic one
+# (issue #148). StartupWMClass (also "com.anthropic.Claude", set in every .desktop
+# we write) covers X11/XWayland. So BOTH match keys agree: filename == app_id
+# (Wayland) and StartupWMClass == app_id (X11). The reverse-DNS id also lets
+# xdg-desktop-portal persist Computer Use grants on KDE. See the DESKTOP_ID
+# assignment after profile resolution below.
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -185,9 +185,9 @@ fi
 config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/Claude${profile_suffix}"
 
 # .desktop filename identity (see the DESKTOP_ID note in the APP_ID header).
-# Default profile → "claude-desktop"; named profile → "claude-desktop-<name>".
+# Default profile → "com.anthropic.Claude"; named → "com.anthropic.Claude-<name>".
 # Distinct from APP_ID (the cosmetic binary/scope basename, still "claude").
-DESKTOP_ID="claude-desktop${profile_suffix}"
+DESKTOP_ID="com.anthropic.Claude${profile_suffix}"
 
 # ---------------------------------------------------------------------------
 # URL handler profile routing (SSO callback dispatch)
@@ -462,10 +462,13 @@ print(repr(arr))
 _profile_paths() {
     # Outputs the four files associated with a profile to stdout, one per line.
     # Order: electron-symlink, launcher-symlink, desktop-file, config-dir.
+    # The .desktop filename is the app IDENTITY (com.anthropic.Claude-<name>),
+    # NOT the launcher-binary/symlink name (claude-desktop-<name>) - those are
+    # deliberately different axes (see the APP_ID / DESKTOP_ID header).
     local name="$1"
     echo "$HOME/.local/lib/claude-desktop/${APP_ID}-${name}"
     echo "$HOME/.local/bin/claude-desktop-${name}"
-    echo "$HOME/.local/share/applications/claude-desktop-${name}.desktop"
+    echo "$HOME/.local/share/applications/com.anthropic.Claude-${name}.desktop"
     echo "${XDG_CONFIG_HOME:-$HOME/.config}/Claude-${name}"
 }
 
@@ -652,7 +655,7 @@ ${desired_exec}
 Icon=claude-desktop
 Type=Application
 StartupNotify=true
-StartupWMClass=claude-desktop
+StartupWMClass=com.anthropic.Claude
 SingleMainWindow=true
 Categories=Utility;Development;
 MimeType=x-scheme-handler/claude;
@@ -764,7 +767,7 @@ _create_profile() {
 
     local electron_bin_path="$HOME/.local/lib/claude-desktop/${APP_ID}-${name}"
     local launcher_link="$HOME/.local/bin/claude-desktop-${name}"
-    local desktop_file="$HOME/.local/share/applications/claude-desktop-${name}.desktop"
+    local desktop_file="$HOME/.local/share/applications/com.anthropic.Claude-${name}.desktop"
 
     if [[ -e "$electron_bin_path" || -e "$launcher_link" || -e "$desktop_file" ]]; then
         echo >&2 "claude-desktop: profile '$name' already exists. Use --delete-profile=$name first to recreate."
@@ -803,10 +806,14 @@ _create_profile() {
     ln -s "$launcher_path" "$launcher_link"
 
     # Try to find the default-profile system .desktop to inherit Icon=, etc.
-    # The installed default file is "claude-desktop.desktop" (issue #148), not
-    # "${APP_ID}.desktop" - APP_ID is now only the binary/scope basename.
+    # The installed default file is "com.anthropic.Claude.desktop" (upstream's
+    # own identity), not "${APP_ID}.desktop" - APP_ID is only the binary/scope
+    # basename. The legacy "claude-desktop.desktop" name is also probed so a
+    # profile created on a not-yet-upgraded install still finds a source.
     local source_desktop=""
     for c in \
+        "/usr/share/applications/com.anthropic.Claude.desktop" \
+        "$HOME/.local/share/applications/com.anthropic.Claude.desktop" \
         "/usr/share/applications/claude-desktop.desktop" \
         "$HOME/.local/share/applications/claude-desktop.desktop"; do
         if [[ -f "$c" ]]; then
@@ -855,7 +862,7 @@ ${exec_line}
 Terminal=false
 Type=Application
 Icon=claude-desktop
-StartupWMClass=claude-desktop
+StartupWMClass=com.anthropic.Claude
 Categories=Utility;Development;
 EOF
     fi
@@ -890,10 +897,13 @@ _delete_profile() {
 
     local electron_link="$HOME/.local/lib/claude-desktop/${APP_ID}-${name}"
     local launcher_link="$HOME/.local/bin/claude-desktop-${name}"
-    local desktop_file="$HOME/.local/share/applications/claude-desktop-${name}.desktop"
+    local desktop_file="$HOME/.local/share/applications/com.anthropic.Claude-${name}.desktop"
+    # Legacy per-profile .desktop name from before the app-identity alignment;
+    # removed too so profiles created by an older launcher clean up fully.
+    local legacy_desktop_file="$HOME/.local/share/applications/claude-desktop-${name}.desktop"
 
     local removed=0
-    for f in "$electron_link" "$launcher_link" "$desktop_file"; do
+    for f in "$electron_link" "$launcher_link" "$desktop_file" "$legacy_desktop_file"; do
         if [[ -L "$f" || -f "$f" ]]; then
             rm -f "$f"
             echo "Removed: $f"
@@ -989,10 +999,11 @@ _diagnose() {
     echo "config_dir = $config_dir"
     echo "DESKTOP_ID = $DESKTOP_ID"
     # The system-installed default .desktop is the portal-identity anchor that
-    # the systemd scope (app-claude-...scope) resolves back to. It is always the
-    # default "claude-desktop.desktop" (issue #148); named-profile .desktop files
-    # live user-local under ~/.local/share/applications/claude-desktop-<name>.desktop.
-    local desktop_file="/usr/share/applications/claude-desktop.desktop"
+    # the systemd scope (app-com.anthropic.Claude-...scope) resolves back to. It
+    # is the default "com.anthropic.Claude.desktop"; named-profile .desktop files
+    # live user-local under ~/.local/share/applications/com.anthropic.Claude-<name>.desktop.
+    local desktop_file="/usr/share/applications/com.anthropic.Claude.desktop"
+    [[ -f $desktop_file ]] || desktop_file="/usr/share/applications/claude-desktop.desktop"
     if [[ -f $desktop_file ]]; then
         echo ".desktop file: $desktop_file (found)"
     else
@@ -1665,8 +1676,9 @@ log "Launching: $ELECTRON_BIN (auto-loads $APP_ASAR) ${ELECTRON_ARGS[*]} $*"
 # app-${DESKTOP_ID}-PID.scope) is the identity signal xdg-desktop-portal uses to
 # resolve us back to our .desktop. By the freedesktop convention the middle
 # token is the application id == .desktop basename, so it must be DESKTOP_ID
-# ("claude-desktop"), NOT APP_ID ("claude") - otherwise the portal would look
-# for the now-renamed "claude.desktop" and fail to identify us (issue #148).
+# ("com.anthropic.Claude"), NOT APP_ID ("claude"). The reverse-DNS id (with dots)
+# is what lets the portal persist Computer Use grants on KDE; the scope unit
+# app-com.anthropic.Claude-PID.scope follows the same convention Flatpak/GNOME use.
 # This is separate from the window app_id / X11 WM_CLASS ("claude-desktop", from
 # the app's desktopName); that dock-icon match uses StartupWMClass / the .desktop
 # filename instead. APP_ID remains only the cosmetic Electron binary basename.

@@ -73,19 +73,23 @@ stdenvNoCC.mkDerivation {
 
   nativeBuildInputs = [ makeWrapper copyDesktopItems ];
 
-  # "name" becomes the .desktop filename. It is "claude-desktop" so the installed
-  # file is claude-desktop.desktop, matching the app's *live* app_id - Chromium's
-  # GetXdgAppId() reads the app's desktopName ("claude-desktop.desktop" in
+  # "name" becomes the .desktop filename. It is "com.anthropic.Claude" so the
+  # installed file is com.anthropic.Claude.desktop, matching the app's *live*
+  # app_id - Chromium's GetXdgAppId() reads the app's desktopName
+  # ("com.anthropic.Claude.desktop" in
   # app.asar package.json), strips ".desktop", and ignores the binary basename
-  # / --class / argv[0]. On native Wayland there is no WM_CLASS, so KWin/GNOME
-  # match the window to its .desktop by app_id; if the basename doesn't equal the
-  # app_id the dock icon is generic and Alt+Tab shows a duplicate (issue #148).
-  # startupWMClass=claude-desktop fixes the X11/XWayland path. The binary rename
-  # below is kept only as a cosmetic argv[0] / scope hint; it does NOT set
-  # WM_CLASS. Content mirrors the official Claude Desktop .deb.
+  # / --class / argv[0]. We now ride upstream's official "com.anthropic.Claude"
+  # app identity, so the .desktop filename and startupWMClass match it (we no
+  # longer pin our own "claude-desktop" identity). On native Wayland there is no
+  # WM_CLASS, so KWin/GNOME match the window to its .desktop by app_id; if the
+  # basename doesn't equal the app_id the dock icon is generic and Alt+Tab shows
+  # a duplicate (issue #148). startupWMClass=com.anthropic.Claude fixes the
+  # X11/XWayland path. The claude-desktop binary rename below is kept only as a
+  # cosmetic argv[0] / scope hint; it does NOT set WM_CLASS. Content mirrors the
+  # official Claude Desktop .deb.
   desktopItems = [
     (makeDesktopItem {
-      name = "claude-desktop";
+      name = "com.anthropic.Claude";
       desktopName = "Claude";
       genericName = "AI Assistant";
       comment = "Desktop application for Claude.ai";
@@ -95,7 +99,7 @@ stdenvNoCC.mkDerivation {
       categories = [ "Utility" "Development" ];
       mimeTypes = [ "x-scheme-handler/claude" ];
       startupNotify = true;
-      startupWMClass = "claude-desktop";
+      startupWMClass = "com.anthropic.Claude";
       terminal = false;
       # second-instance just focuses mainWindow; suppress GNOME's "New Window" item
       singleMainWindow = true;
@@ -118,7 +122,7 @@ stdenvNoCC.mkDerivation {
     # Materialise the nixpkgs Electron dist into $out/lib/claude-desktop/ with the
     # binary renamed to "claude" (cosmetic argv[0] / systemd-scope hint only; the
     # Wayland app_id / X11 WM_CLASS comes from the app's desktopName
-    # "claude-desktop", not this basename - see startupWMClass above). The
+    # "com.anthropic.Claude", not this basename - see startupWMClass above). The
     # tarball's own bundled Electron runtime is DISCARDED on NixOS (foreign
     # glibc); we use nixpkgs electron instead.
     mkdir -p $out/lib/claude-desktop

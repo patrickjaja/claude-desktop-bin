@@ -161,16 +161,17 @@ EOF
 chmod +x "$APPDIR/AppRun"
 
 # Create desktop file.
-# Filename is "claude-desktop.desktop" to match the live window app_id
-# "claude-desktop" (Chromium's GetXdgAppId() reads the app's desktopName
-# "claude-desktop.desktop" from app.asar, strips ".desktop"). appimagetool also
-# matches the AppDir-root .desktop basename to the icon/app id, so the root copy
-# must be claude-desktop.desktop too. On native Wayland there is no WM_CLASS, so
-# KWin/GNOME match by app_id; a mismatched basename gives a generic icon +
-# Alt+Tab duplicate (issue #148). Content mirrors the official Claude Desktop .deb.
+# Filename is "com.anthropic.Claude.desktop" to match the live window app_id
+# "com.anthropic.Claude" (Chromium's GetXdgAppId() reads the app's desktopName
+# "com.anthropic.Claude.desktop" from app.asar - upstream's own - and strips
+# ".desktop"; we no longer pin our own). appimagetool matches the AppDir-root
+# .desktop's Icon= to an icon file at the root (claude-desktop.png, unchanged),
+# so the .desktop filename and the Icon= name are independent. On native Wayland
+# there is no WM_CLASS, so KWin/GNOME match by app_id; a mismatched basename gives
+# a generic icon + Alt+Tab duplicate (issue #148). Content mirrors the official .deb.
 log_info "Creating desktop file..."
 mkdir -p "$APPDIR/usr/share/applications"
-cat > "$APPDIR/claude-desktop.desktop" << EOF
+cat > "$APPDIR/com.anthropic.Claude.desktop" << EOF
 [Desktop Entry]
 Name=Claude
 Comment=Desktop application for Claude.ai
@@ -180,7 +181,7 @@ Exec=claude-desktop %U
 Icon=claude-desktop
 Type=Application
 StartupNotify=true
-StartupWMClass=claude-desktop
+StartupWMClass=com.anthropic.Claude
 # second-instance just focuses mainWindow; suppress GNOME's default "New Window" item
 SingleMainWindow=true
 Categories=Utility;Development;
@@ -196,7 +197,7 @@ Exec=claude-desktop claude://claude.ai/new
 Name=New Claude Code session
 Exec=claude-desktop claude://code/new
 EOF
-cp "$APPDIR/claude-desktop.desktop" "$APPDIR/usr/share/applications/"
+cp "$APPDIR/com.anthropic.Claude.desktop" "$APPDIR/usr/share/applications/"
 
 # Copy icon
 log_info "Installing icon..."

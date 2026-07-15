@@ -301,32 +301,25 @@ APP_DIR="$WORK_DIR/app"
 mkdir -p "$APP_DIR"
 asar extract "$TREE_DIR/resources/app.asar" "$APP_DIR/app.asar.contents"
 
-# App identity: pin desktopName to "claude-desktop.desktop". Chromium derives the
-# window's Wayland app_id / X11 WM_CLASS from package.json desktopName, and every
-# .desktop file we ship (deb/rpm/AUR/AppImage/Nix, plus the launcher's per-profile
-# entries, StartupWMClass and the claude:// xdg-mime handler) is built around the
-# "claude-desktop" identity (issue #148). Upstream v1.19367.0 renamed its
-# desktopName to com.anthropic.Claude.desktop for the .desktop file the official
-# .deb installs - a file we do not ship. The JS bundle contains no reference to
-# either name, so pinning is safe; without it, window/icon matching silently
-# breaks on Wayland.
-log_info "Pinning desktopName app identity..."
+# App identity: we ride upstream's own desktopName ("com.anthropic.Claude.desktop")
+# rather than pinning our own. Chromium derives the window's Wayland app_id / X11
+# WM_CLASS from package.json desktopName (GetXdgAppId, when $CHROME_DESKTOP is
+# unset and no --class is passed - both true in our launcher). Every .desktop file
+# we ship (deb/rpm/AUR/AppImage/Nix, the launcher's per-profile entries,
+# StartupWMClass, and the claude:// xdg-mime handler) is built around that same
+# "com.anthropic.Claude" identity, so window/icon matching and xdg-desktop-portal
+# activation routing agree on the upstream reverse-DNS id (which, unlike the old
+# single-segment "claude-desktop", also lets KDE persist Computer Use grants).
+# We do NOT touch productName ("Claude"), so userData stays ~/.config/Claude.
+# This tripwire fails loud if upstream renames desktopName again, so our fixed
+# .desktop filenames cannot silently desync from the live window app_id.
+log_info "Asserting upstream desktopName app identity..."
 PKG_JSON="$APP_DIR/app.asar.contents/package.json"
-if ! grep -q '"desktopName"' "$PKG_JSON"; then
-    log_error "package.json has no desktopName key - upstream changed app-identity handling; re-audit (launcher APP_ID/DESKTOP_ID header)"
+if ! grep -q '"desktopName": *"com.anthropic.Claude.desktop"' "$PKG_JSON"; then
+    log_error "package.json desktopName is not \"com.anthropic.Claude.desktop\" - upstream changed the app identity; re-audit the .desktop filenames + StartupWMClass + launcher DESKTOP_ID (see PLAN.md / launcher APP_ID/DESKTOP_ID header)"
     exit 1
 fi
-python3 - "$PKG_JSON" <<'PYEOF'
-import json, sys
-p = sys.argv[1]
-with open(p) as f:
-    d = json.load(f)
-d["desktopName"] = "claude-desktop.desktop"
-with open(p, "w") as f:
-    json.dump(d, f, indent=2)
-PYEOF
-grep -q '"desktopName": "claude-desktop.desktop"' "$PKG_JSON" || { log_error "desktopName pin failed"; exit 1; }
-log_info "desktopName pinned to claude-desktop.desktop"
+log_info "desktopName is upstream com.anthropic.Claude.desktop (no pin)"
 
 # Compile Nim patches (native build or Docker fallback)
 log_info "Compiling Nim patches..."

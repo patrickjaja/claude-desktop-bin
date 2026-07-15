@@ -130,14 +130,14 @@ install -m755 tarball/launcher/claude-desktop %{buildroot}/usr/bin/claude-deskto
 install -Dm644 tarball/copyright %{buildroot}/usr/share/licenses/%{name}/copyright
 
 # Install desktop file.
-# Filename is "claude-desktop.desktop" to match the live window app_id
-# "claude-desktop" (Chromium's GetXdgAppId() reads the app's desktopName
-# "claude-desktop.desktop" from app.asar, strips ".desktop"). On native Wayland
-# there is no WM_CLASS, so KWin/GNOME match by app_id; a mismatched basename gives
-# a generic icon + Alt+Tab duplicate (issue #148). StartupWMClass fixes X11.
+# Filename is "com.anthropic.Claude.desktop" to ride upstream's app identity
+# "com.anthropic.Claude" (Chromium's GetXdgAppId() reads the app's desktopName,
+# now "com.anthropic.Claude.desktop", and strips ".desktop"); we no longer pin it.
+# On native Wayland there is no WM_CLASS, so KWin/GNOME match by app_id; a mismatched
+# basename gives a generic icon + Alt+Tab duplicate (issue #148). StartupWMClass fixes X11.
 # Content mirrors the official Claude Desktop .deb.
 mkdir -p %{buildroot}/usr/share/applications
-cat > %{buildroot}/usr/share/applications/claude-desktop.desktop << 'DESKTOP'
+cat > %{buildroot}/usr/share/applications/com.anthropic.Claude.desktop << 'DESKTOP'
 [Desktop Entry]
 Name=Claude
 Comment=Desktop application for Claude.ai
@@ -147,7 +147,7 @@ Exec=claude-desktop %U
 Icon=claude-desktop
 Type=Application
 StartupNotify=true
-StartupWMClass=claude-desktop
+StartupWMClass=com.anthropic.Claude
 # second-instance just focuses mainWindow; suppress GNOME's default "New Window" item
 SingleMainWindow=true
 Categories=Utility;Development;
@@ -230,5 +230,5 @@ fi
 %license /usr/share/licenses/%{name}/copyright
 /usr/lib/claude-desktop/
 /usr/bin/claude-desktop
-/usr/share/applications/claude-desktop.desktop
+/usr/share/applications/com.anthropic.Claude.desktop
 /usr/share/icons/hicolor/256x256/apps/claude-desktop.png
