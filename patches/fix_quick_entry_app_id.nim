@@ -88,9 +88,12 @@
 #
 # So the app_id is the basename of whatever the `CHROME_DESKTOP`
 # environment variable points at, with any `.desktop` suffix stripped.
-# The launcher script sets `CHROME_DESKTOP=claude.desktop`
-# at startup, so every BrowserWindow gets
-# `app_id = claude` by default.
+# The launcher does NOT export `CHROME_DESKTOP`, so `GetDesktopName()`
+# falls back to Electron's `desktopName` (from the app's package.json).
+# Since v1.19367.0 that is `com.anthropic.Claude`, so every BrowserWindow
+# gets `app_id = com.anthropic.Claude` by default. (This value is upstream's
+# and can be renamed again, which is why the reset below reads it at runtime
+# rather than hardcoding it.)
 #
 # Critically, Chromium re-reads `CHROME_DESKTOP` at each new
 # `xdg_toplevel.set_app_id` call, not once at process start. If we
@@ -100,7 +103,7 @@
 # log reports
 #     wmClass = claude-quick-entry
 # for the Quick Entry window, while the main window keeps
-#     wmClass = claude
+#     wmClass = com.anthropic.Claude
 #
 # Electron's `app.setDesktopName()` is a thin wrapper around setting
 # the same env var from the JS side, so we call both for safety.
@@ -115,10 +118,10 @@
 #     (and call app.setDesktopName).
 #
 #  2. ON the window's first "ready-to-show" event: reset CHROME_DESKTOP
-#     (and app.setDesktopName) back to
-#     "claude.desktop", so any later
-#     BrowserWindow the app creates (dialogs, printing preview, etc.)
-#     gets the original app_id again.
+#     (and app.setDesktopName) back to the app's real `desktopName` read
+#     from package.json at runtime (fallback "com.anthropic.Claude"), so
+#     any later BrowserWindow the app creates (dialogs, printing preview,
+#     etc.) gets the original app_id again.
 #
 # We use `.once("ready-to-show")` rather than a blind setTimeout
 # because ready-to-show guarantees Chromium has dispatched
@@ -158,10 +161,15 @@
 #           cleanest statement in the setup comma-chain to append our
 #           `.once("ready-to-show")` reset to.
 
-import std/[os]
+import std/[os, strutils]
 import regex
 
-const MAIN_APP_ID = "claude"
+# Fallback only. The reset target is normally read from the app's own
+# package.json `desktopName` at runtime (see the post-create block below):
+# upstream renamed the app identity from "claude" to "com.anthropic.Claude"
+# in v1.19367.0, and hardcoding any literal here goes stale on the next
+# rename. Kept as a last-resort fallback if the package.json read ever fails.
+const MAIN_APP_ID_FALLBACK = "com.anthropic.Claude"
 const QE_APP_ID = "claude-quick-entry"
 
 proc apply*(input: string): string =
@@ -211,14 +219,23 @@ proc apply*(input: string): string =
       inc postCount
       let original = s[m.group(0)]
       let winVar = s[m.group(1)]
-      let electronVar = s[m.group(3)]
-      # Resolve the per-profile main app_id at runtime so windows opened after
-      # Quick Entry (settings, dialogs) get claude-NAME
-      # rather than the unsuffixed default. CLAUDE_PROFILE is exported by the
-      # launcher; absent for the default profile.
-      original & "," & winVar & ".once(\"ready-to-show\",()=>{" & "try{" &
-        "const _mid=\"" & MAIN_APP_ID &
-        "\"+(process.env.CLAUDE_PROFILE?\"-\"+process.env.CLAUDE_PROFILE:\"\")+\".desktop\";" &
+      let electronVar = s[m.group(2)]
+      let joinVar = s[m.group(3)]
+      # Resolve the main app_id from the app's own package.json `desktopName`
+      # at runtime - that is what Chromium's GetXdgAppId() derives the default
+      # window app_id from, so resetting to it restores the exact identity
+      # later windows (settings, dialogs) would otherwise have. Hardcoding a
+      # literal goes stale on upstream renames (v1.19367.0: claude ->
+      # com.anthropic.Claude), so the literal below is only a fallback.
+      # Then append the per-profile suffix so windows opened after Quick Entry
+      # get <id>-NAME rather than the unsuffixed default. CLAUDE_PROFILE is
+      # exported by the launcher; absent for the default profile.
+      original & "," & winVar & ".once(\"ready-to-show\",()=>{" & "try{" & "let _base=\"" &
+        MAIN_APP_ID_FALLBACK & "\";" & "try{" & "const _dn=require(" & joinVar & ".join(" &
+        electronVar & ".app.getAppPath(),\"package.json\")).desktopName;" &
+        "if(typeof _dn===\"string\"&&_dn)_base=_dn.replace(/\\.desktop$/,\"\");" &
+        "}catch(__qeAppIdReadErr){}" &
+        "const _mid=_base+(process.env.CLAUDE_PROFILE?\"-\"+process.env.CLAUDE_PROFILE:\"\")+\".desktop\";" &
         "process.env.CHROME_DESKTOP=_mid;" & "typeof " & electronVar &
         ".app.setDesktopName===\"function\"&&" & electronVar &
         ".app.setDesktopName(_mid);" & "}catch(__qeAppIdResetErr){}" & "})",
@@ -226,8 +243,13 @@ proc apply*(input: string): string =
   if postCount != 1:
     echo "  [FAIL] Expected 1 Quick Entry loadFile pattern, got " & $postCount
     quit(1)
-  echo "  [OK] CHROME_DESKTOP reset to " & MAIN_APP_ID & " scheduled on ready-to-show: " &
-    $postCount & " match(es)"
+  # Assert our injected end-state (the runtime desktopName read) is present,
+  # not merely that the old pattern is gone.
+  if "desktopName" notin result or "__qeAppIdReadErr" notin result:
+    echo "  [FAIL] Quick Entry reset injection (runtime desktopName read) not found"
+    quit(1)
+  echo "  [OK] CHROME_DESKTOP reset to runtime desktopName (fallback " &
+    MAIN_APP_ID_FALLBACK & ") scheduled on ready-to-show: " & $postCount & " match(es)"
 
 when isMainModule:
   if paramCount() != 1:

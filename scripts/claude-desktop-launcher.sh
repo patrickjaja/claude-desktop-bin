@@ -8,6 +8,10 @@
 #   CLAUDE_USE_XWAYLAND=1    - Force XWayland instead of native Wayland (escape hatch
 #                              for users on Electron <40 that can't update; see below)
 #   CLAUDE_MENU_BAR          - Menu bar mode: auto (default), visible, hidden
+#   CLAUDE_GPU_BACKEND=angle-gl - Render via ANGLE's GL backend instead of the
+#                              native Wayland/GBM path (keeps GPU acceleration;
+#                              fixes GPU-process crashes on some drivers, e.g.
+#                              Intel xe - try before CLAUDE_DISABLE_GPU)
 #   CLAUDE_DISABLE_GPU=1     - Disable GPU compositing (fixes white screen on some systems)
 #   CLAUDE_DISABLE_GPU=full  - Disable GPU entirely (more aggressive fallback)
 #   CLAUDE_PASSWORD_STORE    - Force --password-store=<value>; 'auto' disables
@@ -1238,6 +1242,8 @@ Environment variables:
   CLAUDE_NATIVE_TITLEBAR=1  Restore the native window frame (same as --native-titlebar).
   CLAUDE_USE_XWAYLAND=1     Force XWayland instead of native Wayland.
   CLAUDE_MENU_BAR=visible   Menu bar mode: auto (default), visible, hidden.
+  CLAUDE_GPU_BACKEND=angle-gl Render via ANGLE-GL (keeps GPU accel; fixes
+                            GPU-process crashes on some drivers, e.g. Intel xe).
   CLAUDE_DISABLE_GPU=1      Disable GPU compositing (white screen fix).
   CLAUDE_DISABLE_GPU=full   Disable GPU entirely (more aggressive fallback).
   CLAUDE_PASSWORD_STORE=V   Force --password-store=V (e.g. gnome-libsecret,
@@ -1484,6 +1490,18 @@ fi
 # Some GPU/driver combinations (notably GBM buffer creation failures on
 # Wayland, common on Fedora KDE) cause a blank white window.
 # See: https://github.com/patrickjaja/claude-desktop-bin/issues/13
+
+# Milder GPU workaround than disabling it outright: route rendering through
+# ANGLE's GL backend instead of the native Wayland/GBM path. Some GPU +
+# kernel-driver combos (e.g. Intel `xe`) abort Electron's Ozone/Wayland
+# GPU-process init ("GPU process isn't usable. Goodbye.") but work fine via
+# ANGLE-GL, which keeps GPU acceleration. Try this before CLAUDE_DISABLE_GPU.
+case "${CLAUDE_GPU_BACKEND:-}" in
+    angle-gl)
+        log 'GPU backend set to ANGLE-GL (CLAUDE_GPU_BACKEND=angle-gl)'
+        ELECTRON_ARGS+=('--use-gl=angle' '--use-angle=gl')
+        ;;
+esac
 
 case "${CLAUDE_DISABLE_GPU:-}" in
     1|compositing)

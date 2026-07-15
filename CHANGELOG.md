@@ -20,6 +20,14 @@ Computer Use on a KDE Plasma 6.6+ Wayland session could fall through to the "exo
 
 To make a future routing mismatch diagnosable without shell access, `--diagnose` now prints `XDG_SESSION_DESKTOP` next to `XDG_CURRENT_DESKTOP`, and the runtime `[claude-cu] diagnostics:` block adds a line with the raw `XDG_CURRENT_DESKTOP` / `XDG_SESSION_DESKTOP` / `XDG_SESSION_TYPE` values plus the resolved `kwin-mode`. A `de=kde` with `kwin-mode=false` now reads as a self-explaining signature in `claude-patches.log`.
 
+### Quick Entry no longer restores a stale window app_id after first use
+
+After Quick Entry is shown, `fix_quick_entry_app_id` resets `CHROME_DESKTOP` so later windows get the main app_id back. That reset target was a hardcoded `claude` literal, but upstream renamed the app identity (`desktopName`) to `com.anthropic.Claude` in v1.19367.0, so on Wayland compositors that create a separate toplevel after Quick Entry (GNOME, wlroots) those windows could inherit a stale, non-matching app_id - breaking taskbar/dock grouping and per-app window rules. The reset now reads `desktopName` from the app's own `package.json` at runtime (falling back to the literal only if that read fails), so it can't go stale on the next upstream rename. Verified non-breaking on KDE Plasma 6 Wayland (main window stays `claude-desktop`, Quick Entry stays `claude-quick-entry`).
+
+### Launcher: `CLAUDE_GPU_BACKEND=angle-gl` escape hatch
+
+New opt-in launcher env var that renders via ANGLE's GL backend (`--use-gl=angle --use-angle=gl`) instead of the native Wayland/GBM path. Some GPU + kernel-driver combos (e.g. Intel `xe`) abort Electron's Ozone/Wayland GPU-process init ("GPU process isn't usable. Goodbye.") but work fine through ANGLE-GL, which keeps GPU acceleration - a milder fallback to try before `CLAUDE_DISABLE_GPU`.
+
 ## 2026-07-13
 
 ### Docs: how to reset a stuck Dispatch conversation
