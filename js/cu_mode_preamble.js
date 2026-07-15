@@ -30,7 +30,18 @@ if(!globalThis.__cdbDiag){globalThis.__cdbDiag=function(){var s="";try{var i,a=[
   var autoMode="regular";
   var _kwinVer="";
   var _kwinOk=!1;
-  var _isKdeWayland=process.env.XDG_SESSION_DESKTOP==="KDE"&&process.env.XDG_SESSION_TYPE==="wayland";
+  // KDE-Wayland detection must match the DOWNSTREAM DE detection in
+  // cu_linux_executor.js (XDG_CURRENT_DESKTOP, lowercased substring) or the two
+  // disagree: a session whose XDG_CURRENT_DESKTOP contains KDE but whose
+  // XDG_SESSION_DESKTOP is "plasma"/unset (SDDM/DM-dependent, unreliable) would
+  // route past the kwin-portal-bridge into the "exotic" ydotool/x11-bridge
+  // fallback while the diagnostics still say de=kde (issue #194). Key off
+  // XDG_CURRENT_DESKTOP (which Plasma reliably sets to "KDE"), case-insensitive
+  // substring, and accept WAYLAND_DISPLAY as a Wayland signal since
+  // XDG_SESSION_TYPE is not always exported.
+  var _curDesk=(process.env.XDG_CURRENT_DESKTOP||"").toLowerCase();
+  var _isWaylandSess=process.env.XDG_SESSION_TYPE==="wayland"||!!process.env.WAYLAND_DISPLAY;
+  var _isKdeWayland=_curDesk.indexOf("kde")>=0&&_isWaylandSess;
   var _resolvedBin="";
   if(_isKdeWayland){
     try{

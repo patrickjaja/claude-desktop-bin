@@ -945,6 +945,11 @@ _diagnose() {
     echo '--- Session ---'
     echo "XDG_SESSION_TYPE = ${XDG_SESSION_TYPE:-(unset)}"
     echo "XDG_CURRENT_DESKTOP = ${XDG_CURRENT_DESKTOP:-(unset)}"
+    # XDG_SESSION_DESKTOP is DM-dependent (SDDM/GDM may set plasma / an absolute
+    # path / nothing) and is NOT what our CU DE-detection keys off — we use
+    # XDG_CURRENT_DESKTOP. Surfaced here so a mismatch between the two is visible
+    # when triaging KDE-Wayland routing reports (issue #194).
+    echo "XDG_SESSION_DESKTOP = ${XDG_SESSION_DESKTOP:-(unset)}"
     if [[ "${CLAUDE_NATIVE_TITLEBAR:-}" == '1' ]]; then
         echo "Titlebar = native (CLAUDE_NATIVE_TITLEBAR=1)"
     else

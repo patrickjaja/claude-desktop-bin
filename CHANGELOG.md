@@ -2,6 +2,16 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-07-15
+
+### KDE Plasma Wayland no longer misrouted to the "exotic" XWayland fallback ([#194](https://github.com/patrickjaja/claude-desktop-bin/issues/194))
+
+Computer Use on a KDE Plasma 6.6+ Wayland session could fall through to the "exotic - ydotool/x11-bridge" fallback (ending on XWayland) instead of the native `kwin-portal-bridge`. The mode gate in `cu_mode_preamble.js` keyed off `XDG_SESSION_DESKTOP === "KDE"` - an exact-match on a variable set by the display manager, whose value is not standardized (SDDM/GDM may report `plasma`, an absolute path, or nothing). The downstream DE detection in `cu_linux_executor.js` used the reliable `XDG_CURRENT_DESKTOP` (Plasma sets it to `KDE`), so the two disagreed: diagnostics printed `de=kde` while the bridge was never selected. The gate now keys off `XDG_CURRENT_DESKTOP` (case-insensitive substring) and accepts `WAYLAND_DISPLAY` as a Wayland signal, matching the downstream logic and the label the `kwin-portal-bridge` itself reads. The KWin `>= 6.6` version probe still guards the route, so a non-KWin or too-old session correctly falls back.
+
+### Diagnostics surface the raw session env behind KDE routing
+
+To make a future routing mismatch diagnosable without shell access, `--diagnose` now prints `XDG_SESSION_DESKTOP` next to `XDG_CURRENT_DESKTOP`, and the runtime `[claude-cu] diagnostics:` block adds a line with the raw `XDG_CURRENT_DESKTOP` / `XDG_SESSION_DESKTOP` / `XDG_SESSION_TYPE` values plus the resolved `kwin-mode`. A `de=kde` with `kwin-mode=false` now reads as a self-explaining signature in `claude-patches.log`.
+
 ## 2026-07-13
 
 ### Docs: how to reset a stuck Dispatch conversation

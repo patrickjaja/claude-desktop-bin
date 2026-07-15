@@ -297,6 +297,11 @@ if(_wayland){globalThis.__cdbDiag("[claude-cu] Wayland session detected"+(_isWlr
   var _x11ok=!!_x11BridgeBin();
   var _wlrok=!!_wlrootsBridgeBin();var _gnok=!!_gnomeBridgeBin();
   globalThis.__cdbDiag("[claude-cu] diagnostics: session="+(_wayland?"wayland":"x11")+" de="+(_de||"unknown")+" wlroots="+_wlr+" vm="+!!globalThis.__isVM);
+  // Raw session env + resolved CU mode. DE detection keys off XDG_CURRENT_DESKTOP
+  // (normalized into de= above); XDG_SESSION_DESKTOP is DM-dependent and NOT used
+  // for routing — printing both raw makes a KDE-Wayland routing mismatch (de=kde
+  // but kwin-mode=false) diagnosable from claude-patches.log alone (issue #194).
+  globalThis.__cdbDiag("[claude-cu] diagnostics: XDG_CURRENT_DESKTOP="+(process.env.XDG_CURRENT_DESKTOP||"(unset)")+" XDG_SESSION_DESKTOP="+(process.env.XDG_SESSION_DESKTOP||"(unset)")+" XDG_SESSION_TYPE="+(process.env.XDG_SESSION_TYPE||"(unset)")+" kwin-mode="+!!globalThis.__cuKwinMode);
   try{var _diagMons=_getMonitors();globalThis.__cdbDiag("[claude-cu] diagnostics: displays=["+_diagMons.map(function(m){return m.label+"("+m.width+"x"+m.height+"+"+m.originX+"+"+m.originY+" sf="+m.scaleFactor+(m.isPrimary?" primary":"")+")"}).join(", ")+"]")}catch(me){}
   globalThis.__cdbDiag("[claude-cu] diagnostics: available=["+avail.join(", ")+"]");
   if(missing.length)globalThis.__cdbDiag("[claude-cu] diagnostics: missing=["+missing.join(", ")+"] (install for the residual fallback paths)");
