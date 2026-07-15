@@ -84,7 +84,7 @@ Caveat: a green build proves the patches *applied*, not that runtime behavior is
 
 **Manual path (only when the auto-release fails, or for a deep audit):** run the `/update <version>` skill, or follow [update-prompt.md](update-prompt.md) — copy-paste prompts for:
 
-1. **Prompt 1:** Build & fix patches (download official `.deb`, run build, fix failures). For each failing patch, decide first: pattern moved (fix regex) vs **feature upstreamed (remove the patch or convert to a regression guard — the expected direction over time)**.
+1. **Prompt 1:** Build & fix patches (download official `.deb`, run build, fix failures). For each failing patch, decide first: pattern moved (fix regex) vs **feature upstreamed (remove the patch — the expected direction over time; do NOT convert to a regression guard)**.
 2. **Prompt 2:** Diff & discover new changes (compare old vs new JS bundles)
 3. **Prompt 3:** Feature flag audit (catch new/changed flags)
 
@@ -242,32 +242,39 @@ if patchesApplied < EXPECTED_PATCHES:
    - **Pattern changed:** The minified variable names shifted — update the regex
    - **Code refactored:** The target code was restructured — rewrite the patch approach
    - **Feature removed:** The code we patched no longer exists — the patch can be removed
-   - **Feature upstreamed:** Anthropic added native Linux support — convert the patch into a **regression guard** (assert the upstreamed behavior is present; `[FAIL]`+`quit(1)` if it disappears) rather than deleting it silently
+   - **Feature upstreamed:** Anthropic added native Linux support — **remove the patch** (`git rm`). Once there is nothing of ours left to inject, the patch only asserts upstream's own behavior; we keep only patches that modify the bundle. Do NOT convert it to a regression guard.
 5. Never add a new patch with `[WARN]`-on-failure or `patchesApplied == 0` as the only check
 
 6. **No false success reporting — an `[OK]`/"already patched" line must never be backed by a false premise.**
    A patch must report success only when it has *positively verified* the desired end-state exists in the
    output. The classic trap is an idempotency check that keys off the **absence** of the old pattern:
 
+   This governs the "already patched" (idempotency) branch of an **active** patch — one that injects
+   something. It must check that its own injected result is present, not that the old pre-patch pattern
+   is merely gone. (Example uses a hypothetical patch that injects `__cdbInjectedMarker` before a call.)
+
    ```nim
    # BAD - reports "already patched" the moment upstream refactors the old code away,
-   # even if the desired behavior was NEVER applied. The [OK] is a lie.
-   if "className:\"nc-drag\"" notin result and "isMainWindow" in result:
+   # even if OUR injection was NEVER applied. The [OK] is a lie.
+   if "oldUpstreamPattern" notin result:
      echo "  [INFO] already patched"; return
 
-   # GOOD - assert the desired END-STATE is actually present; fail loud if it is not.
-   if result.contains(re2"\{isMainWindow:[\w$]+,.{0,100}\}\)\{if\([\w$]+\)return null"):
-     echo "  [OK] upstream null short-circuit present (regression guard satisfied)"; return
-   raise newException(ValueError, "desired end-state NOT found — upstream may have regressed; re-audit")
+   # GOOD - assert OUR injected end-state is actually present; fail loud if it is not.
+   if result.contains(re2"__cdbInjectedMarker\([\w$]+\)"):
+     echo "  [OK] injection already present (idempotent)"; return
+   raise newException(ValueError, "neither old pattern nor our injection found — re-audit")
    ```
 
    Rules of thumb:
    - "Already patched" / "already applied" must check for the **patched result** (the string/shape the
      patch produces, or the behavior it guarantees), NOT merely that the pre-patch pattern is gone.
      "Old pattern absent" ≠ "new behavior present" — those diverge the instant upstream refactors.
-   - If a feature was upstreamed and there is nothing left to rewrite, keep the patch as a **regression
-     guard** that asserts the upstreamed behavior and `quit(1)` if it ever disappears. A patch that can
-     only ever print success (a guaranteed no-op) is forbidden — it gives false confidence.
+   - If a feature was upstreamed and there is nothing left to rewrite, **remove the patch** (`git rm`) —
+     see Rule 4. A patch that changes nothing in the bundle and only asserts upstream's own behavior is
+     forbidden; pure assert-only "regression guard" patches were retired 2026-07-15. This rule
+     (positive-end-state assertion for idempotency) still governs the "already patched" branch of
+     **active** patches — those that DO inject: they must verify the patched result is present, not merely
+     that the pre-patch pattern is gone.
    - Every `[OK]`/`[INFO]` success message must correspond to a real, checked fact. If you cannot assert
      the fact, you must `[FAIL]`. Silence and false-positives are worse than a loud build failure.
 

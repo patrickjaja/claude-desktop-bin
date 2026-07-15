@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # Update to a new upstream Claude Desktop version
 
-**When to run this:** normally you don't. CI auto-releases new upstream versions (version-check.yml dispatches build-and-release.yml; green run = released + `.upstream-version` bumped + tracking issue closed). Run this skill when the **auto-release failed** (a comment on the "new version detected" issue links the failed run) or when you want a deep audit of a bump. On a patch failure, decide FIRST: did the re-minify just move the anchor (fix the regex), or did upstream natively implement what we patch (remove the patch or convert it to a regression guard — the expected direction, since Anthropic maintains 1p Linux support)?
+**When to run this:** normally you don't. CI auto-releases new upstream versions (version-check.yml dispatches build-and-release.yml; green run = released + `.upstream-version` bumped + tracking issue closed). Run this skill when the **auto-release failed** (a comment on the "new version detected" issue links the failed run) or when you want a deep audit of a bump. On a patch failure, decide FIRST: did the re-minify just move the anchor (fix the regex), or did upstream natively implement what we patch (**remove the patch** — the expected direction, since Anthropic maintains 1p Linux support; do NOT convert to a regression guard)?
 
 Run from `/home/patrickjaja/development/claude-desktop-bin`. The official Linux `.deb` is remotely managed and re-minifies every release; patches use `[\w$]+` wildcards on stable string anchors. Step 1 runs `/fresh-upstream` for a clean extract; Step 9 ends with `/deploy` to release. `$ARGUMENTS` may name a target version.
 
@@ -38,7 +38,7 @@ If patches fail (upstream renamed identifiers / refactored / removed a feature):
    patches/<patch_name> /tmp/test-index.js; echo "exit=$?"
    node --check /tmp/test-index.js
    ```
-4. Re-run the build until all patches pass. **Every sub-patch must succeed or `quit(1)`** - never `[WARN]`+continue. If a feature was upstreamed, convert the patch into a regression guard (assert the upstreamed behavior, fail if it disappears) - see CLAUDE.md Rule 6 (no false-success).
+4. Re-run the build until all patches pass. **Every sub-patch must succeed or `quit(1)`** - never `[WARN]`+continue. If a feature was upstreamed, **remove the patch** (`git rm`) - once nothing of ours is injected, a patch that only asserts upstream's own behavior is not maintaining our modification. See CLAUDE.md Rule 4/6. Pure assert-only regression-guard patches were retired 2026-07-15.
 
 ## Step 2 - Linux-compat analysis (new gates?)
 Diff old vs new for newly darwin/win32-gated features that need Linux support (set `OLD`/`NEW` to the two index.js paths):

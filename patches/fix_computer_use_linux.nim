@@ -973,17 +973,20 @@ proc apply*(input: string): string =
     else:
       echo "  [FAIL] 13d open_application app: not found"
 
-  # 13e: open_application description — no allowlist on Linux
+  # 13e: open_application description — no allowlist on Linux.
+  # v1.21459.0 reworded the description (added background/display-scope prose);
+  # only the trailing allowlist sentence needs the Linux ternary. Anchored by
+  # the ",inputSchema:" that follows the open_application tool description so it
+  # hits the tool definition site, not the runtime error strings that reuse the
+  # same sentence.
   block:
     let old13e =
-      "\"Bring an application to the front, launching it if necessary. The target application must already be in the session allowlist \xe2\x80\x94 call request_access first.\""
+      "The target must already be in the session allowlist \xe2\x80\x94 call request_access first.\",inputSchema:"
     let new13e =
-      "(process.platform===\"linux\"?" &
-      "\"Bring an application to the front, launching it if necessary. " &
-      "On Linux, all applications are directly accessible.\"" & ":" &
-      "\"Bring an application to the front, launching it if necessary. " &
-      "The target application must already be in the session allowlist " &
-      "\xe2\x80\x94 call request_access first.\")"
+      "\"+(process.platform===\"linux\"?" &
+      "\"On Linux, all applications are directly accessible.\"" & ":" &
+      "\"The target must already be in the session allowlist " &
+      "\xe2\x80\x94 call request_access first.\"),inputSchema:"
     if replaceLiteralFirst(content, old13e, new13e) == 1:
       echo "  [OK] 13e open_application: no allowlist on Linux"
       inc descChanges

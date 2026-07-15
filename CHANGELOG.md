@@ -4,6 +4,14 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 
 ## 2026-07-15
 
+### Updated to Claude Desktop v1.21459.0
+
+Routine upstream bump. Computer Use is still macOS/Windows-only upstream, so our Linux Computer Use support stays. One tool-description tweak re-fitted (`open_application` on Linux no longer tells the model to request allowlist access first, since our bridges reach every app). No new Linux-relevant changes upstream.
+
+### Removed 4 patches: we no longer keep "guard-only" patches
+
+Dropped 4 patches (41 -> 37) that no longer modified the bundle and only asserted upstream's own behavior: the CLI-governor memory fix ([#128](https://github.com/patrickjaja/claude-desktop-bin/issues/128)), the `/etc/claude-desktop/managed-settings.json` reader (main + boot bundle), and the title-bar fix - all native in the official build. We keep only patches that modify the bundle.
+
 ### KDE Plasma Wayland no longer misrouted to the "exotic" XWayland fallback ([#194](https://github.com/patrickjaja/claude-desktop-bin/issues/194))
 
 Computer Use on a KDE Plasma 6.6+ Wayland session could fall through to the "exotic - ydotool/x11-bridge" fallback (ending on XWayland) instead of the native `kwin-portal-bridge`. The mode gate in `cu_mode_preamble.js` keyed off `XDG_SESSION_DESKTOP === "KDE"` - an exact-match on a variable set by the display manager, whose value is not standardized (SDDM/GDM may report `plasma`, an absolute path, or nothing). The downstream DE detection in `cu_linux_executor.js` used the reliable `XDG_CURRENT_DESKTOP` (Plasma sets it to `KDE`), so the two disagreed: diagnostics printed `de=kde` while the bridge was never selected. The gate now keys off `XDG_CURRENT_DESKTOP` (case-insensitive substring) and accepts `WAYLAND_DISPLAY` as a Wayland signal, matching the downstream logic and the label the `kwin-portal-bridge` itself reads. The KWin `>= 6.6` version probe still guards the route, so a non-KWin or too-old session correctly falls back.

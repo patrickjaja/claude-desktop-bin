@@ -375,17 +375,18 @@ The official 3P docs cover only macOS and Windows. **[docs/third-party-inference
 
 ## Patches
 
-The official Linux build ships one cross-platform JS bundle: plenty of code paths in it check `process.platform` and only serve `darwin`/`win32`, and some upstream behavior misfires in a Linux desktop environment. We apply a set of surgical JS patches to the `app.asar` at repackage time. They fall into three groups:
+The official Linux build ships one cross-platform JS bundle: plenty of code paths in it check `process.platform` and only serve `darwin`/`win32`, and some upstream behavior misfires in a Linux desktop environment. We apply a set of surgical JS patches to the `app.asar` at repackage time. They fall into two groups:
 
 - **[Value-adds](#value-adds-linux-only-features)** - features that don't exist upstream, or that we back with our own Linux implementations.
 - **[Linux fixes](#linux-fixes)** - upstream features that are still gated to macOS/Windows in the shared bundle, or that break in a Linux environment.
-- **[Regression guards](#regression-guards)** - change nothing; they assert native Linux behavior the app relies on is still present and fail the build loudly if it ever disappears.
+
+Every patch here modifies the bundle. When a behavior becomes native in the official build, the patch that injected it is removed; we don't keep assert-only patches.
 
 Every package ships the official build's install tree byte-identical except for the patched `app.asar` (plus our bundled Computer Use bridges in `resources/`), so runtime path resolution (`process.resourcesPath`, `app.isPackaged`) behaves exactly as on the stock Anthropic `.deb`.
 
 Each patch is a self-contained `patches/*.nim` file compiled to a native binary. Patterns use `[\w$]+` wildcards anchored on stable strings because upstream re-minifies between releases; every sub-patch must match or the build fails, so a broken assumption surfaces at build time, never at runtime. When an update breaks a patch, only that file needs updating - each patch source documents the anchor strings it matches on.
 
-> **We keep this set as small as possible.** On each upstream release every patch is re-audited against a fresh unpatched bundle - a patch that still applies cleanly isn't proof it's still needed, so each must be confirmed to genuinely do work (or the feature live-tested) to stay. When Anthropic ships a behavior natively, the patch is removed or converted to a regression guard. `ls patches/*.nim` is the authoritative list of everything in the tree.
+> **We keep this set as small as possible.** On each upstream release every patch is re-audited against a fresh unpatched bundle - a patch that still applies cleanly isn't proof it's still needed, so each must be confirmed to genuinely do work (or the feature live-tested) to stay. When Anthropic ships a behavior natively, the patch is removed outright. `ls patches/*.nim` is the authoritative list of everything in the tree.
 
 ### Value-adds (Linux-only features)
 
@@ -419,7 +420,6 @@ Upstream ships the same JS bundle to all platforms; these patches open `darwin`/
 | `fix_builtin_mcp_browser_env.nim` | Built-in MCP servers run with a filtered env of `HOME,LOGNAME,PATH,SHELL,TERM,USER` - no display variables, fine on macOS, but on Linux the server can't open a browser for OAuth. Adds `DISPLAY`/Wayland/XDG/DBUS/`BROWSER`/`KDE_SESSION_VERSION` (without the last, `xdg-open` on KDE no-ops silently via its `kfmclient` fallback) ([#139](https://github.com/patrickjaja/claude-desktop-bin/issues/139)) |
 | `fix_builtin_mcp_open_url_handler.nim` | Parent side of the M365 OAuth browser-open delegation: adds an `open-url` branch (https-only, → `shell.openExternal`) to the built-in MCP host's child-message handler - the same mechanism remote OAuth connectors use ([#139](https://github.com/patrickjaja/claude-desktop-bin/issues/139)) |
 | `fix_office365_mcp_open_url.nim` | Child side: the bundled `office365-mcp` server posts `{type:"open-url"}` to the Electron parent instead of spawning `xdg-open`, which is unreliable inside the MCP child process on KDE (silent no-op → 300 s sign-in timeout) ([#139](https://github.com/patrickjaja/claude-desktop-bin/issues/139)) |
-| `fix_cli_governor_memavailable.nim` | Computes CliGovernor memory pressure from `/proc/meminfo` `MemAvailable`. Upstream uses Electron's `free` = Linux `MemFree`, which excludes reclaimable page cache, so a healthy system reads ~5% free and triggers false pressure warnings ([#128](https://github.com/patrickjaja/claude-desktop-bin/issues/128)) |
 | `fix_cowork_firmware_paths_linux.nim` | The Cowork VM capability probe hardcodes Debian firmware/virtiofsd paths, so on other distros Cowork reports "Download failed" / "requires QEMU" even with QEMU installed. Adds Fedora/RHEL/Arch OVMF and Arch/NixOS virtiofsd locations plus `CLAUDE_OVMF_CODE_PATH`/`CLAUDE_VIRTIOFSD_PATH` overrides for non-FHS setups ([#177](https://github.com/patrickjaja/claude-desktop-bin/issues/177)) |
 | `fix_cowork_font.nim` | claude.ai initializes the chat-font preference only when the Chat view mounts; applies it to the Cowork tab too (it fell back to Serif) |
 | `fix_cross_device_rename.nim` | Adds an EXDEV copy+delete fallback to `fs.rename()`: downloads land in `/tmp` (usually a separate tmpfs) and are renamed into `~/.config`, which fails across filesystems |
@@ -439,17 +439,7 @@ Upstream ships the same JS bundle to all platforms; these patches open `darwin`/
 | `fix_utility_process_kill.nim` | The post-timeout fallback kill re-sends SIGTERM instead of SIGKILL, so a stuck UtilityProcess survived and blocked exit; sends `SIGKILL` |
 | `fix_window_bounds.nim` | Child-view geometry doesn't track window resize on Linux (stale bounds after maximize/snap/fullscreen); re-fits the content view, and blurs Quick Entry before hiding it |
 
-### Regression guards
-
-These change nothing in the bundle. Each asserts that native Linux behavior the app relies on is still present in a new upstream release and fails the build (`exit 1`) if it disappeared - so a regression is caught at build time, not by users.
-
-| Patch | What it asserts |
-|-------|-----------------|
-| `fix_enterprise_config_linux.nim` | The main bundle still reads `/etc/claude-desktop/managed-settings.json` with the hardened native reader - the basis of [3P/enterprise inference](#third-party--enterprise-inference) on Linux |
-| `fix_enterprise_config_linux_pre.nim` | The same reader in the boot bundle (`index.pre.js`), which decides 1P-vs-3P mode before the main process starts |
-| `fix_native_frame_renderer.nim` | The title-bar component still returns `null` for the main window - a drag region there absorbs clicks on UI buttons in integrated-titlebar mode and must not come back |
-
-`enable_local_agent_mode.nim` and `fix_startup_settings.nim` embed further guards inside their active patches: real-platform reporting to claude.ai, the native Linux Cowork bundle path, SSH MCP passthrough, and the native XDG autostart read/write.
+Two active patches embed regression assertions alongside the work they inject: `enable_local_agent_mode.nim` (real-platform reporting to claude.ai, the native Linux Cowork bundle path, SSH MCP passthrough) and `fix_startup_settings.nim` (native XDG autostart read/write).
 
 ## Command-line flags
 
