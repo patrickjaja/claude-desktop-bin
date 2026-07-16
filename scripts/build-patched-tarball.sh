@@ -575,7 +575,8 @@ case "$DEB_ARCH" in
     *)      TARBALL_FILE="$OUTPUT_DIR/claude-desktop-${VERSION}-linux-${DEB_ARCH}.tar.gz" ;;
 esac
 log_info "Creating tarball: $TARBALL_FILE"
-( cd "$TARBALL_DIR" && tar -czf "$TARBALL_FILE" claude-desktop/ icons/ launcher/ copyright )
+GZIP_PROG=$(command -v pigz || echo gzip)
+( cd "$TARBALL_DIR" && tar -I "$GZIP_PROG" -cf "$TARBALL_FILE" claude-desktop/ icons/ launcher/ copyright )
 
 # Calculate SHA256
 SHA256=$(sha256sum "$TARBALL_FILE" | cut -d' ' -f1)
