@@ -135,7 +135,7 @@ proc buildKwinLinuxExecutorInjection(): string =
   js = js.replace(re"(?m)^export\s+", "")
   result =
     "(function(){\n" & js.strip(leading = false, trailing = true) &
-    "\n\nglobalThis.__linuxExecutor = createLinuxExecutor({ hostBundleId: \"claude\" });\n})();\n"
+    "\n\nglobalThis.__linuxExecutor = createLinuxExecutor({ hostBundleId: \"com.anthropic.claude\" });\n})();\n"
 
 # ─── main patch ─────────────────────────────────────────────────────────────
 
