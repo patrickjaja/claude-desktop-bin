@@ -4,6 +4,16 @@ All notable changes to claude-desktop-bin AUR package will be documented in this
 
 ## 2026-07-16
 
+### Computer Use teach mode: display targeting and superseded-step fixes ([#200](https://github.com/patrickjaja/claude-desktop-bin/pull/200))
+
+Contributed by [@mosi0815](https://github.com/mosi0815) (author of the bundled [kwin-portal-bridge](https://github.com/mosi0815/kwin-portal-bridge)) - the JS companion to the bridge 0.2.4 fixes released yesterday:
+
+- Teach steps no longer restart the overlay twice: the redundant `teach-display` call before each step is gone, since `teach-step` retargets atomically and the bridge prefers the screen containing the step's anchor anyway.
+- A teach step superseded by a newer one no longer resolves or stops the session prematurely - the newer call owns the pending step.
+- The display fallback no longer guesses from the main window (it is hidden during teach mode, and on Wayland Electron then resolves to whatever screen happens to be active); it now follows the display the session overlay was last actually placed on.
+- The Linux executor's `hostBundleId` is now `com.anthropic.claude`, matching the app-identity alignment.
+- Build: tarball compression uses `pigz` when available (parallel gzip, noticeably faster builds).
+
 ### Release notes no longer show stale changelog history on automated releases ([#199](https://github.com/patrickjaja/claude-desktop-bin/issues/199))
 
 Fully automated upstream bumps (like v1.21459.3) attached the newest CHANGELOG.md section to the GitHub release body even when that section described an earlier, manually handled release. The release workflow now checks whether CHANGELOG.md actually changed since the last release tag: unchanged means the release gets an accurate generic note ("automated upstream bump, patch set applied cleanly, no new changelog entries"), while manual releases keep embedding the new section, now prefixed with its CHANGELOG.md date so it can't be misread as release-specific.
