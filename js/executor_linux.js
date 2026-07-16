@@ -4,7 +4,7 @@ import { promisify } from 'node:util'
 
 const execFile = promisify(execFileCb)
 
-const DEFAULT_HOST_BUNDLE_ID = 'claude'
+const DEFAULT_HOST_BUNDLE_ID = 'com.anthropic.claude'
 
 const LINUX_CU_CAPABILITIES = {
   screenshotFiltering: 'native',
@@ -856,7 +856,11 @@ export function createRustLinuxBackend() {
           bridgeDisplayId: display._bridgeId,
           label: display.label,
         })
-        await execBridgeJson('teach-display', ['--display', display._bridgeId])
+        // No separate teach-display call here: teach-step retargets
+        // atomically via --display, and the bridge prefers the screen
+        // containing the step's anchor anyway. Calling teach-display first
+        // restarted the overlay onto the (often wrong) guessed display only
+        // for the anchor to restart it back — two restarts per step.
       }
       const result = await execBridgeJson('teach-step', [
         ...teachPayloadArg(payload),
@@ -909,7 +913,7 @@ export function createRustLinuxBackend() {
       if (!display) {
         debugLog('setSessionOverlayDisplay', { displayId: null, bridgeDisplayId: null })
         await execBridgeJson('set-overlay-display', [])
-        return
+        return null
       }
 
       debugLog('setSessionOverlayDisplay', {
@@ -917,6 +921,9 @@ export function createRustLinuxBackend() {
         bridgeDisplayId: display._bridgeId,
       })
       await execBridgeJson('set-overlay-display', ['--display', display._bridgeId])
+      // Report the display actually applied (including the primary-display
+      // fallback above) so callers can track where the overlay really is.
+      return display.displayId
     },
 
     async listInstalledApps() {
@@ -1007,6 +1014,16 @@ export function createLinuxExecutor(opts = {}) {
 
   const sessionOverlayState = {
     manager: null,
+    // Display the session overlay was last actually placed on — the best
+    // available signal for "the screen the agent is working on".
+    lastDisplayId: null,
+  }
+
+  function recordSessionOverlayDisplay(applied) {
+    if (typeof applied === 'number') {
+      sessionOverlayState.lastDisplayId = applied
+    }
+    return applied
   }
 
   const dockControllerState = {
@@ -1206,13 +1223,19 @@ export function createLinuxExecutor(opts = {}) {
       return session.cuSelectedDisplayId
     }
 
-    try {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        return electronScreen.getDisplayMatching(mainWindow.getBounds()).id
-      }
-    } catch {}
-
-    return undefined
+    // The session overlay sits on the screen the agent is actually working
+    // on (it gets retargeted whenever the agent resolves a display), which
+    // is where the taught app lives — so fall back to its display, using
+    // the last position it was actually placed at (which includes its
+    // primary-display fallback for fresh sessions). Never guess from the
+    // main window: it is hidden during teach mode, and on Wayland Electron
+    // then resolves getDisplayMatching to whatever screen happens to be
+    // active.
+    const overlayDisplayId = resolveSessionOverlayDisplayId(manager, sessionId)
+    if (typeof overlayDisplayId === 'number') {
+      return overlayDisplayId
+    }
+    return sessionOverlayState.lastDisplayId ?? undefined
   }
 
   function resolveSessionOverlayDisplayId(manager, sessionId) {
@@ -1305,7 +1328,7 @@ export function createLinuxExecutor(opts = {}) {
         const displayId = resolveSessionOverlayDisplayId(
           sessionOverlayState.manager,
         )
-        await backend.setSessionOverlayDisplay(displayId).catch(error => {
+        await backend.setSessionOverlayDisplay(displayId).then(recordSessionOverlayDisplay).catch(error => {
           globalThis.__cdbDiag('[linux-executor] failed to set session overlay display on lock acquire', error)
         })
         if (dockControllerState.initialized) {
@@ -1335,7 +1358,7 @@ export function createLinuxExecutor(opts = {}) {
         const displayId = resolveSessionOverlayDisplayId(
           sessionOverlayState.manager,
         )
-        backend.setSessionOverlayDisplay(displayId).catch(error => {
+        backend.setSessionOverlayDisplay(displayId).then(recordSessionOverlayDisplay).catch(error => {
           globalThis.__cdbDiag('[linux-executor] failed to set session overlay display on dock init', error)
         })
         dockClaudeWindow().catch(error => {
@@ -1432,7 +1455,7 @@ export function createLinuxExecutor(opts = {}) {
             manager,
             sessionId,
           )
-          backend.setSessionOverlayDisplay(resolvedDisplayId).catch(error => {
+          backend.setSessionOverlayDisplay(resolvedDisplayId).then(recordSessionOverlayDisplay).catch(error => {
             globalThis.__cdbDiag('[linux-executor] failed to retarget session overlay display', error)
           })
         }
