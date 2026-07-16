@@ -224,18 +224,33 @@ jobs:
       - name: Extract changelog for this release
         id: git_changelog
         if: steps.check.outputs.needs_update == 'true' || github.event_name == 'workflow_dispatch'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          CHANGELOG=$(awk '
-            /^## [0-9]{4}-[0-9]{2}-[0-9]{2}/ {
-              if (found) exit;
-              found = 1;
-              next
-            }
-            found { print }
-          ' CHANGELOG.md | sed '/^$/N;/^\n$/d')
+          CHANGELOG_URL="https://github.com/${GITHUB_REPOSITORY}/blob/master/CHANGELOG.md"
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+
+          if [ -n "$LAST_TAG" ] && git diff --quiet "$LAST_TAG" -- CHANGELOG.md; then
+            # Automated upstream bump: CHANGELOG.md is untouched since the last
+            # release, so its top section describes an older release. Emit an
+            # accurate generic note instead of stale history.
+            CHANGELOG="Automated upstream bump: repackaged the official Claude Desktop v${VERSION} .deb. The existing patch set applied cleanly; CHANGELOG.md has no new entries since ${LAST_TAG}. See the [Full Changelog](${CHANGELOG_URL}) for the latest maintained notes."
+          else
+            SECTION_DATE=$(grep -m1 -oE '^## [0-9]{4}-[0-9]{2}-[0-9]{2}' CHANGELOG.md | cut -c4- || echo "")
+            CHANGELOG=$(awk '
+              /^## [0-9]{4}-[0-9]{2}-[0-9]{2}/ {
+                if (found) exit;
+                found = 1;
+                next
+              }
+              found { print }
+            ' CHANGELOG.md | sed '/^$/N;/^\n$/d')
+            if [ -n "$CHANGELOG" ] && [ -n "$SECTION_DATE" ]; then
+              CHANGELOG=$(printf '_From [CHANGELOG.md](%s), %s:_\n\n%s' "$CHANGELOG_URL" "$SECTION_DATE" "$CHANGELOG")
+            fi
+          fi
 
           if [ -z "$CHANGELOG" ]; then
-            LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
             if [ -n "$LAST_TAG" ]; then
               CHANGELOG=$(git log "${LAST_TAG}..HEAD" --format="- %s" --no-merges --reverse)
             else

@@ -2,6 +2,12 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-07-16
+
+### Release notes no longer show stale changelog history on automated releases ([#199](https://github.com/patrickjaja/claude-desktop-bin/issues/199))
+
+Fully automated upstream bumps (like v1.21459.3) attached the newest CHANGELOG.md section to the GitHub release body even when that section described an earlier, manually handled release. The release workflow now checks whether CHANGELOG.md actually changed since the last release tag: unchanged means the release gets an accurate generic note ("automated upstream bump, patch set applied cleanly, no new changelog entries"), while manual releases keep embedding the new section, now prefixed with its CHANGELOG.md date so it can't be misread as release-specific.
+
 ## 2026-07-15
 
 ### Updated to Claude Desktop v1.21459.0
