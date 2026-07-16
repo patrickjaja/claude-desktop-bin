@@ -1397,6 +1397,12 @@ export function createLinuxExecutor(opts = {}) {
         backend
           .showTeachStep(payload, displayId)
           .then(async result => {
+            if (result?.action === 'superseded') {
+              // A newer show-step replaced this one; the newer call owns the
+              // manager's pending step, so neither resolve nor stop here.
+              return
+            }
+
             if (result?.action === 'exit') {
               manager.resolveTeachStep({ action: 'exit' })
               await stopTeachSession(manager, mainWindow)
