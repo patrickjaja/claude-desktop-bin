@@ -99,7 +99,7 @@ sudo apt install qemu-system-x86 ovmf virtiofsd        # arm64: qemu-system-arm 
 <summary>Manual .deb install (without APT repo)</summary>
 
 ```bash
-wget https://github.com/patrickjaja/claude-desktop-bin/releases/latest/download/claude-desktop-bin_1.21459.3-2_amd64.deb
+wget https://github.com/patrickjaja/claude-desktop-bin/releases/latest/download/claude-desktop-bin_1.22209.0-1_amd64.deb
 sudo dpkg -i claude-desktop-bin_*_amd64.deb
 ```
 </details>
@@ -127,7 +127,7 @@ sudo dnf install qemu-system-x86 edk2-ovmf virtiofsd   # arm64: qemu-system-aarc
 <summary>Manual .rpm install (without DNF repo)</summary>
 
 ```bash
-wget https://github.com/patrickjaja/claude-desktop-bin/releases/latest/download/claude-desktop-bin-1.21459.3-2.x86_64.rpm
+wget https://github.com/patrickjaja/claude-desktop-bin/releases/latest/download/claude-desktop-bin-1.22209.0-1.x86_64.rpm
 sudo dnf install ./claude-desktop-bin-*.x86_64.rpm
 ```
 </details>
@@ -174,7 +174,7 @@ The `claude://` protocol handler (needed for OAuth sign-in) is **automatically r
 
 ```bash
 # Download from GitHub Releases
-wget https://github.com/patrickjaja/claude-desktop-bin/releases/latest/download/Claude_Desktop-1.21459.3-x86_64.AppImage
+wget https://github.com/patrickjaja/claude-desktop-bin/releases/latest/download/Claude_Desktop-1.22209.0-x86_64.AppImage
 chmod +x Claude_Desktop-*-x86_64.AppImage
 ./Claude_Desktop-*-x86_64.AppImage
 ```
