@@ -1481,6 +1481,15 @@ fi
 # behind the rounded card" symptom (issue #39) on most Wayland configs.
 ELECTRON_ARGS+=('--enable-transparent-visuals')
 
+# Enable Chromium Web Bluetooth so the Hardware Buddy (Nibblet BLE) in-app scan
+# can enumerate devices. On macOS/Windows Web Bluetooth is on by default, but on
+# Linux Chromium gates it behind the WebBluetooth Blink feature at the PROCESS
+# level - a per-webContents webPreference does not turn it on, only this switch
+# does (verified: without it navigator.bluetooth is undefined in the renderer;
+# with it requestDevice works). Harmless for users without a Buddy - it only
+# exposes the API; nothing scans until the user opens the Buddy window.
+ELECTRON_ARGS+=('--enable-blink-features=WebBluetooth')
+
 case $platform_mode in
     x11)
         log 'X11 session detected'
