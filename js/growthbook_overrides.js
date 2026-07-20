@@ -261,14 +261,44 @@
     return merged;
   }
 
+  // Built-in platform forces applied at the STORE level (not just the read site),
+  // so the features-store setter sees them as "changed" and fires its
+  // onFeatureChange listeners. This is load-bearing for flags whose feature is
+  // wired up via onFeatureChange rather than a plain isFeatureEnabled read:
+  //   2358734848 (Hardware Buddy / BLE): the Buddy module arms its BLE transport
+  //   (registers the select-bluetooth-device handler, sets the internal
+  //   "installed" flag so scanDevices actually scans) only from an
+  //   onFeatureChange("2358734848", n=>n?.on && ...) callback. Forcing the flag
+  //   only at the read site makes the UI appear but never fires that callback,
+  //   so the transport is never armed and the in-app scan silently returns [].
+  //   Linux is outside Anthropic's rollout, so the store value stays off there;
+  //   we set it on. Idle when no device is present (the auto-reconnect loop gates
+  //   on a paired-device preference), so this is safe for all Linux users.
+  // A user override in claude-desktop-bin.jsonc still wins (readOverrides is
+  // merged AFTER these), so "2358734848": false opts back out.
+  function builtinForces() {
+    var out = {};
+    try {
+      if (typeof process !== "undefined" && process.platform === "linux") {
+        out["2358734848"] = true;
+      }
+    } catch (e) {}
+    return out;
+  }
+
   // Called by the patched features-store setter with the freshly loaded feature
   // map (network / disk cache / deployment-mode). Returns a shallow copy with
   // overrides applied so the caller's raw object (used for the disk cache)
   // stays untouched. Must never throw - flag loading is boot-critical.
   globalThis.__cdbApplyGbOverrides = function (features) {
     try {
-      var o = readOverrides();
-      if (!o || !features || typeof features !== "object") return features;
+      var o = {};
+      var bf = builtinForces();
+      var uk;
+      for (uk in bf) o[uk] = bf[uk];
+      var uo = readOverrides();
+      for (uk in (uo || {})) o[uk] = uo[uk]; // user override wins over built-in
+      if (!features || typeof features !== "object") return features;
       var ids = Object.keys(o);
       if (!ids.length) return features;
       var out = {};

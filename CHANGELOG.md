@@ -2,6 +2,12 @@
 
 All notable changes to claude-desktop-bin AUR package will be documented in this file.
 
+## 2026-07-20
+
+### Fix: Hardware Buddy (Nibblet BLE) in-app scan found no device on Linux
+
+`fix_buddy_ble_linux` forced the Buddy flag (`2358734848`) at the `isFeatureEnabled` read site, which showed the UI but never fired the store-level `onFeatureChange` listener that arms the BLE transport - so `scanDevices` silently returned nothing. The flag is now forced at the store level instead, via a built-in Linux force in `add_growthbook_overrides` (merged before user overrides, so `"2358734848": false` still opts out); the standalone patch is removed. `bluez` added as a soft dependency (Arch optdepends, RPM/deb Suggests) since Web Bluetooth needs the daemon running.
+
 ## 2026-07-16
 
 ### Computer Use teach mode: display targeting and superseded-step fixes ([#200](https://github.com/patrickjaja/claude-desktop-bin/pull/200))

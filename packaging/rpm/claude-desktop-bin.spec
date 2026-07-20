@@ -84,6 +84,9 @@ Suggests:       ImageMagick
 Suggests:       ydotool
 # Faster Quick Entry toggle via socket (~2ms vs ~25ms python3 — not required)
 Suggests:       socat
+# Hardware Buddy (Nibblet BLE pet): the bluez daemon is what Web Bluetooth talks
+# to; without it running, the in-app device scan finds nothing. Soft dep.
+Suggests:       bluez
 # MCP servers requiring system Node.js
 Suggests:       nodejs
 # Credential storage backend for libsecret. Suggests (not Recommends) because
