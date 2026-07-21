@@ -45,8 +45,8 @@
 
 let
   # Updated automatically by CI (build-and-release.yml) on each release.
-  version = "1.22209.3";
-  hash = "sha256-AWIrSz2F5RNXj9oYX/kI+7pXC+jOtq6rdddiQM9ejxE="; # TODO: CI updates this hash after building the release tarball
+  version = "1.24012.0";
+  hash = "sha256-oSFvNUAeQhTYcOx32Fpl8NKtLRHhUVGQxr6u9iVtGII="; # TODO: CI updates this hash after building the release tarball
   # The release tarball ships the official Claude Desktop tree verbatim under
   # claude-desktop/ (Electron runtime + our patched resources/app.asar + CU
   # bridges), extracted from Anthropic's Linux .deb. On NixOS, however, that
