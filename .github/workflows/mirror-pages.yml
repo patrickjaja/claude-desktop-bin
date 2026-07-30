@@ -1,0 +1,71 @@
+# Legacy Pages mirror - keeps https://patrickjaja.github.io/claude-desktop-bin/
+# serving the apt/dnf repos for installs configured before the rename to
+# claude-desktop-extra. Triggered by the main repository after each release
+# (repository_dispatch) or by hand. Retire with the transition window.
+name: Mirror Pages from claude-desktop-extra
+
+on:
+  repository_dispatch:
+    types: [mirror-pages]
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "build-and-release run id in claude-desktop-extra to mirror (empty = latest successful)"
+        required: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages-mirror
+  cancel-in-progress: true
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Resolve source run id
+        id: src
+        env:
+          GH_TOKEN: ${{ secrets.LEGACY_MIRROR_TOKEN }}
+          DISPATCH_RUN_ID: ${{ github.event.client_payload.run_id }}
+          INPUT_RUN_ID: ${{ github.event.inputs.run_id }}
+        run: |
+          RUN_ID="${DISPATCH_RUN_ID:-${INPUT_RUN_ID}}"
+          if [ -z "$RUN_ID" ]; then
+            RUN_ID=$(gh api "repos/patrickjaja/claude-desktop-extra/actions/workflows/build-and-release.yml/runs?status=success&per_page=1" \
+              --jq '.workflow_runs[0].id')
+          fi
+          [ -n "$RUN_ID" ] || { echo "::error::could not resolve a source run id"; exit 1; }
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Download github-pages artifact from claude-desktop-extra
+        uses: actions/download-artifact@v4
+        with:
+          name: github-pages
+          repository: patrickjaja/claude-desktop-extra
+          run-id: ${{ steps.src.outputs.run_id }}
+          github-token: ${{ secrets.LEGACY_MIRROR_TOKEN }}
+          path: pages-artifact
+
+      - name: Unpack site tree
+        run: |
+          mkdir -p site
+          tar -xf pages-artifact/artifact.tar -C site
+          test -f site/deb/Packages || { echo "::error::mirror tree has no deb/Packages - refusing to deploy"; exit 1; }
+          test -f site/gpg-key.asc || { echo "::error::mirror tree has no gpg-key.asc - refusing to deploy"; exit 1; }
+          touch site/.nojekyll
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
